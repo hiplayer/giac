@@ -1,0 +1,3 @@
+simplify(int(1/cos(x),x));
+simplify(ln(a)-ln(c)+ln(b));
+int(1/(x^7-1),x);
