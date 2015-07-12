@@ -1,0 +1,8 @@
+MODULE := $(LOCAL_MODULE).a
+CC_FLAGS :=
+LD_FLAGS :=
+CC_FLAGS += -fPIC
+LD_FLAGS +=
+
+TARGET_TYPE := static
+include $(BUILD_INTERNAL)
