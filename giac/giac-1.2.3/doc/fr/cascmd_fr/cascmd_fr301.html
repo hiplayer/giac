@@ -1,0 +1,107 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN"
+            "http://www.w3.org/TR/REC-html40/loose.dtd">
+<HTML>
+<HEAD>
+
+<META http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<META name="GENERATOR" content="hevea 1.10">
+<LINK rel="stylesheet" type="text/css" href="cascmd_fr.css">
+<TITLE>Tableau de variation d’une fonction de ℝ dans ℝ : tabvar</TITLE>
+</HEAD>
+<BODY >
+<A HREF="cascmd_fr300.html"><IMG SRC="previous_motif.gif" ALT="Previous"></A>
+<A HREF="index.html"><IMG SRC="contents_motif.gif" ALT="Up"></A>
+<A HREF="cascmd_fr302.html"><IMG SRC="next_motif.gif" ALT="Next"></A>
+<HR>
+<H3 CLASS="subsection"><A NAME="htoc379">6.19.2</A>  Tableau de variation d’une fonction de ℝ dans ℝ : <TT>tabvar</TT></H3><P><A NAME="@default560"></A>
+<TT>tabvar(ex,x)</TT> où <TT>ex</TT> est une expression dépendant de <TT>x</TT>,
+renvoie le tableau de variation de la fonction <TT>f(x):=ex</TT> et trace son graph
+dans l’écran <TT>DispG</TT> (que l’on ouvre avec <TT>Cfg-&gt;Montrer-&gt;DispG</TT>).<BR>
+On tape :
+</P><DIV CLASS="center"><TT>tabvar(y</TT><CODE><TT>^</TT></CODE><TT>2-y-2,y)</TT></DIV><P>
+On obtient :<BR>
+en commentaire, on a les branches infinies ici branches paraboliques en 
++∞ et −∞, puis, 
+</P><TABLE CLASS="display dcenter"><TR VALIGN="middle"><TD CLASS="dcell">⎛<BR>
+⎜<BR>
+⎜<BR>
+⎜<BR>
+⎜<BR>
+⎜<BR>
+⎜<BR>
+⎜<BR>
+⎜<BR>
+⎜<BR>
+⎝</TD><TD CLASS="dcell"><TABLE CELLSPACING=6 CELLPADDING=0><TR><TD ALIGN=center NOWRAP><I>y</I></TD><TD ALIGN=center NOWRAP>−∞</TD><TD ALIGN=center NOWRAP>&nbsp;</TD><TD ALIGN=center NOWRAP><TABLE CLASS="display"><TR><TD CLASS="dcell" ALIGN="center">1</TD></TR>
+<TR><TD CLASS="hbar"></TD></TR>
+<TR><TD CLASS="dcell" ALIGN="center">2</TD></TR>
+</TABLE></TD><TD ALIGN=center NOWRAP>&nbsp;</TD><TD ALIGN=center NOWRAP>+∞  </TD></TR>
+<TR><TD ALIGN=center NOWRAP><I>y</I><SUP>2</SUP>−<I>y</I>−2</TD><TD ALIGN=center NOWRAP>+∞</TD><TD ALIGN=center NOWRAP>&nbsp;</TD><TD ALIGN=center NOWRAP><TABLE CLASS="display"><TR VALIGN="middle"><TD CLASS="dcell">−</TD><TD CLASS="dcell"><TABLE CLASS="display"><TR><TD CLASS="dcell" ALIGN="center">9</TD></TR>
+<TR><TD CLASS="hbar"></TD></TR>
+<TR><TD CLASS="dcell" ALIGN="center">4</TD></TR>
+</TABLE></TD></TR>
+</TABLE></TD><TD ALIGN=center NOWRAP>&nbsp;</TD><TD ALIGN=center NOWRAP>+∞  </TD></TR>
+<TR><TD ALIGN=center NOWRAP><TABLE CLASS="display"><TR VALIGN="middle"><TD CLASS="dcell"><I>expr</I></TD><TD CLASS="dcell">⎛<BR>
+⎝</TD><TD CLASS="dcell"><I>diff</I>(<I>y</I><TT>^</TT>2−<I>y</I>−2,<I>y</I>),0</TD><TD CLASS="dcell">⎞<BR>
+⎠</TD><TD CLASS="dcell">=(2· <I>y</I>−1)</TD></TR>
+</TABLE></TD><TD ALIGN=center NOWRAP>−∞</TD><TD ALIGN=center NOWRAP>−</TD><TD ALIGN=center NOWRAP>0</TD><TD ALIGN=center NOWRAP>+</TD><TD ALIGN=center NOWRAP>+∞ </TD></TR>
+</TABLE></TD><TD CLASS="dcell">⎞<BR>
+⎟<BR>
+⎟<BR>
+⎟<BR>
+⎟<BR>
+⎟<BR>
+⎟<BR>
+⎟<BR>
+⎟<BR>
+⎟<BR>
+⎠</TD></TR>
+</TABLE><P>
+On tape :
+</P><DIV CLASS="center"><TT>tabvar((2t-1)/(t+1),t)</TT></DIV><P>
+On obtient :<BR>
+en commentaire, on a les branches infinies ici :
+Vertical asymptote x=-1, Horizontal asymptote y=2, Horizontal asymptote y=2<BR>
+puis,
+</P><TABLE CLASS="display dcenter"><TR VALIGN="middle"><TD CLASS="dcell">⎛<BR>
+⎜<BR>
+⎜<BR>
+⎜<BR>
+⎜<BR>
+⎜<BR>
+⎜<BR>
+⎜<BR>
+⎜<BR>
+⎜<BR>
+⎝</TD><TD CLASS="dcell"><TABLE CELLSPACING=6 CELLPADDING=0><TR><TD ALIGN=center NOWRAP><I>t</I></TD><TD ALIGN=center NOWRAP>−∞</TD><TD ALIGN=center NOWRAP>&nbsp;</TD><TD ALIGN=center NOWRAP>−1</TD><TD ALIGN=center NOWRAP>&nbsp;</TD><TD ALIGN=center NOWRAP>&nbsp;</TD><TD ALIGN=center NOWRAP>+∞  </TD></TR>
+<TR><TD ALIGN=center NOWRAP><TABLE CLASS="display"><TR><TD CLASS="dcell" ALIGN="center">2· <I>t</I>−1</TD></TR>
+<TR><TD CLASS="hbar"></TD></TR>
+<TR><TD CLASS="dcell" ALIGN="center"><I>t</I>+1</TD></TR>
+</TABLE></TD><TD ALIGN=center NOWRAP>2</TD><TD ALIGN=center NOWRAP>&nbsp;</TD><TD ALIGN=center NOWRAP>+∞</TD><TD ALIGN=center NOWRAP>−∞</TD><TD ALIGN=center NOWRAP>&nbsp;</TD><TD ALIGN=center NOWRAP>2 </TD></TR>
+<TR><TD ALIGN=center NOWRAP><TABLE CLASS="display"><TR VALIGN="middle"><TD CLASS="dcell"><I>expr</I></TD><TD CLASS="dcell">⎛<BR>
+⎝</TD><TD CLASS="dcell"><I>diff</I>((2*<I>t</I>−1)/(<I>t</I>+1),<I>t</I>),0</TD><TD CLASS="dcell">⎞<BR>
+⎠</TD><TD CLASS="dcell">=(</TD><TD CLASS="dcell"><TABLE CLASS="display"><TR><TD CLASS="dcell" ALIGN="center">−2· <I>t</I>+1+2· (<I>t</I>+1)</TD></TR>
+<TR><TD CLASS="hbar"></TD></TR>
+<TR><TD CLASS="dcell" ALIGN="center"><TABLE CLASS="display"><TR VALIGN="middle"><TD CLASS="dcell">⎛<BR>
+⎝</TD><TD CLASS="dcell"><I>t</I>+1</TD><TD CLASS="dcell">⎞<BR>
+⎠</TD><TD CLASS="dcell"><SUP>2</SUP></TD></TR>
+</TABLE></TD></TR>
+</TABLE></TD><TD CLASS="dcell">)</TD></TR>
+</TABLE></TD><TD ALIGN=center NOWRAP>0</TD><TD ALIGN=center NOWRAP>+</TD><TD ALIGN=center NOWRAP>||</TD><TD ALIGN=center NOWRAP>||</TD><TD ALIGN=center NOWRAP>+</TD><TD ALIGN=center NOWRAP>0</TD></TR>
+</TABLE></TD><TD CLASS="dcell">⎞<BR>
+⎟<BR>
+⎟<BR>
+⎟<BR>
+⎟<BR>
+⎟<BR>
+⎟<BR>
+⎟<BR>
+⎟<BR>
+⎟<BR>
+⎠</TD></TR>
+</TABLE><HR>
+<A HREF="cascmd_fr300.html"><IMG SRC="previous_motif.gif" ALT="Previous"></A>
+<A HREF="index.html"><IMG SRC="contents_motif.gif" ALT="Up"></A>
+<A HREF="cascmd_fr302.html"><IMG SRC="next_motif.gif" ALT="Next"></A>
+</BODY>
+</HTML>

@@ -1,0 +1,53 @@
+<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN"
+            "http://www.w3.org/TR/REC-html40/loose.dtd">
+<HTML>
+<HEAD>
+
+<META http-equiv="Content-Type" content="text/html; charset=UTF-8">
+<META name="GENERATOR" content="hevea 1.10">
+<LINK rel="stylesheet" type="text/css" href="cascmd_fr.css">
+<TITLE>Polynôme de Hermite : hermite</TITLE>
+</HEAD>
+<BODY >
+<A HREF="cascmd_fr412.html"><IMG SRC="previous_motif.gif" ALT="Previous"></A>
+<A HREF="index.html"><IMG SRC="contents_motif.gif" ALT="Up"></A>
+<A HREF="cascmd_fr414.html"><IMG SRC="next_motif.gif" ALT="Next"></A>
+<HR>
+<H3 CLASS="subsection"><A NAME="htoc502">6.30.2</A>  Polynôme de Hermite : <TT>hermite</TT></H3><P><A NAME="@default767"></A>
+<TT>hermite</TT> deux fonctionnalités :
+</P><OL CLASS="enumerate" type=1><LI CLASS="li-enumerate">
+<TT>hermite</TT> a comme argument un entier <I>n</I> et èventuellement le 
+nom de la variable (<I>x</I> par défaut).<BR>
+<TT>hermite</TT> renvoie le polynôme de Hermite de degré <I>n</I>.<BR>
+Le polynôme de Hermite de degré <I>n</I> noté <I>P</I>(<I>n</I>,<I>x</I>) vérifie les relations
+:<BR>
+<I>P</I>(0,<I>x</I>)=1<BR>
+<I>P</I>(1,<I>x</I>)=2<I>x</I><BR>
+<I>P</I>(<I>n</I>,<I>x</I>)=2<I>xP</I>(<I>n</I>−1,<I>x</I>)−2(<I>n</I>−1)<I>P</I>(<I>n</I>−2,<I>x</I>)<BR>
+Ces polynômes sont orthogonaux pour le produit scalaire :<BR>
+&lt;<I>f</I>,<I>g</I>&gt;=∫<SUB>−∞</SUB><SUP>+∞</SUP><I>f</I>(<I>x</I>)<I>g</I>(<I>x</I>)<I>e</I><SUP>−<I>x</I><SUP>2</SUP></SUP><I>dx</I><BR>
+On tape :
+<DIV CLASS="center"><TT>hermite(6)</TT></DIV>
+On obtient :
+<DIV CLASS="center"><TT>64*x</TT><CODE><TT>^</TT></CODE><TT>6+-480*x</TT><CODE><TT>^</TT></CODE><TT>4+720*x</TT><CODE><TT>^</TT></CODE><TT>2-120</TT></DIV>On tape :
+<DIV CLASS="center"><TT>hermite(6,y)</TT></DIV>
+On obtient :
+<DIV CLASS="center"><TT>64*y</TT><CODE><TT>^</TT></CODE><TT>6+-480*y</TT><CODE><TT>^</TT></CODE><TT>4+720*y</TT><CODE><TT>^</TT></CODE><TT>2-120</TT></DIV>
+</LI><LI CLASS="li-enumerate"><TT>hermite</TT> a comme argument une matrice <TT>A</TT> à coefficients polynomiaux.<BR>
+<TT>hermite</TT> renvoie la forme normale de Hermite de la matrice <TT>A</TT>.<BR>
+Si les matrices <TT>I</TT> et <TT>U</TT> sont définies par <TT>I,U:=hermite(A)</TT>, 
+on a <TT>I*A=U</TT>.<BR>
+On tape :
+<DIV CLASS="center"><TT>n:=5; a:=ranm(n,n) % 17; </TT></DIV>
+<DIV CLASS="center"><TT>I,U:=hermite(x-a)</TT></DIV>
+On obtient :
+
+On tape :
+<DIV CLASS="center"><TT>normal(I*(x-a)-U)</TT></DIV>
+On obtient :
+<DIV CLASS="center"><TT>0</TT></DIV></LI></OL><HR>
+<A HREF="cascmd_fr412.html"><IMG SRC="previous_motif.gif" ALT="Previous"></A>
+<A HREF="index.html"><IMG SRC="contents_motif.gif" ALT="Up"></A>
+<A HREF="cascmd_fr414.html"><IMG SRC="next_motif.gif" ALT="Next"></A>
+</BODY>
+</HTML>
