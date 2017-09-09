@@ -4,7 +4,7 @@ include $(CLEAR_VARS)
 
 LOCAL_MODULE := giac
 
-GIAC_DIR:=giac-1.2.2
+GIAC_DIR:=giac-1.2.3
 
 LOCAL_SRC_FILES:= \
 	$(GIAC_DIR)/src/input_lexer.cc \
@@ -59,7 +59,6 @@ LOCAL_SRC_FILES:= \
 	$(GIAC_DIR)/src/help.cc \
 	$(GIAC_DIR)/src/History.cc \
 	$(GIAC_DIR)/src/Input.cc \
-	$(GIAC_DIR)/src/Xcas1.cc \
 	$(GIAC_DIR)/src/Equation.cc \
 	$(GIAC_DIR)/src/Print.cc \
 	$(GIAC_DIR)/src/Tableur.cc \
@@ -78,6 +77,7 @@ LOCAL_SRC_FILES:= \
 	$(GIAC_DIR)/src/Flv_Table.cc \
 	$(GIAC_DIR)/src/gl2ps.cc \
 	$(GIAC_DIR)/src/icas.cc \
+	#$(GIAC_DIR)/src/Xcas1.cc \
 
 LOCAL_CFLAGS := \
 	-DHAVE_CONFIG_H -DIN_GIAC -fno-strict-aliasing -DGIAC_GENERIC_CONSTANTS
@@ -89,6 +89,7 @@ LOCAL_C_INCLUDES := \
 	$(LOCAL_CFLAGS) \
 	-I./$(GIAC_DIR)/src \
 	-I./$(GIAC_DIR) \
+	-I. \
 	-I../libtommath/libtommath-0.39 \
 
 LOCAL_STATIC_LIBRARIES := \

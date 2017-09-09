@@ -81,6 +81,10 @@ $(BUILDDIR)/%.o: %.cc
 	mkdir -p $(@D)
 	$(CPP) $(CC_FLAGS) -c $< -o $@
 
+$(BUILDDIR)/%.o: %.C
+	mkdir -p $(@D)
+	$(CPP) $(CC_FLAGS) -c $< -o $@
+
 -include $(DEPENDS)
 
 my_CLEAN=$(MODULE)_clean

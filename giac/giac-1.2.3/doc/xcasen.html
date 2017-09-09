@@ -1,0 +1,2510 @@
+<!DOCTYPE HTML>
+<html id="fulldocument" >
+<head>
+<meta charset="utf-8">
+<meta name=viewport content="width=device-width, initial-scale=1">
+<meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+<title>
+Session_Xcas
+</title>
+
+<style>
+.emscripten { padding-right: 0; margin-left: auto; margin-right: auto; display: block; }
+canvas.emscripten { border: 1px solid black; }
+textarea.emscripten { font-family: monospace; width: 100%; }
+div.emscripten { text-align: center; }
+</style>
+
+<style id="document_style" type="text/css">
+h1,h2,h3 { display:inline; font-size:1em;}
+input[type="number"] {
+   width:40px;
+}
+.outdiv {
+width: 410px;
+max-height: 200px;
+  overflow: auto;
+}
+.filenamecss {
+width:120px;
+height:20px
+}
+.historyinput {
+width:400px;
+}
+
+</style>
+
+</head>
+
+<body>
+<script language="javascript">
+if ('serviceWorker' in navigator) {
+  navigator.serviceWorker.register('service-worker.js');
+}
+
+KEY_DOWN	= 40;
+KEY_UP		= 38;
+KEY_LEFT	= 37;
+KEY_RIGHT	= 39;
+
+KEY_END		= 35;
+KEY_BEGIN	= 36;
+
+
+
+KEY_BACK_TAB 	= 8;
+KEY_TAB				= 9;
+KEY_SH_TAB  	= 16;
+KEY_ENTER			= 13;
+KEY_ESC				= 27;
+KEY_SPACE			= 32;
+KEY_DEL				= 46;
+
+KEY_A		= 65;
+KEY_B		= 66;
+KEY_C		= 67;
+KEY_D		= 68;
+KEY_E		= 69;
+KEY_F		= 70;
+KEY_G		= 71;
+KEY_H		= 72;
+KEY_I		= 73;
+KEY_J		= 74;
+KEY_K		= 75;
+KEY_L		= 76;
+KEY_M		= 77;
+KEY_N		= 78;
+KEY_O		= 79;
+KEY_P		= 80;
+KEY_Q		= 81;
+KEY_R		= 82;
+KEY_S		= 83;
+KEY_T		= 84;
+KEY_U		= 85;
+KEY_V		= 86;
+KEY_W		= 87;
+KEY_X		= 88;
+KEY_Y		= 89;
+KEY_Z		= 90;
+
+KEY_PF1		= 112;
+KEY_PF2		= 113;
+KEY_PF3		= 114;
+KEY_PF4		= 115;
+KEY_PF5		= 116;
+KEY_PF6		= 117;
+KEY_PF7		= 118;
+KEY_PF8		= 119;
+
+REMAP_KEY_T	= 5019;
+	
+function checkEventObj ( _event_ ){
+	// --- IE explorer
+	if ( window.event )
+		return window.event;
+	// --- Netscape and other explorers
+	else
+		return _event_;
+}
+	
+function applyKey (_event_){	
+ // --- Retrieve event object from current web explorer
+ var winObj = checkEventObj(_event_);	
+ var intKeyCode = winObj.keyCode;
+ var intAltKey = winObj.altKey;
+ var intCtrlKey = winObj.ctrlKey;
+ // raccourcis avec Alt
+ // F1 aide, c cmdline, m menu, 
+ if (intAltKey) {
+   var done=false;
+   if (intKeyCode == KEY_D || intKeyCode == KEY_B || intKeyCode == KEY_RIGHT){
+    UI.move_focus(UI.focused,1);
+    done=true;
+   }		
+   if (intKeyCode == KEY_G || intKeyCode == KEY_V || intKeyCode == KEY_LEFT){
+    UI.move_focus(UI.focused,-1);
+    done=true;
+   }
+   if (intKeyCode == KEY_N || intKeyCode == KEY_DOWN){
+    UI.move_focus(UI.focused,1); UI.move_focus(UI.focused,1);
+    done=true;
+   }
+   if (intKeyCode == KEY_P || intKeyCode == KEY_UP){
+    UI.move_focus(UI.focused,-1); UI.move_focus(UI.focused,-1);
+    done=true;
+   }
+   if (intKeyCode == KEY_A){
+    document.getElementById('helptxt').focus();
+    done=true;
+   }
+   if (intKeyCode == KEY_C){
+    cmentree.focus();
+    done=true;
+   }
+   if (intKeyCode == KEY_M){
+    UI.show_menu();
+    done=true;
+   }
+   if (intKeyCode == KEY_T || intKeyCode==KEY_TAB || intKeyCode==KEY_PF1){
+    UI.completion(cmentree);
+    done=true;
+   }
+   if (done){
+    // --- Map the keyCode in another keyCode not used
+    winObj.keyCode = REMAP_KEY_T;
+    winObj.returnValue = false;
+    return false;
+   }
+ }	
+}
+
+document.onkeydown = applyKey;
+
+</script>
+
+<script language="javascript">
+  var ua = window.navigator.userAgent;
+  var old_ie = ua.indexOf('MSIE ');
+  var new_ie = ua.indexOf('Trident/');
+  if ((old_ie > -1) || (new_ie > -1) || Boolean(window.chrome)){
+ (function () {
+  var script = document.createElement("script");
+  script.type = "text/javascript";
+  script.src  = "https://cdnjs.cloudflare.com/ajax/libs/mathjax/2.7.0/MathJax.js?config=TeX-AMS-MML_HTMLorMML";
+  document.getElementsByTagName("head")[0].appendChild(script);
+})();
+}
+</script>
+
+<div id="startup1" style="display:none">
+  To display the <strong>tutorial</strong>, click on <button style="height:25px"  
+  onclick="if(document.getElementById('help').style.display=='none')
+  document.getElementById('help').style.display='block';
+  else document.getElementById('help').style.display='none';"
+  title="Show or hide tutorial">Tuto</button>.
+</div>
+<div id="startup">
+  If Xcas does not work correctly, <a href="https://en.wikipedia.org/wiki/Wikipedia:Bypass_your_cache#Cache_clearing_and_disabling">clear your browser cache</a> and reload.
+<hr>
+</div>
+
+<span id="apropos" style="display:none">
+This is a full web-based CAS.
+It does not need any server,
+all the computations are done locally with the javascript
+engine of your browser (requires Firefox version 19 or later,
+or Safari,
+the latest version of Firefox is recommended for good performances).
+The code of the CAS is 12M, it is downloaded once then kept in your
+browser cache
+(giac.js javascript 
+  compiled from native <a href="http://www-fourier.ujf-grenoble.fr/~parisse/giac/emgiac.tgz">Giac/Xcas</a> by emscripten).
+  The javascript code is at least 2 times slower than the native 
+code, and sometimes much slower (e.g. 8 times slower
+for computing a Groebner basis like cyclic7). Most of the time
+it is fast enough,
+but it is recommended to run large computations with
+  <a href="http://www-fourier.ujf-grenoble.fr/~parisse/giac.html">Xcas</a>!
+<br>
+  Giac/Xcas, (c) B. Parisse, R. De Graeve, Institut Fourier,
+Université de Grenoble I., licensed under the GPL3, for commercial
+licenses contact us.
+Program editor <a href="http://codemirror.net">CodeMirror</a>,
+Initial Mathml and SVG code by J.P. Branchard.
+<br>
+<button onclick="parentNode.style.display='none'">Hide</button>
+<hr>
+</span>
+
+<form id="config" style="display:none" onsubmit="setTimeout(function(){
+  UI.set_config();
+}); return false">
+<b>Configuration</b>
+<table>
+  <tr>
+    <td>
+      Digits:<input style="height:25px" type="number" name="digits_mode" title="Number of decimal digits (if &gt; 14 multiprecision, slower computation)" value=12>
+      Autosimplify: <input style="height:25px" type="number" name="autosimp_level"
+  title="0: none, 1: minimum, 2: maximum" value=1 max=2 min=0>
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <input style="height:25px" type="button" value="Radians" onclick="angle_mode.checked=!angle_mode.checked;"> <input style="height:25px" type="checkbox" name="angle_mode" title="Check for radians, uncheck for degrees" checked>,
+      <input style="height:25px" type="button" value="Complexe" onclick="complex_mode.checked=!complex_mode.checked"> <input style="height:25px" type="checkbox" name="complex_mode" title="Check for default base field = complexes">,
+      <input style="height:25px" type="button" value=" √ " onclick="sqrt_mode.checked=!sqrt_mode.checked"> <input style="height:25px" type="checkbox" name="sqrt_mode" title="Check : always factor degree 2 polynomials">,
+      <input style="height:25px" type="button" value="step" onclick="step_mode.checked=!step_mode.checked">  <input style="height:25px" type="checkbox" name="step_mode" title="Check to display details for some computations" checked>,
+      <input style="height:25px" type="button" value="worker" onclick="worker_mode.checked=!worker_mode.checked"> <input style="height:25px" type="checkbox" name="worker_mode" title="Check to run computation by a webworker">
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <input style="height:25px" type="button" value="2d" onclick="prettyprint.checked=!prettyprint.checked"> <input style="height:25px" type="checkbox" name="prettyprint"
+      title="Check for pretty print" checked>,
+      <input style="height:25px" type="button" value="Q/A on same line" onclick="qa.checked=!qa.checked">  <input style="height:25px" type="checkbox" name="qa"
+  title="Check to display commands and results on the same level">,
+      <input style="height:25px" type="button" value="Syntax highlight" onclick="usecm.checked=!usecm.checked"> <input style="height:25px" type="checkbox" name="usecm"
+  title="Syntax highlight during edit of history levels">,
+    </td>
+  </tr>
+  <tr>
+    <td>
+      History <input style="height:25px" type="number" name="history_width" value=1000
+        title="Max history width">
+      x <input style="height:25px" type="number" name="history_height" value=400
+  title="Max history height">      
+      Output <input style="height:25px" type="number" name="outdiv_width" value=410
+  title="Max width for an output field">
+      x <input style="height:25px" type="number" name="outdiv_height" value=200
+  title="Max height for an output field">      
+    </td>
+  </tr>
+  <tr>
+    <td colspan=3>
+      Documentation <input style="height:25px" type="checkbox" name="online_doc"
+  title="Check for online doc (if Xcas is not installed)" checked>online
+      <input style="height:25px" type="text" name="doc_path" size="60"
+  value="/usr/share/giac/doc/en/cascmd_en/"
+  title="Documentation path (appropriate for linux, on mac add /Applications)">
+      </td>
+    </tr>
+  </table>
+<input style="height:25px" type="button" value="cancel" onclick="form.style.display='none';  UI.focused.focus();">
+  <input style="height:25px" type="submit" value="ok">
+  <hr>
+</form>
+  
+<span id="manuels" style="display:none">
+  Xcas manuals <button style="height:25px" 
+  onclick="document.getElementById('manuels').style.display='none';">Hide</button>
+  <ul>
+    <li> Reference :
+  <a href="file:///usr/share/giac/doc/en/cascmd_en/index.html"
+    target="_blank">hard disk</a>,
+  <a href="http://www-fourier.ujf-grenoble.fr/~parisse/giac/doc/en/cascmd_en/index.html"
+  target="_blank">Internet</a>,
+    </li>
+  </ul>
+  </span>
+  
+<table>
+  <tr>
+    <th rowspan=2>
+      <button onclick="if(document.getElementById('apropos').style.display=='none')
+      document.getElementById('apropos').style.display='block';
+      else document.getElementById('apropos').style.display='none';"
+      title="Show/hide informations about Xcas in your browser">
+      <img WIDTH="48" HEIGHT="48" SRC="logo.png" alt="Xcas">
+      </button>
+    </th>
+    <td>
+      <button style="height:25px" onclick="UI.show_config()"
+      title="Change configuration">Config</button>
+      <h3>Session</h3>
+      <span id='thelink'></span>
+      <span id='themailto'></span>
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <button id="loadbutton_cookie" style="height:25px" title=""Click here to append a saved session to the current history" onclick="document.getElementById('loadfile_cookie').innerHTML=UI.listCookies();">Load</button>
+      <span id="startup_restore" style="display:none">
+      Previous session inputs 
+      <button style="height:25px" onclick="var s=UI.readCookie('xcas_session');UI.restoresession(s,document.getElementById('mathoutput'),true,false);">without</button>
+      or <button style="height:25px" onclick="var s=UI.readCookie('xcas_session');UI.restoresession(s,document.getElementById('mathoutput'),false,false);">with</button> evaluation
+      </span>
+      <span id="loadfile_cookie"></span>	
+      <button id="loadbutton_file" style="height:25px;display:none" title="Click here to append a saved session to the current history" onclick='document.getElementById("loadfile").reset();document.getElementById("loadfile").style.display="block";'>Insert</button>
+      <form id="loadfile" style="display:none">
+      <input id="loadfileinput" accept=".xw" type="file" onchange="UI.loadfile(this.files);document.getElementById('loadfile').style.display='none'">
+      <input type="text" value="cancel" onclick="form.style.display='none'">
+      <input type="submit" value="ok" style="display:none">
+      </form>
+      <span id="history1" style="visibility:hidden">
+      <button id="exportbutton" style="height:25px" title="Click here to export the session as a HTML file (filename in the next text field)" onclick='UI.savesession(1);'>Export</button>
+      <button style="height:25px" title="Click here to save the session (filename in the next text field)" onclick="if (document.getElementById('loadbutton_file').style.display=='none') UI.savesession(2); else UI.savesession(0);">Save</button>
+      <textarea id="outputfilename" class="filenamecss"
+      style="font-size:large" title="Filename. If you want to overwrite files with Firefox, check Ask always... in Settings, General, Download">session</textarea>
+      </span>
+    </td>
+  </tr>
+</table>
+<span id="help" style="display:none">
+<button style="height:25px" 
+onclick="document.getElementById('help').style.display='none';">Hide tutorial</button>
+<br>
+A typical Xcas session will consist in entering commandlines that will
+appear in the history. Sometimes you will also edit an already entered
+command and reevaluate it.
+The screen is divided in
+<ul>
+  <li> A panel of buttons to load a session, see manuals and
+  configure. Once the history is non empty, additional buttons appear:
+  save or export session, a link that you can hit to e-mail or clone a session
+  (for example if your session crashed) or copy/paste, history/trash
+  and variables handling.
+  You can partially open an existing PC Xcas session from the File, Clone
+  menu of the Xcas program (or <tt>xcas --online filename.xws</tt>).
+
+  </li>
+  <li> The <b>help area</b> where you will find short descriptions of
+  commands you asked for.
+  </li>
+  <li> The <b>history</b> (empty when you start) divided into levels. You can
+  move level up and down (button at the left). You can edit a level
+  and reevaluate it (press Enter). You can move one level to the
+  trash (press backspace button at the right), and empty the trash
+  or recover levels in the trash (panel of buttons above).
+  </li>
+  <li> A <b>commandline</b> with buttons that will help you fill the
+  commandline. You can show a <b>scientific or/and tool keyboard</b> (press the
+  123 or menu button), then move the mouse near a button to have
+  a short explanation on the corresponding command. You can enter
+  the beginning of a command then press Tab or hit the ? button, this
+  will show <b>completions</b> in the history. If you entered a valid Xcas command,
+  a short online help will be displayed with examples, hit the
+  corresponding buttons to copy one example, modify arguments and hit
+  Enter to run the commandline.
+  <br>
+  Example of simple computation <tt>1/2+1/3</tt> or <tt>sin(pi/4)</tt>
+  or <tt>sin(pi/4.0)</tt>.
+  <br> Example of CAS computation, press <tt>menu</tt> then
+  <tt>factor</tt> then <tt>?</tt>, observe the online help on the top
+  of the page, you can click one example and modify it or just enter
+  your expression to factor like <tt>x^4-1</tt>, then press Enter.
+  <br>Additionnaly, inside Firefox on a PC, right-click will show a
+  menu of many Xcas commands. See also <a href="#examples">below</a>
+  for a few examples.
+  </li>
+  <li> A <b>console</b>, with messages from the CAS : parse errors or while
+  running step by step commands like derivative. You can clear the console
+  and control the height of the console.</li>
+  <li> a Graph3d button to show or hide controls for the 3d graph
+  canvas.
+  </li>
+</ul>
+<a name="examples"><b>Examples of input:</b></a> 
+<ul>
+  <li> Algebra : You can expand an expression with
+  <button onclick="Module.insert(entree,'normal(')"><tt>normal</tt></button>
+  for example <button
+  onclick="Module.insert(entree,'(x+1)^4')"><tt>(x+1)^4</tt></button>.
+  Conversely,
+  <button
+  onmousedown="event.preventDefault()" onClick="Module.insert(entree,'factor(')"><tt>factor(</tt></button>
+  or <button
+  onmousedown="event.preventDefault()" onClick="Module.insert(entree,'cfactor(')"><tt>cfactor(</tt>)</button>
+  factors an expression (like <button
+  onmousedown="event.preventDefault()" onClick="Module.insert(entree,'x^4-1')"><tt>x^4-1</tt></button>)
+  over Q or Q[i]. 
+    <br> <tt>simplify(sin(3x)/sin(x)); gcd(x^4-1,x^3-1) </tt>
+  </li>
+  <li> Solve equations :
+    <tt> solve(x^2-3*x+2=0); csolve(x^2=2*i);
+  solve([x+y=1,x-y=3],[x,y]) </tt>
+  </li>
+  <li>Calculus :
+    <tt> f(x):=sin(x^2):; f(sqrt(pi)); f'(2); f'(y) 
+    <br> int(1/(x^4-1)); int(1/(x^4+1)^4,x,0,+infinity) 
+  <br> limit(sin(x)/x,x=0); series(sin(x),x=0,5);</tt>
+  </li>
+  <li> Linear algebra :
+    <tt> A:=[[1,2],[3,4]]; inv(A); det(A-x*idn(A)); A[0,0]; rref(A);
+  eigenvalues(A); eigenvectors(A);</tt>
+  </li>
+  <li> Plots :
+  <tt>plot([sin(x),x-x^3/3!],x=-3..3,color=[red,blue])
+  <br> plotfunc(x^2-y^2,[x=-2..2,y=-2..2]); plane(z=0,color=cyan+filled);
+  </tt>
+</ul>
+<br>
+Some features are disabled by default on mobile devices.
+Note also that Chrome mobile (default
+browser on Android devices) is much
+slower than Firefox (about 5 times slower), it freezes about ten seconds during
+the first evaluation. Moreover Chrome does not support mathml
+natively, it requires Mathjax to display 2d formula, this requires
+net access and works only if Xcas is installed on the device.
+<br><b>It is highly recommended to download Firefox and run Xcas from Firefox.</b>
+<br>
+  If you want to <strong>install</strong> Xcas on your device, unzip
+  <a href="http://www-fourier.ujf-grenoble.fr/~parisse/giac/xcashtml.zip">
+  xcashtml.zip</a> and search
+  <tt>xcasen.html</tt>, from
+  <a href="file:///sdcard/">here</tt></a> (Android).
+  <br>
+<b>On mobile devices, the builtin keyboard delete key is incompatible
+with the commandline, please use the del key above.</b><br>
+<button
+onclick="document.getElementById('help').style.display='none';">Hide tutorial</button>
+</span>
+
+<div>
+<button style="height:25px"  
+  onclick="if(document.getElementById('help').style.display=='none')
+  document.getElementById('help').style.display='block';
+  else document.getElementById('help').style.display='none';"
+title="Show or hide tutorial">Tuto</button>
+<button style="height:25px" 
+  onclick="document.getElementById('manuels').style.display='block';"
+title="Show or hide the list of manuals">Docs</button>
+  <button style="width:45px;height:25px;vertical-align:top" onclick="UI.addhelp('?',document.getElementById('helptxt').value)">?</button>
+  <textarea cols="12" style="height:25px;font-size:large" id="helptxt" rows=1 onclick="UI.focused=this;" onkeypress="if (event.keyCode!=13) return true;UI.addhelp('?',value); return false;"></textarea>
+  <button style="width:45px;height:25px;vertical-align:top" onclick="helpoutput.innerHTML='';document.getElementById('helptxt').value='';document.getElementById('helptxt').focus();">Del</button>
+</div>
+  
+<div id="divhelpoutput" style="max-height: 200px; overflow:auto">
+<table id="helpoutput" title="Aide"
+  style="max-width:1000px "></table>
+</div>
+<div id="history4" style="display:none">
+  <h3>Variables</h3>
+  <button style="height:25px"  name="add_purge" 
+  onmousedown="event.preventDefault()"
+  onClick="UI.insert(UI.focused,'purge(')" title="Clear content of one or more variables, for example purge(a) or purge(a,b,c)">purge</button>
+  <button style="height:25px" onclick="UI.addhelp(' ','VARS(1)')" title="Show list of variables/values">List</button>
+  <button style="height:25px" onclick="UI.addhelp(' ','rm_all_vars(1)')" title="Erase content for all variables">Erase</button>
+</div>
+<hr>
+
+<div id="history2" style="display:none">
+  <h3>History</h3>
+  <button style="height:25px" onclick="UI.exec(document.getElementById('mathoutput'),0)"
+title="Evaluate all levels">Eval</button>
+  <button style="height:25px" onclick="UI.show_answers(true)" title="Show answers">+</button>
+  <button style="height:25px" onclick="UI.show_answers(false)" title="Hide answers">-</button>
+  <button style="height:25px" onclick="UI.erase_all(document.getElementById('mathoutput'))"
+title="Move all levels to trash">Clear</button>
+  <br>
+  <h3>Trash</h3>
+  <button style="height:25px" onclick="UI.restoretrash()" title="Restore history levels from trash">Restore</button>
+  <button style="height:25px" onclick="UI.emptytrash()" title="Empty trash">Empty</button>
+</div>
+
+<div id="divoutput" style="max-height: 400px; overflow:auto">
+<table id="mathoutput" contextmenu="cmdmenu" title="History"
+  style="max-width:1000px "  ></table>
+</div>
+
+
+<table border="0" align="center" summary="" id="keyboard"
+  style="display:none" onmousedown="event.preventDefault()" >
+  <tr>
+    <td>  
+      <input type="button" style="width:30px;height:35px;"  name="add_newline" id="add_newline" value="\n" onmousedown="event.preventDefault()" onClick ="UI.insert(UI.focused,' \n')">  
+      <input type="button" style="width:30px;height:35px" name="add_'" id="add_'" value="'" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'\'')">
+      <input type="button" style="width:30px;height:35px" name="add_,"
+id="add_,"
+  value="," onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,',')" title="Comma is a separator inside vectors">  
+      <input type="button" style="width:30px;height:35px" name="add_left_paren" id="add_left_paren" value="(" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'(')">  
+      <input type="button" style="width:30px;height:35px"
+      name="add_right_paren" id="add_right_paren" value=")"
+      onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,')')">
+      <input type="button" style="width:30px;height:35px" name="add_i"
+id="add_i"
+  value="i" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'i')" title="Complex number square root of -1">
+      <input type="button" style="width:30px;height:35px" name="add_7" id="add_7" value="7" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'7')">  
+      <input type="button" style="width:30px;height:35px" name="add_8" id="add_8" value="8" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'8')">  
+      <input type="button" style="width:30px;height:35px" name="add_9" id="add_9" value="9" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'9')">  
+      <input type="button" style="width:30px;height:35px" name="add_/"
+id="add_/"
+  value="/" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'/')" title="Division. Type // for a comment">  
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <input type="button" style="width:30px;height:35px" name="add_x" id="add_x" value="x" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'x')" title="x">  
+      <input type="button" style="width:30px;height:35px" name="add_y"
+id="add_y"
+  value="y" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'y')" title="y">  
+      <input type="button" style="width:30px;height:35px"
+      name="add_semi" id="add_semi" value=";" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,' ;')"
+  title="Semicolumn must be used at the end of instructions inside programs or to evaluate several instructions once.">
+      <input type="button" style="width:30px;height:35px"
+  name="add_left_[" id="add_left_[" value="[]" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'[]');UI.moveCaret(UI.focused,-1);"
+  title="[ is an open delimiter for vectors, lists and matrices, for example [1,2,3] or [[1,2],[3,4]]">  
+      <input type="button" style="width:29px;height:35px;"
+  id="add_abs" value="|.|" onmousedown="event.preventDefault()"
+  onClick="UI.insert(UI.focused,'abs(')" title="Absolute value">  
+      <input type="button" style="width:30px;height:35px" name="add_pi" id="add_pi" value="π" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'pi')">
+      <input type="button" style="width:30px;height:35px" name="add_4" id="add_4" value="4" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'4')">  
+      <input type="button" style="width:30px;height:35px" name="add_5" id="add_5" value="5" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'5')">  
+      <input type="button" style="width:30px;height:35px" name="add_6" id="add_6" value="6" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'6')">  
+      <input type="button" style="width:30px;height:35px" name="add_*" id="add_*" value="*" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'*')">  
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <input type="button" style="width:29px;height:35px;"
+  id="add_beg"
+  value="beg" onmousedown="event.preventDefault()"
+  onClick="UI.setselbeg(UI.focused);" title="Selection begin">  
+      <input type="button" style="width:29px;height:35px;"
+  id="add_end"
+  value="end" onmousedown="event.preventDefault()"
+  onClick="UI.setselend(UI.focused)" title="Selection end">  
+      <input type="button" style="width:30px;height:35px" name="add_:"
+id="add_:"
+  value=":" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,' :=')" title=":= is the affectation operator, for example a:=pi/2; sin(a)">
+      <input type="button" style="width:30px;height:35px"
+  name="add_left_{" id="add_left_{" value="{}" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'{}');UI.moveCaret(UI.focused,-1);"
+  title="{ is an opening bloc delimiter in programs">  
+      <input type="button" style="width:30px;height:35px" name="add_!" id="add_!" value="!" onClick ="UI.insert(UI.focused,'!')">  
+      <input type="button" style="width:30px;height:35px" name="add_∞" id="add_∞" value="∞" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'∞')" title="+∞. Note that infinity is unsigned complex infinity.">
+      <input type="button" style="width:30px;height:35px" name="add_1" id="add_1" value="1" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'1')">  
+      <input type="button" style="width:30px;height:35px" name="add_2" id="add_2" value="2" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'2')">  
+      <input type="button" style="width:30px;height:35px" name="add_3" id="add_3" value="3" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'3')">  
+      <input type="button" style="width:30px;height:35px" name="add_-" id="add_-" value="-" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'-')">  
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <input type="button" style="width:30px;height:35px" name="copy_button" id="copy_button" value="cp"
+      onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,UI.selection)" title="Copy last selected commandline to focus.">  
+      <input type="button" style="width:30px;height:35px;" name="curseur_up"
+id="curseur_up"
+  value="↑" onmousedown="event.preventDefault()"
+  onClick="UI.moveCaretUpDown(UI.focused,-1)" title="caret up">        
+      <input type="button" style="width:30px;height:35px" name="add-=" id="add-=" value="=" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'=')">
+      <input type="button" style="width:30px;height:35px" name="add__" id="add__" value="_" onClick ="UI.insert(UI.focused,'_')">  
+      <input type="button" style="width:30px;height:35px" name="add_exp"
+id="add_exp"
+  value="e^" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'exp(')" title="Exponential function">   
+      <input type="button" style="width:30px;height:35px" name="add_ln"
+id="add_ln"
+  value="ln" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'ln(')" title="Neperian logarithme (base e)">        
+      <input type="button" style="width:30px;height:35px" name="add_e"
+id="add_e"
+  value="e" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'e')" title="e is either exponential basis or separator between mantissa and exponent in a floating point number">  
+      <input type="button" style="width:30px;height:35px" name="add_0" id="add_0" value="0" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'0')">  
+      <input type="button" style="width:30px;height:35px" name="add_." id="add_." value="." onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'.')">  
+      <input type="button" style="width:30px;height:35px" name="add_+" id="add_+" value="+" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'+')">  
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <input type="button" style="width:29px;height:35px;"
+  onmousedown="event.preventDefault()"
+  onClick="UI.insert(UI.focused,'<');" id="add_inferieur" value="<"
+  title="Insert <">
+      <input type="button" style="width:30px;height:35px;" name="curseur_down"
+id="curseur_down"
+      value="↓" onmousedown="event.preventDefault()"
+  onClick="UI.moveCaretUpDown(UI.focused,1)" title="caret down">
+      <input type="button" style="width:29px;height:35px;"
+  onmousedown="event.preventDefault()"
+  onClick="UI.insert(UI.focused,'>');" id="add_superieur" value=">"
+  title="Insert >">
+      <input type="button" style="width:30px;height:35px;" name="add_a" id="add_a" value="a" onmousedown="event.preventDefault()" onClick ="UI.insert(UI.focused,'a')">  
+      <input type="button" style="width:30px;height:35px" name="add_sin"
+id="add_sin"
+  value="sin" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'sin(')" title="sine function, type asin for arcinus">        
+      <input type="button" style="width:30px;height:35px" name="add_cos"
+id="add_cos"
+  value="cos" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'cos(')" title="cosine function, type acos for arccosinus">        
+      <input type="button" style="width:30px;height:35px" name="add_tan"
+id="add_tan"
+  value="tan" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'tan(')" title="tangent function, type atan for arctangente">        
+      <input type="button" style="width:29px;height:35px;" name="add_sq"
+id="add_sq"
+  value="^2" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'^2')" title="Square">        
+      <input type="button" style="width:30px;height:35px" name="add_sqrt"
+id="add_sqrt"
+  value="√" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'sqrt(')" title="square root">        
+      <input type="button" style="width:30px;height:35px" name="add_^" id="add_^" value="^"  onmousedown="event.preventDefault()" onClick ="UI.insert(UI.focused,'^')">  
+    </td>    
+  </tr>
+</table>
+
+<table border="0" align="center" summary="" id="keyboardfunc"
+  style="display:none" onmousedown="event.preventDefault()" >
+  <tr>
+    <td>
+      <input type="button" style="width:60px;height:35px"
+  name="add_simplify" id="add_simplify" value="simplify"
+  onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'simplify(') ;UI.kbdonfuncoff();" title="Tries to simplify an expression, for example simplify(sin(3x)/sin(x)). On failure, try ratnormal, normal or a precise rewrite command.">        
+      <input type="button" style="width:60px;height:35px"
+  name="add_normal" id="add_normal" value="normal"
+  onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'normal(') ;UI.kbdonfuncoff();" title="normal expands an expression, for example normal((x+1)^6)">        
+      <input type="button" style="width:60px;height:35px"
+  name="add_factor" id="add_factor" value="factor"
+  onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'factor(') ;UI.kbdonfuncoff();" title="Factorization, for example factor(x^4-1). Run cfactor for factorization over C">        
+      <input type="button" style="width:60px;height:35px"
+  name="add_partfrac" id="add_partfrac" value="partfrac"
+      onmousedown="event.preventDefault()"
+  onClick="UI.insert(UI.focused,'partfrac(') ;UI.kbdonfuncoff();" title="Partial fraction decomposition, e.g. partfrac(1/(x^4-1)). Use cpartfrac on C">
+      <input type="button" style="width:60px;height:35px"
+  name="add_tcollect" id="add_tcollect" value="tcollect"
+  onmousedown="event.preventDefault()"
+  onClick="UI.insert(UI.focused,'tcollect(') ;UI.kbdonfuncoff();"
+  title="Linearize and regroup trigonometric expressions">        
+      <input type="button" style="width:60px;height:35px"
+  name="add_texpand" id="add_texpand" value="texpand"
+  onmousedown="event.preventDefault()"
+  onClick="UI.insert(UI.focused,'texpand(') ;UI.kbdonfuncoff();"
+  title="Expand trigonometric, exponential and log expressions">  
+
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <input type="button" style="width:60px;height:35px" name="add_solve"
+id="add_solve"
+  value="solve" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'solve(') ;UI.kbdonfuncoff();"
+  title="Solve equation or expression=0 wrt 1 or more variables, for example solve(x^4-1=0) or solve(y^3-1,y) or solve([x^2-y^2=1,x+y=3],[x,y]). Run csolve for solving over C.">       <input type="button" style="width:60px;height:35px" name="add_csolve"
+id="add_csolve"
+  value="csolve" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'csolve(') ;UI.kbdonfuncoff();"
+  title="Solve over C equation or expression=0 wrt 1 or more variables, for example csolve(x^4-1=0) or csolve(y^3-1,y) or csolve([x^2-y^2=1,x+y=3],[x,y]). Run solve for solving over R."> 
+      <input type="button" style="width:60px;height:35px" name="add_linsolve"
+id="add_linsolve"
+  value="linsolve" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'linsolve(') ;UI.kbdonfuncoff();"
+  title="solve a linear system, for example linsolve([x+y=1,a*x-y=2],[x,y])">        
+      <input type="button" style="width:60px;height:35px"
+  name="add_fsolve" id="add_fsolve" value="fsolve"
+  onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'fsolve(') ;UI.kbdonfuncoff();" title="fsolve solves numerically an equation or system, for example fsolve(cos(x)=x,x=0..5) or fsolve(cos(x),x=0.0)">        
+      <input type="button" style="width:60px;height:35px"
+  name="add_desolve" id="add_desolve" value="desolve"
+  onmousedown="event.preventDefault()"
+  onClick="UI.insert(UI.focused,'desolve(') ;UI.kbdonfuncoff();" title="Solve differential
+      equation, for example desolve(y''+y=0), desolve(y'+y=0,y(0)=1)">
+      <input type="button" style="width:45px;height:35px"
+  name="add_rsolve" id="add_rsolve" value="rsolve"
+  onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'rsolve(') ;UI.kbdonfuncoff();" title="Solve a recurrence relation, for example rsolve(u(n+2)=u(n+1)+u(n),u(n),[u(0)=1,u(1)=1])">        
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <input type="button" style="width:30px;height:35px" name="add_sum"
+id="add_sum"
+  value="∑" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'sum(') ;UI.kbdonfuncoff();" title="Sum of an expression for a variable between two boundaries, for example ∑(k,k,1,n) or ∑(1/n^2,n,1,inf)">  
+      <input type="button" style="width:30px;height:35px" name="add_diff"
+id="add_diff"
+  value="∂" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'diff(') ;UI.kbdonfuncoff();" title="Derivative of an expression. For a function f, for example f(x):=sin(x^2), the derivative of f is f', for example g:=f' or f'(2)">        
+      <input type="button" style="width:30px;height:35px"
+  name="add_integrate" id="add_integrate" value="∫" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'int(') ;UI.kbdonfuncoff();"
+  title="Integral computation, for example ∫(x^2*sin(x)*exp(x),x) or ∫(1/(x^4+1),x,0,inf)">        
+      <input type="button" style="width:60px;height:35px" name="add_limit"
+id="add_limit"
+  value="limit" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'limit(') ;UI.kbdonfuncoff();" title="limit of an expression if a variable tends to a limit point, for example limit(sin(x)/x,x,0). With an optional 4th parameter equal to 1 or -1 returns a right or left limit.">        
+      <input type="button" style="width:60px;height:35px"
+  name="add_series" id="add_series" value="series"
+  onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'series(') ;UI.kbdonfuncoff();" title="series computes the Taylor expansion of an expression as a variable tends to a limit-point, for example series(sin(x),x=0,5,polynom). Without polynom, a remainder term is returned. For unidirectional expansion, add 1 or -1 before polynom">        
+         <input type="button" style="width:30px;height:35px" name="add_seq"
+id="add_seq"
+  value="seq" onmousedown="event.preventDefault()"
+  onClick="UI.insert(UI.focused,'seq(')" title="Create sequence, for example seq(j^2,j,1,n) create the sequence of square from 1 to n">        
+    </td>
+  </tr>
+  <tr>
+    <td>
+      <input type="button" style="width:60px;height:35px" name="add_tabvar"
+id="add_tabvar"
+  value="tabvar" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'tabvar(,plot)');UI.moveCaret(UI.focused,-6);UI.kbdonfuncoff();"
+  title="Function or parametric plot study, for example tabvar(sin(x)) ou tabvar([cos(2t),sin(3t)])">  
+      <input type="button" style="width:60px;height:35px" name="add_plot"
+id="add_plot"
+  value="plotfunc" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'plotfunc(') ;UI.kbdonfuncoff();"
+  title="Graphe of an expression, for example plotfunc(sin(x),x=-5..5,xstep=0.1)">  
+      <input type="button" style="width:60px;height:35px"
+  name="add_plotparam" id="add_plotparam" value="param"
+  onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'plotparam(') ;UI.kbdonfuncoff();" title="Parametric plot, for exemple plotparam([cos(t),sin(t)],t=0..2*pi,tstep=0.1)">  
+      <input type="button" style="width:60px;height:35px"
+  name="add_plotpolar" id="add_plotpolar" value="polar"
+  onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'plotpolar(') ;UI.kbdonfuncoff();" title="Polar plot, for example plotpolar(exp(r),r=-3..3)">  
+      <input type="button" style="width:60px;height:35px"
+  name="add_plotimplicit" id="add_plotimplicit" value="implicit"
+  onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'plotimplicit(') ;UI.kbdonfuncoff();" title="Implicit plot, for example plotimplicit(x^2+x*y+y^2=3)">  
+      <input type="button" id="add_curseur" style="height:35px" onclick="UI.addcurseur(String.fromCharCode(UI.paramname),0,-5,5,0.1); UI.paramname++;" title="Add a slider" value="Slider">
+    </td>
+  </tr>
+  <tr>
+    <td>
+        <input type="button" style="width:30px;height:35px" name="add_//"
+id="add_//"
+  value="//" onmousedown="event.preventDefault()" onClick="UI.insert(UI.focused,'//')" title="comment">        
+      <input type="button" style="width:29px;height:35px" name="add_space"
+id="add_space"
+  value=" " onmousedown="event.preventDefault()"
+  onClick="UI.insert(UI.focused,' ')" title="Add space">        
+      <input type="button" style="width:29px;height:35px" id="add_nlprog"
+      value="\n" onmousedown="event.preventDefault()"
+      onClick="UI.insert(UI.focused,'\n')" title="Add newline">        
+      <input type="button" style="width:29px;height:35px" 
+      id="add_indent"
+      value="->/" onmousedown="event.preventDefault()"
+      onClick="UI.indentline(UI.focused);" title="Indent current line">        
+      <input type="button" style="width:45px;height:35px" name="add_test"
+id="add_test"
+  value="if" onmousedown="event.preventDefault()"
+  onClick="UI.insert(UI.focused,'\nif  then  else  end;');UI.moveCaret(UI.focused,-17); " title="Test">        
+      <input type="button" style="width:45px;height:35px" name="add_pour"
+id="add_pour"
+  value="for" onmousedown="event.preventDefault()"
+  onClick="UI.insert(UI.focused,'\nfor  from  to  do\n\nod;');UI.indentline(UI.focused);UI.moveCaretUpDown(UI.focused,-1);UI.indentline(UI.focused);UI.moveCaretUpDown(UI.focused,-1);UI.moveCaret(UI.focused,2);UI.indentline(UI.focused);UI.kbdonfuncoff();" title="Loop">         <input type="button" style="width:45px;height:35px" name="add_tantque"
+id="add_tantque"
+  value="while" onmousedown="event.preventDefault()"
+  onClick="UI.insert(UI.focused,'\nwhile  do\n\nend;');UI.indentline(UI.focused);UI.moveCaretUpDown(UI.focused,-1);UI.indentline(UI.focused);UI.moveCaretUpDown(UI.focused,-1);UI.indentline(UI.focused);UI.moveCaret(UI.focused,4)" title="Loop">        
+      <input type="button" id="add_function" style="height:35px" value="function" onclick="if(document.getElementById('assistant_prog').style.display=='none'){
+      document.getElementById('assistant_prog').style.display='block';
+     }      
+     else {
+      document.getElementById('assistant_prog').style.display='none';
+     }"
+  title="Function assistant">
+      <input type="button" style="width:46px;height:35px" name="add_debug"
+id="add_debug"
+  value="debug" onmousedown="event.preventDefault()"
+  onClick="UI.insert(UI.focused,'debug(')" title="Debugger command">        
+    </td>
+  </tr>
+</table>
+<div id="assistant_prog" style="display:none">
+  <b>New function</b><br>
+  function name <textarea id="funcname" rows=1>f</textarea><br>
+  list of arguments <textarea id="argsname" rows=1>x,y</textarea><br>
+  local variables <textarea id="localvars" rows=1>z</textarea><br>
+  returned value <textarea id="returnedvar" rows=1>z</textarea><br>
+  <button style="height:25px" onclick="UI.insert(UI.focused,'function '+document.getElementById('funcname').value+'('+document.getElementById('argsname').value+'){\n  var '+document.getElementById('localvars').value+';\n  \n  return '+document.getElementById('returnedvar').value+';\n}:;\n');UI.moveCaretUpDown(UI.focused,-3);UI.moveCaret(UI.focused,2);document.getElementById('assistant_prog').style.display='none';">Create</button> <button style="height:25px" onclick="document.getElementById('assistant_prog').style.display='none'">Cancel</button>
+</div>
+
+
+<div contextmenu="cmdmenu" title="F1: help on keyword before caret. Right-click (Firefox): commands menu" >
+<button id="button_ok" onclick="if (UI.focused==cmentree) UI.eval_cmdline(); else {UI.reeval(UI.focused,'');}" style="color:green;width:35px;height:35px" title="Eval commandline">
+  <strong>ok</strong></button>
+  <button id="button_gauche" style="width:32px;height:35px"
+  onmousedown="event.preventDefault()" onClick="UI.move_caret_or_focus(UI.focused,-1)"  title="Move caret to the left"> ← </button>
+  <button id="button_droit" style="width:32px;height:35px" onmousedown="event.preventDefault()" onClick="UI.move_caret_or_focus(UI.focused,1)" title="Move caret to the right"> → </button>
+  <button id="button_cmd" style="width:37px;height:35px" onmousedown="event.preventDefault()" onclick="document.getElementById('keyboardfunc').style.display='none'; document.getElementById('keyboard').style.display='none'; UI.focused=cmentree;cmentree.focus(); UI.resizetextarea(cmentree);//if (UI.prettyprint && UI.usemathjax && UI.histcount>0) MathJax.Hub.Queue(["Typeset",MathJax.Hub]);"
+  title="Focus on commandline">cmd</button>
+  <button id="select_button" style="width:32px;height:35px" name="select_button" onmousedown="event.preventDefault()" onClick="if (UI.focusaftereval) UI.focused.focus(); if (UI.focused.type!='textarea'){UI.focused.execCommand('selectAll'); } else {UI.focused.select(); UI.selection=UI.focused.value;}" title="Select commandline"> sel</button>
+  <button id="button_del" style="width:30px;height:35px" onmousedown="event.preventDefault()" onclick="UI.backspace(UI.focused)" title="Erase 1 char">del</button>
+  <button id="button_help" style="width:35px;height:35px" onmousedown="event.preventDefault()" onClick="UI.completion(cmentree)" title="Short online help and examples for a command, or completion suggestions">?</button>
+  <button id="button_123" style="width:37px;height:35px" onmousedown="event.preventDefault()"
+  onclick="if (document.getElementById('keyboard').style.display=='inline') document.getElementById('keyboard').style.display='none'; else { document.getElementById('keyboard').style.display='inline'; document.getElementById('keyboardfunc').style.display='none';} if (UI.focusaftereval){ UI.focused.focus(); UI.focused.blur();}"
+title="Show or hide scientific keyboard">123</button>
+<button id="button_util" style="width:37px;height:35px" onmousedown="event.preventDefault()"
+onclick="UI.show_menu();"
+title="Show or hide frequently used commands">menu</button>
+&nbsp;
+<button style="height:35px" id="stop_button" style="height:35px;visibility:hidden" onclick="if (UI.webworker && confirm('Really kill current session ?')){ UI.webworker.terminate(); UI.busy=0; UI.webworker=0;alert('Session restarted. Everything has been cleared.');}" title="End current session">STOP</button>
+
+<br>
+
+<textarea name="entree" id="entree"  style="font-size:18px;width:98%" rows=1
+  onkeypress="UI.focused=this;if (event.keyCode!=13 || event.shiftKey) return true;UI.eval_cmdline1(value,true); return false;" ></textarea>
+</div>
+
+<hr>
+<strong>Console</strong>
+<button style="height:25px" title="Clear console" onclick="var field=document.getElementById('output');field.innerHTML=''">Clear</button>
+<button style="height:25px" title="Increase line number" onclick="var field=document.getElementById('output');var s=field.style.maxHeight; s=s.substr(0,s.length-2);s=eval(s)+20 ;s=s+'px';field.style.maxHeight =s ;">+</button>
+<button style="height:25px" title="Decrease line number" onclick="var field=document.getElementById('output');var s=field.style.maxHeight; s=s.substr(0,s.length-2);s=Math.max(eval(s)-20,40) ;s=s+'px';field.style.maxHeight =s ;">-</button>
+<div id="output" style="max-height: 200px; overflow:auto"></div>
+<hr>
+
+
+
+<table border="0" align="left" summary="">
+  <tr>
+    <tr>
+      <td><button id="boutons_3d0" style="height:25px;display:none" onclick="
+	if(document.getElementById('boutons_3d').style.display=='none'){
+	document.getElementById('boutons_3d').style.display='inherit';
+	document.getElementById('canvas').style.display='inherit';
+	}
+	else {
+	document.getElementById('boutons_3d').style.display='none';
+	document.getElementById('canvas').style.display='none';
+	}"
+	title="Show or hide 3d graph">3d Graph</button>
+	<span id="boutons_3d" style="display:none">
+	<button style="height:25px" onclick="UI.giac_renderer('-')">out</button>
+	<button style="height:25px" onclick="UI.giac_renderer('+')">in</button>
+	<button style="height:25px" onclick="UI.giac_renderer('l')"> ← </button>
+	<button style="height:25px" onclick="UI.giac_renderer('r')"> → </button>
+	<button style="height:25px" onclick="UI.giac_renderer('u')"> ↑ </button>
+	<button style="height:25px" onclick="UI.giac_renderer('d')"> ↓ </button>
+	</span>
+      </td>
+    </tr>
+    <tr>
+    <td> 
+      <canvas id='canvas' width=0 height=0
+  onmousedown="UI.canvas_pushed=true;UI.canvas_lastx=event.clientX; UI.canvas_lasty=event.clientY;"
+  onmouseup="UI.canvas_pushed=false;"
+   >
+      </canvas>
+    </td>
+  </tr>
+</table>
+
+
+<div class="emscripten" id="status">Downloading...</div>
+<div class="emscripten">
+  <progress value="0" max="100" id="progress" hidden=1></progress>  
+</div>
+
+
+<script src="w3data.js"></script>
+<div w3-include-html="menuen.js"></div>
+
+<script src="FileSaver.js"></script>
+
+<script src="codemirror.js"></script>
+<link rel="stylesheet" href="codemirror.css">
+<link rel="stylesheet" href="show-hint.css">
+<script src="xcasmode.js"></script>
+<script src="matchbrackets.js"></script>
+<script src="show-hint.js"></script>
+  <style type="text/css">
+  .CodeMirror {border: 1px solid black; height:auto;}
+  dt {font-family: monospace; color: #666;}
+  </style>
+  
+  <script type='text/javascript'>
+  var UI ={
+  focusaftereval:true,
+  docprefix:"http://www-fourier.ujf-grenoble.fr/%7eparisse/giac/doc/en/cascmd_en/",
+  base_url:"http://www-fourier.ujf-grenoble.fr/%7eparisse/",
+  usemathjax:false,
+  prettyprint:true,
+  qa:false,
+  focused:entree,
+  usecm:true,
+  histcount:0,
+  selection:'',
+  langue:-1,
+  canvas_lastx:0,
+  canvas_lasty:0,
+  canvas_pushed:false,
+  initconfigstring:'',
+  sleep:function(miliseconds) {
+     var currentTime = new Date().getTime();
+     while (currentTime + miliseconds >= new Date().getTime()) {
+     }
+  },
+  is_touch_device() {
+   return (('ontouchstart' in window)
+      || (navigator.MaxTouchPoints > 0)
+      || (navigator.msMaxTouchPoints > 0));
+  },
+  switchcm:function(){
+  if (UI.usecm){
+    if (cmentree==entree){
+     // cmentree may be released with cmentree.toTextArea();
+     cmentree=CodeMirror.fromTextArea(entree,{
+      matchBrackets: true,
+      lineNumbers: true,
+      viewportMargin: Infinity
+     });
+     //console.log(entree.type);
+     //cmentree.setSize(window.innerWidth-20,40);
+     cmentree.on("focus",function(cm){ UI.set_focused(cm); });
+     cmentree.on("blur",function(cm) { if (cm.getSelection().length > 0){UI.selection=cm.getSelection();} });
+     cmentree.setValue(entree.value);
+     UI.changefontsize(cmentree,18);
+     cmentree.setOption("extraKeys", {
+      Enter: function(cm){
+      UI.eval_cmdline();
+     },
+     F1: function(cm) {
+      UI.completion(cm);
+     },
+     Tab: function(cm) {
+      UI.completion(cm);
+     },
+    });
+   } // if (UI.usecm)
+  } else { if (cmentree!=entree) cmentree.toTextArea(); cmentree=entree; }
+   cmentree.focus();
+ },
+  kbdonfuncoff:function() {
+    document.getElementById('keyboard').style.display='inline';
+    document.getElementById('keyboardfunc').style.display='none';
+  },
+  restorefrom:function(c){
+    var s=UI.readCookie(c);
+    //console.log(s);
+    UI.restoresession(s,document.getElementById('mathoutput'),true,false);
+    document.getElementById('loadfile_cookie').innerHTML='';
+  },
+  listCookies:function() { // list cookies with name begin == ' xcas__'
+    var theCookies = document.cookie.split(';');
+    var aString = '';
+    for (var i = 0 ; i < theCookies.length; i++) {
+        // console.log(i,theCookies[i].substr(0,7));
+        var tmp=theCookies[i];
+        var pos=tmp.search('=');
+        if (pos>7 && tmp.substr(0,7)==' xcas__' ){
+          var tmpname=tmp.substr(7,pos-7);
+          aString += "<button onclick=\"UI.restorefrom('"+tmp.substr(1,pos-1)+"')\">"+tmpname+"</button>\n";
+        }
+    }
+    aString += "<button onclick=document.getElementById('loadfile_cookie').innerHTML=''>cancel</button>\n"
+    //console.log(aString);
+    return aString;
+  },
+  createCookie:function(name,value,days) {
+	if (days) {
+	  var date = new Date();
+	  date.setTime(date.getTime()+(days*24*60*60*1000));
+	  var expires = "; expires="+date.toGMTString();
+	}
+	else var expires = "";
+	document.cookie = name+"="+value+expires+"; path=/";
+  },
+  readCookie:function(name) {
+	var nameEQ = name + "=";
+	var ca = document.cookie.split(';');
+	for(var i=0;i < ca.length;i++) {
+          var c = ca[i];
+	  while (c.charAt(0)==' ') c = c.substring(1,c.length);
+	  if (c.indexOf(nameEQ) == 0) return c.substring(nameEQ.length,c.length);
+	}
+	return null;
+  },
+  eraseCookie:function(name) {
+	createCookie(name,"",-1);
+  },
+  detectmob:function() { 
+ if( navigator.userAgent.match(/Android/i)
+ || navigator.userAgent.match(/webOS/i)
+ || navigator.userAgent.match(/iPhone/i)
+ || navigator.userAgent.match(/iPad/i)
+ || navigator.userAgent.match(/iPod/i)
+ || navigator.userAgent.match(/BlackBerry/i)
+ || navigator.userAgent.match(/Windows Phone/i)
+ ) return true;
+ else 
+    return false;
+},
+  browser_type: function(){
+   var isOpera = !!window.opera || navigator.userAgent.indexOf(' OPR/') >= 0;
+   var isFirefox = typeof InstallTrigger !== 'undefined';   // Firefox 1.0+
+   var isSafari = Object.prototype.toString.call(window.HTMLElement).indexOf('Constructor') > 0;
+   var isChrome = !!window.chrome && !isOpera;              // Chrome 1+
+   var isIE = /*@cc_on!@*/false || !!document.documentMode; // At least IE6
+   if (isFirefox) return 1;
+   if (isSafari) return 2;
+   if (isChrome) return 3;
+   if (isIE) return 4;
+   if (isOpera) return 5;
+   return 0;
+  },
+  lowercase1: function(text){
+   var value=text;
+   if (value.length && value.charCodeAt(0)>64 && value.charCodeAt(0)<90)
+     value = value.substr(0,1).toLowerCase()+value.substr(1,value.length-1);
+   return value;
+  },
+  caseval: function(text){
+   var docaseval = Module.cwrap('caseval',  'string', ['string']);
+   var value=text;
+   value=value.replace(/%22/g,'\"'); 
+   var n=value.search(';');
+   if (n<0 || n>=value.length)
+     value='add_autosimplify('+value+')';
+     var s,err;
+     try {s=docaseval(value); } catch(err){ }
+      // Module.print(text+ ' '+s);
+      return s;
+  },
+  webworker:0,
+  withworker:0,
+  busy:0,
+  casevalcb: function(text,callback,args){
+   // prepare for webworker: casevalcb will run docaseval in a worker
+   // too slow to be useful, and plotting does not work...
+   if (UI.withworker && !!window.Worker) {
+     if (!UI.webworker){
+      UI.webworker = new Worker("giacworker.js");
+      console.log('worker created ');
+     }
+     // the worker will do the evaluation and post s
+     UI.webworker.onmessage =  function(e){
+       var s=e.data[1]; UI.busy=0;
+       if (e.data[0]=='cas') callback(s,args);
+       if (e.data[0]=='print') Module.print(s);
+     }
+     UI.busy=1;
+     UI.webworker.postMessage(['eval',text]);
+     return;
+     // STOP: myWorker.terminate()
+   }
+   var docaseval = Module.cwrap('caseval',  'string', ['string']);
+   var value=text;
+   var n=value.search(';');
+   if (n<0 || n>=value.length)
+     value='add_autosimplify('+value+')';
+   var s,err;
+   try {s=docaseval(value); } catch(err){ }
+   // Module.print(text+ ' '+s);
+   callback(s,args);
+  },
+  ckenter: function(event,field){
+    var key = event.keyCode;
+    if (key != 13 || event.shiftKey) return true;
+    UI.reeval(field,'');
+    return false;
+  },
+restoresession: function(chaine,hist,asked,doexec){
+ var hashParams=chaine.split('&');
+ if (hashParams.length==0) return;
+ for(var i = 0; i < hashParams.length; i++){
+    var s = hashParams[i];
+    if (s.length)  document.getElementById('startup_restore').style.display='none';
+    s=decodeURIComponent(s); //console.log(s);
+    s=s.replace(/%3b/g,';'); 
+    if (s.length && s.charAt(0)=='+'){
+       if (!asked) doexec=true;
+       s=s.substr(1);
+       if (s.length) UI.eval_cmdline1(s,false);
+       continue;
+    }
+    if (s.length && s.charAt(0)=='*'){
+       if (!asked) doexec=true;
+       var pos=s.search(',');
+       var name=s.substr(1,pos-1);
+       // Module.print(name);
+       s=s.substr(pos+1,s.length-pos-1);
+       pos=s.search(',');
+       var value=s.substr(0,pos);
+       // Module.print(value);
+       s=s.substr(pos+1,s.length-pos-1);
+       pos=s.search(',');
+       var mini=s.substr(0,pos);
+       // Module.print(mini);
+       s=s.substr(pos+1,s.length-pos-1);
+       pos=s.search(',');
+       var maxi=s.substr(0,pos);
+       // Module.print(maxi);
+       s=s.substr(pos+1,s.length-pos-1);
+       UI.addcurseur(name,value,mini,maxi,s);
+       continue;
+    }
+    var p = s.split('=');
+    if (p[0]=='') continue;
+    if (p[0]=='entree' || p[0]=='cmentree'){
+      cmentree.setValue( decodeURIComponent(p[1]));
+      continue;
+    }
+    if (p[0]=='codemirror'){
+      if (p[1]=='0') { document.getElementById('config').usecm.checked=false;  UI.set_config();}
+      if (p[1]=='1') { document.getElementById('config').usecm.checked=true;  UI.set_config();}
+      continue;
+    }
+    document.getElementById(p[0]).value = decodeURIComponent(p[1]);
+  } // end for (i=...)
+ if (doexec) UI.exec(hist,0);
+ },
+  link: function(start){
+   var s=UI.makelink(start);
+   UI.createCookie('xcas_session',s,365);
+   if (s.length>0){
+     s = UI.base_url+"xcasen.html#"+s;
+     //Module.print(s);
+     document.getElementById('thelink').innerHTML='<a href="'+s+'" target="_blank">Clone</a>';
+     document.getElementById('themailto').innerHTML='<a href="mailto:?subject=Xcas session&body=Hello%0d%0aPlease follow this link: '+UI.rewritestring(s)+'">Mail to</a>';
+   }
+  },
+  rewritestring: function(s){
+    var res,i,l;
+    l=s.length; res='';
+    for (i=0;i<l;++i){
+      if (s[i]=='&'){ res += "%26"; continue; }
+      if (s[i]=='#'){ res += "%23"; continue; }
+      res += s[i];
+    }
+    return res;
+  },
+  makelink: function(start){
+    var s='';
+    var cur=document.getElementById('mathoutput').firstChild;
+    var i=0;
+    for (;cur;i++){
+     if (i>=start){
+       var field=cur.firstChild;
+       field=field.firstChild;
+       field=UI.skip_buttons(field);
+       var fs=field.innerHTML;
+       if (fs.length>5){
+         var fs1=fs.substr(0,5);
+         if (fs1=="<form") {
+          //Module.print(fs);
+          var pos1=fs.search("<input");
+          fs=fs.substr(pos1,fs.length-pos1);
+          var pos1=fs.search("value=");
+          pos1 += 7;
+          fs=fs.substr(pos1,fs.length-pos1);
+          var pos2=fs.search("\"");
+          fs1=fs.substr(0,pos2); // cursor name
+          var pos1=fs.search("value=");
+          pos1 += 7;
+          fs=fs.substr(pos1,fs.length-pos1);
+          var pos2=fs.search("\"");
+          fs1 += ','+fs.substr(0,pos2); // current value
+          var pos1=fs.search("value="); 
+          pos1 += 7;
+          fs=fs.substr(pos1,fs.length-pos1);
+          var pos1=fs.search("value=");
+          pos1 += 7;
+          fs=fs.substr(pos1,fs.length-pos1);
+          var pos2=fs.search("\"");
+          fs1 += ','+fs.substr(0,pos2); // min
+          var pos1=fs.search("value=");
+          pos1 += 7;
+          fs=fs.substr(pos1,fs.length-pos1);
+          var pos1=fs.search("value=");
+          pos1 += 7;
+          fs=fs.substr(pos1,fs.length-pos1);
+          var pos1=fs.search("value=");
+          pos1 += 7;
+          fs=fs.substr(pos1,fs.length-pos1);
+          var pos2=fs.search("\"");
+          fs1 += ','+fs.substr(0,pos2); //max
+          var pos1=fs.search("value=");
+          pos1 += 7;
+          fs=fs.substr(pos1,fs.length-pos1);
+          var pos2=fs.search("\"");
+          fs1 += ','+fs.substr(0,pos2); // step
+          s += '*' + fs1 +'&';
+          cur=cur.nextSibling;
+          continue;
+         }
+       }
+       var pos=fs.search("<textarea");
+       if (pos>=0 && pos<fs.length){
+         // var tmp=field.firstChild.value.replace(/\n/g,'%0a'); tmp=tmp.replace(';','%3b','g');
+         // s += '+' + tmp.replace('&&',' and ','g') + '&';
+         var tmp=encodeURIComponent(field.firstChild.value);
+         s += '+' + tmp + '&';
+         cur=cur.nextSibling;
+         continue;
+       }
+       pos = fs.search("UI.addhelp");
+       if (pos>=0 && pos<fs.length){ cur=cur.nextSibling; continue;}
+       s += '+//'+fs+'&';
+     }
+     cur=cur.nextSibling;
+   }
+   s=s.replace(/\"/g,'%22');
+   return s;
+  },
+  canvas_mousemove:function(event,no){
+    if (UI.canvas_pushed){
+      // Module.print(event.clientX);
+      if (UI.canvas_lastx!=event.clientX){
+        if (event.clientX>UI.canvas_lastx)
+          UI.giac_renderer('r'+no);
+        else
+          UI.giac_renderer('l'+no);
+        UI.canvas_lastx=event.clientX;
+      }
+      if (UI.canvas_lasty!=event.clientY){
+        if (event.clientY>UI.canvas_lasty)
+          UI.giac_renderer('d'+no);
+        else
+          UI.giac_renderer('u'+no);
+        UI.canvas_lasty=event.clientY;
+      }
+    }
+  },
+show_menu:function(){
+ if (document.getElementById('keyboardfunc').style.display=='inline')
+   document.getElementById('keyboardfunc').style.display='none';
+ else {
+  document.getElementById('keyboardfunc').style.display='inline';
+  document.getElementById('keyboard').style.display='none';
+ }
+ if (UI.focusaftereval){ UI.focused.focus(); }
+},
+  show_config:function(){
+    var form=document.getElementById('config');
+    form.style.display='inline';
+  },
+  set_config_width:function(){
+   var form=document.getElementById('config');
+   var hw=window.innerWidth,hh=window.innerHeight;
+   if (hw>=1000){ hw=hw-50; UI.focusaftereval=true;}
+   if (hw<=500){ UI.focusaftereval=false; document.getElementById('exportbutton').style.display='none';}
+   form.history_width.value=hw;
+   form.outdiv_width.value=Math.floor(hw/2);
+   document.getElementById('mathoutput').style.maxWidth=hw;
+   document.getElementById('divoutput').style.maxHeight=form.history_height.value;
+   var w=form.outdiv_width.value,h;
+   if (w>hw-300) w=hw-300;
+   var hi=hw-w-200;
+   if (!UI.qa){ hi=hw-130; w=hi; }
+   s='h1,h2,h3 { display:inline; }\ninput[type="number"] { width:40px;}\n .outdiv { width:'+w+'px; max-height: '+form.outdiv_height.value+'px;  overflow: auto;}\n.filenamecss {width:120px;height:20px}\n.historyinput {width:'+hi+'px;}';
+   var st=document.getElementById('document_style');
+   st.innerHTML=s;
+var kbd_l=["add_newline","add_'","add_,","add_left_paren",
+"add_right_paren" ,"add_i","add_7" ,"add_8" ,"add_9" ,"add_/",
+"add_x" ,"add_y","add_semi" ,"add_left_[" ,"add_abs" ,"add_pi" ,
+"add_4" ,"add_5" ,"add_6" ,"add_*" ,"add_beg","add_end","add_:",
+"add_left_{" ,"add_!" ,"add_∞","add_1" ,"add_2" ,
+"add_3" ,"add_-" ,"copy_button" ,"curseur_up","add-=" ,"add__" ,
+"add_exp","add_ln","add_e","add_0" ,"add_." ,
+"add_+" , "add_inferieur","curseur_down" ,"add_superieur","add_a" ,"add_sin" ,"add_cos",
+"add_tan","add_sq","add_sqrt","add_^"];
+var kbd_cmd=["button_ok","button_help","button_123","button_util","button_cmd",
+"button_gauche","button_droit","select_button","button_del",
+"add_//","add_space","add_nlprog","add_indent","add_test",
+"add_pour","add_tantque","add_function","add_debug"];
+var kbd_util=["add_simplify" ,"add_normal",
+"add_factor" ,"add_partfrac","add_texpand","add_tcollect","add_solve","add_csolve",
+"add_linsolve","add_fsolve" ,"add_desolve" ,"add_rsolve" ,"add_sum","add_diff",
+"add_integrate" ,"add_limit","add_series" ,"add_seq","add_tabvar","add_plot",
+"add_plotparam" ,"add_plotpolar","add_plotimplicit","add_curseur"];
+  w=Math.floor(hw/12)+"px"; 
+   h=Math.floor(hh/20)+"px"; console.log(hw,w,hh,h);
+   w=Math.floor(hw/12); w=w+"px"; 
+   h=Math.floor(hh/20); if (h<30) h=30; h=h+"px"; // console.log(hw,w,hh,h);
+   for (var i=0;i<kbd_l.length;i++){
+     document.getElementById(kbd_l[i]).style.width=w;
+     document.getElementById(kbd_l[i]).style.height=h;
+   }
+   w=Math.floor(hw/11); if (w<34) w=34; w=w+"px"; 
+   h=Math.floor(hh/20); if (h<35) h=35; h=h+"px"; // console.log(hw,w,hh,h);
+   for (var i=0;i<kbd_cmd.length;i++){
+     document.getElementById(kbd_cmd[i]).style.width=w;
+     document.getElementById(kbd_cmd[i]).style.height=h;
+   }
+   w=Math.floor(hw/8); if (w<34) w=34; w=w+"px"; 
+   h=Math.floor(hh/20); if (h<35) h=35; h=h+"px"; // console.log(hw,w,hh,h);
+   for (var i=0;i<kbd_util.length;i++){
+     document.getElementById(kbd_util[i]).style.width=w;
+     document.getElementById(kbd_util[i]).style.height=h;
+   }
+  },
+  config_string:function(){
+   var form=document.getElementById('config');
+   if (form.qa.checked) UI.qa=true; else UI.qa=false;
+   if (form.usecm.checked) UI.usecm=true; else UI.usecm=false; UI.switchcm();
+   UI.set_config_width();
+   var s;
+   if (form.online_doc.checked)
+     UI.docprefix=UI.base_url+'giac/doc/en/cascmd_en/';
+   else
+     UI.docprefix="file://"+form.doc_path.value;
+   if (form.prettyprint.checked) UI.prettyprint=true; else UI.prettyprint=false;
+   if (form.worker_mode.checked){
+     if (!UI.withworker) alert('Session restarted (variables cleared). Computations will be done by a webworker.')
+     UI.withworker=true;
+   } else {
+     if (UI.withworker) alert('Session restarted (variables cleared).')
+     UI.withworker=false;
+   }
+   if (UI.withworker) document.getElementById('stop_button').style.visibility='visible'; else document.getElementById('stop_button').style.visibility='hidden';
+   UI.caseval("autosimplify("+form.autosimp_level.value+")");
+   //Module.print(st.innerHTML);
+   s='Digits:=';
+   s += form.digits_mode.value;
+   s += ';angle_radian:=';
+   if (form.angle_mode.checked) s += 1; else s += 0;
+   s += ';complex_mode:=';
+   if (form.complex_mode.checked) s += 1; else s += 0;
+   s += ';with_sqrt(';
+   if (form.sqrt_mode.checked) s += 1; else s += 0;
+   s += ');step_infolevel(';
+   if (form.step_mode.checked) s += 1; else s += 0;
+   s += ');';
+   return s;
+  },
+  set_config:function(){
+   var form=document.getElementById('config');
+   var s=UI.config_string();
+   console.log(s);
+   UI.addhelp(' ',s);
+   document.getElementById('config').style.display='none';
+   if (UI.focusaftereval) UI.focused.focus();
+   UI.createCookie('xcas_digits',form.digits_mode.value,10000);
+   UI.createCookie('xcas_angle_radian',form.angle_mode.checked?1:-1,10000);
+   UI.createCookie('xcas_complex_mode',form.complex_mode.checked?1:-1,10000);
+   UI.createCookie('xcas_with_sqrt',form.sqrt_mode.checked?1:-1,10000);
+   UI.createCookie('xcas_step_infolevel',form.step_mode.checked?1:-1,10000);
+   UI.createCookie('xcas_autosimplify',form.autosimp_level.value,10000);
+   UI.createCookie('xcas_docprefix',UI.docprefix,10000);
+   UI.createCookie('xcas_withworker',UI.withworker?1:-1,10000);
+   UI.createCookie('xcas_prettyprint',UI.prettyprint?1:-1,10000);
+   UI.createCookie('xcas_qa',UI.qa?1:-1,10000);
+   UI.createCookie('xcas_usecm',UI.usecm?1:-1,10000);
+   UI.createCookie('xcas_history_width',form.history_width.value,10000);
+   UI.createCookie('xcas_history_height',form.history_height.value,10000);
+   UI.createCookie('xcas_outdiv_width',form.outdiv_width.value,10000);
+   UI.createCookie('xcas_outdiv_height',form.outdiv_height.value,10000);
+  },
+  savesession:function(i){
+    var s;
+    filename=document.getElementById("outputfilename").value;
+    if (i==2) {
+      UI.createCookie('xcas__'+filename,UI.makelink(0),9999);
+      console.log(UI.listCookies());
+      return;
+    }
+    if (i==1){
+      s=document.getElementById("fulldocument").innerHTML;
+      s='<html id="fulldocument" manifest="xcas.appcache">'+s+'</html>';
+    }
+    else {
+      s=document.getElementById("mathoutput").innerHTML;
+    }
+    var blob = new Blob([s], {type: "text/plain;charset=utf-8"});
+    if (i==1) filename += ".html"; else filename += ".xw";
+    saveAs(blob,filename);
+  },
+  show_history123:function(){
+    document.getElementById('history1').style.visibility='visible';
+    document.getElementById('history2').style.display='block';
+    document.getElementById('history4').style.display='block';
+    document.getElementById('startup').style.display='none';
+    document.getElementById('startup1').style.display='none';
+  },
+  loadfile:function(oFiles){
+    var nFiles = oFiles.length;
+    for (var nFileId = 0; nFileId < nFiles; nFileId++) {
+      // Module.print(oFiles[nFileId].name);
+      var reader = new FileReader();
+      reader.readAsText(oFiles[nFileId]);
+      var s;
+      reader.onloadend = function(e){		
+	s = e.target.result;
+        if (s.length>7 && s.substr(0,7)=='<tbody>'){
+         UI.show_history123();
+         document.getElementById("mathoutput").innerHTML += s;
+         if (confirm('Evaluate history levels?'))
+           UI.exec(document.getElementById('mathoutput'),0);
+         // Module.print(s);
+	}
+	else alert('Format de document invalide');
+	if (UI.focusaftereval) UI.focused.focus();
+      }
+    }
+  },
+  show_level_answers: function(level,b){
+    var cur=level.firstChild;
+    cur=cur.firstChild;
+    cur=UI.skip_buttons(cur); 
+    var s=cur.innerHTML;
+    var pos=s.search("<textarea");
+    if (pos<0 || pos>=s.length) return;
+    cur=cur.nextSibling; // skip entry field
+    if (b)
+      cur.style.display='inherit';
+    else
+      cur.style.display='none';
+  },
+  show_answers: function(b){
+   var out=document.getElementById('mathoutput');
+   var cur=out.firstChild;
+   while (cur){
+     UI.show_level_answers(cur,b);
+     cur=cur.nextSibling;
+   }
+   if (UI.focusaftereval) UI.focused.focus();
+  },
+  is_alphan:function(c){
+    return (c>=48 && c<=57) || (c>=65 && c<=91) || (c>=97 && c<=123) ||c==95;
+  },
+  erase_button:function(){
+    return '<td><button style="width:30px;height:30px;" onclick=\'UI.erase(this)\' title="move level to the trash">del</button></td></tr>';
+  },
+  move_buttons:function(newline){
+   var s='<tr onmouseenter="UI.switch_buttons(this,true)" onmouseleave="UI.switch_buttons(this,false)">';
+   s += '<td><button style="width:20px;height:30px;" onclick=\'UI.moveup(this)\' title="move level up">↑</button>';
+   if (newline)
+     s += '<br><button style="width:20px;height:30px;" onclick=\'UI.movedown(this)\' title="move level down">↓</button></td><td></td>';
+   else
+     s += '</td><td><button style="width:20px;height:30px;" onclick=\'UI.movedown(this)\' title="move level down">↓</button></td>';
+   return s;
+  },
+   skip_buttons:function(field){
+     return field.nextSibling.nextSibling;
+   },
+  addplotfunc:function(){
+  },
+  paramname:97,
+  curseurhtml:function(name,mini,maxi,step,value){
+   var s=UI.move_buttons(!UI.qa);
+   s += '<td colspan=3><form onsubmit="setTimeout(function() { rangename.value=valname.value; rangename.step=stepname.value; valname.step=stepname.value;rangename.min=minname.value; rangename.max=maxname.value;UI.eval_below(name.form,name.value,rangename.value);}); return false;">';
+   s += '<input style="height:25px" type="text" name="name" size="1" value=\''+name+'\'>';
+   s += '='+'<input style="height:25px" type="number" name="valname" onchange="valname.innerHTML=valname.value" value=\''+value+'\' step=\''+step+'\'>';
+   s += '<input style="height:25px" type="submit" value="ok">'
+   s += '&nbsp;<input style="height:25px" type="number" name="minname" value=\''+mini+'\' step=\''+step+'\'>';
+   s += '<input style="height:25px" type="range" name="rangename" onclick="valname.value=value;UI.eval_below(form,form.name.value,value);" value='+value+' min='+mini+' max='+maxi+' step=' + step +'>';
+   s += '<input style="height:25px" type="number" name="maxname" value=\''+maxi+'\' step=\''+step+'\'>&nbsp;';
+   s += '(step <input style="height:25px" type="number" name="stepname" value=\''+step+'\' step=\''+step/100+'\'>)';
+   s += '&nbsp;<input style="height:30px" type="button" value="--" onclick="valname.value -= 10*stepname.value;UI.eval_below(form,form.name.value,valname.value);">';
+   s += '&nbsp;<input style="height:30px" type="button" value="- " onclick="valname.value -= stepname.value;UI.eval_below(form,form.name.value,valname.value);">';
+   s += '&nbsp;<input style="height:30px" type="button" value="+ " onclick="valname.value -= -stepname.value;UI.eval_below(form,form.name.value,valname.value);">';
+   s += '&nbsp;<input style="height:30px" type="button" value="++" onclick="valname.value -= -10*stepname.value;UI.eval_below(form,form.name.value,valname.value);">';
+   s += '</form></td>';
+   s += UI.erase_button();
+   return s;
+  },
+  addcurseur: function(name,value,mini,maxi,step){
+   UI.show_history123();
+   UI.caseval('assume('+name+'='+value+')');
+   var s=UI.curseurhtml(name,mini,maxi,step,value);
+   var out=document.getElementById('mathoutput');
+   //Module.print(s);
+   out.innerHTML += s;
+   UI.scrollatend(out.parentNode);
+   UI.link(0);
+   if (UI.focusaftereval) UI.focused.focus();
+  },
+  exec_history: function(){alert('Historique!');},
+  set_focused: function(field){ UI.focused=field;},
+  svg_counter:0,
+  savesvg: function(field){
+    var s=field.innerHTML;
+    s='<?xml version=\"1.0\" encoding=\"iso-8859-1\"?>\n'+s;
+    var blob = new Blob([s], {type: "text/plain;charset=utf-8"});
+    filename=document.getElementById("outputfilename").value;
+    ++UI.svg_counter;
+    filename += UI.svg_counter+".svg";
+    saveAs(blob,filename);
+  },
+   zoom: function(field,scale){
+   var prev=field.parentNode.previousSibling.lastChild;
+   var ps=prev.innerHTML;
+   if (ps.length>22 && ps.substr(0,17)==' <canvas id=\"gl3d'){
+     ps=ps.substr(18,7);
+     var pos=ps.search('"');
+     if (pos>0 && pos<7){
+       ps=ps.substr(0,pos);
+       if (scale>1) UI.giac_renderer('-'+ps); else UI.giac_renderer('+'+ps);
+       return;
+     }
+   }
+   if (prev.firstChild) prev=prev.firstChild;
+   // firstChild not required with all browsers
+   var box = prev.viewBox.baseVal;
+    var w=box.width/1.2,h=box.height/1.2;
+    var x=box.x+w/10,y=box.y+h/10;
+    //Module.print('current w/h '+w+','+h);
+    var cx=x+w/2,cy=y+h/2; // center
+    w=scale*w; h=scale*h; // new scales
+    // Module.print('new center'+cx+','+cy);
+    // Module.print('new w/h'+w+','+h);
+    x=cx-w/2; y=cy-h/2;
+    cx=x+w; cy=y+h;
+    // reeval commandline with gl_x=x..cx and gl_y=y..cy
+    var postcmd=';gl_x='+x+'..'+cx+';gl_y='+y+'..'+cy+';';
+   //Module.print(prev.parentNode.parentNode.previousSibling.innerHTML);
+   //Module.print(postcmd);
+   if (prev.parentNode.previousSibling){
+     //Module.print(prev.parentNode.parentNode.firstChild.innerHTML);
+     UI.reeval(prev.parentNode.parentNode.firstChild,postcmd);
+   }
+   else
+    UI.reeval(prev.parentNode.parentNode.previousSibling.firstChild,postcmd);
+  },
+  eval_cmdline: function(){
+   var value;
+   if (cmentree.type!='textarea') value=cmentree.getValue(); else value=entree.value;
+   UI.eval_cmdline1(value,true);
+  },
+  eval_cmdline1:function(value,docaseval){
+  UI.set_locale();
+  // value=UI.lowercase1(value);
+  var out;
+  // suppress leading non ascii char
+  var n=0;
+  for (;n<value.length;n++){
+    if (value.charCodeAt(n)>32) break;
+  }
+  value=value.substr(n,value.length-n);
+  for (n=value.length-1;n>=0;n--){
+    if (value.charCodeAt(n)>32) break;
+  }
+  value=value.substr(0,n+1);
+  if (cmentree.type!='textarea') cmentree.setValue(value); else entree.value=value;
+  var s=' ';
+  if (value.length >= 2 && value.substr(0,2)=='//'){
+   out=value;
+  } else {
+    if (docaseval) {
+      //Module.print(value);
+      if (UI.busy) { out=" Computing kernel is busy."; s=out; } else {out=UI.casevalcb(value,UI.eval_cmdline1cb,value);return;}
+    }
+    else { out=' Non evalue '; s=out; }
+  }
+  UI.eval_cmdline1end(value,out,s);
+  },
+  eval_cmdline1end:function(value,out,s){
+  var add=UI.addinput(value,out,s);
+  //var s=UI.caseval('mathml(quote('+value+'),1)');
+  //add += '&nbsp;&nbsp;'+s.substr(1,s.length-2);
+  //Module.print(value+'  ->  '+out);
+  if (UI.focusaftereval) cmentree.focus();
+  if (cmentree.type!='textarea') cmentree.execCommand('selectAll');
+  else {var f=document.activeElement; cmentree.select(); f.focus(); UI.selection=cmentree.value;}
+  //document.getElementById('canvas').focus();
+  var mathoutput=document.getElementById('mathoutput');
+  var tr=document.createElement("TABLE"); 
+  tr.innerHTML += add;
+  mathoutput.appendChild(tr.firstChild);
+  // mathoutput.innerHTML += add;
+  UI.render_canvas(mathoutput.lastChild);
+  UI.scrollatend(mathoutput.parentNode);
+  UI.link(0);
+  if (UI.prettyprint && UI.usemathjax && UI.histcount>0)
+    //console.log('"hist'+(UI.histcount-1)+'"');
+    MathJax.Hub.Queue(["Typeset",MathJax.Hub,'"hist'+(UI.histcount-1)+'"']);
+  },
+  eval_cmdline1cb: function(out,value){
+   var s;
+   if (out.substr(1,4)=='<svg' || out.substr(0,5)=='gl3d ') {
+     s=out; out='Done_graphic';
+   }
+   else {
+       if (UI.prettyprint){
+         if (UI.usemathjax)
+           s='latex(quote('+out+'))';
+         else
+           s='mathml(quote('+out+'),1)'; //Module.print(s);
+         s=UI.caseval(s);
+        } else s=out;
+   }
+   UI.eval_cmdline1end(value,out,s);
+  },
+  set_locale: function(){
+  if (UI.langue==-1){ 
+    var out=UI.caseval('set_langage(0); ');
+    UI.langue=1;
+  }
+  if (UI.initconfigstring!=''){
+    UI.caseval(UI.initconfigstring);
+    UI.initconfigstring=''    
+  }
+ },
+  switch_buttons: function(field,onoff){
+    var f=field.firstChild;
+    if (onoff) f.style.visibility='visible'; else f.style.visibility='hidden';
+    f=f.nextSibling;
+    if (onoff) f.style.visibility='visible'; else f.style.visibility='hidden';
+    f=field.lastChild;
+    if (onoff) f.style.visibility='visible'; else f.style.visibility='hidden';
+  },
+  exec: function(field,start){
+  UI.set_locale();
+  var cur=field.firstChild;
+  var i=0;
+  for (;cur;i++){
+   if (i>=start)
+     UI.eval_level(cur);
+   cur=cur.nextSibling;
+   }
+   if (UI.focusaftereval) UI.focused.focus();
+  },
+  eval_below: function(field,name,value){
+  //Module.print(name+':='+value);
+  UI.caseval('assume('+name+'='+value+')');
+  var cur=field.parentNode.parentNode.parentNode;
+  cur=cur.nextSibling;
+  //Module.print(cur.innerHTML);
+  for (;cur;){
+   UI.eval_level(cur);
+   cur=cur.nextSibling;
+  }
+  },
+ editcomment : function(field){
+   var prev=field.parentNode.previousSibling;
+   var s=prev.innerHTML;
+   s='<td colspan="2"><textarea rows="2" columns="60">'+s+'</textarea>';
+   s+='<button onclick="UI.editcomment_end(this)">ok</button></td>';
+   prev.innerHTML=s;
+   field.parentNode.style.display='none';
+ },
+ editcomment_end: function(field){
+  var prev=field.previousSibling;
+  var s='<td colspan="2" onclick="UI.editcomment(this)">'+prev.value+'</td>';
+  var par=field.parentNode;
+  par.innerHTML=s;
+  var l1=par.nextSibling;
+  l1.style.display='block';
+ },
+  eval: function(text,textin){
+   UI.set_locale();
+   var out=UI.caseval(text);
+   var s=' ';
+   if (out.substr(1,4)=='<svg' || out.substr(0,5)=='gl3d '){
+     // Module.print(text+' -> Done');
+     s=out; out='Done_svg';
+   }
+   else {
+     // Module.print(text+' -> '+out);
+     if (UI.prettyprint){
+      if (UI.usemathjax)
+        s=UI.caseval('latex(quote('+out+'))');
+      else
+      s=UI.caseval('mathml(quote('+out+'),1)');
+     } else s=out;
+   }
+   s=UI.addinput(textin,out,s);
+   return s;
+  },
+  render_canvas:function(field){
+   // return; // does not work, 
+   var n=field.id;
+   if (n && n.length>5 && n.substr(0,5)=='gl3d_'){
+    Module.print(n);
+    var n3d=n.substr(5,n.length-5);
+   //Module.print(n3d);
+    //Module.canvas=document.getElementById(n);
+    UI.giac_renderer(n3d);
+    //Module.canvas=document.getElementById('canvas');
+    return;
+   }
+   var f=field.firstChild;
+   for (;f;f=f.nextSibling){
+     UI.render_canvas(f);
+   }
+  },
+  reeval: function(field,postcmd){
+  // field=field.previousSibling;
+  if (field.type!='textarea'){ var t=field.getTextArea(); t.value=field.getValue();field=t;}
+  var s=field.value;
+  var par=field.parentNode;
+  par=par.parentNode;
+  s=UI.eval(s+postcmd,s);
+  par.innerHTML=s;
+  UI.render_canvas(par);
+  UI.link(0);
+  if (UI.prettyprint && UI.usemathjax && UI.histcount>0){
+    //console.log('"hist'+(UI.histcount-1)+'"');
+    MathJax.Hub.Queue(["Typeset",MathJax.Hub,'"hist'+(UI.histcount-1)+'"']);
+  }
+  if (UI.focusaftereval){
+    par=par.parentNode.nextSibling;
+    if (par==null) cmentree.focus(); // console.log(par);
+    else {
+      par=par.firstChild.firstChild.nextSibling.nextSibling.firstChild;
+      par.focus();
+    }
+   }
+  },
+  eval_level: function(field){
+   // ? use cur.nodeType instead of search?
+   var s=field.innerHTML;
+   var pos=s.search("<textarea");
+   if (pos<0 || pos>=s.length){
+    pos=s.search("<form");
+    if (pos>0 && pos<s.length){
+      var level=field.firstChild;
+      var cur=level.firstChild;
+      cur=UI.skip_buttons(cur);
+      //Module.print(cur.innerHTML);
+       cur=cur.firstChild;
+       // Module.print(cur.name.value+':='+cur.rangename.value);
+       UI.caseval(cur.name.value+':='+cur.rangename.value);
+       var s=UI.curseurhtml(cur.name.value,cur.minname.value,cur.maxname.value,cur.stepname.value,cur.valname.value);
+       level.innerHTML=s;
+    }
+    return;
+  }
+    var cur=field.firstChild;
+    cur=cur.firstChild;
+    cur=UI.skip_buttons(cur);
+    cur=cur.firstChild;
+    var s=cur.value;
+    s=UI.eval(s,s);
+    field.innerHTML=s;
+    UI.render_canvas(field);
+    if (UI.prettyprint && UI.usemathjax )
+      MathJax.Hub.Queue(["Typeset",MathJax.Hub,field]);
+  },
+  before: function(field){
+  var s='';
+  while ((field=field.previousSibling)){
+    s += field.innerHTML;
+  }
+   return s;
+  },
+  after: function(field){
+  var s='';
+  while ((field=field.nextSibling)){
+    s += field.innerHTML;
+  }
+   return s;
+  },
+addcomment: function(text){
+         UI.show_history123();
+  var s=UI.move_buttons(!UI.qa);
+  s += '<td colspan="2">'+text.substr(2,text.length-2)+'</td>';
+  s += '<td> <button onclick="UI.editcomment(this);">edit</td>';
+  s += UI.erase_button();
+  return s;
+  },
+  prepare_cm: function(txt,h,cm){
+  cm.setSize(null,h+20);
+  cm.on("focus",function(cm){ UI.set_focused(cm); });
+  cm.on("blur",function(cmf) {
+  if (cmf.getSelection().length > 0){UI.selection=cmf.getSelection();}
+  cmf.toTextArea();
+  });
+  cm.setOption("extraKeys", {
+   Enter: function(cm){
+     var txt=cm.getTextArea();
+     cm.toTextArea();
+     UI.reeval(txt,'');
+   },
+  F1: function(cm) {
+    UI.completion(cm);
+   },
+  Tab: function(cm) {
+    UI.completion(cm);
+    //cm.toTextArea();
+   }
+  });
+  var pos=txt.selectionStart;
+  cm.setCursor({line:0,ch:pos}); cm.refresh();
+  },
+  count_newline: function(text){
+   var k=0,r=0;
+   for (;k<text.length;++k){
+     if (text.charCodeAt(k)==10)
+       ++r;
+   }
+   return r;
+  },
+  addinput: function(textin,textout,mathmlout){
+ document.getElementById('startup_restore').style.display='none'  
+  if (mathmlout.length>=5 && mathmlout.substr(0,5)=='gl3d '){ document.getElementById('boutons_3d').style.display='inherit';document.getElementById('boutons_3d0').style.display='inherit';}
+  if (textin.length > 2 && textin.substr(0,2)=='//') return UI.addcomment(textin);
+         UI.show_history123();
+// document.getElementById('mathoutput').style.listStyleType = 'none';
+  var is_svg=mathmlout.substr(1,4)=='<svg';
+  var is_3d=mathmlout.substr(0,5)=='gl3d ';
+  var s=UI.move_buttons(!UI.qa);
+  var delbut=false;
+  if (textin.charCodeAt(0)==63)
+    s += '<td colspan="2">'+UI.renderhelp(textout)+'</td><td>';
+  else {
+      if (UI.qa)
+      s += '<td>';
+    else
+      s += '<td colspan=2>';	
+    s += '<textarea class="historyinput" ';
+    if (is_svg && UI.qa) s+='rows=8 style="font-size:large"';
+    else s += 'style="height:'+(20+16*UI.count_newline(textin))+'px; font-size:large"';
+    s += ' title="Shift-Enter: newline, Enter: eval" onkeypress="UI.ckenter(event,this)" onblur="UI.updatelevel(this);" onfocus="if (UI.usecm){var h=offsetHeight;var cm=CodeMirror.fromTextArea(this,{ matchBrackets: true}); UI.prepare_cm(this,h,cm); UI.changefontsize(cm,16); UI.set_focused(cm);} else UI.set_focused(this);" onselect="if (UI.getsel(this).length>0) UI.selection=UI.getsel(this);">'+textin+'</textarea>';
+// (navigator.userAgent.match(/Android/i) ||  navigator.userAgent.match(/webOS/i) || navigator.userAgent.match(/iPhone/i) || navigator.userAgent.match(/iPad/i) || navigator.userAgent.match(/iPod/i) || navigator.userAgent.match(/BlackBerry/i) || navigator.userAgent.match(/Windows Phone/i))
+    if (UI.qa) s += '</td>'; 
+    if (is_svg || is_3d){
+      if (UI.qa) s += '<td>'; else s+='<br>';
+      if (is_svg)
+        s += '<div style="text-align:center">'+mathmlout.substr(1,mathmlout.length-2)+'</div></td>';
+      else {
+	var n3d=mathmlout.substr(5,mathmlout.length-5);
+	// Module.print(n3d);
+	if (0)
+	s += '<div style="text-align:center"> 3d </div></td>';
+	else s += '<div style="text-align:center"> <canvas id="gl3d_'+n3d+'" onmousedown="UI.canvas_pushed=true;UI.canvas_lastx=event.clientX; UI.canvas_lasty=event.clientY;" onmouseup="UI.canvas_pushed=false;" onmousemove="UI.canvas_mousemove(event,'+n3d+')" width=400 height=250></canvas></div></td>';
+      }
+      s += '<td><button style="height:25px" onclick="UI.zoom(this,1.414)">out</button><br>';
+      s += '<button style="height:25px" onclick="UI.zoom(this.previousSibling,0.707)">in</button><br>';
+      if (is_svg) s += '<button style="height:25px" onclick="UI.savesvg(parentNode.previousSibling)">sav</button><br>';
+      s += '<br><button style="height:25px;" onclick=\'UI.erase(this)\' title="placer ce niveau dans la corbeille">del</button>'; delbut=true;
+      s += '</td>';
+    }
+    else {
+      if (UI.qa) s += '<td>';
+      s += '<div style="color:blue; text-align:center" title="Double click: see in text mode (useful for copy-paste)" class="outdiv" ondblclick="nextSibling.style.display=\'inherit\';this.nextSibling.select();UI.selection=nextSibling.value;this.style.display=\'none\';this.nextSibling.nextSibling.style.display=\'inherit\';" id="hist'+UI.histcount+'">';
+      UI.histcount++;
+      if (UI.prettyprint){
+       if (UI.usemathjax)
+        s += '$$'+mathmlout.substr(1,mathmlout.length-2)+'$$';
+       else
+        s += mathmlout.substr(1,mathmlout.length-2);
+      } else s += mathmlout;
+      s += '</div>';
+      s += '<textarea class="outdiv" onfocus="UI.set_focused(this)" onselect="if (UI.getsel(this).length>0) UI.selection=UI.getsel(this);" style="display:none">'+textout+'</textarea>';
+      s += '<button style="display:none" onclick="previousSibling.previousSibling.style.display=\'block\'; previousSibling.style.display=\'none\';this.style.display=\'none\'">cancel</button>';
+      s += '</td>';
+      s += '<td><button style="width:20px;height:30px;" onclick=\'UI.insert(UI.focused,"evalf('+textin+')")\' title="Find approx. value" style="color:blue">~</button>';
+     if (!UI.qa) { s += '<button style="height:25px;" onclick=\'UI.erase(this)\' title="placer ce niveau dans la corbeille">del</button>'; delbut=true; }
+      s +='</td>';
+      }
+  }
+  if (delbut) s += '</tr>'; else s += UI.erase_button();
+  return s;
+},
+giac_renderer: function(text){
+var gr = Module.cwrap('_ZN4giac13giac_rendererEPKc','number', ['string']);
+gr(text);
+},
+  xcascmd:["ABS","ACOS","ACOSH","ACOT","ACSC","ADDCOL","ADDROW","ALOG","ARC","ARG","ASEC","ASIN","ASINH","ATAN","ATANH","Airy_Ai","Airy_Bi","Ans","Archive","BINOMIAL","BesselI","BesselJ","BesselK","BesselY","Beta","Bezier","BlockDiagonal","CEILING","CHOOSE","COLNORM","COMB","CONCAT","COND","CONJ","COS","COSH","COT","CROSS","CSC","Celsius2Fahrenheit","Ci","Ci0","Circle","ClrDraw","ClrGraph","ClrIO","CopyVar","CyclePic","DEGXRAD","DELCOL","DELROW","DET","DISP","DOT","DROP","DUP","DelFold","DelVar","Det","Dirac","DispG","DispHome","DrawFunc","DrawInv","DrawParm","DrawPol","DrawSlp","DrwCtour","EDITMAT","EIGENVAL","EIGENVV","EXP","EXPM1","EXPORT","Ei","Ei0","Ei_f","Eta","Exec","FLOOR","FNROOT","Factor","Fahrenheit2Celsius","Fill","GETKEY","GF","Gamma","Gcd","Gcdex","Get","GetCalc","GetFold","Graph","HMSX","Heaviside","IDENMAT","IFTE","IM","INPUT","INVERSE","ISOLATE","ITERATE","Input","InputStr","Int","Inverse","JordanBlock","LINE","LN","LNP1","LOG","LQ","LSQ","LU","Line","LineHorz","LineTan","LineVert","MAKELIST","MAKEMAT","MANT","MAX","MAXREAL","MIN","MINREAL","MOD","MSGBOX","NOP","NORMALD","NTHROOT","NewFold","NewPic","Nullspace","OVER","Output","Ox_2d_unit_vector","Ox_3d_unit_vector","Oy_2d_unit_vector","Oy_3d_unit_vector","Oz_3d_unit_vector","PERM","PICK","PIECEWISE","PIXOFF","PIXON","POISSON","POLYCOEF","POLYEVAL","POLYFORM","POLYROOT","POS","PRINT","Pause","Phi","Pictsize","PopUp","Prompt","Psi","Psi_minus_ln","PtOff","PtOn","PtText","PxlOff","PxlOn","QR","QUAD","QUOTE","Quo","RADXDEG","RANDMAT","RANDOM","RANDSEED","RANK","RCL","RE","RECT","RECURSE","REDIM","REPLACE","REVERSE","ROUND","ROWNORM","RREF","RandSeed","Rank","RclPic","Rem","Resultant","RplcPic","Rref","SCALE","SCALEADD","SCHUR","SEC","SIGN","SIN","SINH","SIZE","SORT","SPECNORM","SPECRAD","SUB","SVD","SVL","SWAP","SWAPCOL","SWAPROW","SetFold","Si","SiCi_f","SiCi_g","SortA","SortD","StoPic","Store","Sum","TAN","TANH","TAYLOR","TRACE","TRN","TRUNCATE","TeX","UTPC","UTPF","UTPN","UTPT","Unarchiv","VIEWS","WAIT","XHMS","XPON","Zeta","ZoomRcl","ZoomSto","a2q","abcuv","about","abs","abscissa","accumulate_head_tail","acos","acos2asin","acos2atan","acosh","acot","acsc","add","add_language","additionally","adjoint_matrix","affix","algvar","alog10","alors","altitude","and","angle","angleat","angleatraw","animate","animate3d","animation","ans","append","apply","approx","arc","arcLen","area","areaat","areaatraw","areaplot","arg","array","array_sto","as_function_of","asc","asec","asin","asin2acos","asin2atan","asinh","assign","assume","atan","atan2acos","atan2asin","atanh","atrig2ln","augment","avance","avgRC","background","baisse_crayon","bar_plot","barycenter","basis","bernoulli","bezout_entiers","binomial","binomial_cdf","binomial_icdf","binprint","bisector","bitand","bitmap","bitor","bitxor","black","blockmatrix","blue","border","bounded_function","boxwhisker","break","breakpoint","by","c1oc2","c1op2","cFactor","cSolve","cZeros","cache_tortue","calc_mode","camembert","canonical_form","cap","cas_setup","cat","cd","ceil","ceiling","cell","center","center2interval","centered_cube","centered_tetrahedron","cfactor","changebase","char","charpoly","chinrem","chisquare","chisquare_cdf","chisquare_icdf","cholesky","choosebox","chrem","circle","circumcircle","classes","click","close","coeff","coeffs","col","colDim","colNorm","coldim","collect","colnorm","color","colspace","comDenom","comb","combine","comment","common_perpendicular","companion","compare","complexroot","concat","cone","conic","conj","cont","contains","content","contourplot","convert","convertir","convexhull","coordinates","copy","correlation","cos","cos2sintan","cosh","cot","cote","count","count_eq","count_inf","count_sup","courbe_parametrique","courbe_polaire","covariance","covariance_correlation","cpartfrac","crationalroot","crayon","cross","crossP","cross_ratio","crossproduct","csc","csolve","csv2gen","cube","curvature","cumSum","cumulated_frequencies","curl","current_sheet","curve","cyan","cycle2perm","cycleinv","cycles2permu","cyclotomic","cylinder","de","deSolve","debug","debug_infolevel","debut_enregistrement","decrement","degree","delcols","delrows","deltalist","denom","densityplot","deriver","desolve","dessine_tortue","det","det_minor","developper","developper_transcendant","dfc","dfc2f","diag","diff","dim","display","disque","disque_centre","distance","distance2","distanceat","distanceatraw","div","divcrement","divergence","divide","divis","division_point","divisors","divpc","dodecahedron","dot","dotP","dotprod","droit","droite_tangente","dsolve","e2r","ecart_type","ecart_type_population","ecris","efface","egcd","egv","egvl","eigVc","eigVl","eigenvals","eigenvalues","eigenvectors","eigenvects","element","ellipse","entry","envelope","epsilon2zero","equal2diff","equal2list","equation","equilateral_triangle","erase3d","erf","erfc","erfs","et","euler","euler_mac_laurin","eval","eval_level","evala","evalb","evalc","evalf","evalm","even","evolute","exact","exbisector","excircle","execute","exp","exp2list","exp2pow","exp2trig","expexpand","exponential_regression","exponential_regression_plot","expr","extract_measure","ezgcd","f2nd","fMax","fMin","fPart","faces","facteurs_premiers","factor","factor_xn","factorial","factoriser","factoriser_entier","factoriser_sur_C","factoriser_xn","factors","faire","fclose","fcoeff","ffonction","fft","fieldplot","filled","fin_enregistrement","findhelp","fisher","fisher_cdf","fisher_icdf","float","float2rational","floor","fonction","fonction_derivee","fopen","format","fourier_an","fourier_bn","fourier_cn","fprint","frac","fracmod","frame_2d","frame_3d","froot","fsolve","funcplot","function_diff","fxnd","gauche","gauss","gaussjord","gbasis","gcd","gcdex","genpoly","geo2d","geo3d","getDenom","getKey","getNum","getType","giac","goto","grad","gramschmidt","graph2tex","graph3d2tex","graphe","graphe3d","graphe_suite","greduce","green","groupermu","hadamard","half_cone","half_line","halftan","halftan_hyp2exp","halt","hamdist","harmonic_conjugate","harmonic_division","has","hasard","head","heap_mult","hermite","hessenberg","hessian","heugcd","hexagon","hexprint","hidden_name","hilbert","histogram","hold","homothety","horner","hp38","hyp2exp","hyperbola","hyperplan","hypersphere","hypersurface","iPart","iabcuv","ibasis","ibpdv","ibpu","ichinrem","ichrem","icontent","icosahedron","id","identity","idivis","idn","iegcd","ifactor","ifactors","ifft","igcd","igcdex","ihermite","ilaplace","im","imag","image","implicitplot","implicitplot3d","inString","in_ideal","incircle","increment","indets","inequationplot","input","inputform","insmod","int","intDiv","integer_format","integrate","integrer","inter","interactive","interactive_odeplot","interactive_plotode","interp","interval2center","inv","inverse","inversion","invlaplace","invztrans","iquo","iquorem","iratrecon","irem","isPrime","is_collinear","is_concyclic","is_conjugate","is_coplanar","is_cycle","is_element","is_equilateral","is_harmonic","is_harmonic_circle_bundle","is_harmonic_line_bundle","is_orthogonal","is_parallel","is_parallelogram","is_permu","is_perpendicular","is_prime","is_pseudoprime","is_rectangle","is_rhombus","is_square","ismith","isobarycenter","isom","isopolygon","isprime","ithprime","jacobi_symbol","jordan","jusque","ker","kernel","keyboard","kill","l1norm","l2norm","label","lagrange","laguerre","laplace","laplacian","latex","lcm","lcoeff","ldegree","left","legend","legendre","legendre_symbol","length","leve_crayon","lgcd","lhs","ligne_polygonale","ligne_polygonale_pointee","limit","limite","lin","line","line_inter","line_segments","linear_interpolate","linear_regression","linear_regression_plot","lineariser","lineariser_trigo","linsolve","lis","lis_phrase","list2mat","listplot","lll","ln","lnGamma_minus","lname","lncollect","lnexpand","locus","log10","logarithmic_regression","logarithmic_regression_plot","logb","logistic_regression","logistic_regression_plot","lsmod","lu","lvar","mRow","mRowAdd","magenta","makelist","makemat","makemod","makesuite","makevector","map","maple2mupad","maple2xcas","maple_ifactors","maple_mode","mat2list","mathml","matpow","matrix","max","maxnorm","mean","median","median_line","member","mid","midpoint","min","mkisom","mksa","modgcd","modgcd_cachesize","modp","mods","montre_tortue","moustache","moyal","moyenne","mpzclass_allowed","mul","mult_c_conjugate","mult_conjugate","multcrement","multiplier_conjugue","multiplier_conjugue_complexe","multiply","mupad2maple","mupad2xcas","nCr","nDeriv","nInt","nPr","nSolve","ncols","newList","newMat","newton","nextperm","nextprime","nodisp","non","non_recursive_normal","nop","nops","norm","normal","normal_cdf","normal_icdf","normald","normald_cdf","normald_icdf","normalize","nrows","nuage_points","nullspace","numer","octahedron","octprint","odd","odeplot","odesolve","op","open","open_polygon","or","ord","order_size","ordinate","orthocenter","orthogonal","os_version","ou","output","p1oc2","p1op2","pa2b2","pade","padic_linsolve","parabola","parabolic_interpolate","parallel","parallelepiped","parallelogram","parameq","parameter","paramplot","pari","pari_unlock","part","partfrac","pas","pas_de_cote","pcar","pcar_hessenberg","pcoeff","perimeter","perimeterat","perimeteratraw","perm","perminv","permu2cycles","permu2mat","permuorder","perpen_bisector","perpendicular","peval","piecewise","pivot","pixoff","pixon","plane","plot","plot3d","plot_style","plotarea","plotcontour","plotdensity","plotfield","plotfunc","plotimplicit","plotinequation","plotlist","plotode","plotparam","plotpolar","plotseq","pmin","pnt","point","point2d","point3d","pointer","poisson","poisson_cdf","poisson_icdf","polar","polar2rectangular","polar_coordinates","polar_point","polarplot","pole","poly2symb","polyEval","polygone_rempli","polygonplot","polygonscatterplot","polyhedron","polynomial_regression","polynomial_regression_plot","position","potential","pour","pow2exp","power_regression","power_regression_plot","powermod","powerpc","powexpand","powmod","prepend","preval","prevperm","prevprime","primpart","print","printpow","prism","product","prog_eval_level","projection","proot","propFrac","propfrac","psrgcd","ptayl","purge","pwd","pyramid","q2a","qr","quadric","quadrilateral","quantile","quartile1","quartile3","quartiles","quaternion","quest","quo","quorem","quote","r2e","radical_axis","radius","ramene","rand","randMat","randNorm","randPoly","randexp","randmatrix","randperm","randpoly","randvector","rank","ranm","rassembler_trigo","rat_jordan","rat_jordan_block","rationalroot","ratnormal","rdiv","re","read","readrgb","readwav","real","realroot","reciprocation","rectangle","rectangle_plein","rectangular2polar","rectangular_coordinates","recule","red","reduced_conic","reduced_quadric","ref","reflection","rem","remain","remove","remove_language","reorder","repete","reset_solve_counter","residue","resoudre","resoudre_dans_C","resoudre_systeme_lineaire","restart","restart_modes","restart_vars","resultant","reverse_rsolve","revert","revlist","rhombus","rhs","right","right_triangle","rm_a_z","rm_all_vars","rmbreakpoint","rmmod","rmwatch","romberg","rond","rootof","roots","rotate","rotation","round","row","rowAdd","rowDim","rowNorm","rowSwap","rowdim","rownorm","rowspace","rref","rsolve","saute","sauve","save_history","scalarProduct","scalar_product","scatterplot","sec","segment","select","semi_augment","seq","seqplot","seqsolve","series","shift","shift_phase","show_language","si","sialorssinon","sign","signature","signe","similarity","simp2","simplex_reduce","simplifier","simplify","simult","sin","sin2costan","sincos","single_inter","singular","sinh","sinon","size","sizes","slope","slopeat","slopeatraw","smod","snedecor","snedecor_cdf","snedecor_icdf","solve","solve_zero_extremum","somme","sommet","sort","sphere","spline","split","spread2mathml","spreadsheet","sq","sqrfree","sqrt","square","srand","sst","sst_in","stdDev","stddev","stddevp","sto","string","student","student_cdf","student_icdf","sturm","sturmab","sturmseq","subMat","submatrix","subst","substituer","sum","sum_riemann","suppress","surd","svd","switch_axes","sylvester","symb2poly","syst2mat","tCollect","tExpand","table","tablefunc","tableseq","tabvar","tail","tan","tan2cossin2","tan2sincos","tan2sincos2","tangent","tangente","tanh","tantque","taylor","tchebyshev1","tchebyshev2","tcoeff","tcollect","testfunc","tests","tetrahedron","texpand","textinput","threads_allowed","throw","time","tlin","to","tourne_droite","tourne_gauche","trace","tran","translation","transpose","triangle","triangle_plein","trig2exp","trigcos","trigexpand","trigsin","trigtan","trn","trunc","truncate","tsimplify","type","ufactor","unapply","unarchive","unarchive_ti","unitV","unquote","usimplify","valuation","vandermonde","variance","vector","vers","version","vertices","vertices_abc","vertices_abca","vpotential","watch","whattype","when","white","widget_size","with_sqrt","write","writergb","writewav","xcas_mode","xyztrange","yellow","zeros","zip","ztrans"],
+  dicho_find:function(tableau,s){
+    var l=tableau.length,debut=0,fin=l,milieu;
+    if (l==0) return false;
+    if (s<tableau[0] || s>tableau[l-1]) return false;
+    // s>=tableau[debut] and s<=tableau[fin-1]
+    for (;debut<fin-1;){
+      milieu=Math.floor((debut+fin)/2);
+      // console.log(debut,fin,milieu,tableau[milieu]) 
+      if (s>=tableau[milieu]) debut=milieu; else fin=milieu;
+    }
+    // console.log(s,tableau[debut]);
+    if (s==tableau[debut]) return true;
+    return false;
+  },
+  unique_completion:function(tableau,s){
+    var l=tableau.length,debut=0,fin=l,milieu;
+    if (l==0 || s>tableau[l-1]) return "";
+    if (s<tableau[0]) return s==tableau[0].substr(s.length);
+    // s>=tableau[debut] and s<=tableau[fin-1]
+    for (;debut<fin-1;){
+      milieu=Math.floor((debut+fin)/2);
+      // console.log(debut,fin,milieu,tableau[milieu]) 
+      if (s>=tableau[milieu]) debut=milieu; else fin=milieu;
+    }
+    //console.log(s,tableau[debut],tableau[debut+1],tableau[debut+2]);
+    // s>=tableau[debut]
+    if (s==tableau[debut]){
+      if (debut+1<l && s==tableau[debut+1].substr(0,s.length) ) return "";
+      return s;
+    }
+    // now s>tableau[debut] and s is supposed to be shorter, hence s!=begin of tableau[debut]
+    if (debut+1<l && s!=tableau[debut+1].substr(0,s.length)) return "";
+    if (debut+2<l && s==tableau[debut+2].substr(0,s.length)) return "";
+    return tableau[debut+1];
+  },
+  completion:function(cm){
+    var s,k;
+    if (cm.type=='textarea'){
+      k = cm.selectionStart;
+      s=cm.value;
+    }
+    else {
+     var pos=cm.getCursor();
+     k=pos.ch;
+     s=cm.getLine(pos.line);
+    }
+    var kstart=k;
+     // skip at cursor
+     for (;k>0;k--){
+       var c=s.charCodeAt(k);
+       if (UI.is_alphan(c))
+         break;
+     }
+     var kend=k;
+     for (;k>=0;k--){
+       var c=s.charCodeAt(k);
+       if (!UI.is_alphan(c))
+         break;
+     }
+     for (;k<kend;k++){
+       var c=s.charCodeAt(k+1);
+       if (c>64) break;
+     }
+     //Module.print(s); Module.print(k); Module.print(kend);
+     s=s.substr(k+1,kend-k);
+     if (s.length<2){ UI.insert(UI.focused,'?'); return;}
+     var sc=UI.unique_completion(UI.xcascmd,s);
+     if (cm.type=='textarea'){
+       cm.selectionStart=k+1;
+       cm.selectionEnd=kstart;
+       if (sc!=""){
+         UI.insert(cm,sc);
+         s=sc;
+         cm.selectionStart=k+1;
+         cm.selectionEnd=k+1+sc.length;
+       }
+     } else {
+       if (sc!=""){
+         cm.setSelection({line:pos.line,ch:k+1},{line:pos.line,ch:pos.ch});
+         UI.insert(cm,sc);
+         cm.setSelection({line:pos.line,ch:k+1},{line:pos.line,ch:k+1+sc.length});
+         s=sc;
+       }
+       else {
+          cm.showHint();
+       }
+     }
+     UI.addhelp('?',s);
+  },
+  isie:false,    
+  scrollatend:function(field){
+    if (!UI.isie)
+      field.scrollTop=field.scrollHeight;    
+  },    
+  addhelp: function(prefixe,text){
+  document.getElementById('helptxt').value=text;      
+  var input=prefixe+text;
+  var out=UI.eval(input,input);
+  var add=out;
+  var helpoutput=document.getElementById('helpoutput');
+  helpoutput.innerHTML += add;  
+  UI.scrollatend(helpoutput.parentNode); // focus at end
+  if (UI.focusaftereval) UI.focused.focus();
+  },
+  clean:function(text,quote){
+    var cmd=text;
+    if (quote) cmd=cmd.replace(/\'/g,'\\\'');
+    cmd=cmd.replace(/>/g,'&gt;');
+    cmd=cmd.replace(/</g,'&lt;');
+    return cmd;
+  },
+  renderhelp: function(text){
+  var s=text.substr(1,text.length-2);
+  var pos0=s.search("</b>");
+  var found=(s.substr(pos0+7,20)!="Best match has score");
+  var lh=s.substr(3,pos0-3);
+  if (found)
+    lh=' (<a href="'+UI.docprefix+eval('longhelpen.'+lh)+'" target="_blank">more details</a>)';
+  //Module.print(lh);
+  var sorig=s;  
+  pos1=s.search("<br>");
+  if (pos1<0) return sorig;
+  var explication=s.substr(0,pos1);
+  s=s.substr(pos1+4,s.length-pos1-4);
+  pos1=s.search("<br>");
+  if (pos1<0) return sorig;
+  var syntaxe=s.substr(0,pos1);
+  s=s.substr(pos1+4,s.length-pos1-4);
+  pos1=s.search("<br>");
+  if (pos1<0) return sorig;
+  var voiraussi=s.substr(0,pos1);
+  var examples=s.substr(pos1+4,s.length-pos1-4);
+  if (found)
+    s = explication+lh+'<br><tt>'+syntaxe+'</tt><br>See also: ';
+  else
+    s = explication.substr(0,pos0);
+  while (true){
+    pos1=voiraussi.search(',');
+    if (pos1 < 0) break;
+    var cmd=voiraussi.substr(0,pos1);
+    if (found)
+      s += '<button style="height:25px" onmousedown="event.preventDefault()" onclick="UI.addhelp(\'?\',\''+cmd+'\')">'+cmd+'</button>';
+    else
+      s += '<button style="height:25px" onmousedown="event.preventDefault()" onclick="document.getElementById(\'helptxt\').value=\''+cmd+'\';UI.insert(UI.focused,\''+UI.clean(cmd,true)+'(\')">'+cmd+'</button>';
+    voiraussi = voiraussi.substr(pos1+1,voiraussi.length-pos1-1);
+  }
+  if (found)
+    s += '<button style="height:25px" onmousedown="event.preventDefault()" onclick="UI.addhelp(\'?\',\''+voiraussi+'\')">'+voiraussi+'</button>';
+  else 
+    s += '<button style="height:25px" onmousedown="event.preventDefault()" onmousedown="event.preventDefault()" onclick="UI.insert(UI.focused,\''+voiraussi+'(\')">'+voiraussi+'</button>';
+  pos1=examples.search(';');
+  if (pos1>=0){
+   s += '<br>Examples: ';
+   while (true){
+    pos1=examples.search(';');
+    if (pos1<0) break;
+    var cmd=examples.substr(0,pos1);
+    cmd=cmd.replace(/>/g,'&gt;');
+    cmd=cmd.replace(/</g,'&lt;');
+    s += '<button style="height:25px" onmousedown="event.preventDefault()" onclick="UI.insert(UI.focused,\''+UI.clean(cmd,true)+'\')">'+cmd+'</button>';
+    examples = examples.substr(pos1+1,examples.length-pos1-1);
+   }
+  }
+  s += '<button style="height:25px" onmousedown="event.preventDefault()" onclick="UI.insert(UI.focused,\''+examples+'\')">'+examples+'</button>';
+  return s;
+  },
+getsel:function(field){
+ var startPos = field.selectionStart;
+var endPos = field.selectionEnd;
+    var selectedText = field.value.substring(startPos, endPos);
+  return selectedText;
+  },
+move_caret_or_focus:function(field,n){
+ UI.moveCaret(field,n); return;
+ if (UI.detectmob()){ UI.moveCaret(field,n); return; }
+  move_focus(field,n);
+},
+move_focus:function(field,n){
+ // device with kbd, focus on next or previous history level
+ if (n>0){
+  if (field==cmentree) return;
+  if (field.type!="textarea")
+   field=field.getTextArea();
+  if (field.previousSibling==null){
+   var par=field.parentNode;
+   UI.switch_buttons(par.parentNode,true)
+   par=par.nextSibling;
+   par=par.firstChild;
+   if (par.nextSibling==null){
+     par=par.parentNode.parentNode.parentNode.nextSibling;
+     if (par==null) cmentree.focus(); // console.log(par);
+     else {
+      UI.switch_buttons(par.firstChild,true) 
+      par=par.firstChild.firstChild.nextSibling.nextSibling.firstChild;
+      par.focus();
+     }
+     return;
+   }
+   par.style.display='none';
+   par=par.nextSibling;
+   par.style.display='inherit';
+   par.select();
+   UI.set_focused(par);
+   par.focus();
+   return;
+  }
+  var bidon=field.previousSibling;
+  if (bidon.style.display!='none') return;
+  bidon.style.display='block';
+  field.style.display='none';
+  var par=field.parentNode.parentNode.parentNode.nextSibling;
+  if (par==null) {
+   UI.set_focused(cmentree); cmentree.focus();
+   //  console.log(par);
+  }
+  else {
+    UI.switch_buttons(par.firstChild,true) 
+    par=par.firstChild.firstChild.nextSibling.nextSibling.firstChild;
+    par.focus();
+   }
+  return;
+ }
+ if (field==cmentree){
+  var par=document.getElementById('mathoutput').lastChild;
+  if (par==null) return;
+   UI.switch_buttons(par.firstChild,true) 
+   par=par.firstChild.firstChild.nextSibling.nextSibling.nextSibling.firstChild;
+   if (par.nextSibling==null){
+    par=par.parentNode.previousSibling.firstChild;
+    par.focus(); return;
+   } 
+   //console.log(par.innerHTML);
+   par.style.display='none';
+   par=par.nextSibling;
+   par.style.display='inherit';
+   par.select();
+   UI.set_focused(par);
+   par.focus();
+   return;
+ }
+  if (field.type!="textarea")
+   field=field.getTextArea();
+  if (field.previousSibling==null){
+   var par=field.parentNode.parentNode.parentNode.previousSibling;
+   UI.switch_buttons(par.firstChild,true) 
+   par=par.firstChild.firstChild.nextSibling.nextSibling.nextSibling.firstChild;
+   if (par.nextSibling==null){
+    //console.log(par.nextSibling);
+    par=par.parentNode.previousSibling.firstChild;
+    par.focus(); return;
+   } 
+   par.style.display='none';
+   par=par.nextSibling;
+   par.style.display='inherit';
+   par.select();
+   UI.set_focused(par);
+   par.focus();
+   return;
+  }
+  var bidon=field.previousSibling;
+  if (bidon.style.display!='none') return;
+  bidon.style.display='block';
+  field.style.display='none';
+  var par=field.parentNode.previousSibling.firstChild;
+  par.focus();
+  UI.switch_buttons(par.parentNode.parentNode,true) 
+},
+selline:0,
+selch:0,
+setselbeg:function(field){
+  if (field.type!="textarea"){
+    var pos=field.getCursor(); // save position
+    UI.selline=pos.line; UI.selch=pos.ch;
+    //console.log(UI.selline,UI.selch);
+    return;
+  }
+  UI.selch=field.selectionStart;
+},
+setselend:function(field){
+  if (field.type!="textarea"){
+    var startpos=field.getCursor(); // current position
+    field.setSelection({line: UI.selline,ch:UI.selch },startpos);
+    field.refresh();
+    UI.selection=field.getSelection();
+    return;
+  }
+  var pos1=field.selectionStart;
+  var pos2=UI.selch;
+  if (pos2>field.value.length) pos2=field.value.length;
+  if (pos1>pos2){ var tmp=pos1; pos1=pos2; pos2=tmp; }
+  field.setSelectionRange(pos1,pos2);
+  UI.selection=field.value.substr(pos1,pos2-pos1);
+},
+indentline:function(field){
+ if (field.type!='textarea') field.execCommand('indentAuto');
+},
+moveCaret: function(field, charCount) {
+  if (field.type!="textarea"){
+    var pos=field.getCursor();
+    pos.ch = pos.ch+charCount;
+    field.setCursor(pos);
+    field.refresh();
+    return;
+  }
+  var pos=field.selectionStart;
+  pos = pos+charCount;
+  if (pos<0) pos=0;
+  if (pos>field.value.length) pos=field.value.length;
+  field.setSelectionRange(pos,pos);
+  },
+moveCaretUpDown: function(field, Count) {
+  if (field.type!="textarea"){
+    var pos=field.getCursor();
+    pos.line = pos.line+Count;
+    field.setCursor(pos);
+    field.refresh();
+    //UI.show_curseur();
+    return;
+  }
+  if (Count<-1){
+    var i;
+    for (i=0;i>Count;i--)
+     UI.moveCaretUpDown(field,-1);
+    return;
+  }
+  if (Count>1){
+    var i;
+    for (i=0;i<Count;i++)
+     UI.moveCaretUpDown(field,1);
+    return;
+  }
+  var pos=field.selectionStart;
+  var s=field.value;
+  var cur=pos,shift=pos+1,pos1;
+  cur--;
+  if (cur>=s.length) cur--;
+  for (;cur>=0;cur--){
+    if (s.charCodeAt(cur)==10){ shift=pos-cur; break; }
+  }
+  if (Count==-1){
+   if (cur<0) return;
+   pos1=cur;cur--;
+   for (;cur>=0;cur--){
+     if (s.charCodeAt(cur)==10) break;
+   }
+   //console.log(cur,shift);
+   pos=cur+shift;
+   if (pos>pos1) pos=pos1;
+  }
+  if (Count==1){
+    cur=pos;
+    for (;cur<s.length;cur++){
+      if (s.charCodeAt(cur)==10) break;
+    }
+    pos=cur+shift;
+    if (pos>=s.length) return;
+    pos1=pos;
+    for (;pos1>cur;pos1--){
+      if (s.charCodeAt(pos1)==10) pos=pos1;
+    }
+  }
+  if (pos<0) pos=0;
+  if (pos>field.value.length) pos=field.value.length;
+  field.setSelectionRange(pos,pos);
+  },
+  erase: function(field){
+  var par=field.parentNode;
+  par=par.parentNode;
+  par.style.visibility='hidden';
+  if (UI.focusaftereval) UI.focused.focus();
+  par=par.parentNode;
+  var list = par.parentNode;
+  if (list.id=='helpoutput')
+    list.removeChild(par);
+  },
+  erase_all_warn:1,
+  erase_all: function(field){
+    var cur=field.firstChild;
+    while (cur){
+     cur.firstChild.style.visibility='hidden';
+     cur=cur.nextSibling;
+    }
+    if (UI.erase_all_warn==1){
+     alert('Click on Trash restore to cancel. Click on Trash empty to confirm');
+     UI.erase_all_warn=0;
+    }
+    if (UI.focusaftereval) cmentree.focus();
+  },
+  restoretrash:function(){
+  var hist=document.getElementById('mathoutput');
+  var cur=hist.firstChild;
+  while (cur){
+    if (cur.firstChild.style.visibility=='hidden')
+      cur.firstChild.style.visibility='visible';
+    cur=cur.nextSibling;
+  }
+  },
+  emptytrash:function(){
+  var hist=document.getElementById('mathoutput');
+  var cur=hist.firstChild;
+  while (cur){
+    var nxt=cur.nextSibling;
+    if (cur.firstChild.style.visibility=='hidden')
+      hist.removeChild(cur);
+    cur=nxt;
+  }
+   UI.link(0);
+  },
+updatelevel: function(field){
+  var pos=field.selectionStart;
+  field.innerHTML=field.value;
+  if (pos>=0 && pos<field.value.length)
+    field.setSelectionRange(pos,pos);
+},
+  moveup: function(field){
+  var par=field.parentNode;
+  par=par.parentNode;
+  par=par.parentNode;
+  var prev=par.previousSibling;
+  var list = par.parentNode;
+  list.removeChild(par);
+  list.insertBefore(par,prev);
+  if (UI.focusaftereval) UI.focused.focus();
+  },
+  movedown: function(field){
+  var par=field.parentNode;
+  par=par.parentNode;
+  par=par.parentNode;
+  var nxt=par.nextSibling;
+  nxt=nxt.nextSibling;
+  var list = par.parentNode;
+  list.removeChild(par);
+  list.insertBefore(par,nxt);
+  },
+  backspace: function(field){
+    //if (UI.focusaftereval) field.focus();
+    if (field.type!="textarea"){
+      var start=field.getCursor('from');
+      var end=field.getCursor('to');
+      if (end.line!=start.line || end.ch!=start.ch)
+        field.replaceSelection('');
+      else {
+        var c=start.ch; var l=start.line;
+        if (start.ch==0 && start.line==0) return;
+        if (c>0){ c--; field.replaceRange('',{line: l,ch:c},end); }
+        else { l--; var s=field.getRange({line: l,ch:c},end); field.replaceRange('',{line: l,ch:s.length-1},end); }
+      }
+      var t=field.getTextArea(); t.value=field.getValue();
+    } else {
+      var pos = field.selectionStart;
+      var pos2 = field.selectionEnd;
+      var s=field.value;
+      if (pos<pos2){
+        field.value = s.substring(0, pos)+s.substring(pos2,s.length);
+        if (pos<0) pos=0;
+        if (pos>field.value.length) pos=field.value.length;
+        field.setSelectionRange(pos,pos);
+        UI.resizetextarea(field);
+        return;
+      }
+      if (pos>0){
+        field.value = s.substring(0, pos-1)+s.substring(pos,s.length);
+        pos--;
+        if (pos<0) pos=0;
+        if (pos>field.value.length) pos=field.value.length;
+        field.setSelectionRange(pos,pos);
+        UI.resizetextarea(field);
+      }
+    }
+  },
+insert: function(myField, myValue) {
+ if (UI.focusaftereval) myField.focus();
+ if (myField.type!="textarea"){
+  myField.replaceSelection(myValue);
+  myField.execCommand("indentAuto");
+  var t=myField.getTextArea(); t.value=myField.getValue();
+ }
+ else {
+  var pos=myField.selectionStart;
+  pos=pos+myValue.length;
+  //IE support
+  if (document.selection) {
+    if (UI.focusaftereval) myField.focus();
+    var sel = document.selection.createRange();
+    sel.text = myValue;
+  }
+  //MOZILLA and others
+  else {
+    var startPos = myField.selectionStart;
+    var endPos = myField.selectionEnd;
+    if (myField.selectionStart || myField.selectionStart == '0') {
+        myField.value = myField.value.substring(0, startPos)
+            + myValue
+            + myField.value.substring(endPos, myField.value.length);
+    } else {
+        myField.value += myValue;
+    }
+  }
+  myField.setSelectionRange(pos,pos);
+  UI.resizetextarea(myField);
+  }
+},
+  resizetextarea:function(field){
+    if (field.type!='textarea') return;
+    var s=field.value;
+    var N=0,i,n=s.length,c;
+    for (i=0;i<n;i++){
+      c=s.charCodeAt(i);
+      if (c==10) N++;
+    }
+    if (field.rows!=N+1) field.rows=N+1;
+  },
+  changefontsize:function(field,size){
+    field.getWrapperElement().style["font-size"] = size+"px";
+    field.refresh();
+  }
+  }; // closing UI={
+  // remove existing codemirror field
+  prog=document.getElementById('prog');
+  if (prog && prog.nextSibling){
+    prog.parentNode.removeChild(prog.nextSibling);
+  }
+  if (entree && entree.nextSibling){
+    entree.parentNode.removeChild(entree.nextSibling);
+  }
+  document.getElementById('canvas').onmousemove=function(event){ UI.canvas_mousemove(event,'');};
+  document.getElementById('output').style.display='none';
+  document.getElementById("config").reset();
+  // connect to canvas  
+  var Module = {
+        worker:false,
+        htmlcheck:true,
+        htmlbuffer:'',
+        preRun: [],
+        postRun: [],
+        print: (function() {
+          var element = document.getElementById('output');
+          element.innerHTML='';// element.value = ''; // clear browser cache
+          return function(text) {
+            //console.log(text.charCodeAt(0));
+            if (text.length==1 && text.charCodeAt(0)==12){ element.innerHTML=''; return; }
+            if (text.length>=1 && text.charCodeAt(0)==2) {console.log('STX');Module.htmlcheck=false; htmlbuffer='';return;}
+            if (text.length>=1 && text.charCodeAt(0)==3) {console.log('ETX');Module.htmlcheck=true; element.style.display='inherit'; element.innerHTML += htmlbuffer;htmlbuffer='';element.scrollTop = 99999; return;}
+            if (Module.htmlcheck){
+            // These replacements are necessary if you render to raw HTML 
+             text = text.replace(/&/g, "&amp;");
+             text = text.replace(/</g, "&lt;");
+             text = text.replace(/>/g, "&gt;");
+             text = text.replace(/\n/g, '<br>');
+             text += '<br>'
+             element.style.display='inherit';
+             element.innerHTML += text; // element.value += text + "\n";
+             element.scrollTop = 99999; // focus on bottom
+            } else htmlbuffer += text;
+          };
+        })(),
+        printErr: function(text) {
+          if (0) { // XXX disabled for safety typeof dump == 'function') {
+            dump(text + '\n'); // fast, straight to the real console
+          } else {
+            console.log(text);
+          }
+        },
+        canvas: document.getElementById('canvas'),
+        setStatus: function(text) {
+          if (Module.setStatus.interval) clearInterval(Module.setStatus.interval);
+          var m = text.match(/([^(]+)\((\d+(\.\d+)?)\/(\d+)\)/);
+          var statusElement = document.getElementById('status');
+          var progressElement = document.getElementById('progress');
+          if (m) {
+            text = m[1];
+            progressElement.value = parseInt(m[2])*100;
+            progressElement.max = parseInt(m[4])*100;
+            progressElement.hidden = false;
+          } else {
+            progressElement.value = null;
+            progressElement.max = null;
+            progressElement.hidden = true;
+          }
+          statusElement.innerHTML = text;
+        },
+        totalDependencies: 0,
+        monitorRunDependencies: function(left) {
+          this.totalDependencies = Math.max(this.totalDependencies, left);
+          Module.setStatus(left ? 'Preparation... (' + (this.totalDependencies-left) + '/' + this.totalDependencies + ')' : 'Telechargements termines.');
+        }
+      };
+      Module.setStatus('Preparing (may take 1 or 2 minutes the first time)');
+    </script>      
+  <script src="giac.js" async></script>
+<script src="longhelp.js"></script>
+
+<script language="javascript">
+  CodeMirror.registerHelper("hintWords", "simplemode",UI.xcascmd);
+// En ajoutant async a la fin de script src=giac.js on accelere les chargements
+// de la page nue (cache), mais pas si il y a un lien
+  cmentree=entree;
+  window.onresize=UI.set_config_width;
+ window.onload = function(e){
+  //UI.caseval('abc(x=0); [x, y]; z+1;');
+  var form=document.getElementById('config');
+  var hw=window.innerWidth-50;
+  if (hw>=1000){ UI.qa=true; form.qa.checked=true; UI.usecm=true; form.usecm.checked=true;}
+  else {UI.qa=false; form.qa.checked=false; UI.usecm=true; form.usecm.checked=true;}
+  // config in cookies
+  var ck;
+  ck=UI.readCookie('xcas_digits');
+  if (ck) form.digits_mode.value=eval(ck);
+  ck=UI.readCookie('xcas_angle_radian');
+  if (ck) form.angle_mode.checked=(ck=='1');
+  ck=UI.readCookie('xcas_complex_mode');
+  if (ck) form.complex_mode.checked=(ck=='1');
+  ck=UI.readCookie('xcas_with_sqrt');
+  if (ck) form.sqrt_mode.checked=(ck=='1');
+  ck=UI.readCookie('xcas_step_infolevel');
+  if (ck) form.step_mode.checked=(ck=='1');
+  ck=UI.readCookie('xcas_autosimplify');
+  if (ck) form.autosimp_level.value=eval(ck);
+  ck=UI.readCookie('xcas_docprefix');
+  if (ck) UI.docprefix=ck;
+  ck=UI.readCookie('xcas_withworker');
+  if (ck) form.worker_mode.checked=(ck=='1');
+  UI.withworker=form.worker_mode.checked;
+  ck=UI.readCookie('xcas_prettyprint');
+  if (ck) form.prettyprint.checked=(ck=='1');
+  UI.prettyprint=form.prettyprint.checked;
+  ck=UI.readCookie('xcas_qa'); 
+  if (ck) form.qa.checked=UI.qa=(ck=='1');
+  ck=UI.readCookie('xcas_usecm'); 
+  if (ck) form.usecm.checked=UI.usecm=(ck=='1');
+  ck=UI.config_string(); console.log(ck);
+  if (0) UI.caseval(ck); else UI.initconfigstring=ck; //UI.set_config_width();
+  var ua = window.navigator.userAgent;
+  var old_ie = ua.indexOf('MSIE ');
+  var new_ie = ua.indexOf('Trident/');
+  // if (window.chrome && hw<1000) UI.prettyprint=false;
+  if ((old_ie > -1) || (new_ie > -1)) UI.isie=true;
+  var bt=UI.browser_type();
+  if (UI.isie || (bt!=1 && bt!=2)){
+    UI.usemathjax=true;
+    var alertmsg="Consider switching to Firefox for faster results and better rendering";
+    if (UI.isie) alertmsg="3d does not work with Internet Explorer. "+alertmsg;
+    alert(alertmsg);
+  }
+ if (!UI.is_touch_device()) w3IncludeHTML(); // context-menu
+ // if (bt==1 && hw>=1000) w3IncludeHTML();
+ document.getElementById('apropos').style.display='none';
+ document.getElementById('help').style.display='none';
+ console.log("window.onload");
+ var hist=document.getElementById('mathoutput');
+ var doexec=false;
+ var asked=false;
+ if (hist.firstChild){
+  asked=true;
+  if (!UI.withworker && confirm('Evaluate history levels?')) {
+   doexec=true;
+  }
+  // else {alert('Historique non execute');}
+ }
+ var hashParams = window.location.hash.substr(1);
+ // substr(1) to remove the `#`
+ if (UI.readCookie('xcas_session')!=null) document.getElementById('startup_restore').style.display='block';
+ //UI.restoresession(hashParams,hist,asked,doexec);
+  window.setTimeout(UI.restoresession,200,hashParams,hist,asked,doexec);
+  document.getElementById('startup1').style.display='block';
+}
+</script>
+
+</body>
+</html>
+

@@ -1,0 +1,9123 @@
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR Free Software Foundation, Inc.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
+#
+#: src/misc.cc:5152
+#, fuzzy
+msgid ""
+msgstr ""
+"Project-Id-Version: PACKAGE VERSION\n"
+"Report-Msgid-Bugs-To: \n"
+"POT-Creation-Date: 2017-09-07 11:32+0200\n"
+"PO-Revision-Date: 2010-05-03 15:29+0200\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: ENCODING\n"
+
+#: src/hist.cxx:94 src/History.cc:1623
+msgid " has changed. Save?"
+msgstr ""
+
+#: src/hist.cxx:441 src/hist.cxx:2913 src/hist.menus:284
+msgid "CAS"
+msgstr ""
+
+#: src/hist.cxx:442 src/hist.menus:285
+msgid "Program CAS"
+msgstr ""
+
+#: src/hist.cxx:443 src/hist.cxx:752 src/hist.cxx:5225 src/hist.menus:272
+#: src/hist.menus:286 src/Tableur.cc:156 src/Tableur.cc:2962
+msgid "Spreadsheet"
+msgstr ""
+
+#: src/hist.cxx:444 src/hist.cxx:752 src/hist.cxx:2925 src/hist.menus:105
+#: src/hist.menus:287
+msgid "Geometry"
+msgstr ""
+
+#: src/hist.cxx:445 src/hist.cxx:752 src/hist.menus:108 src/hist.menus:276
+#: src/hist.menus:288
+msgid "Turtle"
+msgstr ""
+
+#: src/hist.cxx:750 src/hist.cxx:752
+msgid "Choose start mode"
+msgstr ""
+
+#: src/hist.cxx:750 src/Cfg.cc:170
+msgid "Maple"
+msgstr ""
+
+#: src/hist.cxx:750 src/Cfg.cc:169
+msgid "Xcas"
+msgstr ""
+
+#: src/hist.cxx:750
+msgid "Other"
+msgstr ""
+
+#: src/hist.cxx:780
+msgid "Launch tutorial in browser?"
+msgstr ""
+
+#: src/hist.cxx:801
+msgid "Auto-recovery files found. Load ?"
+msgstr ""
+
+#: src/hist.cxx:801 src/History.cc:1586 src/Tableur.cc:2655
+msgid "Yes"
+msgstr ""
+
+#: src/hist.cxx:801 src/History.cc:1586 src/Tableur.cc:2655
+msgid "No"
+msgstr ""
+
+#: src/hist.cxx:816
+msgid ""
+"Autorecover files have been loaded. Geometry and spreadsheet were not "
+"reevaled"
+msgstr ""
+
+#: src/hist.cxx:1388
+msgid "Enter new help browser program (empty line for builtin)"
+msgstr ""
+
+#: src/hist.cxx:1631
+msgid "Exercise number (from 1 to 25)?"
+msgstr ""
+
+#: src/hist.cxx:1711 src/hist.cxx:1766 src/Graph.cc:6081
+msgid "Graph of a function"
+msgstr ""
+
+#: src/hist.cxx:1744 src/Graph.cc:6687
+msgid "Area under curve"
+msgstr ""
+
+#: src/hist.cxx:1788 src/Graph.cc:6278
+msgid "Graph of a recurrent sequence"
+msgstr ""
+
+#: src/hist.cxx:2260 src/hist.cxx:2320 src/hist.cxx:2395 src/hist.cxx:2398
+msgid "min"
+msgstr ""
+
+#: src/hist.cxx:2261 src/hist.cxx:2396 src/hist.cxx:3626
+msgid "Maj"
+msgstr ""
+
+#: src/hist.cxx:2919
+msgid "Tableur"
+msgstr ""
+
+#: src/hist.cxx:3148
+msgid "Xcas New Interface"
+msgstr ""
+
+#: src/hist.cxx:3175 src/hist.cxx:3660 src/hist.cxx:4108 src/hist.cxx:4121
+#: src/hist.cxx:4134
+msgid "a"
+msgstr ""
+
+#: src/hist.cxx:3186
+msgid "b"
+msgstr ""
+
+#: src/hist.cxx:3197
+msgid "c"
+msgstr ""
+
+#: src/hist.cxx:3208
+msgid "d"
+msgstr ""
+
+#: src/hist.cxx:3219
+msgid "e"
+msgstr ""
+
+#: src/hist.cxx:3230
+msgid "f"
+msgstr ""
+
+#: src/hist.cxx:3241
+msgid "g"
+msgstr ""
+
+#: src/hist.cxx:3252
+msgid "h"
+msgstr ""
+
+#: src/hist.cxx:3263 src/hist.cxx:3888
+msgid "i"
+msgstr ""
+
+#: src/hist.cxx:3274
+msgid "j"
+msgstr ""
+
+#: src/hist.cxx:3285
+msgid "k"
+msgstr ""
+
+#: src/hist.cxx:3296
+msgid "l"
+msgstr ""
+
+#: src/hist.cxx:3307
+msgid "m"
+msgstr ""
+
+#: src/hist.cxx:3318
+msgid "n"
+msgstr ""
+
+#: src/hist.cxx:3329
+msgid "o"
+msgstr ""
+
+#: src/hist.cxx:3340
+msgid "p"
+msgstr ""
+
+#: src/hist.cxx:3351
+msgid "q"
+msgstr ""
+
+#: src/hist.cxx:3362
+msgid "r"
+msgstr ""
+
+#: src/hist.cxx:3373
+msgid "s"
+msgstr ""
+
+#: src/hist.cxx:3384 src/hist.cxx:3745
+msgid "t"
+msgstr ""
+
+#: src/hist.cxx:3395
+msgid "u"
+msgstr ""
+
+#: src/hist.cxx:3406
+msgid "v"
+msgstr ""
+
+#: src/hist.cxx:3417
+msgid "w"
+msgstr ""
+
+#: src/hist.cxx:3428 src/hist.cxx:3709
+msgid "x"
+msgstr ""
+
+#: src/hist.cxx:3439 src/hist.cxx:3721
+msgid "y"
+msgstr ""
+
+#: src/hist.cxx:3450 src/hist.cxx:3733
+msgid "z"
+msgstr ""
+
+#: src/hist.cxx:3461
+msgid "<"
+msgstr ""
+
+#: src/hist.cxx:3472 src/hist.cxx:4299
+msgid ">"
+msgstr ""
+
+#: src/hist.cxx:3483
+msgid "\\"
+msgstr ""
+
+#: src/hist.cxx:3494 src/hist.cxx:3771
+msgid "("
+msgstr ""
+
+#: src/hist.cxx:3505 src/hist.cxx:3863
+msgid ")"
+msgstr ""
+
+#: src/hist.cxx:3516 src/hist.cxx:3874
+msgid " "
+msgstr ""
+
+#: src/hist.cxx:3527
+msgid "!"
+msgstr ""
+
+#: src/hist.cxx:3538
+msgid "]"
+msgstr ""
+
+#: src/hist.cxx:3549
+msgid "["
+msgstr ""
+
+#: src/hist.cxx:3560
+msgid "{"
+msgstr ""
+
+#: src/hist.cxx:3571
+msgid "}"
+msgstr ""
+
+#: src/hist.cxx:3582
+msgid ":"
+msgstr ""
+
+#: src/hist.cxx:3593 src/Tableur.cc:2068
+msgid "="
+msgstr ""
+
+#: src/hist.cxx:3604 src/hist.cxx:3759
+msgid "\""
+msgstr ""
+
+#: src/hist.cxx:3615
+msgid "_"
+msgstr ""
+
+#: src/hist.cxx:3638
+msgid "#"
+msgstr ""
+
+#: src/hist.cxx:3649
+msgid "Π"
+msgstr ""
+
+#: src/hist.cxx:3672 src/hist.cxx:3818
+msgid ","
+msgstr ""
+
+#: src/hist.cxx:3683 src/hist.cxx:3829
+msgid ";"
+msgstr ""
+
+#: src/hist.cxx:3694 src/hist.cxx:3806
+msgid "'"
+msgstr ""
+
+#: src/hist.cxx:3760
+msgid "String delimiter"
+msgstr ""
+
+#: src/hist.cxx:3782
+msgid "{}"
+msgstr ""
+
+#: src/hist.cxx:3783
+msgid "Bloc delimiter (set delimiter in maple compatible mode)"
+msgstr ""
+
+#: src/hist.cxx:3794
+msgid "[]"
+msgstr ""
+
+#: src/hist.cxx:3795
+msgid "List, vector, matrix delimiter"
+msgstr ""
+
+#: src/hist.cxx:3807
+msgid "Quote"
+msgstr ""
+
+#: src/hist.cxx:3840
+msgid ":="
+msgstr ""
+
+#: src/hist.cxx:3841
+msgid "Assign"
+msgstr ""
+
+#: src/hist.cxx:3852
+msgid "|"
+msgstr ""
+
+#: src/hist.cxx:3889
+msgid "Complex square root of -1"
+msgstr ""
+
+#: src/hist.cxx:3902
+msgid "π"
+msgstr ""
+
+#: src/hist.cxx:3903
+msgid "The pi number"
+msgstr ""
+
+#: src/hist.cxx:3915
+msgid "oo"
+msgstr ""
+
+#: src/hist.cxx:3916
+msgid "Infinity (unsigned)"
+msgstr ""
+
+#: src/hist.cxx:3928
+msgid "sqrt"
+msgstr ""
+
+#: src/hist.cxx:3929
+msgid "Square root"
+msgstr ""
+
+#: src/hist.cxx:3944
+msgid "~"
+msgstr ""
+
+#: src/hist.cxx:3945 src/gen.cc:2479
+msgid "Evalf"
+msgstr ""
+
+#: src/hist.cxx:3958 src/Equation.cc:4493 src/gen.cc:10107
+msgid "simplify"
+msgstr ""
+
+#: src/hist.cxx:3959 src/hist.menus:148
+msgid "simplify: Simplify expression"
+msgstr ""
+
+#: src/hist.cxx:3972 src/Equation.cc:4495
+msgid "factor"
+msgstr ""
+
+#: src/hist.cxx:3973 src/hist.menus:151
+msgid "factor: Factorization"
+msgstr ""
+
+#: src/hist.cxx:3986
+msgid "=>"
+msgstr ""
+
+#: src/hist.cxx:3987
+msgid "Sto/Convert to"
+msgstr ""
+
+#: src/hist.cxx:4000
+msgid "prg"
+msgstr ""
+
+#: src/hist.cxx:4014
+msgid "∂"
+msgstr ""
+
+#: src/hist.cxx:4015
+msgid "diff"
+msgstr ""
+
+#: src/hist.cxx:4028
+msgid "∫"
+msgstr ""
+
+#: src/hist.cxx:4029
+msgid "Integral"
+msgstr ""
+
+#: src/hist.cxx:4042
+msgid "Σ"
+msgstr ""
+
+#: src/hist.cxx:4043
+msgid "Sum"
+msgstr ""
+
+#: src/hist.cxx:4055
+msgid "lim"
+msgstr ""
+
+#: src/hist.cxx:4056
+msgid "Limit"
+msgstr ""
+
+#: src/hist.cxx:4073
+msgid "sin"
+msgstr ""
+
+#: src/hist.cxx:4074
+msgid "Sinus"
+msgstr ""
+
+#: src/hist.cxx:4085
+msgid "cos"
+msgstr ""
+
+#: src/hist.cxx:4096
+msgid "tan"
+msgstr ""
+
+#: src/hist.cxx:4097 src/Graph.cc:6685
+msgid "Tangent"
+msgstr ""
+
+#: src/hist.cxx:4109
+msgid "Arcsinus"
+msgstr ""
+
+#: src/hist.cxx:4122
+msgid "Arccosinus"
+msgstr ""
+
+#: src/hist.cxx:4135
+msgid "Arctangent"
+msgstr ""
+
+#: src/hist.cxx:4150
+msgid "exp"
+msgstr ""
+
+#: src/hist.cxx:4151 src/Tableur.cc:3034
+msgid "Exponential"
+msgstr ""
+
+#: src/hist.cxx:4162
+msgid "10^"
+msgstr ""
+
+#: src/hist.cxx:4173
+msgid "log10"
+msgstr ""
+
+#: src/hist.cxx:4174
+msgid "base 10 logarithm"
+msgstr ""
+
+#: src/hist.cxx:4185
+msgid "ln"
+msgstr ""
+
+#: src/hist.cxx:4186
+msgid "Natural logarithm"
+msgstr ""
+
+#: src/hist.cxx:4202
+msgid "+"
+msgstr ""
+
+#: src/hist.cxx:4214
+msgid "-"
+msgstr ""
+
+#: src/hist.cxx:4215
+msgid "Subtract"
+msgstr ""
+
+#: src/hist.cxx:4227
+msgid "*"
+msgstr ""
+
+#: src/hist.cxx:4239
+msgid "/"
+msgstr ""
+
+#: src/hist.cxx:4251
+msgid "^"
+msgstr ""
+
+#: src/hist.cxx:4263 src/gen.cc:10301
+msgid "%"
+msgstr ""
+
+#: src/hist.cxx:4264
+msgid "Modulo"
+msgstr ""
+
+#: src/hist.cxx:4275
+msgid "inv"
+msgstr ""
+
+#: src/hist.cxx:4276
+msgid "Inverse"
+msgstr ""
+
+#: src/hist.cxx:4287
+msgid "neg"
+msgstr ""
+
+#: src/hist.cxx:4288
+msgid "Opposite"
+msgstr ""
+
+#: src/hist.cxx:4316
+msgid "1"
+msgstr ""
+
+#: src/hist.cxx:4328
+msgid "2"
+msgstr ""
+
+#: src/hist.cxx:4340
+msgid "3"
+msgstr ""
+
+#: src/hist.cxx:4352
+msgid "4"
+msgstr ""
+
+#: src/hist.cxx:4364
+msgid "5"
+msgstr ""
+
+#: src/hist.cxx:4376
+msgid "6"
+msgstr ""
+
+#: src/hist.cxx:4388
+msgid "7"
+msgstr ""
+
+#: src/hist.cxx:4400 src/Cfg.cc:286
+msgid "8"
+msgstr ""
+
+#: src/hist.cxx:4412
+msgid "9"
+msgstr ""
+
+#: src/hist.cxx:4424
+msgid "0"
+msgstr ""
+
+#: src/hist.cxx:4436
+msgid "."
+msgstr ""
+
+#: src/hist.cxx:4447
+msgid "E"
+msgstr ""
+
+#: src/hist.cxx:4461
+msgid "esc"
+msgstr ""
+
+#: src/hist.cxx:4462
+msgid "Cancel (erase cmdline, stop interactive_plotode)"
+msgstr ""
+
+#: src/hist.cxx:4475
+msgid "abc"
+msgstr ""
+
+#: src/hist.cxx:4476
+msgid "Show/Hide alphabetic keyboard"
+msgstr ""
+
+#: src/hist.cxx:4489
+msgid "cmds"
+msgstr ""
+
+#: src/hist.cxx:4490
+msgid "Show commands bandeau"
+msgstr ""
+
+#: src/hist.cxx:4503 src/hist.menus:67 src/hist.menus:73
+msgid "msg"
+msgstr ""
+
+#: src/hist.cxx:4504
+msgid "Show messages"
+msgstr ""
+
+#: src/hist.cxx:4517
+msgid "b7"
+msgstr ""
+
+#: src/hist.cxx:4518
+msgid "Set bit 7 for next key entry"
+msgstr ""
+
+#: src/hist.cxx:4531
+msgid "ctrl"
+msgstr ""
+
+#: src/hist.cxx:4532
+msgid "Control"
+msgstr ""
+
+#: src/hist.cxx:4545 src/hist.cxx:4754 src/hist.cxx:4785
+msgid "X"
+msgstr ""
+
+#: src/hist.cxx:4546
+msgid "Close keyboard"
+msgstr ""
+
+#: src/hist.cxx:4558
+msgid "@<"
+msgstr ""
+
+#: src/hist.cxx:4559
+msgid "Backspace"
+msgstr ""
+
+#: src/hist.cxx:4572
+msgid "paste"
+msgstr ""
+
+#: src/hist.cxx:4585
+msgid "@returnarrow"
+msgstr ""
+
+#: src/hist.cxx:4604
+msgid "<<"
+msgstr ""
+
+#: src/hist.cxx:4605
+msgid "Previous menu page"
+msgstr ""
+
+#: src/hist.cxx:4696
+msgid ">>"
+msgstr ""
+
+#: src/hist.cxx:4697
+msgid "Next menu page"
+msgstr ""
+
+#: src/hist.cxx:4710
+msgid "cust"
+msgstr ""
+
+#: src/hist.cxx:4711
+msgid "Custom menu"
+msgstr ""
+
+#: src/hist.cxx:4724
+msgid "var"
+msgstr ""
+
+#: src/hist.cxx:4725
+msgid "Show list of variables"
+msgstr ""
+
+#: src/hist.cxx:4738
+msgid "home"
+msgstr ""
+
+#: src/hist.cxx:4739
+msgid "Home menu"
+msgstr ""
+
+#: src/hist.cxx:4771
+msgid "Messages"
+msgstr ""
+
+#: src/hist.cxx:4801
+msgid "Xcas General Setup"
+msgstr ""
+
+#: src/hist.cxx:4802
+msgid "Level"
+msgstr ""
+
+#: src/hist.cxx:4803
+msgid "Choose user level (from tortue to university)"
+msgstr ""
+
+#: src/hist.cxx:4815
+msgid "Size"
+msgstr ""
+
+#: src/hist.cxx:4819
+msgid "Auto HTML help"
+msgstr ""
+
+#: src/hist.cxx:4820
+msgid "Selecting a menu item displays fulls help in browser"
+msgstr ""
+
+#: src/hist.cxx:4824 src/hist.menus:94
+msgid "browser"
+msgstr ""
+
+#: src/hist.cxx:4829
+msgid "rows"
+msgstr ""
+
+#: src/hist.cxx:4830
+msgid "Number of rows for new->spreadsheet"
+msgstr ""
+
+#: src/hist.cxx:4837
+msgid "cols"
+msgstr ""
+
+#: src/hist.cxx:4838
+msgid "Number of columns for new->spreadsheet"
+msgstr ""
+
+#: src/hist.cxx:4845 src/hist.menus:15 src/History.cc:3496 src/History.cc:3893
+#: src/Cfg.cc:376 src/Cfg.cc:753 src/Editeur.cc:2348
+msgid "Save"
+msgstr ""
+
+#: src/hist.cxx:4846
+msgid "Close window and save as default configuration"
+msgstr ""
+
+#: src/hist.cxx:4850
+msgid "Close"
+msgstr ""
+
+#: src/hist.cxx:4856
+msgid "Print format"
+msgstr ""
+
+#: src/hist.cxx:4857
+msgid "Printer page format"
+msgstr ""
+
+#: src/hist.cxx:4870 src/Tableur.cc:2961
+msgid "Format"
+msgstr ""
+
+#: src/hist.cxx:4874 src/Tableur.cc:158 src/Graph.cc:6678
+msgid "Landscape"
+msgstr ""
+
+#: src/hist.cxx:4875
+msgid "Landscape or Portrait"
+msgstr ""
+
+#: src/hist.cxx:4882
+msgid "PS view"
+msgstr ""
+
+#: src/hist.cxx:4883
+msgid "Postscript previewer program (put no for no preview)"
+msgstr ""
+
+#: src/hist.cxx:4887
+msgid "Proxy"
+msgstr ""
+
+#: src/hist.cxx:4888
+msgid "Proxy server for update, e.g. http://cache.domain:3128"
+msgstr ""
+
+#: src/hist.cxx:4894
+msgid "Font"
+msgstr ""
+
+#: src/hist.cxx:4897
+msgid "Auto index help"
+msgstr ""
+
+#: src/hist.cxx:4898
+msgid "Selecting a menu item displays short index help"
+msgstr ""
+
+#: src/hist.cxx:4903
+msgid "Step by step"
+msgstr ""
+
+#: src/hist.cxx:4904
+msgid ""
+"If not checked, save context information, incompatible with Xcas < 0.8.1"
+msgstr ""
+
+#: src/hist.cxx:4909
+msgid "Disable tooltips"
+msgstr ""
+
+#: src/hist.cxx:4910
+msgid "Check box to disable tooltips"
+msgstr ""
+
+#: src/hist.cxx:4915
+msgid "Disable test i"
+msgstr ""
+
+#: src/hist.cxx:4916
+msgid "Check to disable replacement of i inside loop by a variable"
+msgstr ""
+
+#: src/hist.cxx:4924
+msgid "Xcas Script Window"
+msgstr ""
+
+#: src/hist.cxx:4928
+msgid "Xcas DispG Window"
+msgstr ""
+
+#: src/hist.cxx:4949
+msgid "Click or Cancel"
+msgstr ""
+
+#: src/hist.cxx:4950
+msgid "Click in graph or here to cancel"
+msgstr ""
+
+#: src/hist.cxx:4955 src/hist.cxx:4966
+msgid "label"
+msgstr ""
+
+#: src/hist.cxx:4980
+msgid "Clear"
+msgstr ""
+
+#: src/hist.cxx:4981
+msgid "Clear DispG graphic"
+msgstr ""
+
+#: src/hist.cxx:5227 src/hist.menus:269
+msgid "Geo"
+msgstr ""
+
+#: src/hist.cxx:5229 src/hist.menus:238
+msgid "Graphic"
+msgstr ""
+
+#: src/hist.cxx:5231 src/hist.menus:235
+msgid "Prg"
+msgstr ""
+
+#: src/hist.cxx:5404
+msgid ""
+"Please close this window and run update.bat in the Xcas installation "
+"directory"
+msgstr ""
+
+#: src/hist.menus:1 src/hist.menus:4 src/History.cc:227 src/History.cc:3495
+#: src/global.cc:3199
+msgid "File"
+msgstr ""
+
+#: src/hist.menus:2
+msgid "New session"
+msgstr ""
+
+#: src/hist.menus:3 src/History.cc:227
+msgid "Open"
+msgstr ""
+
+#: src/hist.menus:5
+msgid "Open (recovery mode)"
+msgstr ""
+
+#: src/hist.menus:6
+msgid "Import"
+msgstr ""
+
+#: src/hist.menus:7
+msgid "maple worksheet"
+msgstr ""
+
+#: src/hist.menus:8
+msgid "ti89 program"
+msgstr ""
+
+#: src/hist.menus:9
+msgid "V200 program"
+msgstr ""
+
+#: src/hist.menus:10 src/History.cc:3505 src/Tableur.cc:2937
+#: src/Editeur.cc:2341 src/Graph.cc:6661
+msgid "Insert"
+msgstr ""
+
+#: src/hist.menus:11 src/History.cc:3506
+msgid "xcas session"
+msgstr ""
+
+#: src/hist.menus:12 src/History.cc:3507
+msgid "figure"
+msgstr ""
+
+#: src/hist.menus:13 src/History.cc:3508 src/History.cc:3529
+#: src/History.cc:3541
+msgid "spreadsheet"
+msgstr ""
+
+#: src/hist.menus:14 src/History.cc:3509 src/History.cc:3535
+#: src/History.cc:3547
+msgid "program"
+msgstr ""
+
+#: src/hist.menus:16 src/History.cc:3497 src/Editeur.cc:2349
+msgid "Save as"
+msgstr ""
+
+#: src/hist.menus:17
+msgid "Save all"
+msgstr ""
+
+#: src/hist.menus:18 src/History.cc:3498
+msgid "Export as"
+msgstr ""
+
+#: src/hist.menus:19 src/History.cc:3499 src/Editeur.cc:2343
+#: src/Editeur.cc:2352
+msgid "xcas text"
+msgstr ""
+
+#: src/hist.menus:20 src/History.cc:3500 src/Editeur.cc:2344
+#: src/Editeur.cc:2353
+msgid "maple text"
+msgstr ""
+
+#: src/hist.menus:21 src/History.cc:3501 src/Editeur.cc:2345
+#: src/Editeur.cc:2354
+msgid "mupad text"
+msgstr ""
+
+#: src/hist.menus:22 src/History.cc:3502 src/Editeur.cc:2346
+#: src/Editeur.cc:2355
+msgid "ti text"
+msgstr ""
+
+#: src/hist.menus:23 src/History.cc:3511
+msgid "Kill"
+msgstr ""
+
+#: src/hist.menus:24 src/hist.menus:294 src/History.cc:3512 src/Graph.cc:1204
+#: src/Graph.cc:7552
+msgid "Print"
+msgstr ""
+
+#: src/hist.menus:25 src/hist.menus:295 src/History.cc:3513
+msgid "preview"
+msgstr ""
+
+#: src/hist.menus:26 src/History.cc:3514 src/Tableur.cc:2944
+#: src/Editeur.cc:2367 src/Graph.cc:6664
+msgid "to printer"
+msgstr ""
+
+#: src/hist.menus:27 src/History.cc:3515
+msgid "preview selected levels"
+msgstr ""
+
+#: src/hist.menus:28
+msgid "LaTeX"
+msgstr ""
+
+#: src/hist.menus:29 src/hist.menus:297 src/History.cc:3516 src/Graph.cc:6665
+msgid "latex preview"
+msgstr ""
+
+#: src/hist.menus:30 src/hist.menus:298 src/History.cc:3517
+msgid "latex print"
+msgstr ""
+
+#: src/hist.menus:31 src/History.cc:3519
+msgid "latex print selection"
+msgstr ""
+
+#: src/hist.menus:32
+msgid "Screen capture"
+msgstr ""
+
+#: src/hist.menus:33 src/hist.menus:36
+msgid "--- "
+msgstr ""
+
+#: src/hist.menus:34
+msgid "Create links (Mac OS)"
+msgstr ""
+
+#: src/hist.menus:35
+msgid "Quit and update Xcas"
+msgstr ""
+
+#: src/hist.menus:37
+msgid "Quit"
+msgstr ""
+
+#: src/hist.menus:38 src/History.cc:3522 src/Tableur.cc:2947
+#: src/Editeur.cc:2370 src/Graph.cc:6669
+msgid "Edit"
+msgstr ""
+
+#: src/hist.menus:39
+msgid "Execute worksheet"
+msgstr ""
+
+#: src/hist.menus:40
+msgid "Execute below"
+msgstr ""
+
+#: src/hist.menus:41
+msgid "Remove answers below"
+msgstr ""
+
+#: src/hist.menus:42 src/History.cc:3562 src/Tableur.cc:2951 src/Graph.cc:6679
+msgid "Undo"
+msgstr ""
+
+#: src/hist.menus:43 src/History.cc:3563 src/Tableur.cc:2952 src/Graph.cc:6680
+msgid "Redo"
+msgstr ""
+
+#: src/hist.menus:44 src/History.cc:3557 src/Tableur.cc:2950
+#: src/Editeur.cc:2371 src/Graph.cc:6675
+msgid "Paste"
+msgstr ""
+
+#: src/hist.menus:45
+msgid "Del selected levels"
+msgstr ""
+
+#: src/hist.menus:46
+msgid "selection -> LaTeX"
+msgstr ""
+
+#: src/hist.menus:47 src/hist.menus:129
+msgid "New entry"
+msgstr ""
+
+#: src/hist.menus:48
+msgid "New parameter"
+msgstr ""
+
+#: src/hist.menus:49 src/History.cc:3556
+msgid "Insert newline"
+msgstr ""
+
+#: src/hist.menus:50 src/History.cc:3560
+msgid "Merge selected levels"
+msgstr ""
+
+#: src/hist.menus:51
+msgid "New group"
+msgstr ""
+
+#: src/hist.menus:52 src/History.cc:3559
+msgid "Group selected levels"
+msgstr ""
+
+#: src/hist.menus:53
+msgid "Degroup selected levels"
+msgstr ""
+
+#: src/hist.menus:54 src/Graph.cc:1793
+msgid "Cfg"
+msgstr ""
+
+#: src/hist.menus:55
+msgid "Cas configuration"
+msgstr ""
+
+#: src/hist.menus:56 src/Graph.cc:1826
+msgid "Graph configuration"
+msgstr ""
+
+#: src/hist.menus:57
+msgid "General configuration"
+msgstr ""
+
+#: src/hist.menus:58
+msgid "Mode (syntax)"
+msgstr ""
+
+#: src/hist.menus:59 src/Editeur.cc:2358
+msgid "xcas"
+msgstr ""
+
+#: src/hist.menus:60 src/Editeur.cc:2359
+msgid "maple"
+msgstr ""
+
+#: src/hist.menus:61 src/Editeur.cc:2360
+msgid "mupad"
+msgstr ""
+
+#: src/hist.menus:62
+msgid "ti89/92"
+msgstr ""
+
+#: src/hist.menus:63
+msgid "Show"
+msgstr ""
+
+#: src/hist.menus:64 src/hist.menus:70
+msgid "DispG"
+msgstr ""
+
+#: src/hist.menus:65 src/hist.menus:71
+msgid "keyboard"
+msgstr ""
+
+#: src/hist.menus:66 src/hist.menus:72
+msgid "bandeau"
+msgstr ""
+
+#: src/hist.menus:68
+msgid "Show script window"
+msgstr ""
+
+#: src/hist.menus:69
+msgid "Hide"
+msgstr ""
+
+#: src/hist.menus:74
+msgid "Index language"
+msgstr ""
+
+#: src/hist.menus:75
+msgid "francais"
+msgstr ""
+
+#: src/hist.menus:76
+msgid "english"
+msgstr ""
+
+#: src/hist.menus:77
+msgid "espanol"
+msgstr ""
+
+#: src/hist.menus:78
+msgid "greek"
+msgstr ""
+
+#: src/hist.menus:79
+msgid "chinese"
+msgstr ""
+
+#: src/hist.menus:80
+msgid "Colors"
+msgstr ""
+
+#: src/hist.menus:81
+msgid "default background"
+msgstr ""
+
+#: src/hist.menus:82
+msgid "input text"
+msgstr ""
+
+#: src/hist.menus:83
+msgid "input background"
+msgstr ""
+
+#: src/hist.menus:84
+msgid "comment text"
+msgstr ""
+
+#: src/hist.menus:85
+msgid "comment background"
+msgstr ""
+
+#: src/hist.menus:86
+msgid "log text"
+msgstr ""
+
+#: src/hist.menus:87
+msgid "log background"
+msgstr ""
+
+#: src/hist.menus:88
+msgid "equation text"
+msgstr ""
+
+#: src/hist.menus:89
+msgid "equation background"
+msgstr ""
+
+#: src/hist.menus:90
+msgid "editor text"
+msgstr ""
+
+#: src/hist.menus:91
+msgid "editor background"
+msgstr ""
+
+#: src/hist.menus:92
+msgid "Session font"
+msgstr ""
+
+#: src/hist.menus:93
+msgid "All fonts"
+msgstr ""
+
+#: src/hist.menus:95
+msgid "Save configuration"
+msgstr ""
+
+#: src/hist.menus:96
+msgid "Help"
+msgstr ""
+
+#: src/hist.menus:97 src/Input.cc:386 src/Input.cc:400
+msgid "Index"
+msgstr ""
+
+#: src/hist.menus:98 src/Help1.cc:215
+msgid "Find word in HTML help"
+msgstr ""
+
+#: src/hist.menus:99
+msgid "Interface"
+msgstr ""
+
+#: src/hist.menus:100
+msgid "Reference card, fiches"
+msgstr ""
+
+#: src/hist.menus:101
+msgid "Manuals"
+msgstr ""
+
+#: src/hist.menus:102
+msgid "CAS reference"
+msgstr ""
+
+#: src/hist.menus:103
+msgid "Algorithmes (HTML)"
+msgstr ""
+
+#: src/hist.menus:104
+msgid "Algorithmes (PDF)"
+msgstr ""
+
+#: src/hist.menus:106
+msgid "Programmation"
+msgstr ""
+
+#: src/hist.menus:107
+msgid "Simulation"
+msgstr ""
+
+#: src/hist.menus:109
+msgid "Exercices"
+msgstr ""
+
+#: src/hist.menus:110
+msgid "Amusement"
+msgstr ""
+
+#: src/hist.menus:111
+msgid "PARI-GP"
+msgstr ""
+
+#: src/hist.menus:112
+msgid "Internet"
+msgstr ""
+
+#: src/hist.menus:113
+msgid "Forum"
+msgstr ""
+
+#: src/hist.menus:114 src/hist.menus:115
+msgid "Ressources lycee"
+msgstr ""
+
+#: src/hist.menus:116
+msgid "Site Lycee de G. Connan"
+msgstr ""
+
+#: src/hist.menus:117
+msgid "Site de F. Han"
+msgstr ""
+
+#: src/hist.menus:118
+msgid "Site Lycee de L. Briel"
+msgstr ""
+
+#: src/hist.menus:119
+msgid "Ressources Capes"
+msgstr ""
+
+#: src/hist.menus:120
+msgid "Ressources Agregation externe"
+msgstr ""
+
+#: src/hist.menus:121
+msgid "Ressources Agregation interne"
+msgstr ""
+
+#: src/hist.menus:122
+msgid "Update help"
+msgstr ""
+
+#: src/hist.menus:123
+msgid "Start with CAS"
+msgstr ""
+
+#: src/hist.menus:124
+msgid "Tutorial"
+msgstr ""
+
+#: src/hist.menus:125
+msgid "solutions"
+msgstr ""
+
+#: src/hist.menus:126
+msgid "Rebuild help cache"
+msgstr ""
+
+#: src/hist.menus:127
+msgid "About"
+msgstr ""
+
+#: src/hist.menus:128
+msgid "Toolbox"
+msgstr ""
+
+#: src/hist.menus:130
+msgid "New comment"
+msgstr ""
+
+#: src/hist.menus:131
+msgid "Equations"
+msgstr ""
+
+#: src/hist.menus:132
+msgid "solve: Solve equation or system"
+msgstr ""
+
+#: src/hist.menus:133
+msgid "fsolve: Solve equation numerically"
+msgstr ""
+
+#: src/hist.menus:134
+msgid "proot: Roots of a polynomial"
+msgstr ""
+
+#: src/hist.menus:135
+msgid "linsolve: Solve linear system"
+msgstr ""
+
+#: src/hist.menus:136
+msgid "desolve: Solve differential equation"
+msgstr ""
+
+#: src/hist.menus:137
+msgid "odesolve: Solve differential equation (numeric)"
+msgstr ""
+
+#: src/hist.menus:138
+msgid "rsolve: Solve recurrence equation"
+msgstr ""
+
+#: src/hist.menus:139
+msgid "Calculus"
+msgstr ""
+
+#: src/hist.menus:140
+msgid "int: Integration (definite/indefinite)"
+msgstr ""
+
+#: src/hist.menus:141
+msgid "diff: Derivative"
+msgstr ""
+
+#: src/hist.menus:142
+msgid "limit: Limit"
+msgstr ""
+
+#: src/hist.menus:143
+msgid "series: Taylor or asymptotic expansion"
+msgstr ""
+
+#: src/hist.menus:144
+msgid "sum: Discrete summation"
+msgstr ""
+
+#: src/hist.menus:145
+msgid "laplace: Laplace transform"
+msgstr ""
+
+#: src/hist.menus:146
+msgid "ilaplace: invert Laplace transform"
+msgstr ""
+
+#: src/hist.menus:147
+msgid "Simplify"
+msgstr ""
+
+#: src/hist.menus:149
+msgid "normal: Simplify rational and algebraic expression"
+msgstr ""
+
+#: src/hist.menus:150
+msgid "ratnormal: Simplify rational expressions"
+msgstr ""
+
+#: src/hist.menus:152
+msgid "cfactor: Factorization over C"
+msgstr ""
+
+#: src/hist.menus:153
+msgid "partfrac: Partial fraction decomposition"
+msgstr ""
+
+#: src/hist.menus:154
+msgid "cpartfrac: Partial fraction decomposition over C"
+msgstr ""
+
+#: src/hist.menus:155 src/hist.menus:158 src/hist.menus:173 src/hist.menus:177
+msgid "---"
+msgstr ""
+
+#: src/hist.menus:156
+msgid "subst: Substitution of variables by expressions"
+msgstr ""
+
+#: src/hist.menus:157
+msgid "reorder: Reorder expression wrt list of variables"
+msgstr ""
+
+#: src/hist.menus:159
+msgid "lin: Linearization of exponentials"
+msgstr ""
+
+#: src/hist.menus:160
+msgid "tlin: Trigonometric linearization"
+msgstr ""
+
+#: src/hist.menus:161
+msgid "texpand: Expand transcendental expressions"
+msgstr ""
+
+#: src/hist.menus:162
+msgid "lncollect: Collect logarithms"
+msgstr ""
+
+#: src/hist.menus:163
+msgid "exp2pow: Convert exp(a*ln(b)) to b^a"
+msgstr ""
+
+#: src/hist.menus:164
+msgid "exp2trig: Convert complex exponentials to trig"
+msgstr ""
+
+#: src/hist.menus:165
+msgid "trig2exp: Convert trig to complex exponentials"
+msgstr ""
+
+#: src/hist.menus:166
+msgid "Arithmetic"
+msgstr ""
+
+#: src/hist.menus:167
+msgid "isprime: test if an integer is prime"
+msgstr ""
+
+#: src/hist.menus:168
+msgid "ifactor: factorize an integer"
+msgstr ""
+
+#: src/hist.menus:169
+msgid "iquo: quotient for integers"
+msgstr ""
+
+#: src/hist.menus:170
+msgid "irem: remainder for integers"
+msgstr ""
+
+#: src/hist.menus:171
+msgid "iabcuv: Solve a.u+b.v=c in Z"
+msgstr ""
+
+#: src/hist.menus:172
+msgid "ichinrem: Chinese remainder for integers"
+msgstr ""
+
+#: src/hist.menus:174
+msgid "gcd: gcd of integers or polynomials"
+msgstr ""
+
+#: src/hist.menus:175
+msgid "lcm: lcm of integers or polynomials"
+msgstr ""
+
+#: src/hist.menus:176
+msgid "powmod: fast powering modulo"
+msgstr ""
+
+#: src/hist.menus:178
+msgid "quo: quotient (poly. synthetic division)"
+msgstr ""
+
+#: src/hist.menus:179
+msgid "rem: remainder (poly. synthetic division)"
+msgstr ""
+
+#: src/hist.menus:180
+msgid "abcuv: Solve a.u+b.v=c for polynomials"
+msgstr ""
+
+#: src/hist.menus:181
+msgid "chinrem: Chinese remainder for polynomials"
+msgstr ""
+
+#: src/hist.menus:182
+msgid "%: Z/pZ, p premier"
+msgstr ""
+
+#: src/hist.menus:183
+msgid "GF: Corps fini non premier"
+msgstr ""
+
+#: src/hist.menus:184
+msgid "Linear algebra"
+msgstr ""
+
+#: src/hist.menus:185
+msgid "matrix: Create a matrix"
+msgstr ""
+
+#: src/hist.menus:186
+msgid "tran: Transpose a matrix"
+msgstr ""
+
+#: src/hist.menus:187
+msgid "ker: Kernel of a matrix"
+msgstr ""
+
+#: src/hist.menus:188
+msgid "image: Image of a matrix"
+msgstr ""
+
+#: src/hist.menus:189
+msgid "inv: Invert a matrix"
+msgstr ""
+
+#: src/hist.menus:190
+msgid "det: Determinant of a matrix"
+msgstr ""
+
+#: src/hist.menus:191
+msgid "charpoly: Characteristic polynomial"
+msgstr ""
+
+#: src/hist.menus:192
+msgid "egv: Eigenvectors of a matrix"
+msgstr ""
+
+#: src/hist.menus:193
+msgid "egvl: Eigenvalues of a matrix"
+msgstr ""
+
+#: src/hist.menus:194
+msgid "Proba"
+msgstr ""
+
+#: src/hist.menus:195 src/hist.menus:216
+msgid "binomial: Binomial distribution"
+msgstr ""
+
+#: src/hist.menus:196 src/hist.menus:211
+msgid "normald: Normal density"
+msgstr ""
+
+#: src/hist.menus:197
+msgid "rand: random number"
+msgstr ""
+
+#: src/hist.menus:198
+msgid "ranm: random vector/matrix"
+msgstr ""
+
+#: src/hist.menus:199
+msgid "randmarkov: random Markov matrix or chain"
+msgstr ""
+
+#: src/hist.menus:200
+msgid "markov: transition matrix decomposition"
+msgstr ""
+
+#: src/hist.menus:201
+msgid "cdf: cumulated distribution function"
+msgstr ""
+
+#: src/hist.menus:202
+msgid "icdf: inverse cumulated distributed function"
+msgstr ""
+
+#: src/hist.menus:203
+msgid "=== see also plots in Graph ===="
+msgstr ""
+
+#: src/hist.menus:204
+msgid "Continuous (densities)"
+msgstr ""
+
+#: src/hist.menus:205
+msgid "betad: Beta density"
+msgstr ""
+
+#: src/hist.menus:206
+msgid "cauchyd: Cauchy density"
+msgstr ""
+
+#: src/hist.menus:207
+msgid "chisquared: Chi 2 density"
+msgstr ""
+
+#: src/hist.menus:208
+msgid "exponentiald: Exponential density"
+msgstr ""
+
+#: src/hist.menus:209
+msgid "fisherd: Fisher-Snedecor density"
+msgstr ""
+
+#: src/hist.menus:210
+msgid "gammad: Gamma density"
+msgstr ""
+
+#: src/hist.menus:212
+msgid "studentd: Student density"
+msgstr ""
+
+#: src/hist.menus:213
+msgid "uniformd: Uniform density"
+msgstr ""
+
+#: src/hist.menus:214
+msgid "weibulld: Weibull density"
+msgstr ""
+
+#: src/hist.menus:215
+msgid "Discrete distributions"
+msgstr ""
+
+#: src/hist.menus:217
+msgid "negbinomial: Negative binomial distribution"
+msgstr ""
+
+#: src/hist.menus:218
+msgid "geometric: Geometric distribution"
+msgstr ""
+
+#: src/hist.menus:219
+msgid "poisson: poisson distribution"
+msgstr ""
+
+#: src/hist.menus:220
+msgid "Tests"
+msgstr ""
+
+#: src/hist.menus:221
+msgid "chisquared_icdf: Chi 2 inverse"
+msgstr ""
+
+#: src/hist.menus:222
+msgid "chisquaret: Chi 2 test"
+msgstr ""
+
+#: src/hist.menus:223
+msgid "kolmogorovd: K-Smirnov density"
+msgstr ""
+
+#: src/hist.menus:224
+msgid "kolmogorovt: K-Smirnov test"
+msgstr ""
+
+#: src/hist.menus:225
+msgid "normald_icdf: Normal inverse"
+msgstr ""
+
+#: src/hist.menus:226
+msgid "normalt: Z-Test"
+msgstr ""
+
+#: src/hist.menus:227
+msgid "studentd_icdf: Student inverse"
+msgstr ""
+
+#: src/hist.menus:228
+msgid "studentt: T-Test"
+msgstr ""
+
+#: src/hist.menus:229 src/Tableur.cc:1789 src/Tableur.cc:1792
+#: src/Tableur.cc:2059
+msgid "Expression"
+msgstr ""
+
+#: src/hist.menus:230
+msgid "New expression"
+msgstr ""
+
+#: src/hist.menus:231
+msgid "Cmds"
+msgstr ""
+
+#: src/hist.menus:232
+msgid "Constants"
+msgstr ""
+
+#: src/hist.menus:233
+msgid "i: sqrt(-1)"
+msgstr ""
+
+#: src/hist.menus:234
+msgid "e: exp(1)"
+msgstr ""
+
+#: src/hist.menus:236
+msgid "New program"
+msgstr ""
+
+#: src/hist.menus:237
+msgid "debug: debug a program"
+msgstr ""
+
+#: src/hist.menus:239
+msgid "Attributs"
+msgstr ""
+
+#: src/hist.menus:240 src/Graph.cc:6724
+msgid "Curves"
+msgstr ""
+
+#: src/hist.menus:241
+msgid "plotfunc: Plot a 1-var function"
+msgstr ""
+
+#: src/hist.menus:242
+msgid "plotparam: Parametric 2-d curve"
+msgstr ""
+
+#: src/hist.menus:243
+msgid "plotpolar: Polar 2-d curve"
+msgstr ""
+
+#: src/hist.menus:244
+msgid "plotarea: Area under curve"
+msgstr ""
+
+#: src/hist.menus:245
+msgid "plotimplicit: Implicit plot"
+msgstr ""
+
+#: src/hist.menus:246
+msgid "plotcontour: Level curves"
+msgstr ""
+
+#: src/hist.menus:247
+msgid "plotdensity: 2-d z view as color"
+msgstr ""
+
+#: src/hist.menus:248
+msgid "Surfaces"
+msgstr ""
+
+#: src/hist.menus:249
+msgid "plotfunc: Plot a 2-var function"
+msgstr ""
+
+#: src/hist.menus:250
+msgid "plotparam: Parametric 3-d surface"
+msgstr ""
+
+#: src/hist.menus:251
+msgid "Sequence"
+msgstr ""
+
+#: src/hist.menus:252
+msgid "plotseq: Recurrent sequence plot"
+msgstr ""
+
+#: src/hist.menus:253
+msgid "plotlist: plot a list of values"
+msgstr ""
+
+#: src/hist.menus:254
+msgid "Ode"
+msgstr ""
+
+#: src/hist.menus:255
+msgid "plotfield: 2-d or 3-d field"
+msgstr ""
+
+#: src/hist.menus:256
+msgid "plotode: Diff. equation plot"
+msgstr ""
+
+#: src/hist.menus:257
+msgid "interactive_odeplot: Interactive diff. equation plot"
+msgstr ""
+
+#: src/hist.menus:258
+msgid "Proba Stats"
+msgstr ""
+
+#: src/hist.menus:259
+msgid "camembert: 1-d stats"
+msgstr ""
+
+#: src/hist.menus:260
+msgid "bar_plot: bar plot"
+msgstr ""
+
+#: src/hist.menus:261
+msgid "histogram: 1-d stats"
+msgstr ""
+
+#: src/hist.menus:262
+msgid "plot: plot distribution law"
+msgstr ""
+
+#: src/hist.menus:263
+msgid "plotcdf: plot cumulated distribution function"
+msgstr ""
+
+#: src/hist.menus:264
+msgid "moustache: 1-d stats"
+msgstr ""
+
+#: src/hist.menus:265
+msgid "scatterplot: 2-d stats"
+msgstr ""
+
+#: src/hist.menus:266
+msgid "polygonplot: 2-d stats"
+msgstr ""
+
+#: src/hist.menus:267
+msgid "polygonscatterplot: 2-d stats"
+msgstr ""
+
+#: src/hist.menus:268
+msgid "linear_regressionplot: 2-d stats"
+msgstr ""
+
+#: src/hist.menus:270
+msgid "New figure 2d"
+msgstr ""
+
+#: src/hist.menus:271
+msgid "New figure 3d"
+msgstr ""
+
+#: src/hist.menus:273
+msgid "New spreadsheet"
+msgstr ""
+
+#: src/hist.menus:274
+msgid "Phys"
+msgstr ""
+
+#: src/hist.menus:275
+msgid "Highschool"
+msgstr ""
+
+#: src/hist.menus:277
+msgid "New turtle"
+msgstr ""
+
+#: src/hist.menus:278
+msgid "si"
+msgstr ""
+
+#: src/hist.menus:279 src/Editeur.cc:2400
+msgid "pour"
+msgstr ""
+
+#: src/hist.menus:280 src/Editeur.cc:2401
+msgid "tantque"
+msgstr ""
+
+#: src/hist.menus:281
+msgid "repeter"
+msgstr ""
+
+#: src/hist.menus:282
+msgid "fonction"
+msgstr ""
+
+#: src/hist.menus:283 src/Editeur.cc:2384
+msgid "return"
+msgstr ""
+
+#: src/hist.menus:289
+msgid "A4"
+msgstr ""
+
+#: src/hist.menus:290
+msgid "A5"
+msgstr ""
+
+#: src/hist.menus:291
+msgid "A3"
+msgstr ""
+
+#: src/hist.menus:292
+msgid "LETTER"
+msgstr ""
+
+#: src/hist.menus:293
+msgid "ENVELOPE"
+msgstr ""
+
+#: src/hist.menus:296 src/Editeur.cc:2387 src/gen.cc:13216
+msgid "print"
+msgstr ""
+
+#: src/hist.menus:299
+msgid "close"
+msgstr ""
+
+#: src/History.cc:122
+msgid "Choose file"
+msgstr ""
+
+#: src/History.cc:125
+msgid "Filename"
+msgstr ""
+
+#: src/History.cc:127
+msgid "Current filename"
+msgstr ""
+
+#: src/History.cc:129
+msgid "Choose file to overwrite"
+msgstr ""
+
+#: src/History.cc:130 src/Input.cc:389 src/Xcas1.cc:2881 src/Xcas1.cc:3418
+#: src/Xcas1.cc:3668 src/Equation.cc:4655 src/Print.cc:798 src/Tableur.cc:166
+#: src/Tableur.cc:1496 src/Tableur.cc:1833 src/Tableur.cc:2002
+#: src/Tableur.cc:2084 src/Tableur.cc:2287 src/Editeur.cc:1605
+#: src/Editeur.cc:1720 src/Editeur.cc:1844 src/Graph.cc:1504 src/Graph.cc:1819
+#: src/Graph.cc:3184 src/Graph.cc:5686 src/Graph.cc:5892
+msgid "OK"
+msgstr ""
+
+#: src/History.cc:131 src/History.cc:1586 src/Input.cc:393 src/Xcas1.cc:2804
+#: src/Xcas1.cc:2879 src/Xcas1.cc:3422 src/Xcas1.cc:3671 src/Cfg.cc:381
+#: src/Cfg.cc:757 src/Equation.cc:4658 src/Print.cc:801 src/Tableur.cc:169
+#: src/Tableur.cc:499 src/Tableur.cc:1499 src/Tableur.cc:1836
+#: src/Tableur.cc:2005 src/Tableur.cc:2087 src/Tableur.cc:2290
+#: src/Editeur.cc:1463 src/Editeur.cc:1608 src/Editeur.cc:1723
+#: src/Editeur.cc:1847 src/Graph.cc:962 src/Graph.cc:1506 src/Graph.cc:1821
+#: src/Graph.cc:3187 src/Graph.cc:5689 src/Graph.cc:5895
+msgid "Cancel"
+msgstr ""
+
+#: src/History.cc:157
+msgid "Error"
+msgstr ""
+
+#: src/History.cc:458
+msgid "If you want to create a point "
+msgstr ""
+
+#: src/History.cc:459
+msgid " with coordinates "
+msgstr ""
+
+#: src/History.cc:460
+msgid "the right command is "
+msgstr ""
+
+#: src/History.cc:465
+msgid "Warning evaluating = at top level, you must use := to assign "
+msgstr ""
+
+#: src/History.cc:465
+msgid " to "
+msgstr ""
+
+#: src/History.cc:465
+msgid " or == to test equality"
+msgstr ""
+
+#: src/History.cc:488 src/History.cc:510
+msgid "Syntax compatibility mode "
+msgstr ""
+
+#: src/History.cc:488 src/History.cc:510
+msgid ""
+"\n"
+"Parse error line "
+msgstr ""
+
+#: src/History.cc:488 src/History.cc:510 src/Input.cc:1034 src/Editeur.cc:1137
+#: src/Editeur.cc:1222 src/Editeur.cc:1399 src/Graph.cc:7354 src/Graph.cc:7380
+msgid " at "
+msgstr ""
+
+#: src/History.cc:1592
+msgid " modified. Save?"
+msgstr ""
+
+#: src/History.cc:1728 src/plot.cc:11018
+msgid "Unable to open file "
+msgstr ""
+
+#: src/History.cc:1737 src/History.cc:3853
+msgid "Unnamed"
+msgstr ""
+
+#: src/History.cc:1881
+msgid "Set compatibility mode to TI?"
+msgstr ""
+
+#: src/History.cc:1917
+msgid "File "
+msgstr ""
+
+#: src/History.cc:1917
+msgid " exists. Overwrite?"
+msgstr ""
+
+#: src/History.cc:1922
+msgid "Translating worksheet and setting compatibility mode to maple"
+msgstr ""
+
+#: src/History.cc:2028
+msgid "Translating maple worksheet and setting compatibility mode to maple"
+msgstr ""
+
+#: src/History.cc:2351 src/Xcas1.cc:1334
+msgid "Unable to launch thread. Press STOP to interrupt."
+msgstr ""
+
+#: src/History.cc:2617
+msgid "Export worksheet as"
+msgstr ""
+
+#: src/History.cc:2657
+msgid "Current buffer modified. Save?"
+msgstr ""
+
+#: src/History.cc:3504 src/Editeur.cc:2340
+msgid "Load"
+msgstr ""
+
+#: src/History.cc:3518
+msgid "latex preview selection"
+msgstr ""
+
+#: src/History.cc:3523 src/Editeur.cc:2380
+msgid "Add"
+msgstr ""
+
+#: src/History.cc:3525 src/History.cc:3538
+msgid "comment"
+msgstr ""
+
+#: src/History.cc:3526
+msgid "entry"
+msgstr ""
+
+#: src/History.cc:3527
+msgid "expression"
+msgstr ""
+
+#: src/History.cc:3528
+msgid "syntax colored entry"
+msgstr ""
+
+#: src/History.cc:3530 src/History.cc:3542
+msgid "graph, geo2d"
+msgstr ""
+
+#: src/History.cc:3531 src/History.cc:3543
+msgid "graph, geo3d"
+msgstr ""
+
+#: src/History.cc:3532 src/History.cc:3544
+msgid "geo2d exact"
+msgstr ""
+
+#: src/History.cc:3533 src/History.cc:3545
+msgid "geo3d exact"
+msgstr ""
+
+#: src/History.cc:3534
+msgid "turtle"
+msgstr ""
+
+#: src/History.cc:3536 src/History.cc:3548
+msgid "group"
+msgstr ""
+
+#: src/History.cc:3539
+msgid "new entry"
+msgstr ""
+
+#: src/History.cc:3540
+msgid "equation"
+msgstr ""
+
+#: src/History.cc:3546
+msgid "turtle picture"
+msgstr ""
+
+#: src/History.cc:3551
+msgid "Execute"
+msgstr ""
+
+#: src/History.cc:3552
+msgid "worksheet"
+msgstr ""
+
+#: src/History.cc:3553
+msgid "below"
+msgstr ""
+
+#: src/History.cc:3554
+msgid "remove answers below"
+msgstr ""
+
+#: src/History.cc:3558 src/Graph.cc:6676
+msgid "Delete selected levels"
+msgstr ""
+
+#: src/History.cc:3561
+msgid "Degroup current fold"
+msgstr ""
+
+#: src/History.cc:3686 src/History.cc:3715
+msgid "STOP pressed. Trying to cancel cleanly"
+msgstr ""
+
+#: src/History.cc:3691 src/History.cc:3741
+msgid "Cleanly cancelled."
+msgstr ""
+
+#: src/History.cc:3700 src/History.cc:3753
+msgid ""
+"Cancelling thread. Xcas may crash now or later :-( Consider saving and "
+"restarting Xcas."
+msgstr ""
+
+#: src/History.cc:3720
+msgid "Cancelling"
+msgstr ""
+
+#: src/History.cc:3731
+msgid "Trying to cancel cleanly: "
+msgstr ""
+
+#: src/History.cc:3891
+msgid "Online help and command completion"
+msgstr ""
+
+#: src/History.cc:3896
+msgid "Save current session"
+msgstr ""
+
+#: src/History.cc:3901
+msgid "Switch bandeau on or off"
+msgstr ""
+
+#: src/History.cc:3911
+msgid "Current CAS status. Click to modify"
+msgstr ""
+
+#: src/History.cc:3916
+msgid "Interrupt current computation"
+msgstr ""
+
+#: src/History.cc:3919
+msgid "Kbd"
+msgstr ""
+
+#: src/History.cc:3921
+msgid "Switch keyboard on or off"
+msgstr ""
+
+#: src/History.cc:3929
+msgid "Close current session"
+msgstr ""
+
+#: src/History.cc:4014 src/History.cc:4041
+msgid "Unable to cut. Xcas is busy."
+msgstr ""
+
+#: src/History.cc:4046
+msgid ""
+"First select level(s):\n"
+"click on the level numbers near the left border"
+msgstr ""
+
+#: src/Input.cc:143 src/gauss.cc:755
+msgid " or "
+msgstr ""
+
+#: src/Input.cc:390
+msgid "Click to copy the commandname to the commandline"
+msgstr ""
+
+#: src/Input.cc:395
+msgid "Details"
+msgstr ""
+
+#: src/Input.cc:396
+msgid "Show full HTML help in browser"
+msgstr ""
+
+#: src/Input.cc:405
+msgid "Related"
+msgstr ""
+
+#: src/Input.cc:408
+msgid "Click for help on related command"
+msgstr ""
+
+#: src/Input.cc:411
+msgid "Synonyms"
+msgstr ""
+
+#: src/Input.cc:415
+msgid "Search this word in HTML help"
+msgstr ""
+
+#: src/Input.cc:419
+msgid "Show commandnames starting from this text"
+msgstr ""
+
+#: src/Input.cc:421
+msgid "Command short description and syntax"
+msgstr ""
+
+#: src/Input.cc:433
+msgid ""
+"Left-click: copy example to commandline, right-click: fill in template with "
+"example values"
+msgstr ""
+
+#: src/Input.cc:1021
+msgid "// Parsing"
+msgstr ""
+
+#: src/Input.cc:1021
+msgid "// Success"
+msgstr ""
+
+#: src/Input.cc:1033
+msgid "Syntax error in compatibility mode: "
+msgstr ""
+
+#: src/Input.cc:1034 src/Editeur.cc:1137 src/Editeur.cc:1222
+#: src/Editeur.cc:1399 src/Graph.cc:7354 src/Graph.cc:7380
+msgid "Parse error line "
+msgstr ""
+
+#: src/Input.cc:1034 src/Editeur.cc:1137 src/Editeur.cc:1222
+#: src/Editeur.cc:1399
+msgid " column "
+msgstr ""
+
+#: src/Input.cc:1051
+msgid "To get a newline, use shift-Enter. Reedit?"
+msgstr ""
+
+#: src/Xcas1.cc:314
+msgid "Xcas Debug Window"
+msgstr ""
+
+#: src/Xcas1.cc:319
+msgid "Show the source of the program"
+msgstr ""
+
+#: src/Xcas1.cc:323 src/Cfg.cc:434 src/Equation.cc:4498
+msgid "eval"
+msgstr ""
+
+#: src/Xcas1.cc:343
+msgid "sst F5"
+msgstr ""
+
+#: src/Xcas1.cc:344
+msgid "Execute current line, skip function"
+msgstr ""
+
+#: src/Xcas1.cc:348
+msgid "in F6"
+msgstr ""
+
+#: src/Xcas1.cc:349
+msgid "Execute current line, step in function"
+msgstr ""
+
+#: src/Xcas1.cc:353
+msgid "cont F7"
+msgstr ""
+
+#: src/Xcas1.cc:354
+msgid "Continue execution until next breakpoint"
+msgstr ""
+
+#: src/Xcas1.cc:358
+msgid "kill"
+msgstr ""
+
+#: src/Xcas1.cc:359
+msgid "Kill current program"
+msgstr ""
+
+#: src/Xcas1.cc:362 src/Editeur.cc:2405
+msgid "break"
+msgstr ""
+
+#: src/Xcas1.cc:363
+msgid "Add a breakpoint"
+msgstr ""
+
+#: src/Xcas1.cc:366
+msgid "rmbrk"
+msgstr ""
+
+#: src/Xcas1.cc:367
+msgid "Remove a breakpoint"
+msgstr ""
+
+#: src/Xcas1.cc:370
+msgid "watch"
+msgstr ""
+
+#: src/Xcas1.cc:371 src/Xcas1.cc:375
+msgid "Add a variable name to the watch"
+msgstr ""
+
+#: src/Xcas1.cc:374
+msgid "rmwtch"
+msgstr ""
+
+#: src/Xcas1.cc:381
+msgid "Show watch variables"
+msgstr ""
+
+#: src/Xcas1.cc:1334
+msgid "Computing..."
+msgstr ""
+
+#: src/Xcas1.cc:2801
+msgid "Press a key"
+msgstr ""
+
+#: src/Xcas1.cc:2811
+msgid "Press a key\n"
+msgstr ""
+
+#: src/Xcas1.cc:2884 src/Xcas1.cc:3426
+msgid "STOP"
+msgstr ""
+
+#: src/Xcas1.cc:3658
+msgid "What a nice font"
+msgstr ""
+
+#: src/Cfg.cc:145
+msgid "Standard"
+msgstr ""
+
+#: src/Cfg.cc:146
+msgid "Scientific"
+msgstr ""
+
+#: src/Cfg.cc:147 src/Cfg.cc:148
+msgid "Engineer"
+msgstr ""
+
+#: src/Cfg.cc:171
+msgid "Mupad"
+msgstr ""
+
+#: src/Cfg.cc:172
+msgid "TI89/92"
+msgstr ""
+
+#: src/Cfg.cc:284
+msgid "10"
+msgstr ""
+
+#: src/Cfg.cc:285
+msgid "16"
+msgstr ""
+
+#: src/Cfg.cc:305
+msgid "Xcas Cas Setup"
+msgstr ""
+
+#: src/Cfg.cc:306
+msgid "Float format"
+msgstr ""
+
+#: src/Cfg.cc:311
+msgid "Current float printing format"
+msgstr ""
+
+#: src/Cfg.cc:315
+msgid "epsilon"
+msgstr ""
+
+#: src/Cfg.cc:316
+msgid "Number with absolute value less than epsilon can be coerced to 0"
+msgstr ""
+
+#: src/Cfg.cc:322
+msgid "proba"
+msgstr ""
+
+#: src/Cfg.cc:323
+msgid ""
+"Maximal probability of a wrong answer for non-deterministic algorithms. Set "
+"to 0 for deterministic algorithms only."
+msgstr ""
+
+#: src/Cfg.cc:329 src/Equation.cc:4496
+msgid "approx"
+msgstr ""
+
+#: src/Cfg.cc:330
+msgid "Approx or exact mode"
+msgstr ""
+
+#: src/Cfg.cc:335
+msgid "autosimplify"
+msgstr ""
+
+#: src/Cfg.cc:336
+msgid ""
+"Command automatically executed after evaluation (auto-simplification), type "
+"0 for nothing, 1 for regroup and 2 for simplify"
+msgstr ""
+
+#: src/Cfg.cc:339
+msgid "radian"
+msgstr ""
+
+#: src/Cfg.cc:340
+msgid "Radian or degree angle mode"
+msgstr ""
+
+#: src/Cfg.cc:345
+msgid "increasing power"
+msgstr ""
+
+#: src/Cfg.cc:346
+msgid "Show polynomials in increasin or decreasing order"
+msgstr ""
+
+#: src/Cfg.cc:351
+msgid "Prog style"
+msgstr ""
+
+#: src/Cfg.cc:356
+msgid "Current programmation syntax style"
+msgstr ""
+
+#: src/Cfg.cc:360
+msgid "Complex"
+msgstr ""
+
+#: src/Cfg.cc:361
+msgid "Complex mode (e.g. for factorization)"
+msgstr ""
+
+#: src/Cfg.cc:366
+msgid "Cmplx_var"
+msgstr ""
+
+#: src/Cfg.cc:367
+msgid "Variables are complex or real"
+msgstr ""
+
+#: src/Cfg.cc:372 src/Cfg.cc:749 src/Graph.cc:1513 src/Graph.cc:1789
+msgid "Apply"
+msgstr ""
+
+#: src/Cfg.cc:386 src/Graph.cc:1509 src/Graph.cc:1785
+msgid "Default"
+msgstr ""
+
+#: src/Cfg.cc:390
+msgid "threads"
+msgstr ""
+
+#: src/Cfg.cc:391
+msgid "Maximal number of threads in parallel"
+msgstr ""
+
+#: src/Cfg.cc:398
+msgid "Sqrt"
+msgstr ""
+
+#: src/Cfg.cc:399
+msgid "Factor 2nd order poly using sqrt"
+msgstr ""
+
+#: src/Cfg.cc:404
+msgid "All_trig_sol"
+msgstr ""
+
+#: src/Cfg.cc:405
+msgid "Solver: principal solution vs all solutions"
+msgstr ""
+
+#: src/Cfg.cc:410 src/Cfg.cc:411
+msgid "Digits"
+msgstr ""
+
+#: src/Cfg.cc:418
+msgid "Integer basis"
+msgstr ""
+
+#: src/Cfg.cc:423
+msgid "Current basis for printing integers"
+msgstr ""
+
+#: src/Cfg.cc:427
+msgid "debug"
+msgstr ""
+
+#: src/Cfg.cc:428
+msgid "Level of information displayed by giac functions"
+msgstr ""
+
+#: src/Cfg.cc:435
+msgid "Number of embedded variable names replacement in interactive evaluation"
+msgstr ""
+
+#: src/Cfg.cc:442
+msgid "recurs"
+msgstr ""
+
+#: src/Cfg.cc:443
+msgid "Number of embedded function calls allowed"
+msgstr ""
+
+#: src/Cfg.cc:450
+msgid "prog"
+msgstr ""
+
+#: src/Cfg.cc:451
+msgid ""
+"Number of embedded variable names replacement in program evaluation (1 or 0 "
+"for default eval level)"
+msgstr ""
+
+#: src/Cfg.cc:458
+msgid "maxiter"
+msgstr ""
+
+#: src/Cfg.cc:459
+msgid "Default maximal number of iterations in Newton method"
+msgstr ""
+
+#: src/Cfg.cc:632
+msgid "Xcas Plot Setup"
+msgstr ""
+
+#: src/Cfg.cc:633
+msgid "Plot setup"
+msgstr ""
+
+#: src/Cfg.cc:638
+msgid "X-"
+msgstr ""
+
+#: src/Cfg.cc:639
+msgid "Xmin for computation"
+msgstr ""
+
+#: src/Cfg.cc:647
+msgid "X+"
+msgstr ""
+
+#: src/Cfg.cc:648
+msgid "Xmax for computation"
+msgstr ""
+
+#: src/Cfg.cc:656
+msgid "Y-"
+msgstr ""
+
+#: src/Cfg.cc:657
+msgid "Ymin for computation"
+msgstr ""
+
+#: src/Cfg.cc:665
+msgid "Y+"
+msgstr ""
+
+#: src/Cfg.cc:666
+msgid "Ymax for computation"
+msgstr ""
+
+#: src/Cfg.cc:674
+msgid "Z-"
+msgstr ""
+
+#: src/Cfg.cc:675
+msgid "Zmin (3-d)"
+msgstr ""
+
+#: src/Cfg.cc:683
+msgid "Z+"
+msgstr ""
+
+#: src/Cfg.cc:684
+msgid "Z-max (3-d)"
+msgstr ""
+
+#: src/Cfg.cc:692
+msgid "t-"
+msgstr ""
+
+#: src/Cfg.cc:693
+msgid "T-min (parametric computation)"
+msgstr ""
+
+#: src/Cfg.cc:701
+msgid "t+"
+msgstr ""
+
+#: src/Cfg.cc:702
+msgid "T-max (parametric computation)"
+msgstr ""
+
+#: src/Cfg.cc:710
+msgid "class_min"
+msgstr ""
+
+#: src/Cfg.cc:711
+msgid "Minimum for classes (for e.g. histogram...)"
+msgstr ""
+
+#: src/Cfg.cc:718
+msgid "class_size"
+msgstr ""
+
+#: src/Cfg.cc:719
+msgid "Size of a class (e.g. for histogram...)"
+msgstr ""
+
+#: src/Cfg.cc:726
+msgid "TX"
+msgstr ""
+
+#: src/Cfg.cc:727
+msgid "Tick range on X axis"
+msgstr ""
+
+#: src/Cfg.cc:734
+msgid "TY"
+msgstr ""
+
+#: src/Cfg.cc:735
+msgid "Tick range on Y axis"
+msgstr ""
+
+#: src/Cfg.cc:742
+msgid "autoscale"
+msgstr ""
+
+#: src/Cfg.cc:743
+msgid "Autoscale graphs"
+msgstr ""
+
+#: src/Cfg.cc:761
+msgid "WX-"
+msgstr ""
+
+#: src/Cfg.cc:762 src/Graph.cc:1644
+msgid "Xmin for visualisation"
+msgstr ""
+
+#: src/Cfg.cc:770
+msgid "WX+"
+msgstr ""
+
+#: src/Cfg.cc:771
+msgid "Xmax for visualization"
+msgstr ""
+
+#: src/Cfg.cc:779
+msgid "WY-"
+msgstr ""
+
+#: src/Cfg.cc:780
+msgid "Ymin for visualization"
+msgstr ""
+
+#: src/Cfg.cc:788
+msgid "WY+"
+msgstr ""
+
+#: src/Cfg.cc:789
+msgid "Ymax for visualization"
+msgstr ""
+
+#: src/Cfg.cc:797
+msgid "ortho"
+msgstr ""
+
+#: src/Cfg.cc:798
+msgid "Orthonormalize"
+msgstr ""
+
+#: src/Cfg.cc:802
+msgid ">W"
+msgstr ""
+
+#: src/Cfg.cc:803
+msgid "Copy XYminmax to W"
+msgstr ""
+
+#: src/Cfg.cc:807
+msgid "W>"
+msgstr ""
+
+#: src/Cfg.cc:808
+msgid "Copy W to XYminmax"
+msgstr ""
+
+#: src/Equation.cc:4490 src/Graph.cc:1161 src/Graph.cc:7534
+msgid "M"
+msgstr ""
+
+#: src/Equation.cc:4491
+msgid "Select all"
+msgstr ""
+
+#: src/Equation.cc:4492
+msgid "Edit selection"
+msgstr ""
+
+#: src/Equation.cc:4494
+msgid "normal"
+msgstr ""
+
+#: src/Equation.cc:4497
+msgid "exact"
+msgstr ""
+
+#: src/Equation.cc:4499
+msgid "Back"
+msgstr ""
+
+#: src/Equation.cc:4500
+msgid "Forward"
+msgstr ""
+
+#: src/Equation.cc:4519
+msgid "Equation menu"
+msgstr ""
+
+#: src/Print.cc:790
+msgid "Width"
+msgstr ""
+
+#: src/Print.cc:791
+msgid "Width in pixels for export"
+msgstr ""
+
+#: src/Print.cc:792
+msgid "Height"
+msgstr ""
+
+#: src/Print.cc:793
+msgid "Height in pixels for export"
+msgstr ""
+
+#: src/Print.cc:794
+msgid "Pixel size"
+msgstr ""
+
+#: src/Print.cc:795
+msgid "Pixel size in mm"
+msgstr ""
+
+#: src/Print.cc:804
+msgid "Size in pixels for export"
+msgstr ""
+
+#: src/Tableur.cc:106
+msgid "No spreadsheet found. Please click in or add one"
+msgstr ""
+
+#: src/Tableur.cc:139
+msgid "Variable"
+msgstr ""
+
+#: src/Tableur.cc:140
+msgid "Save the spreadsheet as a matrix in this variable"
+msgstr ""
+
+#: src/Tableur.cc:141 src/Tableur.cc:499
+msgid "Rows"
+msgstr ""
+
+#: src/Tableur.cc:145 src/Tableur.cc:499
+msgid "Cols"
+msgstr ""
+
+#: src/Tableur.cc:149
+msgid "Eval"
+msgstr ""
+
+#: src/Tableur.cc:150
+msgid "Reeval spreadsheet automatically"
+msgstr ""
+
+#: src/Tableur.cc:152
+msgid "Move right"
+msgstr ""
+
+#: src/Tableur.cc:153
+msgid "Move right or down after Enter"
+msgstr ""
+
+#: src/Tableur.cc:154
+msgid "Distribute"
+msgstr ""
+
+#: src/Tableur.cc:155
+msgid "Matrix input is distributed or kept inside a cell"
+msgstr ""
+
+#: src/Tableur.cc:157
+msgid "Matrix or spreadsheet"
+msgstr ""
+
+#: src/Tableur.cc:159
+msgid "Split sheet/graph horizontally or vertically"
+msgstr ""
+
+#: src/Tableur.cc:160 src/Tableur.cc:2955 src/Graph.cc:6683
+msgid "Graph"
+msgstr ""
+
+#: src/Tableur.cc:161
+msgid "Show or hide graph connected to this sheet"
+msgstr ""
+
+#: src/Tableur.cc:162
+msgid "Undo history"
+msgstr ""
+
+#: src/Tableur.cc:163
+msgid "Init sheet"
+msgstr ""
+
+#: src/Tableur.cc:173 src/Tableur.cc:2939
+msgid "Sheet configuration"
+msgstr ""
+
+#: src/Tableur.cc:499
+msgid "Remove what?"
+msgstr ""
+
+#: src/Tableur.cc:819
+msgid "computation aborted"
+msgstr ""
+
+#: src/Tableur.cc:1268
+msgid "Save sheet"
+msgstr ""
+
+#: src/Tableur.cc:1278 src/Editeur.cc:721 src/Graph.cc:5533
+msgid ": file exists. Overwrite?"
+msgstr ""
+
+#: src/Tableur.cc:1415
+msgid "Variable name?"
+msgstr ""
+
+#: src/Tableur.cc:1419
+msgid "is not a variable name"
+msgstr ""
+
+#: src/Tableur.cc:1443
+msgid "Insert sheet"
+msgstr ""
+
+#: src/Tableur.cc:1466
+msgid "Insert CSV sheet"
+msgstr ""
+
+#: src/Tableur.cc:1484
+msgid "Separator"
+msgstr ""
+
+#: src/Tableur.cc:1485
+msgid "One character used to separate fields, like ; Use ^I for tab"
+msgstr ""
+
+#: src/Tableur.cc:1486
+msgid "Newline"
+msgstr ""
+
+#: src/Tableur.cc:1487
+msgid "One character used to separate lines, like <return> Use ^I for tab"
+msgstr ""
+
+#: src/Tableur.cc:1488
+msgid "Decimal"
+msgstr ""
+
+#: src/Tableur.cc:1489
+msgid "One character used for decimal digit separator, like . or ,"
+msgstr ""
+
+#: src/Tableur.cc:1490
+msgid "Endfile"
+msgstr ""
+
+#: src/Tableur.cc:1491
+msgid "Stop reading at first occurence of this character, leave blank for none"
+msgstr ""
+
+#: src/Tableur.cc:1492
+msgid "Start row=1"
+msgstr ""
+
+#: src/Tableur.cc:1502
+msgid "CSV Import filter"
+msgstr ""
+
+#: src/Tableur.cc:1729 src/Tableur.cc:1757 src/Tableur.cc:1830
+msgid "builtin integration"
+msgstr ""
+
+#: src/Tableur.cc:1735
+msgid "right rectangle"
+msgstr ""
+
+#: src/Tableur.cc:1741
+msgid "left rectangle"
+msgstr ""
+
+#: src/Tableur.cc:1747
+msgid "middle point"
+msgstr ""
+
+#: src/Tableur.cc:1753 src/Tableur.cc:1761
+msgid "trapezoid"
+msgstr ""
+
+#: src/Tableur.cc:1758
+msgid "right_rectangle"
+msgstr ""
+
+#: src/Tableur.cc:1759
+msgid "left_rectangle"
+msgstr ""
+
+#: src/Tableur.cc:1760
+msgid "middle_point"
+msgstr ""
+
+#: src/Tableur.cc:1788
+msgid "Plot style (select a point type or width for dotted plot)"
+msgstr ""
+
+#: src/Tableur.cc:1791
+msgid "Expression of the function (e.g sin(x))"
+msgstr ""
+
+#: src/Tableur.cc:1794
+msgid "Expression of the function (e.g x-y^2)"
+msgstr ""
+
+#: src/Tableur.cc:1795 src/Graph.cc:5827 src/Graph.cc:5833
+msgid "1st var"
+msgstr ""
+
+#: src/Tableur.cc:1797
+msgid "Independant variable name (e.g x)"
+msgstr ""
+
+#: src/Tableur.cc:1798 src/Graph.cc:5830 src/Graph.cc:5836 src/Graph.cc:5842
+msgid "2nd var"
+msgstr ""
+
+#: src/Tableur.cc:1800 src/Graph.cc:5838
+msgid "Second independant variable name (e.g y)"
+msgstr ""
+
+#: src/Tableur.cc:1801 src/Graph.cc:5872
+msgid "xmin"
+msgstr ""
+
+#: src/Tableur.cc:1804
+msgid "Minimal value for 1st independant variable"
+msgstr ""
+
+#: src/Tableur.cc:1805 src/Graph.cc:5875
+msgid "xstep"
+msgstr ""
+
+#: src/Tableur.cc:1808
+msgid "Discretization step for 1st independant variable"
+msgstr ""
+
+#: src/Tableur.cc:1809 src/Graph.cc:5878
+msgid "xmax"
+msgstr ""
+
+#: src/Tableur.cc:1812
+msgid "Maximal value for 1st independant variable"
+msgstr ""
+
+#: src/Tableur.cc:1813
+msgid "Target"
+msgstr ""
+
+#: src/Tableur.cc:1814
+msgid ""
+"Name of the first of two columns that will be overwritten by the tablefunc"
+msgstr ""
+
+#: src/Tableur.cc:1815 src/Graph.cc:5881
+msgid "ymin"
+msgstr ""
+
+#: src/Tableur.cc:1818
+msgid "Minimal value for 2nd independant variable"
+msgstr ""
+
+#: src/Tableur.cc:1819 src/Graph.cc:5884
+msgid "ystep"
+msgstr ""
+
+#: src/Tableur.cc:1822
+msgid "Discretization step for 2nd independant variable"
+msgstr ""
+
+#: src/Tableur.cc:1823 src/Graph.cc:5887
+msgid "ymax"
+msgstr ""
+
+#: src/Tableur.cc:1826
+msgid "Maximal value for 2nd independant variable"
+msgstr ""
+
+#: src/Tableur.cc:1827
+msgid "Choose"
+msgstr ""
+
+#: src/Tableur.cc:1829
+msgid "int. method"
+msgstr ""
+
+#: src/Tableur.cc:1953
+msgid "Table of value of a function"
+msgstr ""
+
+#: src/Tableur.cc:1984
+msgid "Target cell range"
+msgstr ""
+
+#: src/Tableur.cc:1985
+msgid "Target cell range will be filled by random numbers, e.g. A1:A8"
+msgstr ""
+
+#: src/Tableur.cc:1986 src/Tableur.cc:2071
+msgid "x-"
+msgstr ""
+
+#: src/Tableur.cc:1988
+msgid "Minimal value"
+msgstr ""
+
+#: src/Tableur.cc:1989 src/Tableur.cc:2074
+msgid "x+"
+msgstr ""
+
+#: src/Tableur.cc:1991
+msgid "Maximal value"
+msgstr ""
+
+#: src/Tableur.cc:1992
+msgid "integers"
+msgstr ""
+
+#: src/Tableur.cc:1993
+msgid "Real or integers"
+msgstr ""
+
+#: src/Tableur.cc:1996
+msgid "static"
+msgstr ""
+
+#: src/Tableur.cc:1997
+msgid "Immediate static value or formula reevaled each time"
+msgstr ""
+
+#: src/Tableur.cc:2061
+msgid ""
+"Expression of u_(n+1) in terms of a variable=u_n, e.g. 1/2*(x+2/x)\n"
+"Or expression of u_(n+k+1) in terms of a list of variables=[u_n,...,u_(n"
+"+k)], e.g. x+y"
+msgstr ""
+
+#: src/Tableur.cc:2062
+msgid "Variable(s)"
+msgstr ""
+
+#: src/Tableur.cc:2064
+msgid ""
+"Independant variable name representing u_n, e.g. x\n"
+"Or list of independant variables representing u_n,...,u_(n+k), e.g. [x,y]"
+msgstr ""
+
+#: src/Tableur.cc:2067
+msgid "Name of the initial value of un"
+msgstr ""
+
+#: src/Tableur.cc:2070
+msgid ""
+"Initial value, e.g. 1.0\n"
+"Or list of initial values, e.g. [1.0,1.0]"
+msgstr ""
+
+#: src/Tableur.cc:2073
+msgid "Minimal value for the function graph"
+msgstr ""
+
+#: src/Tableur.cc:2076
+msgid "Maximal value for the function graph"
+msgstr ""
+
+#: src/Tableur.cc:2077
+msgid "Target column"
+msgstr ""
+
+#: src/Tableur.cc:2079
+msgid "Number of terms"
+msgstr ""
+
+#: src/Tableur.cc:2140
+msgid "Expression contains a cell name "
+msgstr ""
+
+#: src/Tableur.cc:2144
+msgid "Invalid list initial value "
+msgstr ""
+
+#: src/Tableur.cc:2230
+msgid "Table of value of a recurrent sequence"
+msgstr ""
+
+#: src/Tableur.cc:2266
+msgid "cells input"
+msgstr ""
+
+#: src/Tableur.cc:2267
+msgid "Zone over which the function will be applied, e.g. A1..B7 or A1..B7,D,E"
+msgstr ""
+
+#: src/Tableur.cc:2268
+msgid "target cell"
+msgstr ""
+
+#: src/Tableur.cc:2269
+msgid "Target cell(s) will be filled by the formula, e.g. A8"
+msgstr ""
+
+#: src/Tableur.cc:2270
+msgid "class min"
+msgstr ""
+
+#: src/Tableur.cc:2271
+msgid "Minimal value of classes for histogramsl, e.g. -10"
+msgstr ""
+
+#: src/Tableur.cc:2272
+msgid "class size"
+msgstr ""
+
+#: src/Tableur.cc:2273
+msgid "Size of a class for histograms, e.g. 2"
+msgstr ""
+
+#: src/Tableur.cc:2274
+msgid "value"
+msgstr ""
+
+#: src/Tableur.cc:2275
+msgid "Use submatrix by reference (dynamic) or by value (static)"
+msgstr ""
+
+#: src/Tableur.cc:2277
+msgid "lines"
+msgstr ""
+
+#: src/Tableur.cc:2278
+msgid "Use line or columns"
+msgstr ""
+
+#: src/Tableur.cc:2280
+msgid "outside"
+msgstr ""
+
+#: src/Tableur.cc:2281
+msgid "Sheet graph or standalone graph"
+msgstr ""
+
+#: src/Tableur.cc:2283
+msgid "degree"
+msgstr ""
+
+#: src/Tableur.cc:2284
+msgid "Degree of the polynomial regression"
+msgstr ""
+
+#: src/Tableur.cc:2375
+msgid "Syntax error"
+msgstr ""
+
+#: src/Tableur.cc:2458
+msgid "New row number"
+msgstr ""
+
+#: src/Tableur.cc:2462
+msgid "Really delete rows?"
+msgstr ""
+
+#: src/Tableur.cc:2474
+msgid "New col number"
+msgstr ""
+
+#: src/Tableur.cc:2478
+msgid "Really delete columns?"
+msgstr ""
+
+#: src/Tableur.cc:2492
+msgid "Histogram 1 or 2 columns: data or data/eff"
+msgstr ""
+
+#: src/Tableur.cc:2502
+msgid "Make classes from column data or data/eff into two adjacent columns"
+msgstr ""
+
+#: src/Tableur.cc:2531
+msgid "One boxwhisker per column"
+msgstr ""
+
+#: src/Tableur.cc:2538
+msgid "Plotlist: One column (y) or two columns (x,y)"
+msgstr ""
+
+#: src/Tableur.cc:2545
+msgid "Camembert: column 1: legends, column 2: data"
+msgstr ""
+
+#: src/Tableur.cc:2552
+msgid "Bar_plot: column 1: legends, column 2: data"
+msgstr ""
+
+#: src/Tableur.cc:2559
+msgid "Column 1: x, one scatterplot per remaining column"
+msgstr ""
+
+#: src/Tableur.cc:2566
+msgid "Column 1: x, one polygonplot per remaining column"
+msgstr ""
+
+#: src/Tableur.cc:2573
+msgid "Column 1: x, one polygon line per remaining column"
+msgstr ""
+
+#: src/Tableur.cc:2580
+msgid "Linear regression: column 1: x, column 2: y"
+msgstr ""
+
+#: src/Tableur.cc:2587
+msgid "Power regression: Column 1: x, column 2: y"
+msgstr ""
+
+#: src/Tableur.cc:2594
+msgid "Log regression: Column 1: x, column 2: y"
+msgstr ""
+
+#: src/Tableur.cc:2601
+msgid "Exp regression: Column 1: x, column 2: y"
+msgstr ""
+
+#: src/Tableur.cc:2608
+msgid "Polynomial regression degree d: Column 1: x, column 2: y"
+msgstr ""
+
+#: src/Tableur.cc:2615
+msgid "Logistic regression for y', with y(x=1)=y1"
+msgstr ""
+
+#: src/Tableur.cc:2624 src/Tableur.cc:2680
+msgid "Sort with respect to "
+msgstr ""
+
+#: src/Tableur.cc:2626 src/Tableur.cc:2682
+msgid "row"
+msgstr ""
+
+#: src/Tableur.cc:2628 src/Tableur.cc:2684
+msgid "column"
+msgstr ""
+
+#: src/Tableur.cc:2655
+msgid "Sorting is not compatible with some cell references. Sort anyway"
+msgstr ""
+
+#: src/Tableur.cc:2820 src/Tableur.cc:2832 src/Tableur.cc:2844
+#: src/Tableur.cc:2856
+msgid "Make rows==cols first!"
+msgstr ""
+
+#: src/Tableur.cc:2931
+msgid "Table"
+msgstr ""
+
+#: src/Tableur.cc:2932
+msgid "Save sheet as text"
+msgstr ""
+
+#: src/Tableur.cc:2933 src/Graph.cc:6660
+msgid "Save as alternate filename"
+msgstr ""
+
+#: src/Tableur.cc:2934
+msgid "Save as CSV"
+msgstr ""
+
+#: src/Tableur.cc:2935
+msgid "Save as mathml"
+msgstr ""
+
+#: src/Tableur.cc:2936
+msgid "Save selection to variable"
+msgstr ""
+
+#: src/Tableur.cc:2938
+msgid "Insert CSV"
+msgstr ""
+
+#: src/Tableur.cc:2940
+msgid "Print Export"
+msgstr ""
+
+#: src/Tableur.cc:2943 src/Graph.cc:1202 src/Graph.cc:6663
+msgid "EPS PNG and preview"
+msgstr ""
+
+#: src/Tableur.cc:2948
+msgid "Eval sheet"
+msgstr ""
+
+#: src/Tableur.cc:2949
+msgid "Copy Cell"
+msgstr ""
+
+#: src/Tableur.cc:2953
+msgid "Configuration"
+msgstr ""
+
+#: src/Tableur.cc:2954
+msgid "Cfg window"
+msgstr ""
+
+#: src/Tableur.cc:2956
+msgid "Autoscale graph"
+msgstr ""
+
+#: src/Tableur.cc:2957
+msgid "Graph portrait"
+msgstr ""
+
+#: src/Tableur.cc:2958
+msgid "Graph landscape"
+msgstr ""
+
+#: src/Tableur.cc:2959
+msgid "Hide Graph"
+msgstr ""
+
+#: src/Tableur.cc:2963
+msgid "Matrix"
+msgstr ""
+
+#: src/Tableur.cc:2964
+msgid "Normal matrix"
+msgstr ""
+
+#: src/Tableur.cc:2965
+msgid "Symmetric matrix"
+msgstr ""
+
+#: src/Tableur.cc:2966
+msgid "AntiSymmetric matrix"
+msgstr ""
+
+#: src/Tableur.cc:2967
+msgid "Hermitian matrix"
+msgstr ""
+
+#: src/Tableur.cc:2968
+msgid "AntiHermitian matrix"
+msgstr ""
+
+#: src/Tableur.cc:2970
+msgid "Set Rows Number"
+msgstr ""
+
+#: src/Tableur.cc:2971
+msgid "Set Cols Number"
+msgstr ""
+
+#: src/Tableur.cc:2972
+msgid "Move ->"
+msgstr ""
+
+#: src/Tableur.cc:2973
+msgid "Move down"
+msgstr ""
+
+#: src/Tableur.cc:2974
+msgid "Auto Recompute"
+msgstr ""
+
+#: src/Tableur.cc:2975
+msgid "No Recompute"
+msgstr ""
+
+#: src/Tableur.cc:2976
+msgid "Dispatch matrice to cells"
+msgstr ""
+
+#: src/Tableur.cc:2977
+msgid "Keep matrice in one cell"
+msgstr ""
+
+#: src/Tableur.cc:2979
+msgid "Fill"
+msgstr ""
+
+#: src/Tableur.cc:2980
+msgid "Copy right"
+msgstr ""
+
+#: src/Tableur.cc:2981
+msgid "Copy down"
+msgstr ""
+
+#: src/Tableur.cc:2982
+msgid "Fill selection with pushed cell"
+msgstr ""
+
+#: src/Tableur.cc:2983
+msgid "Fill selection with 0"
+msgstr ""
+
+#: src/Tableur.cc:2984
+msgid "Fill sheet with 0"
+msgstr ""
+
+#: src/Tableur.cc:2986
+msgid "Add or delete"
+msgstr ""
+
+#: src/Tableur.cc:2987
+msgid "Insert Row"
+msgstr ""
+
+#: src/Tableur.cc:2988
+msgid "Row+ at end"
+msgstr ""
+
+#: src/Tableur.cc:2989
+msgid "Insert Col"
+msgstr ""
+
+#: src/Tableur.cc:2990
+msgid "Col+ at end"
+msgstr ""
+
+#: src/Tableur.cc:2991
+msgid "Erase current row"
+msgstr ""
+
+#: src/Tableur.cc:2992
+msgid "Erase selection rows"
+msgstr ""
+
+#: src/Tableur.cc:2993
+msgid "Erase current col"
+msgstr ""
+
+#: src/Tableur.cc:2994
+msgid "Erase selection cols"
+msgstr ""
+
+#: src/Tableur.cc:2996
+msgid "Sort"
+msgstr ""
+
+#: src/Tableur.cc:2997
+msgid "Inc col"
+msgstr ""
+
+#: src/Tableur.cc:2998
+msgid "Dec col"
+msgstr ""
+
+#: src/Tableur.cc:2999
+msgid "Inc row"
+msgstr ""
+
+#: src/Tableur.cc:3000
+msgid "Dec row"
+msgstr ""
+
+#: src/Tableur.cc:3002
+msgid "Col larger"
+msgstr ""
+
+#: src/Tableur.cc:3003
+msgid "Col smaller"
+msgstr ""
+
+#: src/Tableur.cc:3007
+msgid "Maths"
+msgstr ""
+
+#: src/Tableur.cc:3008 src/Graph.cc:6684
+msgid "Function"
+msgstr ""
+
+#: src/Tableur.cc:3009
+msgid "Random values"
+msgstr ""
+
+#: src/Tableur.cc:3010
+msgid "Sequences"
+msgstr ""
+
+#: src/Tableur.cc:3011
+msgid "Recurrent sequence"
+msgstr ""
+
+#: src/Tableur.cc:3012 src/Tableur.cc:3020
+msgid "Bar plot"
+msgstr ""
+
+#: src/Tableur.cc:3013 src/Tableur.cc:3021
+msgid "plotlist"
+msgstr ""
+
+#: src/Tableur.cc:3014 src/Tableur.cc:3027
+msgid "Polygonscatterplot"
+msgstr ""
+
+#: src/Tableur.cc:3015 src/Tableur.cc:3028
+msgid "Scatterplot"
+msgstr ""
+
+#: src/Tableur.cc:3016 src/Tableur.cc:3029
+msgid "Polygonplot"
+msgstr ""
+
+#: src/Tableur.cc:3018
+msgid "1-d stats"
+msgstr ""
+
+#: src/Tableur.cc:3019
+msgid "camembert"
+msgstr ""
+
+#: src/Tableur.cc:3022
+msgid "Boxwhisker"
+msgstr ""
+
+#: src/Tableur.cc:3023
+msgid "Classes (data or data,eff)"
+msgstr ""
+
+#: src/Tableur.cc:3024
+msgid "Histogram (interval,eff)"
+msgstr ""
+
+#: src/Tableur.cc:3026
+msgid "2-d stats"
+msgstr ""
+
+#: src/Tableur.cc:3031
+msgid "Regressions"
+msgstr ""
+
+#: src/Tableur.cc:3032
+msgid "Linear"
+msgstr ""
+
+#: src/Tableur.cc:3033
+msgid "Polynomial"
+msgstr ""
+
+#: src/Tableur.cc:3035
+msgid "Logarithmic"
+msgstr ""
+
+#: src/Tableur.cc:3036
+msgid "Power"
+msgstr ""
+
+#: src/Tableur.cc:3037
+msgid "Logistic"
+msgstr ""
+
+#: src/Tableur.cc:3189
+msgid "Too large for cell display"
+msgstr ""
+
+#: src/Tableur.cc:3275
+msgid "CAS is busy"
+msgstr ""
+
+#: src/Tableur.cc:3449
+msgid "Spreadsheet commandline"
+msgstr ""
+
+#: src/Tableur.cc:3456
+msgid "Selection area"
+msgstr ""
+
+#: src/Tableur.cc:3481
+msgid "Reeval current sheet"
+msgstr ""
+
+#: src/Tableur.cc:3485
+msgid "See value instead of formula"
+msgstr ""
+
+#: src/Tableur.cc:3489
+msgid "Initialize the sheet using init formula"
+msgstr ""
+
+#: src/Tableur.cc:3493
+msgid "View attached graph 2-d"
+msgstr ""
+
+#: src/Tableur.cc:3497
+msgid "View attached graph 3-d"
+msgstr ""
+
+#: src/Tableur.cc:3501
+msgid "<Save sheet as text>"
+msgstr ""
+
+#: src/Tableur.cc:3503
+msgid "Save spreadsheet independently of session"
+msgstr ""
+
+#: src/Editeur.cc:457
+msgid "No program editor found. Please click in or add one"
+msgstr ""
+
+#: src/Editeur.cc:592
+msgid "File exists. Overwrite?"
+msgstr ""
+
+#: src/Editeur.cc:1196
+msgid "Syntax compatibility mode: "
+msgstr ""
+
+#: src/Editeur.cc:1242
+msgid "Success!"
+msgstr ""
+
+#: src/Editeur.cc:1244
+msgid "Success but ... "
+msgstr ""
+
+#: src/Editeur.cc:1416
+msgid "Should be used inside a Logo level"
+msgstr ""
+
+#: src/Editeur.cc:1455
+msgid "Search"
+msgstr ""
+
+#: src/Editeur.cc:1456
+msgid "Word to search"
+msgstr ""
+
+#: src/Editeur.cc:1459
+msgid "Replace by"
+msgstr ""
+
+#: src/Editeur.cc:1466 src/Graph.cc:1171
+msgid "Next"
+msgstr ""
+
+#: src/Editeur.cc:1470
+msgid "Replace"
+msgstr ""
+
+#: src/Editeur.cc:1474
+msgid "Replace all"
+msgstr ""
+
+#: src/Editeur.cc:1591
+msgid "if"
+msgstr ""
+
+#: src/Editeur.cc:1592
+msgid "Enter test e.g. x<=0"
+msgstr ""
+
+#: src/Editeur.cc:1595
+msgid "then"
+msgstr ""
+
+#: src/Editeur.cc:1596
+msgid "Enter instruction(s) executed when test returns true, e.g. x:=-x;"
+msgstr ""
+
+#: src/Editeur.cc:1599
+msgid "else"
+msgstr ""
+
+#: src/Editeur.cc:1600
+msgid ""
+"Enter instruction(s) executed when test returns false, leave empty if none."
+msgstr ""
+
+#: src/Editeur.cc:1611
+msgid "New test"
+msgstr ""
+
+#: src/Editeur.cc:1633
+msgid "Invalid condition"
+msgstr ""
+
+#: src/Editeur.cc:1636
+msgid "Invalid if clause"
+msgstr ""
+
+#: src/Editeur.cc:1690
+msgid "for"
+msgstr ""
+
+#: src/Editeur.cc:1691
+msgid "Check this button for a defined loop"
+msgstr ""
+
+#: src/Editeur.cc:1693
+msgid "while"
+msgstr ""
+
+#: src/Editeur.cc:1694
+msgid "Check this button for a undefined loop"
+msgstr ""
+
+#: src/Editeur.cc:1697 src/Graph.cc:5824
+msgid "Var"
+msgstr ""
+
+#: src/Editeur.cc:1698
+msgid "Enter counter name, e.g. k"
+msgstr ""
+
+#: src/Editeur.cc:1700
+msgid "Start"
+msgstr ""
+
+#: src/Editeur.cc:1701
+msgid "First value of counter in the loop"
+msgstr ""
+
+#: src/Editeur.cc:1703 src/Graph.cc:1182 src/Help1.cc:274
+msgid "Stop"
+msgstr ""
+
+#: src/Editeur.cc:1704
+msgid "Last value of counter in the loop"
+msgstr ""
+
+#: src/Editeur.cc:1706
+msgid "Step"
+msgstr ""
+
+#: src/Editeur.cc:1707
+msgid "Increment the counter value at each new execution of the loop"
+msgstr ""
+
+#: src/Editeur.cc:1709
+msgid "Condition"
+msgstr ""
+
+#: src/Editeur.cc:1710
+msgid "Enter condition for continuation of loop"
+msgstr ""
+
+#: src/Editeur.cc:1714 src/Editeur.cc:2398 src/Editeur.cc:2501
+msgid "Loop"
+msgstr ""
+
+#: src/Editeur.cc:1715
+msgid "Enter instruction(s) to be executed, for example print(y); print(y*y);"
+msgstr ""
+
+#: src/Editeur.cc:1726
+msgid "New loop"
+msgstr ""
+
+#: src/Editeur.cc:1748
+msgid "Invalid counter"
+msgstr ""
+
+#: src/Editeur.cc:1827
+msgid "Name"
+msgstr ""
+
+#: src/Editeur.cc:1828
+msgid "Enter function name, e.g. f or myfunc"
+msgstr ""
+
+#: src/Editeur.cc:1831
+msgid "Arguments"
+msgstr ""
+
+#: src/Editeur.cc:1832
+msgid "Enter function argument(s), e.g. x or a,b,c. Leave empty if no argument"
+msgstr ""
+
+#: src/Editeur.cc:1835
+msgid "Locals"
+msgstr ""
+
+#: src/Editeur.cc:1836
+msgid ""
+"Enter local variable(s), e.g. k or n1,n2,n3. Leave empty if no local "
+"variables"
+msgstr ""
+
+#: src/Editeur.cc:1839
+msgid "Return value"
+msgstr ""
+
+#: src/Editeur.cc:1840
+msgid ""
+"Enter return value, e.g. x+1 or [a,b]. Leave empty if no local variables"
+msgstr ""
+
+#: src/Editeur.cc:1850
+msgid "New function"
+msgstr ""
+
+#: src/Editeur.cc:1873
+msgid "Invalid functionname"
+msgstr ""
+
+#: src/Editeur.cc:2181 src/Editeur.cc:2182 src/Editeur.cc:2185
+msgid "print();"
+msgstr ""
+
+#: src/Editeur.cc:2192 src/Editeur.cc:2193 src/Editeur.cc:2196
+msgid "input();"
+msgstr ""
+
+#: src/Editeur.cc:2339
+msgid "Prog"
+msgstr ""
+
+#: src/Editeur.cc:2342
+msgid "file"
+msgstr ""
+
+#: src/Editeur.cc:2350
+msgid "File extension"
+msgstr ""
+
+#: src/Editeur.cc:2351
+msgid "Export"
+msgstr ""
+
+#: src/Editeur.cc:2357
+msgid "Translate"
+msgstr ""
+
+#: src/Editeur.cc:2361
+msgid "ti"
+msgstr ""
+
+#: src/Editeur.cc:2363 src/Graph.cc:7550
+msgid "Export/Print"
+msgstr ""
+
+#: src/Editeur.cc:2366
+msgid "Preview"
+msgstr ""
+
+#: src/Editeur.cc:2372
+msgid "Search (Ctrl-F)"
+msgstr ""
+
+#: src/Editeur.cc:2373
+msgid "Indent line (Esc)"
+msgstr ""
+
+#: src/Editeur.cc:2374
+msgid "Indent all"
+msgstr ""
+
+#: src/Editeur.cc:2375
+msgid "Parse"
+msgstr ""
+
+#: src/Editeur.cc:2376
+msgid "Exec all"
+msgstr ""
+
+#: src/Editeur.cc:2377
+msgid "Extend editor"
+msgstr ""
+
+#: src/Editeur.cc:2378
+msgid "Shrink editor"
+msgstr ""
+
+#: src/Editeur.cc:2381 src/Editeur.cc:2491
+msgid "Func"
+msgstr ""
+
+#: src/Editeur.cc:2382
+msgid "new function"
+msgstr ""
+
+#: src/Editeur.cc:2383
+msgid "local"
+msgstr ""
+
+#: src/Editeur.cc:2386
+msgid "IO"
+msgstr ""
+
+#: src/Editeur.cc:2388
+msgid "input"
+msgstr ""
+
+#: src/Editeur.cc:2390 src/Editeur.cc:2496
+msgid "Test"
+msgstr ""
+
+#: src/Editeur.cc:2391
+msgid "new test"
+msgstr ""
+
+#: src/Editeur.cc:2392
+msgid "si alors sinon"
+msgstr ""
+
+#: src/Editeur.cc:2393
+msgid "if [then]"
+msgstr ""
+
+#: src/Editeur.cc:2394
+msgid "if [then] else"
+msgstr ""
+
+#: src/Editeur.cc:2395
+msgid "switch"
+msgstr ""
+
+#: src/Editeur.cc:2396
+msgid "try catch"
+msgstr ""
+
+#: src/Editeur.cc:2399
+msgid "new loop"
+msgstr ""
+
+#: src/Editeur.cc:2402
+msgid "repeter jusqu_a"
+msgstr ""
+
+#: src/Editeur.cc:2403
+msgid "for "
+msgstr ""
+
+#: src/Editeur.cc:2404
+msgid "while "
+msgstr ""
+
+#: src/Editeur.cc:2406
+msgid "continue"
+msgstr ""
+
+#: src/Editeur.cc:2473
+msgid "Line number"
+msgstr ""
+
+#: src/Editeur.cc:2478
+msgid "nxt"
+msgstr ""
+
+#: src/Editeur.cc:2479
+msgid "Find next occurence (defined by Edit->Search)"
+msgstr ""
+
+#: src/Editeur.cc:2485
+msgid "exe"
+msgstr ""
+
+#: src/Editeur.cc:2486
+msgid "Exec line in current widget"
+msgstr ""
+
+#: src/Editeur.cc:2492
+msgid "Assistant for function creation"
+msgstr ""
+
+#: src/Editeur.cc:2497
+msgid "Assistant for test creation"
+msgstr ""
+
+#: src/Editeur.cc:2502
+msgid "Assistant for loop creation"
+msgstr ""
+
+#: src/Editeur.cc:2511
+msgid "Parse current program"
+msgstr ""
+
+#: src/Editeur.cc:2517
+msgid "Save current program"
+msgstr ""
+
+#: src/Editeur.cc:2892
+msgid "No help"
+msgstr ""
+
+#: src/Editeur.cc:2894
+msgid "Press F1 to copy examples or for interactive help"
+msgstr ""
+
+#: src/Editeur.cc:2900
+msgid "Press F1 to open help index at "
+msgstr ""
+
+#: src/Graph.cc:756 src/Graph.cc:3996
+msgid "Export to PNG file"
+msgstr ""
+
+#: src/Graph.cc:963
+msgid "Rotate Animation"
+msgstr ""
+
+#: src/Graph.cc:1061
+msgid "Trace which object?"
+msgstr ""
+
+#: src/Graph.cc:1127
+msgid "Frames number? (>0 forward, <0 forward+backward)"
+msgstr ""
+
+#: src/Graph.cc:1132
+msgid "Figure must depend on a parameter (Edit->Add parameter)"
+msgstr ""
+
+#: src/Graph.cc:1153
+msgid "auto"
+msgstr ""
+
+#: src/Graph.cc:1154 src/Graph.cc:1163 src/Graph.cc:1276 src/Graph.cc:1787
+msgid "Autoscale"
+msgstr ""
+
+#: src/Graph.cc:1155 src/Graph.cc:1164
+msgid "Autoscale (full)"
+msgstr ""
+
+#: src/Graph.cc:1162 src/Graph.cc:7540 src/Help1.cc:241
+msgid "View"
+msgstr ""
+
+#: src/Graph.cc:1165
+msgid "Orthonormalize (2-d)"
+msgstr ""
+
+#: src/Graph.cc:1166 src/Graph.cc:1226 src/Graph.cc:7541
+msgid "Zoom in"
+msgstr ""
+
+#: src/Graph.cc:1167 src/Graph.cc:1251 src/Graph.cc:7542
+msgid "Zoom out"
+msgstr ""
+
+#: src/Graph.cc:1168
+msgid "Frame move on"
+msgstr ""
+
+#: src/Graph.cc:1169
+msgid "Frame move off"
+msgstr ""
+
+#: src/Graph.cc:1170
+msgid "Previous"
+msgstr ""
+
+#: src/Graph.cc:1172
+msgid "Config"
+msgstr ""
+
+#: src/Graph.cc:1174
+msgid "Trace"
+msgstr ""
+
+#: src/Graph.cc:1175
+msgid "Trace clear"
+msgstr ""
+
+#: src/Graph.cc:1176
+msgid "Trace on"
+msgstr ""
+
+#: src/Graph.cc:1177
+msgid "Trace off"
+msgstr ""
+
+#: src/Graph.cc:1178
+msgid "Trace object"
+msgstr ""
+
+#: src/Graph.cc:1180
+msgid "Animation"
+msgstr ""
+
+#: src/Graph.cc:1181
+msgid "Pause"
+msgstr ""
+
+#: src/Graph.cc:1183
+msgid "Restart"
+msgstr ""
+
+#: src/Graph.cc:1184
+msgid "Faster (2x)"
+msgstr ""
+
+#: src/Graph.cc:1185
+msgid "Slower (2x)"
+msgstr ""
+
+#: src/Graph.cc:1186
+msgid "Build animation"
+msgstr ""
+
+#: src/Graph.cc:1187
+msgid "Unanimate"
+msgstr ""
+
+#: src/Graph.cc:1188
+msgid "Graph on"
+msgstr ""
+
+#: src/Graph.cc:1189
+msgid "Graph off"
+msgstr ""
+
+#: src/Graph.cc:1191
+msgid "3-d"
+msgstr ""
+
+#: src/Graph.cc:1192
+msgid "Mouse plan equation"
+msgstr ""
+
+#: src/Graph.cc:1193
+msgid "Oyz view (x=cst=depth)"
+msgstr ""
+
+#: src/Graph.cc:1194
+msgid "Oxz view (y=cst=depth)"
+msgstr ""
+
+#: src/Graph.cc:1195
+msgid "upper view (z=cst=depth)"
+msgstr ""
+
+#: src/Graph.cc:1196
+msgid "default view"
+msgstr ""
+
+#: src/Graph.cc:1197
+msgid "Rotate animation"
+msgstr ""
+
+#: src/Graph.cc:1198
+msgid "Hide below depth"
+msgstr ""
+
+#: src/Graph.cc:1199
+msgid "Show below depth"
+msgstr ""
+
+#: src/Graph.cc:1201 src/Graph.cc:6662
+msgid "Export Print"
+msgstr ""
+
+#: src/Graph.cc:1203
+msgid "3-d to PNG"
+msgstr ""
+
+#: src/Graph.cc:1205 src/Graph.cc:7553
+msgid "Preview (with Latex)"
+msgstr ""
+
+#: src/Graph.cc:1206 src/Graph.cc:7554
+msgid "Print (with Latex)"
+msgstr ""
+
+#: src/Graph.cc:1230
+msgid "Increase y"
+msgstr ""
+
+#: src/Graph.cc:1234
+msgid "Increase z (3-d)/Zoom in for y (2-d)"
+msgstr ""
+
+#: src/Graph.cc:1240
+msgid "Decrease x"
+msgstr ""
+
+#: src/Graph.cc:1243
+msgid "Hide or show below depth"
+msgstr ""
+
+#: src/Graph.cc:1247
+msgid "Increase x"
+msgstr ""
+
+#: src/Graph.cc:1255
+msgid "Decrease y"
+msgstr ""
+
+#: src/Graph.cc:1259
+msgid "Decrease z (3-d)/Zoom out in y (2-d)"
+msgstr ""
+
+#: src/Graph.cc:1263
+msgid "Back in cfg history"
+msgstr ""
+
+#: src/Graph.cc:1266
+msgid "Forward in cfg history"
+msgstr ""
+
+#: src/Graph.cc:1269
+msgid "Configure screen view and axis"
+msgstr ""
+
+#: src/Graph.cc:1273
+msgid "Stop or restart animation"
+msgstr ""
+
+#: src/Graph.cc:1283
+msgid "Graphic menu"
+msgstr ""
+
+#: src/Graph.cc:1445
+msgid "x position of spot"
+msgstr ""
+
+#: src/Graph.cc:1447
+msgid "y position of spot"
+msgstr ""
+
+#: src/Graph.cc:1449
+msgid "z position of spot"
+msgstr ""
+
+#: src/Graph.cc:1451
+msgid "0 directional light source (e.g. sun), 1 position light (e.g. bulb)"
+msgstr ""
+
+#: src/Graph.cc:1454
+msgid "x direction of spot"
+msgstr ""
+
+#: src/Graph.cc:1456
+msgid "y direction of spot"
+msgstr ""
+
+#: src/Graph.cc:1458
+msgid "z direction of spot"
+msgstr ""
+
+#: src/Graph.cc:1460
+msgid "Turn on/off light"
+msgstr ""
+
+#: src/Graph.cc:1465
+msgid "ambient red component"
+msgstr ""
+
+#: src/Graph.cc:1467
+msgid "ambient green component"
+msgstr ""
+
+#: src/Graph.cc:1469
+msgid "ambient blue component"
+msgstr ""
+
+#: src/Graph.cc:1471
+msgid "ambient alpha component"
+msgstr ""
+
+#: src/Graph.cc:1474
+msgid "diffuse red component"
+msgstr ""
+
+#: src/Graph.cc:1476
+msgid "diffuse green component"
+msgstr ""
+
+#: src/Graph.cc:1478
+msgid "diffuse blue component"
+msgstr ""
+
+#: src/Graph.cc:1480
+msgid "diffuse alpha component"
+msgstr ""
+
+#: src/Graph.cc:1483
+msgid "specular red component"
+msgstr ""
+
+#: src/Graph.cc:1485
+msgid "specular green component"
+msgstr ""
+
+#: src/Graph.cc:1487
+msgid "specular blue component"
+msgstr ""
+
+#: src/Graph.cc:1489
+msgid "specular alpha component"
+msgstr ""
+
+#: src/Graph.cc:1493
+msgid "Spot attenuation exponent: power of cos(theta), e.g. 1"
+msgstr ""
+
+#: src/Graph.cc:1495
+msgid "Spot cutoff angle in 0..90 or 180 for no cutoff"
+msgstr ""
+
+#: src/Graph.cc:1497
+msgid "Attenuation constant coefficient"
+msgstr ""
+
+#: src/Graph.cc:1499
+msgid "Attenuation linear coefficient"
+msgstr ""
+
+#: src/Graph.cc:1501
+msgid "Attenuation quadratic coefficient"
+msgstr ""
+
+#: src/Graph.cc:1511
+msgid "Reset"
+msgstr ""
+
+#: src/Graph.cc:1515
+msgid "Light configuration"
+msgstr ""
+
+#: src/Graph.cc:1647
+msgid "Xmax for visualisation"
+msgstr ""
+
+#: src/Graph.cc:1650
+msgid "X Logarithmic scale"
+msgstr ""
+
+#: src/Graph.cc:1653
+msgid "Orthonormal or perspective"
+msgstr ""
+
+#: src/Graph.cc:1657
+msgid "Ymin for visualisation"
+msgstr ""
+
+#: src/Graph.cc:1660
+msgid "Ymax for visualisation"
+msgstr ""
+
+#: src/Graph.cc:1663
+msgid "Y Logarithmic scale"
+msgstr ""
+
+#: src/Graph.cc:1666
+msgid "Flat or Gouraud shading"
+msgstr ""
+
+#: src/Graph.cc:1670
+msgid "Zmin for visualisation"
+msgstr ""
+
+#: src/Graph.cc:1673
+msgid "Zmax for visualisation"
+msgstr ""
+
+#: src/Graph.cc:1676
+msgid "Enable blending"
+msgstr ""
+
+#: src/Graph.cc:1686
+msgid "Graphic displayed with a framebox"
+msgstr ""
+
+#: src/Graph.cc:1689
+msgid "Ticks in pixels or units"
+msgstr ""
+
+#: src/Graph.cc:1692
+msgid "View triedre even if axes are hidden"
+msgstr ""
+
+#: src/Graph.cc:1695
+msgid "Number of units or pixels for ticks on X"
+msgstr ""
+
+#: src/Graph.cc:1697
+msgid "Number of units or pixels for ticks on Y"
+msgstr ""
+
+#: src/Graph.cc:1700
+msgid "x coefficient of mouse plan equation"
+msgstr ""
+
+#: src/Graph.cc:1705
+msgid "y coefficient of mouse plan equation"
+msgstr ""
+
+#: src/Graph.cc:1710
+msgid "z coefficient of mouse plan equation"
+msgstr ""
+
+#: src/Graph.cc:1715
+msgid "constant coefficient of mouse plan equation"
+msgstr ""
+
+#: src/Graph.cc:1720
+msgid "3d rotation"
+msgstr ""
+
+#: src/Graph.cc:1725
+msgid "Number of latitude divisions for sphere drawing"
+msgstr ""
+
+#: src/Graph.cc:1730
+msgid "Number of longitude divisions for sphere drawing"
+msgstr ""
+
+#: src/Graph.cc:1735
+msgid "Size in pixels for y graduation printing"
+msgstr ""
+
+#: src/Graph.cc:1741 src/Graph.cc:1743 src/Graph.cc:1745 src/Graph.cc:1747
+#: src/Graph.cc:1749 src/Graph.cc:1751 src/Graph.cc:1753 src/Graph.cc:1755
+msgid "Configure light"
+msgstr ""
+
+#: src/Graph.cc:1757
+msgid "Show scene with lights"
+msgstr ""
+
+#: src/Graph.cc:1760
+msgid "Show names"
+msgstr ""
+
+#: src/Graph.cc:1761
+msgid "Show/Hide names of geometric objects"
+msgstr ""
+
+#: src/Graph.cc:1763
+msgid "Plot names"
+msgstr ""
+
+#: src/Graph.cc:1764
+msgid "Show/Hide names of parametric and function plots"
+msgstr ""
+
+#: src/Graph.cc:1766 src/Graph.cc:6677
+msgid "Portrait"
+msgstr ""
+
+#: src/Graph.cc:1767
+msgid "Portrait or landscape split"
+msgstr ""
+
+#: src/Graph.cc:1770
+msgid "Autoname"
+msgstr ""
+
+#: src/Graph.cc:1772
+msgid "Show axis"
+msgstr ""
+
+#: src/Graph.cc:1773
+msgid "Show or hide axis"
+msgstr ""
+
+#: src/Graph.cc:1776
+msgid "Time between image changes for animations"
+msgstr ""
+
+#: src/Graph.cc:1781
+msgid "Round"
+msgstr ""
+
+#: src/Graph.cc:1782
+msgid "Round xmin/xmax/ymin/ymax/zmin/zmax"
+msgstr ""
+
+#: src/Graph.cc:1794
+msgid "Current gl_quaternion= value"
+msgstr ""
+
+#: src/Graph.cc:1798
+msgid "Rotate what: 1 l1, 2 l2, 4 l3, ..., 128 l8, 256 viewpoint"
+msgstr ""
+
+#: src/Graph.cc:1801
+msgid "Time for 1 step in s"
+msgstr ""
+
+#: src/Graph.cc:1804
+msgid "Number of steps for animation"
+msgstr ""
+
+#: src/Graph.cc:1807
+msgid "x rotation axis coordinate"
+msgstr ""
+
+#: src/Graph.cc:1810
+msgid "y rotation axis coordinate"
+msgstr ""
+
+#: src/Graph.cc:1813
+msgid "z rotation axis coordinate"
+msgstr ""
+
+#: src/Graph.cc:1816
+msgid "Other animation change (normally 0)"
+msgstr ""
+
+#: src/Graph.cc:2473
+msgid "LaTeX filaneme"
+msgstr ""
+
+#: src/Graph.cc:3074
+msgid "Thickness"
+msgstr ""
+
+#: src/Graph.cc:3079
+msgid "Point width"
+msgstr ""
+
+#: src/Graph.cc:3178
+msgid "Make point symbolic"
+msgstr ""
+
+#: src/Graph.cc:3181
+msgid "Remove translation"
+msgstr ""
+
+#: src/Graph.cc:3189
+msgid "Delete"
+msgstr ""
+
+#: src/Graph.cc:3190
+msgid "Delete current object"
+msgstr ""
+
+#: src/Graph.cc:3224
+msgid "Object attributs "
+msgstr ""
+
+#: src/Graph.cc:4252 src/Graph.cc:6697 src/Graph.cc:6855
+msgid "Frame"
+msgstr ""
+
+#: src/Graph.cc:4254 src/Graph.cc:6698
+msgid "Pointer"
+msgstr ""
+
+#: src/Graph.cc:5323 src/Graph3d.cc:2238
+msgid "Click "
+msgstr ""
+
+#: src/Graph.cc:5525
+msgid "Save figure"
+msgstr ""
+
+#: src/Graph.cc:5595
+msgid "Insert figure"
+msgstr ""
+
+#: src/Graph.cc:5665
+msgid "Parameter minimal value"
+msgstr ""
+
+#: src/Graph.cc:5668
+msgid "Parameter maximal value"
+msgstr ""
+
+#: src/Graph.cc:5671
+msgid "Parameter current value"
+msgstr ""
+
+#: src/Graph.cc:5673
+msgid "Parameter step value"
+msgstr ""
+
+#: src/Graph.cc:5679
+msgid "Parameter variable name"
+msgstr ""
+
+#: src/Graph.cc:5682
+msgid "Numeric or formal parameter"
+msgstr ""
+
+#: src/Graph.cc:5693
+msgid "Parameter definition"
+msgstr ""
+
+#: src/Graph.cc:5793
+msgid "Draw slopefield"
+msgstr ""
+
+#: src/Graph.cc:5796
+msgid "Autonomous 2d systems."
+msgstr ""
+
+#: src/Graph.cc:5799
+msgid "Normalize slopefield"
+msgstr ""
+
+#: src/Graph.cc:5800
+msgid "F(x,y)="
+msgstr ""
+
+#: src/Graph.cc:5802
+msgid "Implicit expression"
+msgstr ""
+
+#: src/Graph.cc:5803
+msgid "dy/dt(t,y)="
+msgstr ""
+
+#: src/Graph.cc:5805
+msgid ""
+"Expression of dy/dt in terms of y and t, e.g. sin(t*y). For autonomous 2d "
+"system,change time variable to x and enter d[x,y]/dt in terms of [x,y], e.g. "
+"[[1,2],[3,4]]*[x,y]"
+msgstr ""
+
+#: src/Graph.cc:5806
+msgid "rho(t)="
+msgstr ""
+
+#: src/Graph.cc:5808
+msgid "Expression of modulus rho wrt to angle t (e.g sin(t))"
+msgstr ""
+
+#: src/Graph.cc:5809
+msgid "x(t)="
+msgstr ""
+
+#: src/Graph.cc:5811
+msgid "Expression of x wrt to t (e.g sin(t))"
+msgstr ""
+
+#: src/Graph.cc:5812
+msgid "y(t)="
+msgstr ""
+
+#: src/Graph.cc:5814
+msgid "Expression of y wrt to t (e.g cos(t))"
+msgstr ""
+
+#: src/Graph.cc:5815
+msgid "x="
+msgstr ""
+
+#: src/Graph.cc:5817
+msgid "Expression of x wrt to u and v (e.g. u+v)"
+msgstr ""
+
+#: src/Graph.cc:5818 src/Graph.cc:5821
+msgid "y="
+msgstr ""
+
+#: src/Graph.cc:5820
+msgid "Expression of y wrt to u and v (e.g exp(u)-v)"
+msgstr ""
+
+#: src/Graph.cc:5823
+msgid "Expression of z wrt to u and v (e.g u-v)"
+msgstr ""
+
+#: src/Graph.cc:5826
+msgid "Independant variable name (e.g t)"
+msgstr ""
+
+#: src/Graph.cc:5829
+msgid "First independant variable name (e.g u)"
+msgstr ""
+
+#: src/Graph.cc:5832
+msgid "Second independant variable name (e.g v)"
+msgstr ""
+
+#: src/Graph.cc:5835
+msgid "First independant variable name (e.g x)"
+msgstr ""
+
+#: src/Graph.cc:5839
+msgid "Time var"
+msgstr ""
+
+#: src/Graph.cc:5841
+msgid "Time variable name"
+msgstr ""
+
+#: src/Graph.cc:5844
+msgid "Function variable name"
+msgstr ""
+
+#: src/Graph.cc:5845
+msgid "tmin"
+msgstr ""
+
+#: src/Graph.cc:5848
+msgid "tstep"
+msgstr ""
+
+#: src/Graph.cc:5851
+msgid "tmax"
+msgstr ""
+
+#: src/Graph.cc:5854
+msgid "umin"
+msgstr ""
+
+#: src/Graph.cc:5857
+msgid "ustep"
+msgstr ""
+
+#: src/Graph.cc:5860
+msgid "umax"
+msgstr ""
+
+#: src/Graph.cc:5863
+msgid "vmin"
+msgstr ""
+
+#: src/Graph.cc:5866
+msgid "vstep"
+msgstr ""
+
+#: src/Graph.cc:5869
+msgid "vmax"
+msgstr ""
+
+#: src/Graph.cc:5902
+msgid "Polar plot"
+msgstr ""
+
+#: src/Graph.cc:5905
+msgid "Parametric plot"
+msgstr ""
+
+#: src/Graph.cc:5908
+msgid "Field/Odeplot"
+msgstr ""
+
+#: src/Graph.cc:5911
+msgid "Implicitplot"
+msgstr ""
+
+#: src/Graph.cc:6072
+msgid "Click first in a commandline"
+msgstr ""
+
+#: src/Graph.cc:6176 src/Graph.cc:6190
+msgid "Point_on_ode_curve"
+msgstr ""
+
+#: src/Graph.cc:6177
+msgid "Click initials conditions in graphic window. Change mode when finished."
+msgstr ""
+
+#: src/Graph.cc:6253
+msgid "Shade area under a curve"
+msgstr ""
+
+#: src/Graph.cc:6433
+msgid "Real number?"
+msgstr ""
+
+#: src/Graph.cc:6467
+msgid "Center,Point_on_circle,Point_in_plane"
+msgstr ""
+
+#: src/Graph.cc:6467
+msgid "Center,Point_on_circle"
+msgstr ""
+
+#: src/Graph.cc:6471 src/Graph.cc:6475
+msgid "Curve1,Curve2"
+msgstr ""
+
+#: src/Graph.cc:6479
+msgid "Curve1,Curve2,Point"
+msgstr ""
+
+#: src/Graph.cc:6483
+msgid "Curve,Point"
+msgstr ""
+
+#: src/Graph.cc:6487 src/Graph.cc:6491 src/Graph.cc:6495 src/Graph.cc:6499
+#: src/Graph.cc:6594 src/Graph.cc:6598 src/Graph.cc:6622
+msgid "Point1,Point2"
+msgstr ""
+
+#: src/Graph.cc:6503 src/Graph.cc:6506
+msgid "Object1,Object2,Position"
+msgstr ""
+
+#: src/Graph.cc:6510 src/Graph.cc:6513
+msgid "Angle_vertex,Direction1,Direction2,Position"
+msgstr ""
+
+#: src/Graph.cc:6517 src/Graph.cc:6521 src/Graph.cc:6525 src/Graph.cc:6529
+#: src/Graph.cc:6533 src/Graph.cc:6537
+msgid "Object,Position"
+msgstr ""
+
+#: src/Graph.cc:6541
+msgid "Symmetry_center_axis,Object"
+msgstr ""
+
+#: src/Graph.cc:6545 src/Graph.cc:6561
+msgid "Center,Ratio,Object"
+msgstr ""
+
+#: src/Graph.cc:6549
+msgid "Curve,Object"
+msgstr ""
+
+#: src/Graph.cc:6553
+msgid "Circle,Object"
+msgstr ""
+
+#: src/Graph.cc:6557
+msgid "Center,Angle,Object"
+msgstr ""
+
+#: src/Graph.cc:6565
+msgid "Vector,Object"
+msgstr ""
+
+#: src/Graph.cc:6569
+msgid "Center,Ratio,Angle,Object"
+msgstr ""
+
+#: src/Graph.cc:6573
+msgid "Number of vertices?"
+msgstr ""
+
+#: src/Graph.cc:6580
+msgid "Point"
+msgstr ""
+
+#: src/Graph.cc:6590 src/Graph.cc:6626 src/Graph.cc:6630 src/Graph.cc:6634
+#: src/Graph.cc:6650
+msgid "Point1,Point2,Point3"
+msgstr ""
+
+#: src/Graph.cc:6602 src/Graph.cc:6606
+msgid "Point,Line"
+msgstr ""
+
+#: src/Graph.cc:6610 src/Graph.cc:6614
+msgid "Sommet_angle,Point2,Point3"
+msgstr ""
+
+#: src/Graph.cc:6618
+msgid "Point1,Point2,Point3,Point4"
+msgstr ""
+
+#: src/Graph.cc:6622
+msgid "Point1,Point2,Point_in_plane"
+msgstr ""
+
+#: src/Graph.cc:6638
+msgid "Focus1,Focus2,Point_on_ellipse"
+msgstr ""
+
+#: src/Graph.cc:6642
+msgid "Focus,Point_or_line"
+msgstr ""
+
+#: src/Graph.cc:6646
+msgid "Focus1,Focus2,Point_on_hyperbola"
+msgstr ""
+
+#: src/Graph.cc:6654
+msgid "Center,Point_on_sphere"
+msgstr ""
+
+#: src/Graph.cc:6658
+msgid "Fig"
+msgstr ""
+
+#: src/Graph.cc:6659
+msgid "Save figure as text"
+msgstr ""
+
+#: src/Graph.cc:6666
+msgid "latex printer"
+msgstr ""
+
+#: src/Graph.cc:6670
+msgid "Add parameter"
+msgstr ""
+
+#: src/Graph.cc:6671
+msgid "Add numerical value"
+msgstr ""
+
+#: src/Graph.cc:6672
+msgid "Add new entry"
+msgstr ""
+
+#: src/Graph.cc:6673
+msgid "Add an object trace"
+msgstr ""
+
+#: src/Graph.cc:6674
+msgid "Change selection attribut"
+msgstr ""
+
+#: src/Graph.cc:6681
+msgid "Focus"
+msgstr ""
+
+#: src/Graph.cc:6686
+msgid "Recurrent sequence (2-d)"
+msgstr ""
+
+#: src/Graph.cc:6688
+msgid "Parametric"
+msgstr ""
+
+#: src/Graph.cc:6689
+msgid "Polar (2-d)"
+msgstr ""
+
+#: src/Graph.cc:6690
+msgid "Implicit"
+msgstr ""
+
+#: src/Graph.cc:6691
+msgid "Slopefield Ode (2-d)"
+msgstr ""
+
+#: src/Graph.cc:6699
+msgid "point"
+msgstr ""
+
+#: src/Graph.cc:6700
+msgid "Lines"
+msgstr ""
+
+#: src/Graph.cc:6701
+msgid "segment"
+msgstr ""
+
+#: src/Graph.cc:6702
+msgid "vector"
+msgstr ""
+
+#: src/Graph.cc:6703
+msgid "half_line"
+msgstr ""
+
+#: src/Graph.cc:6704
+msgid "line"
+msgstr ""
+
+#: src/Graph.cc:6705
+msgid "parallel"
+msgstr ""
+
+#: src/Graph.cc:6706
+msgid "perpendicular"
+msgstr ""
+
+#: src/Graph.cc:6707
+msgid "perpen_bisector"
+msgstr ""
+
+#: src/Graph.cc:6708
+msgid "median_line"
+msgstr ""
+
+#: src/Graph.cc:6709
+msgid "bisector"
+msgstr ""
+
+#: src/Graph.cc:6711
+msgid "Polygons"
+msgstr ""
+
+#: src/Graph.cc:6712
+msgid "triangle"
+msgstr ""
+
+#: src/Graph.cc:6713
+msgid "equilateral_triangle"
+msgstr ""
+
+#: src/Graph.cc:6714
+msgid "square"
+msgstr ""
+
+#: src/Graph.cc:6715
+msgid "quadrilateral"
+msgstr ""
+
+#: src/Graph.cc:6716
+msgid "polygon"
+msgstr ""
+
+#: src/Graph.cc:6718
+msgid "Circles"
+msgstr ""
+
+#: src/Graph.cc:6719 src/plot.cc:3325 src/plot.cc:3364
+msgid "circle"
+msgstr ""
+
+#: src/Graph.cc:6720
+msgid "incircle"
+msgstr ""
+
+#: src/Graph.cc:6721
+msgid "excircle"
+msgstr ""
+
+#: src/Graph.cc:6722
+msgid "circumcircle"
+msgstr ""
+
+#: src/Graph.cc:6725
+msgid "ellipse"
+msgstr ""
+
+#: src/Graph.cc:6726
+msgid "hyperbola"
+msgstr ""
+
+#: src/Graph.cc:6727
+msgid "parabola"
+msgstr ""
+
+#: src/Graph.cc:6728
+msgid "plotode"
+msgstr ""
+
+#: src/Graph.cc:6730
+msgid "Surfaces (3d)"
+msgstr ""
+
+#: src/Graph.cc:6731
+msgid "plane"
+msgstr ""
+
+#: src/Graph.cc:6732
+msgid "sphere"
+msgstr ""
+
+#: src/Graph.cc:6734
+msgid "Measures"
+msgstr ""
+
+#: src/Graph.cc:6735
+msgid "distanceat"
+msgstr ""
+
+#: src/Graph.cc:6736
+msgid "angleat"
+msgstr ""
+
+#: src/Graph.cc:6737
+msgid "areaat"
+msgstr ""
+
+#: src/Graph.cc:6738
+msgid "perimeterat"
+msgstr ""
+
+#: src/Graph.cc:6739
+msgid "slopeat"
+msgstr ""
+
+#: src/Graph.cc:6740
+msgid "distanceatraw"
+msgstr ""
+
+#: src/Graph.cc:6741
+msgid "angleatraw"
+msgstr ""
+
+#: src/Graph.cc:6742
+msgid "areaatraw"
+msgstr ""
+
+#: src/Graph.cc:6743
+msgid "perimeteratraw"
+msgstr ""
+
+#: src/Graph.cc:6744
+msgid "slopeatraw"
+msgstr ""
+
+#: src/Graph.cc:6746
+msgid "Transformations"
+msgstr ""
+
+#: src/Graph.cc:6747
+msgid "reflection"
+msgstr ""
+
+#: src/Graph.cc:6748
+msgid "rotation"
+msgstr ""
+
+#: src/Graph.cc:6749
+msgid "translation"
+msgstr ""
+
+#: src/Graph.cc:6750
+msgid "projection"
+msgstr ""
+
+#: src/Graph.cc:6751
+msgid "homothety"
+msgstr ""
+
+#: src/Graph.cc:6752
+msgid "similarity"
+msgstr ""
+
+#: src/Graph.cc:6753
+msgid "inversion"
+msgstr ""
+
+#: src/Graph.cc:6754 src/plot.cc:14428
+msgid "reciprocation"
+msgstr ""
+
+#: src/Graph.cc:6756
+msgid "Intersections"
+msgstr ""
+
+#: src/Graph.cc:6757
+msgid "inter_unique (1 point)"
+msgstr ""
+
+#: src/Graph.cc:6758
+msgid "inter (close to a point)"
+msgstr ""
+
+#: src/Graph.cc:6759
+msgid "inter (list of points)"
+msgstr ""
+
+#: src/Graph.cc:6761
+msgid "tangent"
+msgstr ""
+
+#: src/Graph.cc:6857
+msgid "Set mode for mouse constructions"
+msgstr ""
+
+#: src/Graph.cc:6871
+msgid "Color used for next mouse drawings"
+msgstr ""
+
+#: src/Graph.cc:6877
+msgid "Line style used for next mouse drawings"
+msgstr ""
+
+#: src/Graph.cc:6882
+msgid "Check for step evaluation"
+msgstr ""
+
+#: src/Graph.cc:6887
+msgid "Check for landscape"
+msgstr ""
+
+#: src/Graph.cc:6892
+msgid "Check if mouse clicks in approx mode"
+msgstr ""
+
+#: src/Graph.cc:6897
+msgid "Save current figure commands independently of the session"
+msgstr ""
+
+#: src/Graph.cc:7019
+msgid "Export to LaTeX"
+msgstr ""
+
+#: src/Graph.cc:7290 src/Graph.cc:7588
+msgid "fw"
+msgstr ""
+
+#: src/Graph.cc:7292 src/Graph.cc:7593
+msgid "bw"
+msgstr ""
+
+#: src/Graph.cc:7294 src/Graph.cc:7598
+msgid "tr"
+msgstr ""
+
+#: src/Graph.cc:7296 src/Graph.cc:7603
+msgid "tl"
+msgstr ""
+
+#: src/Graph.cc:7298 src/Graph.cc:7608
+msgid "ss"
+msgstr ""
+
+#: src/Graph.cc:7300 src/Graph.cc:7613
+msgid "ju"
+msgstr ""
+
+#: src/Graph.cc:7302 src/Graph.cc:7618
+msgid "pe"
+msgstr ""
+
+#: src/Graph.cc:7311 src/Graph.cc:7623
+msgid "ci"
+msgstr ""
+
+#: src/Graph.cc:7313 src/Graph.cc:7628
+msgid "di"
+msgstr ""
+
+#: src/Graph.cc:7315 src/Graph.cc:7633
+msgid "fr"
+msgstr ""
+
+#: src/Graph.cc:7317 src/Graph.cc:7638
+msgid "ft"
+msgstr ""
+
+#: src/Graph.cc:7319 src/Graph.cc:7653
+msgid "cl"
+msgstr ""
+
+#: src/Graph.cc:7321 src/Graph.cc:7643
+msgid "ec"
+msgstr ""
+
+#: src/Graph.cc:7323 src/Graph.cc:7648
+msgid "sg"
+msgstr ""
+
+#: src/Graph.cc:7353 src/Graph.cc:7379
+msgid "Not registered\n"
+msgstr ""
+
+#: src/Graph.cc:7535
+msgid "Mesh"
+msgstr ""
+
+#: src/Graph.cc:7536
+msgid "None"
+msgstr ""
+
+#: src/Graph.cc:7537
+msgid "Square"
+msgstr ""
+
+#: src/Graph.cc:7538
+msgid "Triangle"
+msgstr ""
+
+#: src/Graph.cc:7543
+msgid "Right"
+msgstr ""
+
+#: src/Graph.cc:7544
+msgid "Left"
+msgstr ""
+
+#: src/Graph.cc:7545
+msgid "Up"
+msgstr ""
+
+#: src/Graph.cc:7546
+msgid "Down"
+msgstr ""
+
+#: src/Graph.cc:7547
+msgid "ShowPosition"
+msgstr ""
+
+#: src/Graph.cc:7548
+msgid "HidePosition"
+msgstr ""
+
+#: src/Graph.cc:7551
+msgid "EPS/PNG and preview"
+msgstr ""
+
+#: src/Graph.cc:7556
+msgid "Color"
+msgstr ""
+
+#: src/Graph.cc:7589
+msgid "Turtle n steps forward"
+msgstr ""
+
+#: src/Graph.cc:7594
+msgid "Turtle n steps backward"
+msgstr ""
+
+#: src/Graph.cc:7599
+msgid "Turtle turns right n degrees"
+msgstr ""
+
+#: src/Graph.cc:7604
+msgid "Turtle turns left n degrees"
+msgstr ""
+
+#: src/Graph.cc:7609
+msgid "Turtle steps to the left from n steps"
+msgstr ""
+
+#: src/Graph.cc:7614
+msgid "Turtle jumps n steps"
+msgstr ""
+
+#: src/Graph.cc:7619
+msgid "Change pen color"
+msgstr ""
+
+#: src/Graph.cc:7624
+msgid "Circle arc"
+msgstr ""
+
+#: src/Graph.cc:7629
+msgid "Filled circle arc"
+msgstr ""
+
+#: src/Graph.cc:7634
+msgid "Filled rectangle"
+msgstr ""
+
+#: src/Graph.cc:7639
+msgid "Filled triangle"
+msgstr ""
+
+#: src/Graph.cc:7644
+msgid "Write to the right of the turtle"
+msgstr ""
+
+#: src/Graph.cc:7649
+msgid "Sign picture"
+msgstr ""
+
+#: src/Graph.cc:7654
+msgid "Clear all"
+msgstr ""
+
+#: src/Graph.cc:7663
+msgid "Turtle menu"
+msgstr ""
+
+#: src/Graph3d.cc:774
+msgid "Unable to convert to int"
+msgstr ""
+
+#: src/Graph3d.cc:2242
+msgid "mouse plan "
+msgstr ""
+
+#: src/Help1.cc:224
+msgid "Finish"
+msgstr ""
+
+#: src/Help1.cc:226
+msgid "Searching for "
+msgstr ""
+
+#: src/Help1.cc:241
+msgid "Find"
+msgstr ""
+
+#: src/Help1.cc:264
+msgid "Please select the title of the page"
+msgstr ""
+
+#: src/sym2poly.cc:192
+msgid "sym2poly.cc/algebraic_argument"
+msgstr ""
+
+#: src/sym2poly.cc:197
+msgid "algebraic_argument"
+msgstr ""
+
+#: src/sym2poly.cc:213
+msgid "sym2poly.cc/equalposmat"
+msgstr ""
+
+#: src/sym2poly.cc:234
+msgid "sym2poly.cc/addfirstrow"
+msgstr ""
+
+#: src/sym2poly.cc:675 src/sym2poly.cc:1143 src/gausspol.cc:1037
+msgid "Polynomial exponent overflow."
+msgstr ""
+
+#: src/sym2poly.cc:755
+msgid "Can't check irreducibility extracting rootof"
+msgstr ""
+
+#: src/sym2poly.cc:793
+msgid ""
+"Warning, checking for positivity of a root depending of parameters might "
+"return wrong sign: "
+msgstr ""
+
+#: src/sym2poly.cc:812
+msgid "sym2poly.cc/sym2rxroot"
+msgstr ""
+
+#: src/sym2poly.cc:1184
+msgid "Minimal poly. in rootof must be fraction free"
+msgstr ""
+
+#: src/sym2poly.cc:1220
+msgid "sym2poly.cc/bool sym2r (const"
+msgstr ""
+
+#: src/sym2poly.cc:1386
+msgid "Unable to handle type [sym2poly.cc]"
+msgstr ""
+
+#: src/sym2poly.cc:1388
+msgid "Unable to handle "
+msgstr ""
+
+#: src/sym2poly.cc:1895
+msgid "sym2poly/r2sym(const gen & e,const index_m & i,const vecteur & l)"
+msgstr ""
+
+#: src/sym2poly.cc:1992 src/sym2poly.cc:1998
+msgid "sym2poly.cc/ckdeg2_rootof"
+msgstr ""
+
+#: src/sym2poly.cc:2049
+msgid "sym2poly.cc/is_root_of_deg2"
+msgstr ""
+
+#: src/sym2poly.cc:2302
+msgid "Warning, choosing root of "
+msgstr ""
+
+#: src/sym2poly.cc:2732
+msgid "Making implicit assumption for sqrt argument "
+msgstr ""
+
+#: src/sym2poly.cc:2748
+msgid ""
+"Unable to build a single algebraic extension for simplifying.\n"
+"Trying rational simplification only. This might return a wrong answer if "
+"simplifying 0/0!"
+msgstr ""
+
+#: src/sym2poly.cc:2914 src/gausspol.cc:266 src/gausspol.cc:346
+#: src/gausspol.cc:381 src/gausspol.cc:997 src/gausspol.cc:1585
+#: src/gausspol.cc:3622 src/gausspol.cc:4806 src/threaded.cc:3628
+#: src/maple.cc:1134 src/ti89.cc:2570 src/ti89.cc:2582 src/modpoly.cc:489
+#: src/modpoly.cc:507 src/modpoly.cc:651 src/modpoly.cc:669 src/modpoly.cc:765
+#: src/modpoly.cc:781 src/modpoly.cc:803 src/modpoly.cc:819
+#: src/modpoly.cc:1606 src/solve.cc:4192 src/solve.cc:4274 src/intg.cc:3301
+#: src/intgab.cc:264 src/prog.cc:2104 src/gen.cc:2027 src/gen.cc:2210
+#: src/gen.cc:4231 src/gen.cc:4250 src/gen.cc:4521 src/gen.cc:5007
+#: src/gen.cc:5019 src/gen.cc:5186 src/gen.cc:5749 src/gen.cc:6229
+#: src/gen.cc:6595 src/gen.cc:6958 src/gen.cc:7088 src/gen.cc:7344
+#: src/gen.cc:7483
+msgid "Stopped by user interruption."
+msgstr ""
+
+#: src/sym2poly.cc:3184 src/sym2poly.cc:3221
+msgid "Not implemented, e.g. for multivariate mod/approx polynomials"
+msgstr ""
+
+#: src/gausspol.cc:173
+msgid "gausspol.cc/cyclotomic"
+msgstr ""
+
+#: src/gausspol.cc:1563
+msgid "Negative polynome power"
+msgstr ""
+
+#: src/gausspol.cc:1971 src/gausspol.cc:1973 src/gausspol.cc:1994
+#: src/gausspol.cc:1996 src/usual.cc:5954 src/usual.cc:5982
+msgid "Unable to divide, perhaps due to rounding error"
+msgstr ""
+
+#: src/gausspol.cc:2302
+msgid "gausspol.cc/divremmod2"
+msgstr ""
+
+#: src/gausspol.cc:2461 src/gausspol.cc:2464 src/gausspol.cc:2471
+#: src/gausspol.cc:2473
+msgid "gausspol.cc/pow"
+msgstr ""
+
+#: src/gausspol.cc:3070
+msgid "content1mod"
+msgstr ""
+
+#: src/gausspol.cc:3333
+msgid "Modgcd: no suitable evaluation point"
+msgstr ""
+
+#: src/gausspol.cc:3535
+msgid "gausspol.cc/contentgcdmod"
+msgstr ""
+
+#: src/gausspol.cc:3597
+msgid "Bug!"
+msgstr ""
+
+#: src/gausspol.cc:3995 src/gausspol.cc:4055
+msgid "Incompatible coeff type"
+msgstr ""
+
+#: src/gausspol.cc:4284 src/gausspol.cc:4313
+msgid "gausspol.cc/gcdheu"
+msgstr ""
+
+#: src/gausspol.cc:5155
+msgid "Square free factor mod bug"
+msgstr ""
+
+#: src/gausspol.cc:5289
+msgid ""
+"Multivariate finite field factorzation expects a unitary polynomial regular "
+"at 0. Try to translate with respect to one variable"
+msgstr ""
+
+#: src/gausspol.cc:5385
+msgid "gausspol.cc/mod_factor"
+msgstr ""
+
+#: src/gausspol.cc:5567
+msgid "Factor: Only one algebraic extension allowed"
+msgstr ""
+
+#: src/gausspol.cc:5593
+msgid "Modular factorization not yet accessible"
+msgstr ""
+
+#: src/gausspol.cc:5686
+msgid "To be implemented"
+msgstr ""
+
+#: src/gausspol.cc:7429 src/gausspol.cc:7431
+msgid "Too much substitution variables"
+msgstr ""
+
+#: src/threaded.cc:207
+msgid "Unable to make thread"
+msgstr ""
+
+#: src/threaded.cc:3244
+msgid "complex_smod"
+msgstr ""
+
+#: src/threaded.cc:3766 src/threaded.cc:3802 src/threaded.cc:3804
+msgid "invmodext"
+msgstr ""
+
+#: src/threaded.cc:4375
+msgid "interp_tk"
+msgstr ""
+
+#: src/threaded.cc:4595
+msgid "vector<int> operator /"
+msgstr ""
+
+#: src/threaded.cc:4602
+msgid "vector<int> operator %"
+msgstr ""
+
+#: src/threaded.cc:4609
+msgid "vector<int> operator >"
+msgstr ""
+
+#: src/moyal.cc:56
+msgid "moyal.cc/_moyal"
+msgstr ""
+
+#: src/moyal.cc:721
+msgid "Underflow"
+msgstr ""
+
+#: src/moyal.cc:1155
+msgid "Overflow"
+msgstr ""
+
+#: src/moyal.cc:2549
+msgid "Invalid median"
+msgstr ""
+
+#: src/moyal.cc:2635
+msgid "Invalid sample"
+msgstr ""
+
+#: src/moyal.cc:2653
+msgid "Invalid confidence level"
+msgstr ""
+
+#: src/moyal.cc:2732
+msgid "Wilcoxon statistic: "
+msgstr ""
+
+#: src/moyal.cc:2732
+msgid ", p-value: "
+msgstr ""
+
+#: src/moyal.cc:2732
+msgid ", confidence level: "
+msgstr ""
+
+#: src/moyal.cc:2818
+msgid ""
+"Guessing data is a list of values, adequation to uniform discret "
+"distribution between "
+msgstr ""
+
+#: src/moyal.cc:2818 src/quater.cc:337
+msgid " and "
+msgstr ""
+
+#: src/moyal.cc:2821
+msgid ""
+"Guessing data is the list of number of elements in each class, adequation to "
+"uniform distribution"
+msgstr ""
+
+#: src/moyal.cc:2902
+msgid " samples Chi2 test result "
+msgstr ""
+
+#: src/moyal.cc:2902 src/moyal.cc:2943 src/moyal.cc:3103 src/moyal.cc:3142
+msgid ""
+",\n"
+"reject adequation if superior to chisquare_icdf("
+msgstr ""
+
+#: src/moyal.cc:2935
+msgid "Data should be a class number between 0 and "
+msgstr ""
+
+#: src/moyal.cc:2943
+msgid ""
+"Sample adequation to a finite discrete probability distribution\n"
+"Chi2 test result "
+msgstr ""
+
+#: src/moyal.cc:2997
+msgid "Normal density, estimating mean and stddev from data "
+msgstr ""
+
+#: src/moyal.cc:3008
+msgid "Binomial: estimating n and p from data "
+msgstr ""
+
+#: src/moyal.cc:3018
+msgid "Negative binomial: estimating n and p from data "
+msgstr ""
+
+#: src/moyal.cc:3033
+msgid "Uniform density, estimating interval boundaries from data "
+msgstr ""
+
+#: src/moyal.cc:3048
+msgid "Normal density, estimating std deviation from data "
+msgstr ""
+
+#: src/moyal.cc:3054
+msgid "Normal density, estimating mean from data "
+msgstr ""
+
+#: src/moyal.cc:3061
+msgid "Poisson distribution, estimating parameter from data mean "
+msgstr ""
+
+#: src/moyal.cc:3103 src/moyal.cc:3142
+msgid "Sample adequation to "
+msgstr ""
+
+#: src/moyal.cc:3103 src/moyal.cc:3142
+msgid ", Chi2 test result "
+msgstr ""
+
+#: src/moyal.cc:3103
+msgid " or chisquare_icdf("
+msgstr ""
+
+#: src/moyal.cc:3103
+msgid ",1-alpha) if alpha!=5%"
+msgstr ""
+
+#: src/moyal.cc:3107
+msgid "Non integer values for adequation to a discrete distribution"
+msgstr ""
+
+#: src/moyal.cc:3116
+msgid ""
+"Not enough degree of freedom with default values. Add classes,classmin,"
+"classsize parameters"
+msgstr ""
+
+#: src/moyal.cc:3181
+msgid "Estimated mean from sample(s)"
+msgstr ""
+
+#: src/moyal.cc:3219
+msgid "Unable to guess sigma using data"
+msgstr ""
+
+#: src/moyal.cc:3221
+msgid "Estimated sigma from sample(s)"
+msgstr ""
+
+#: src/moyal.cc:3254
+msgid "Bad alternative hypothesis, should be '>', '<' or '!='"
+msgstr ""
+
+#: src/moyal.cc:3277
+msgid "*** TEST RESULT "
+msgstr ""
+
+#: src/moyal.cc:3278
+msgid "Test returns 0 if probability to observe data is less than "
+msgstr ""
+
+#: src/moyal.cc:3279
+msgid "(null hyp. mu1=mu2 rejected with less than alpha probability error)"
+msgstr ""
+
+#: src/moyal.cc:3280
+msgid "Test returns 1 otherwise (can not reject null hypothesis)"
+msgstr ""
+
+#: src/moyal.cc:3281
+msgid "Data mean mu1="
+msgstr ""
+
+#: src/moyal.cc:3281
+msgid ", population mean mu2="
+msgstr ""
+
+#: src/moyal.cc:3283
+msgid ", degrees of freedom "
+msgstr ""
+
+#: src/moyal.cc:3631
+msgid "Bessel not implemented"
+msgstr ""
+
+#: src/moyal.cc:3661
+msgid "Bessel"
+msgstr ""
+
+#: src/maple.cc:202 src/vecteur.cc:11113
+msgid "Option keep_pivot not applicable"
+msgstr ""
+
+#: src/maple.cc:918 src/plot.cc:7492 src/plot.cc:7540
+msgid "not implemented"
+msgstr ""
+
+#: src/maple.cc:928
+msgid "Could not open file"
+msgstr ""
+
+#: src/maple.cc:959
+msgid "1st arg=open result, then other args"
+msgstr ""
+
+#: src/maple.cc:1242
+msgid "Solution may be wrong since a and b are not prime together: "
+msgstr ""
+
+#: src/maple.cc:1694 src/maple.cc:1749
+msgid "Invalid sound data"
+msgstr ""
+
+#: src/maple.cc:1697 src/maple.cc:1752
+msgid "Using sound parameters: channels, rate, bits, records "
+msgstr ""
+
+#: src/maple.cc:1700
+msgid "Error opening audio device."
+msgstr ""
+
+#: src/maple.cc:1826
+msgid "Invalid sound parameters"
+msgstr ""
+
+#: src/maple.cc:1946
+msgid "File not found or unrecognized wav file format"
+msgstr ""
+
+#: src/maple.cc:2025
+msgid "Unable to open file or unable to code data"
+msgstr ""
+
+#: src/maple.cc:2217 src/maple.cc:2245
+msgid "File not found or unrecognized image file format"
+msgstr ""
+
+#: src/maple.cc:2256 src/intg.cc:248
+msgid "in linear_apply"
+msgstr ""
+
+#: src/maple.cc:2282 src/intg.cc:274
+msgid "in linear_apply 2"
+msgstr ""
+
+#: src/maple.cc:2363 src/maple.cc:2548
+msgid "Cst part must be hypergeometric"
+msgstr ""
+
+#: src/maple.cc:2368
+msgid "Cst part must be of type a^n*P(n)"
+msgstr ""
+
+#: src/maple.cc:2557
+msgid "Unable to handle coeff of homogeneous part"
+msgstr ""
+
+#: src/maple.cc:2597
+msgid "Unable to find a particular solution for inhomogeneous part"
+msgstr ""
+
+#: src/maple.cc:2602 src/maple.cc:2638
+msgid "Unable to solve recurrence"
+msgstr ""
+
+#: src/maple.cc:2715
+msgid "Unable to handle this kind of recurrence"
+msgstr ""
+
+#: src/maple.cc:2733
+msgid "Bad indexes in recurrence"
+msgstr ""
+
+#: src/maple.cc:2737
+msgid "Multi-recurrences implemented only for 1 step"
+msgstr ""
+
+#: src/maple.cc:2848
+msgid "Not yet implemented"
+msgstr ""
+
+#: src/maple.cc:2990
+msgid "Array too large"
+msgstr ""
+
+#: src/ti89.cc:736
+msgid "Selecting last arc"
+msgstr ""
+
+#: src/ti89.cc:1923 src/vecteur.cc:10221
+msgid "minor_det option applies only to det"
+msgstr ""
+
+#: src/ti89.cc:2814
+msgid "TI stop"
+msgstr ""
+
+#: src/ti89.cc:3181
+msgid "Can't find length of non tokenized programs"
+msgstr ""
+
+#: src/ti89.cc:3413
+msgid "Unknown sysvar tag"
+msgstr ""
+
+#: src/ti89.cc:3545
+msgid "Parser internal token"
+msgstr ""
+
+#: src/ti89.cc:3586
+msgid "Unknown secondary tag"
+msgstr ""
+
+#: src/ti89.cc:3730
+msgid "empty local declaration"
+msgstr ""
+
+#: src/ti89.cc:3785
+msgid "End structure "
+msgstr ""
+
+#: src/ti89.cc:4081
+msgid "Unknown instruction tag:"
+msgstr ""
+
+#: src/ti89.cc:4127
+msgid "Data_var_tag not implemented"
+msgstr ""
+
+#: src/ti89.cc:4129
+msgid "Gdb_var_tag not implemented"
+msgstr ""
+
+#: src/ti89.cc:4131
+msgid "Unable to find pic_var_tag length"
+msgstr ""
+
+#: src/ti89.cc:4133
+msgid "Unable to find text_var_tag length"
+msgstr ""
+
+#: src/ti89.cc:4144
+msgid "End_tag/End_of_segment"
+msgstr ""
+
+#: src/ti89.cc:4146
+msgid "Asm programs not implemented"
+msgstr ""
+
+#: src/ti89.cc:4148
+msgid "3rd party data"
+msgstr ""
+
+#: src/ti89.cc:4405
+msgid "start tag"
+msgstr ""
+
+#: src/ti89.cc:4454
+msgid "Internal sincos token"
+msgstr ""
+
+#: src/ti89.cc:4602
+msgid "fig_tag"
+msgstr ""
+
+#: src/ti89.cc:4604
+msgid "mac_tag"
+msgstr ""
+
+#: src/ti89.cc:4637
+msgid "Unknown tag "
+msgstr ""
+
+#: src/ti89.cc:4724
+msgid "Unable to open "
+msgstr ""
+
+#: src/ti89.cc:4734
+msgid "Too short for a TI archive"
+msgstr ""
+
+#: src/ti89.cc:4744
+msgid "Not long enough"
+msgstr ""
+
+#: src/ti89.cc:4818
+msgid "Not a TI89/92 program/function/group file"
+msgstr ""
+
+#: src/mathml.cc:43
+msgid "No mathml support"
+msgstr ""
+
+#: src/mathml.cc:1545
+msgid "MathMl convert "
+msgstr ""
+
+#: src/misc.cc:971
+msgid "2nd arg"
+msgstr ""
+
+#: src/misc.cc:1529
+msgid "Not a potential"
+msgstr ""
+
+#: src/misc.cc:1559
+msgid "Not a vector potential"
+msgstr ""
+
+#: src/misc.cc:1701 src/vecteur.cc:14246 src/vecteur.cc:14267
+msgid "Low accuracy"
+msgstr ""
+
+#: src/misc.cc:3413
+msgid "Guessing initial production requires more than 20 samples"
+msgstr ""
+
+#: src/misc.cc:3421
+msgid "Initial cumulative estimated to "
+msgstr ""
+
+#: src/misc.cc:3421
+msgid "Correlation for 5 first years to estimate initial cumulative : "
+msgstr ""
+
+#: src/misc.cc:3460
+msgid "Pinstant="
+msgstr ""
+
+#: src/misc.cc:3460
+msgid "*Pcumul+"
+msgstr ""
+
+#: src/misc.cc:3460
+msgid "Correlation "
+msgstr ""
+
+#: src/misc.cc:3460
+msgid ", Estimated total P="
+msgstr ""
+
+#: src/misc.cc:3460
+msgid "Returning estimated Pcumul, Pinstant, Ptotal, Pinstantmax, tmax, R"
+msgstr ""
+
+#: src/misc.cc:3538
+msgid "Values out of range"
+msgstr ""
+
+#: src/misc.cc:3640
+msgid "Invalid class size (replaced by 1) "
+msgstr ""
+
+#: src/misc.cc:4488
+msgid "Negative value encoutered"
+msgstr ""
+
+#: src/misc.cc:4517
+msgid "graham_sort_function"
+msgstr ""
+
+#: src/misc.cc:4979
+msgid "binop"
+msgstr ""
+
+#: src/misc.cc:5066
+msgid "plotarea(f(x),x=a..b[,n,method])"
+msgstr ""
+
+#: src/misc.cc:5287
+msgid "Warning: not a graph matrix!"
+msgstr ""
+
+#: src/misc.cc:5550
+msgid ""
+"Warning! Leaving conjugate gradient algorithm after dimension of matrix "
+"iterations. Check that your matrix is hermitian/symmetric definite."
+msgstr ""
+
+#: src/misc.cc:5580
+msgid ""
+"Warning! Leaving Jacobi iterative algorithm after maximal number of "
+"iterations. Check that your matrix is diagonal dominant."
+msgstr ""
+
+#: src/misc.cc:5612
+msgid ""
+"Warning! Leaving Gauss-Seidel iterative algorithm after maximal number of "
+"iterations. Check that your matrix is diagonal dominant."
+msgstr ""
+
+#: src/permu.cc:1754 src/permu.cc:1762 src/permu.cc:1773 src/permu.cc:1775
+msgid "Probably not a Riemann sum"
+msgstr ""
+
+#: src/quater.cc:58
+msgid "Quaternion has 1 or 4 arguments"
+msgstr ""
+
+#: src/quater.cc:114
+msgid ""
+"Warning, minimal polynomial is only irreducible, not necessarily primitive"
+msgstr ""
+
+#: src/quater.cc:215
+msgid ""
+"Warning, random search for irreducible polynomial did not work, starting "
+"exhaustive search"
+msgstr ""
+
+#: src/quater.cc:229
+msgid "No irreducible primitive polynomial found"
+msgstr ""
+
+#: src/quater.cc:237
+msgid " already assigned. Trying "
+msgstr ""
+
+#: src/quater.cc:256
+msgid ""
+"GF is used for non-prime finite field. Use % or mod for prime fields, e.g. 1 "
+"% "
+msgstr ""
+
+#: src/quater.cc:272
+msgid "Not a power of a prime"
+msgstr ""
+
+#: src/quater.cc:305
+msgid "Setting "
+msgstr ""
+
+#: src/quater.cc:305
+msgid " as generator for Galois field "
+msgstr ""
+
+#: src/quater.cc:305
+msgid "(auxiliary polynomial variable for addition representation "
+msgstr ""
+
+#: src/quater.cc:337
+msgid "Assigning variables "
+msgstr ""
+
+#: src/quater.cc:338
+msgid "Now e.g. "
+msgstr ""
+
+#: src/quater.cc:338
+msgid "^200+1 will build an element of "
+msgstr ""
+
+#: src/quater.cc:349
+msgid ""
+"galois_field has 1 or 4 arguments (charac p, irred poly P, var name x, value "
+"as a poly of x or as a vector)"
+msgstr ""
+
+#: src/quater.cc:363
+msgid "Not irreducible or not primitive polynomial"
+msgstr ""
+
+#: src/quater.cc:365
+msgid "Warning "
+msgstr ""
+
+#: src/quater.cc:365
+msgid " is irreducible but not primitive. You could use "
+msgstr ""
+
+#: src/quater.cc:365
+msgid " instead "
+msgstr ""
+
+#: src/quater.cc:419
+msgid "Unable to convert user type to galois field"
+msgstr ""
+
+#: src/quater.cc:424
+msgid "Expecting characteristic p, integer m"
+msgstr ""
+
+#: src/quater.cc:428
+msgid "Bad characteristic: "
+msgstr ""
+
+#: src/quater.cc:432
+msgid "Exponent must be >=2: "
+msgstr ""
+
+#: src/quater.cc:585 src/quater.cc:627 src/quater.cc:672
+msgid "Incompatible characteristics"
+msgstr ""
+
+#: src/quater.cc:731
+msgid "galois field inv"
+msgstr ""
+
+#: src/quater.cc:744
+msgid "GF inv internal bug"
+msgstr ""
+
+#: src/quater.cc:806
+msgid ") invalid, works only for integers or polynomials depending on "
+msgstr ""
+
+#: src/quater.cc:980
+msgid "Warning: multivariate GF factorization is experimental and may fail"
+msgstr ""
+
+#: src/quater.cc:982
+msgid "Multivariate GF factorization not yet implemented"
+msgstr ""
+
+#: src/quater.cc:986 src/quater.cc:995
+msgid "GF polyfactor"
+msgstr ""
+
+#: src/desolve.cc:225
+msgid "Warning, exponential x coeff is positive "
+msgstr ""
+
+#: src/desolve.cc:242 src/desolve.cc:285
+msgid "desolve.cc/pf_ilaplace"
+msgstr ""
+
+#: src/desolve.cc:375 src/desolve.cc:1454
+msgid "Unable to solve differential equation"
+msgstr ""
+
+#: src/desolve.cc:473 src/desolve.cc:476
+msgid "function_of"
+msgstr ""
+
+#: src/desolve.cc:510
+msgid "Boundary conditions for parametric curve not implemented"
+msgstr ""
+
+#: src/desolve.cc:1257
+msgid "Incomplete"
+msgstr ""
+
+#: src/desolve.cc:1290
+msgid "Homogeneous differential equation"
+msgstr ""
+
+#: src/desolve.cc:1603
+msgid ""
+"Inverse z-transform of non rational functions not implemented or unable to "
+"fully factor rational function"
+msgstr ""
+
+#: src/desolve.cc:1633 src/desolve.cc:1636
+msgid "desolve.cc/invztrans"
+msgstr ""
+
+#: src/desolve.cc:1665
+msgid "Warning, z*argument has a non-zero integral part"
+msgstr ""
+
+#: src/symbolic.cc:1138
+msgid "For: Unable to check test"
+msgstr ""
+
+#: src/symbolic.cc:1219 src/prog.cc:1542 src/prog.cc:1557
+msgid "Ifte: Unable to check test"
+msgstr ""
+
+#: src/symbolic.cc:1349
+msgid "Bad state"
+msgstr ""
+
+#: src/index.cc:67
+msgid "Error index.cc index_gcd"
+msgstr ""
+
+#: src/index.cc:81
+msgid "index.cc index_lcm"
+msgstr ""
+
+#: src/index.cc:119
+msgid "index.cc operator +"
+msgstr ""
+
+#: src/index.cc:132
+msgid "index.cc operator -"
+msgstr ""
+
+#: src/index.cc:146
+msgid "index.cc operator |"
+msgstr ""
+
+#: src/index.cc:186
+msgid "index.cc operator /"
+msgstr ""
+
+#: src/index.cc:199
+msgid "index.cc operator >="
+msgstr ""
+
+#: src/index.cc:212
+msgid "index.cc operator <="
+msgstr ""
+
+#: src/index.cc:536
+msgid "index.cc index_m operator +"
+msgstr ""
+
+#: src/index.cc:563
+msgid "index.cc index_m operator -"
+msgstr ""
+
+#: src/index.cc:601 src/index.cc:615
+msgid "index.cc index_m operator >="
+msgstr ""
+
+#: src/index.cc:648 src/index.cc:683
+msgid "index.cc index_m i_lex_is_greater"
+msgstr ""
+
+#: src/index.cc:735
+msgid "index.cc index_m i_total_revlex_is_greater"
+msgstr ""
+
+#: src/modpoly.cc:247
+msgid "modpoly.cc/modularize"
+msgstr ""
+
+#: src/modpoly.cc:353
+msgid "Field too large"
+msgstr ""
+
+#: src/modpoly.cc:363
+msgid "modpoly.cc/x_to_xp"
+msgstr ""
+
+#: src/modpoly.cc:1933
+msgid "modpoly.cc/DivRem"
+msgstr ""
+
+#: src/modpoly.cc:4182
+msgid "Argument must be a vector of even size"
+msgstr ""
+
+#: src/modpoly.cc:4307
+msgid "modpoly.cc/powmod"
+msgstr ""
+
+#: src/modpoly.cc:8488 src/modpoly.cc:8509
+msgid "modpoly.cc/ininttype2ZZ"
+msgstr ""
+
+#: src/ezgcd.cc:147
+msgid "ezgcd.cc/reduce_divrem2"
+msgstr ""
+
+#: src/ezgcd.cc:1144
+msgid "Bad dimension for qb or rb or b or degrees"
+msgstr ""
+
+#: src/ezgcd.cc:1153
+msgid "qb and rb not prime together!"
+msgstr ""
+
+#: src/ezgcd.cc:1264
+msgid "peval_1"
+msgstr ""
+
+#: src/ezgcd.cc:1384
+msgid "Args must be multivariate polynomials"
+msgstr ""
+
+#: src/ezgcd.cc:1561
+msgid "GCD not successfull"
+msgstr ""
+
+#: src/derive.cc:102
+#, c-format
+msgid "Derivative of %gen apply linearity: (u+v+...)'=u'+v'+..."
+msgstr ""
+
+#: src/derive.cc:125
+#, c-format
+msgid "Hence derivative of %gen by linearity is %gen"
+msgstr ""
+
+#: src/derive.cc:133
+#, c-format
+msgid "Derivative of %gen/%gen, a quotient: (u/v)'=(u'*v-u*v')/v^2"
+msgstr ""
+
+#: src/derive.cc:137
+#, c-format
+msgid ""
+"Derivative of %gen, apply product rule: (u*v*...)'=u'*v*...+u*v'*...+..."
+msgstr ""
+
+#: src/derive.cc:169
+#, c-format
+msgid "Hence derivative of %gen by product rule is %gen"
+msgstr ""
+
+#: src/derive.cc:180
+#, c-format
+msgid "Derivative of a power: (%gen)'=(%gen)*(%gen)'*%gen"
+msgstr ""
+
+#: src/derive.cc:182
+#, c-format
+msgid ""
+"Derivative of a power: (%gen)'=%gen*(%gen)'*ln(%gen)+(%gen)*(%gen)'*%gen"
+msgstr ""
+
+#: src/derive.cc:194
+#, c-format
+msgid "Derivative of inv(u)=-u'/u^2 with u=%gen"
+msgstr ""
+
+#: src/derive.cc:233
+msgid "Derivative of rootof currently not handled"
+msgstr ""
+
+#: src/derive.cc:241
+#, c-format
+msgid "Derivative of elementary function %gen is %gen"
+msgstr ""
+
+#: src/derive.cc:244
+#, c-format
+msgid "Derivative of a composition: (%gen)'=(%gen)'*f'(%gen) where f=%gen"
+msgstr ""
+
+#: src/derive.cc:265
+msgid "Expecting an expression, not a function"
+msgstr ""
+
+#: src/derive.cc:442 src/derive.cc:460 src/derive.cc:479 src/derive.cc:482
+msgid "derive.cc/derive_SYMB"
+msgstr ""
+
+#: src/derive.cc:616 src/derive.cc:618
+msgid "derive.cc/derive"
+msgstr ""
+
+#: src/derive.cc:659
+#, c-format
+msgid "===== Derive %gen with respect to %gen ====="
+msgstr ""
+
+#: src/derive.cc:786
+#, c-format
+msgid "===== Critical points for %gen ====="
+msgstr ""
+
+#: src/derive.cc:795
+#, c-format
+msgid ""
+"Derivative of %gen with respect to %gen is %gen\n"
+"Solving %gen with respect to %gen answer %gen"
+msgstr ""
+
+#: src/derive.cc:807 src/derive.cc:813
+#, c-format
+msgid "Hessian at %gen : %gen"
+msgstr ""
+
+#: src/derive.cc:818 src/derive.cc:824
+#, c-format
+msgid "%gen critical point (unknown type)"
+msgstr ""
+
+#: src/derive.cc:831
+#, c-format
+msgid "%gen critical point (0 as eigenvalue) %gen"
+msgstr ""
+
+#: src/derive.cc:836
+#, c-format
+msgid "%gen is a saddle point (2 eigenvalues with opposite sign) %gen"
+msgstr ""
+
+#: src/derive.cc:844
+#, c-format
+msgid "%gen is a local minimum %gen"
+msgstr ""
+
+#: src/derive.cc:848
+#, c-format
+msgid "%gen is a local maximum %gen"
+msgstr ""
+
+#: src/derive.cc:865
+#, c-format
+msgid "%gen is a local minimum"
+msgstr ""
+
+#: src/derive.cc:871
+#, c-format
+msgid "%gen is a local maximum"
+msgstr ""
+
+#: src/derive.cc:877
+#, c-format
+msgid "%gen is a critical point (unknown type)"
+msgstr ""
+
+#: src/derive.cc:881
+#, c-format
+msgid "%gen is an inflection point"
+msgstr ""
+
+#: src/solve.cc:467
+msgid "Warning: unable to find "
+msgstr ""
+
+#: src/solve.cc:467
+msgid " integer solutions for "
+msgstr ""
+
+#: src/solve.cc:467
+msgid " and <="
+msgstr ""
+
+#: src/solve.cc:467
+msgid ""
+", answer may be wrong.\n"
+"If you are computing an integral with exact boundaries, replace by approx. "
+"boundaries"
+msgstr ""
+
+#: src/solve.cc:599
+msgid "Bad equal in"
+msgstr ""
+
+#: src/solve.cc:643 src/solve.cc:651 src/solve.cc:667 src/solve.cc:684
+#: src/solve.cc:1883
+msgid "Unable to isolate "
+msgstr ""
+
+#: src/solve.cc:643 src/solve.cc:656
+msgid ", switching to approx. solutions"
+msgstr ""
+
+#: src/solve.cc:708 src/solve.cc:710
+msgid "Unable to isolate function "
+msgstr ""
+
+#: src/solve.cc:948
+msgid "Warning! Algebraic extension not implemented yet for poly "
+msgstr ""
+
+#: src/solve.cc:1122 src/plot3d.cc:475
+msgid "Unable to check sign "
+msgstr ""
+
+#: src/solve.cc:1151
+msgid "Unable to check test at x="
+msgstr ""
+
+#: src/solve.cc:1251
+msgid "Unable to solve inequations with approx coeffs "
+msgstr ""
+
+#: src/solve.cc:1262
+msgid "Inequation inside inequation not implemented "
+msgstr ""
+
+#: src/solve.cc:1264
+msgid "Inequation is constant with respect to "
+msgstr ""
+
+#: src/solve.cc:1284
+msgid ""
+"Unable to find numeric values solving equation. For trigonometric equations "
+"this may be solved using assumptions, e.g. assume(x>-pi && x<pi)"
+msgstr ""
+
+#: src/solve.cc:1285
+msgid ""
+"Warning! Solving parametric inequation requires assumption on parameters "
+"otherwise solutions may be missed. The solutions of the equation are "
+msgstr ""
+
+#: src/solve.cc:1293 src/prog.cc:5864 src/prog.cc:5866
+msgid "Unable to sort "
+msgstr ""
+
+#: src/solve.cc:1592
+msgid "Solve with fractional power:"
+msgstr ""
+
+#: src/solve.cc:1592
+msgid " is not rationnal w.r.t. "
+msgstr ""
+
+#: src/solve.cc:1745 src/solve.cc:1772
+msgid "Warning, trying to solve "
+msgstr ""
+
+#: src/solve.cc:1853
+msgid "Warning: solving in "
+msgstr ""
+
+#: src/solve.cc:1853
+msgid " equation "
+msgstr ""
+
+#: src/solve.cc:1883
+msgid " solving equation "
+msgstr ""
+
+#: src/solve.cc:1941
+msgid "Warning, solutions were not checked!"
+msgstr ""
+
+#: src/solve.cc:2132
+msgid "Modulo too large"
+msgstr ""
+
+#: src/solve.cc:2422
+msgid "Warning, argument is not an equation, solving "
+msgstr ""
+
+#: src/solve.cc:3104
+msgid "solve.cc/my_f"
+msgstr ""
+
+#: src/solve.cc:3125
+msgid "solve.cc/my_df"
+msgstr ""
+
+#: src/solve.cc:3144
+msgid "solve.cc/my_fdf"
+msgstr ""
+
+#: src/solve.cc:3165
+msgid "solve.cc/my_F"
+msgstr ""
+
+#: src/solve.cc:3179
+msgid "solve.cc/my_dF"
+msgstr ""
+
+#: src/solve.cc:3194
+msgid "solve.cc/my_FdF"
+msgstr ""
+
+#: src/solve.cc:3410
+msgid "fsolve([equations],[variables],[guesses])"
+msgstr ""
+
+#: src/solve.cc:3474
+msgid ""
+"Solving by bisection with change of variable x=tan(t) and t=-1.57..1.57. Try "
+"fsolve(equation,x=guess) for iterative solver or fsolve(equation,x=xmin.."
+"xmax) for bisection."
+msgstr ""
+
+#: src/solve.cc:3482
+msgid "No solution found by bisection. Trying iterative method starting at 0"
+msgstr ""
+
+#: src/solve.cc:3488
+msgid ""
+"Solving with initial guess 0. Try fsolve(equation,x=guess) for iterative "
+"solver or fsolve(equation,x=xmin..xmax) for bisection."
+msgstr ""
+
+#: src/solve.cc:3594
+msgid "Warning: undefined"
+msgstr ""
+
+#: src/solve.cc:3594
+msgid "Warning: sign reversal"
+msgstr ""
+
+#: src/solve.cc:3723
+msgid "Not linked with GSL"
+msgstr ""
+
+#: src/solve.cc:5854
+msgid "Unable to compute gbasis with giac, perhaps dimension is too large"
+msgstr ""
+
+#: src/solve.cc:5925
+msgid ""
+"Warning: solving by reducing number of unknowns to number of equations: "
+msgstr ""
+
+#: src/solve.cc:6089
+msgid "Bad var "
+msgstr ""
+
+#: src/solve.cc:6092
+msgid " is not rational w.r.t. "
+msgstr ""
+
+#: src/solve.cc:7240
+msgid "Error solving equations. Check that your variables are purged"
+msgstr ""
+
+#: src/solve.cc:7246
+msgid "Warning: algsubs selected one branch"
+msgstr ""
+
+#: src/solve.cc:7443
+msgid "Unable to minimize at given precision, last value "
+msgstr ""
+
+#: src/intg.cc:461
+#, c-format
+msgid ""
+"Integration of a rational fraction with denominator %gen\n"
+"roots are obtained by solving the 2nd order equation %gen=0 then extracting "
+"nth-roots"
+msgstr ""
+
+#: src/intg.cc:533
+#, c-format
+msgid ""
+"Integrate rational fraction with denominator a cyclotomic polynomial, roots "
+"are primitive roots of %gen=0"
+msgstr ""
+
+#: src/intg.cc:561
+#, c-format
+msgid ""
+"Integrate rational fraction with denominator %gen=0\n"
+"roots are deduced from nth-roots of unity"
+msgstr ""
+
+#: src/intg.cc:696
+#, c-format
+msgid "Integrate linearizable expression %gen -> %gen"
+msgstr ""
+
+#: src/intg.cc:808
+#, c-format
+msgid "Integrate trigonometric linearizable expression %gen -> %gen"
+msgstr ""
+
+#: src/intg.cc:889
+#, c-format
+msgid "Primitive of %gen is polynomial of same degree*same exponential %gen"
+msgstr ""
+
+#: src/intg.cc:1259
+msgid "trig_fraction"
+msgstr ""
+
+#: src/intg.cc:1269
+#, c-format
+msgid ""
+"Integrate rational fraction of exponential %gen by %gen change of variable, "
+"leading to integral of %gen"
+msgstr ""
+
+#: src/intg.cc:1273 src/intg.cc:1291 src/intg.cc:2249
+#, c-format
+msgid "Back substitution %gen->%gen in %gen"
+msgstr ""
+
+#: src/intg.cc:1283
+#, c-format
+msgid ""
+"Integrate rational fraction of trigonometric %gen by %gen change of "
+"variable, leading to integral of %gen"
+msgstr ""
+
+#: src/intg.cc:1344
+msgid "in intgab_rational"
+msgstr ""
+
+#: src/intg.cc:1569
+msgid "in integrate_rational"
+msgstr ""
+
+#: src/intg.cc:1628
+#, c-format
+msgid "Integrate rational fraction %gen, change of variable %gen"
+msgstr ""
+
+#: src/intg.cc:1762
+#, c-format
+msgid "Integrate rational fraction %gen"
+msgstr ""
+
+#: src/intg.cc:1780
+#, c-format
+msgid ""
+"Partial fraction %gen -> Hermite reduction -> integrate squarefree part %gen"
+msgstr ""
+
+#: src/intg.cc:1788
+#, c-format
+msgid "Partial fraction integration of %gen"
+msgstr ""
+
+#: src/intg.cc:2153
+msgid ""
+"Warning, integration of abs or sign assumes constant sign by intervals "
+"(correct if the argument is real):\n"
+"Check "
+msgstr ""
+
+#: src/intg.cc:2179
+msgid "Unable to cancel step at "
+msgstr ""
+
+#: src/intg.cc:2184
+msgid "Discontinuities at zeroes of "
+msgstr ""
+
+#: src/intg.cc:2246
+#, c-format
+msgid "Integrate %gen, change of variable %gen->%gen, new integral %gen"
+msgstr ""
+
+#: src/intg.cc:2294
+msgid "Temporary replacing surd/NTHROOT by fractional powers"
+msgstr ""
+
+#: src/intg.cc:2311
+msgid "integrate id_rem "
+msgstr ""
+
+#: src/intg.cc:2331
+msgid ""
+"Warning: piecewise indefinite integration does not return a continuous "
+"antiderivative"
+msgstr ""
+
+#: src/intg.cc:2337
+msgid "integrate step -2 "
+msgstr ""
+
+#: src/intg.cc:2350
+msgid "Bad when "
+msgstr ""
+
+#: src/intg.cc:2368
+msgid "integrate step 0 "
+msgstr ""
+
+#: src/intg.cc:2386
+#, c-format
+msgid ""
+"Integrate %gen, a linear expression u=%gen to a constant power n=%gen,\n"
+"If n=-1 then ln(u)/a else u^(n+1)/((n+1)*%gen)"
+msgstr ""
+
+#: src/intg.cc:2394 src/intg.cc:2402
+#, c-format
+msgid ""
+"Integrate %gen, a linear expression u=%gen to a constant power n=1/%gen,\n"
+"If n=-1 then ln(u)/a else u^(n+1)/((n+1)*%gen)"
+msgstr ""
+
+#: src/intg.cc:2420
+msgid "integrate step 1 "
+msgstr ""
+
+#: src/intg.cc:2440
+#, c-format
+msgid ""
+"Integrate %gen: function %gen applied to a linear expression u=%gen, result "
+"%gen"
+msgstr ""
+
+#: src/intg.cc:2495 src/intg.cc:2561 src/intg.cc:2581 src/intg.cc:2648
+#: src/intg.cc:2670
+#, c-format
+msgid "Integration of %gen: f(u)*u' where f=%gen->%gen and u=%gen"
+msgstr ""
+
+#: src/intg.cc:2589
+msgid "integrate step 2 "
+msgstr ""
+
+#: src/intg.cc:2679
+msgid "integrate step 3 "
+msgstr ""
+
+#: src/intg.cc:2738
+#, c-format
+msgid "Integration of %gen: by part, u*v'=%gen*(%gen)'"
+msgstr ""
+
+#: src/intg.cc:2772
+#, c-format
+msgid "Integration of %gen by part of u*v' where u=1 and v=%gen'"
+msgstr ""
+
+#: src/intg.cc:2868
+#, c-format
+msgid "Integrate %gen, no heuristic found, running Risch algorithm"
+msgstr ""
+
+#: src/intg.cc:2937
+#, c-format
+msgid "===== Step/step primitive of %gen with respect to %gen ====="
+msgstr ""
+
+#: src/intg.cc:2950
+#, c-format
+msgid "Hence primitive of %gen with respect to %gen is %gen"
+msgstr ""
+
+#: src/intg.cc:3005
+msgid "Checking exact value of integral with numeric approximation"
+msgstr ""
+
+#: src/intg.cc:3015
+msgid ""
+"Error while checking exact value with approximate value, returning both!"
+msgstr ""
+
+#: src/intg.cc:3049
+msgid ""
+"Warning, complex variables is set, this can lead to fairly complex answers. "
+"It is recommended to switch off complex variables in the settings or by "
+"complex_variables:=0; and declare individual variables to be complex by e.g. "
+"assume(a,complex)."
+msgstr ""
+
+#: src/intg.cc:3051
+msgid "integrate begin"
+msgstr ""
+
+#: src/intg.cc:3269
+msgid "Floor definite integration: can only handle linear < or > condition"
+msgstr ""
+
+#: src/intg.cc:3275
+msgid "Floor definite integration: unable to handle infinite boundaries"
+msgstr ""
+
+#: src/intg.cc:3333 src/plot.cc:1272 src/prog.cc:9742
+msgid "Assuming false condition "
+msgstr ""
+
+#: src/intg.cc:3337 src/plot.cc:1276 src/prog.cc:9746
+msgid "Assuming true condition "
+msgstr ""
+
+#: src/intg.cc:3352
+msgid "Piecewise definite integration: can only handle linear < or > condition"
+msgstr ""
+
+#: src/intg.cc:3505
+msgid "No check were made for singular points of antiderivative "
+msgstr ""
+
+#: src/intg.cc:3505
+msgid " for definite integration in ["
+msgstr ""
+
+#: src/intg.cc:3524
+msgid "Unable to find singular points of antiderivative"
+msgstr ""
+
+#: src/intg.cc:3535
+msgid "Unable to handle approx. or algebraic extension singular point "
+msgstr ""
+
+#: src/intg.cc:3535
+msgid " of antiderivative"
+msgstr ""
+
+#: src/intg.cc:3887
+msgid ""
+"Infinity or undefined limit at bounds.\n"
+"Using middle point Romberg method"
+msgstr ""
+
+#: src/intg.cc:3940 src/intg.cc:3982
+msgid ""
+"Unable to find numeric integral using Romberg method, returning the last "
+"approximations"
+msgstr ""
+
+#: src/intg.cc:4617
+msgid "prodsum"
+msgstr ""
+
+#: src/intg.cc:4746
+msgid "Unable to sort boundaries "
+msgstr ""
+
+#: src/intg.cc:4809
+msgid "Bad step"
+msgstr ""
+
+#: src/intg.cc:4936
+msgid "i=sqrt(-1), please use a valid identifier name"
+msgstr ""
+
+#: src/intg.cc:5124 src/intg.cc:5131 src/intg.cc:5156
+msgid "bernoulli"
+msgstr ""
+
+#: src/intg.cc:5486
+msgid "RK8 evolve not successfull"
+msgstr ""
+
+#: src/intg.cc:5720
+msgid "Warning time reversal"
+msgstr ""
+
+#: src/intgab.cc:277 src/intgab.cc:287
+msgid "Non holomorphic function "
+msgstr ""
+
+#: src/intgab.cc:307
+msgid "Syntax residue(expr,x=a)"
+msgstr ""
+
+#: src/intgab.cc:494 src/intgab.cc:503 src/usual.cc:1005 src/usual.cc:1014
+msgid "Unable to factor "
+msgstr ""
+
+#: src/intgab.cc:779
+msgid "Warning: pole at "
+msgstr ""
+
+#: src/intgab.cc:870
+msgid "Please use +infinity or -infinity since infinity is unsigned"
+msgstr ""
+
+#: src/intgab.cc:1007
+msgid "Negative second Dirac argument"
+msgstr ""
+
+#: src/intgab.cc:1025 src/intgab.cc:1953
+msgid "Warning, Dirac function outside summation interval"
+msgstr ""
+
+#: src/intgab.cc:1337
+msgid "Searching int of "
+msgstr ""
+
+#: src/intgab.cc:1337
+msgid " where "
+msgstr ""
+
+#: src/intgab.cc:1337
+msgid " is on the unit circle, using residues"
+msgstr ""
+
+#: src/intgab.cc:1625
+msgid "Unable to sum "
+msgstr ""
+
+#: src/risch.cc:72
+msgid "Risch diff dimension"
+msgstr ""
+
+#: src/risch.cc:459 src/risch.cc:490
+msgid "risch.cc/hermite_reduce"
+msgstr ""
+
+#: src/series.cc:103
+msgid "non tractable function "
+msgstr ""
+
+#: src/series.cc:1083
+msgid "Warning: vanishing non integral power expansion"
+msgstr ""
+
+#: src/series.cc:1281
+msgid "unknown rational operator"
+msgstr ""
+
+#: src/series.cc:1536 src/series.cc:2762
+msgid "no taylor method for "
+msgstr ""
+
+#: src/series.cc:1565 src/series.cc:1593
+msgid "Summation variable must be != from series expansion variable"
+msgstr ""
+
+#: src/series.cc:1587 src/series.cc:1717
+msgid "Integral must be definite"
+msgstr ""
+
+#: src/series.cc:1627 src/series.cc:1663
+msgid "igamma: bad arg number"
+msgstr ""
+
+#: src/series.cc:1723
+msgid "Integration variable must be != from series expansion variable"
+msgstr ""
+
+#: src/series.cc:1758
+msgid "Can not expand remainder of integrand"
+msgstr ""
+
+#: src/series.cc:1802
+msgid " multiargs not implemented"
+msgstr ""
+
+#: src/series.cc:1852
+msgid "Sign error "
+msgstr ""
+
+#: src/series.cc:1885
+msgid "Not expandable "
+msgstr ""
+
+#: src/series.cc:1895
+msgid "Psi/Zeta/Eta: bad second argument"
+msgstr ""
+
+#: src/series.cc:2255
+msgid "ln of unsigned or minus infinity"
+msgstr ""
+
+#: src/series.cc:2273
+msgid "Unable to convert sum to Euler Mac-Laurin "
+msgstr ""
+
+#: src/series.cc:2431
+msgid "Undefined integral"
+msgstr ""
+
+#: src/series.cc:2433
+msgid "Integration variable and limit variable are the same"
+msgstr ""
+
+#: src/series.cc:2435
+msgid "Integral in limit not implemented yet"
+msgstr ""
+
+#: src/series.cc:2487
+msgid "Warning, infinity is unsigned, perhaps you meant +infinity"
+msgstr ""
+
+#: src/series.cc:2608
+msgid "Try unidirectional series"
+msgstr ""
+
+#: src/series.cc:2615
+msgid "Series internal bug"
+msgstr ""
+
+#: src/series.cc:2738
+msgid "Limit probably undefined, algorithm unable to handle "
+msgstr ""
+
+#: src/series.cc:2743
+msgid "Undef/Unsigned Inf encountered in limit"
+msgstr ""
+
+#: src/series.cc:3445
+msgid "Unable to convert to euler mac laurin"
+msgstr ""
+
+#: src/subst.cc:47
+msgid "This function works only in radian mode"
+msgstr ""
+
+#: src/subst.cc:420 src/plot.cc:9368
+msgid "Unable to solve"
+msgstr ""
+
+#: src/subst.cc:530 src/subst.cc:754
+msgid "Warning, replacing "
+msgstr ""
+
+#: src/subst.cc:530 src/subst.cc:754
+msgid " by "
+msgstr ""
+
+#: src/subst.cc:530 src/subst.cc:754
+msgid ", a substitution variable should perhaps be purged."
+msgstr ""
+
+#: src/subst.cc:1519 src/subst.cc:1537
+msgid "Simplification assuming "
+msgstr ""
+
+#: src/subst.cc:2424
+msgid "simplify preserving "
+msgstr ""
+
+#: src/vecteur.cc:802 src/vecteur.cc:810
+msgid "pos2cell"
+msgstr ""
+
+#: src/vecteur.cc:962
+msgid "matrice_extract"
+msgstr ""
+
+#: src/vecteur.cc:1044
+msgid "Bad cell"
+msgstr ""
+
+#: src/vecteur.cc:1101
+msgid "Interrupted "
+msgstr ""
+
+#: src/vecteur.cc:1184 src/vecteur.cc:1185
+msgid "Spreadsheet matrix argument max size 4000 exceeded"
+msgstr ""
+
+#: src/vecteur.cc:1240
+msgid "Spreadsheet evaluation interrupted"
+msgstr ""
+
+#: src/vecteur.cc:1335 src/vecteur.cc:1342 src/vecteur.cc:1346
+msgid "mergematrice"
+msgstr ""
+
+#: src/vecteur.cc:1366 src/vecteur.cc:1371
+msgid "a_root"
+msgstr ""
+
+#: src/vecteur.cc:1696 src/vecteur.cc:1707 src/vecteur.cc:1723
+msgid "schur row "
+msgstr ""
+
+#: src/vecteur.cc:2686
+msgid "Proot error : no root found for "
+msgstr ""
+
+#: src/vecteur.cc:2989
+msgid "dotvector"
+msgstr ""
+
+#: src/vecteur.cc:3150
+msgid "dotvecteur"
+msgstr ""
+
+#: src/vecteur.cc:4824
+msgid "mmultck"
+msgstr ""
+
+#: src/vecteur.cc:6483
+msgid ""
+"Probabilistic algorithm for determinant\n"
+"(run proba_epsilon:=0 for a deterministic answer, this is slower).\n"
+"Error probability is less than "
+msgstr ""
+
+#: src/vecteur.cc:6605
+msgid " Early termination"
+msgstr ""
+
+#: src/vecteur.cc:6622
+msgid " dividing by determinant"
+msgstr ""
+
+#: src/vecteur.cc:6625
+msgid " end dividing by determinant"
+msgstr ""
+
+#: src/vecteur.cc:6729
+#, c-format
+msgid ""
+"%gen\n"
+"Reduce column %gen with pivot %gen at row %gen"
+msgstr ""
+
+#: src/vecteur.cc:6737
+#, c-format
+msgid "Exchange row %gen and row %gen"
+msgstr ""
+
+#: src/vecteur.cc:6762 src/vecteur.cc:6787
+#, c-format
+msgid "L%gen <- (%gen)*L%gen-(%gen)*L%gen on %gen"
+msgstr ""
+
+#: src/vecteur.cc:7357
+#, c-format
+msgid "End reduction %gen"
+msgstr ""
+
+#: src/vecteur.cc:10043
+msgid "Unable to find a modulus to solve"
+msgstr ""
+
+#: src/vecteur.cc:10049
+msgid "Incompatible system"
+msgstr ""
+
+#: src/vecteur.cc:10273
+msgid "idn"
+msgstr ""
+
+#: src/vecteur.cc:10978 src/cocoa.cc:3341 src/gen.cc:4139 src/gen.cc:9724
+msgid "Not invertible"
+msgstr ""
+
+#: src/vecteur.cc:11117
+msgid "Warning: non-square matrix!"
+msgstr ""
+
+#: src/vecteur.cc:13064
+msgid ""
+"Probabilistic answer. Run proba_epsilon:=0 for a certified result. Error <"
+msgstr ""
+
+#: src/vecteur.cc:13282
+msgid "polymat2matpoly"
+msgstr ""
+
+#: src/vecteur.cc:13314
+msgid "polymat2mat"
+msgstr ""
+
+#: src/vecteur.cc:13359
+msgid "rat_jordan_block"
+msgstr ""
+
+#: src/vecteur.cc:13405
+msgid "pseudo_rat_ro_rat"
+msgstr ""
+
+#: src/vecteur.cc:13470
+msgid "Low accuracy for Schur row "
+msgstr ""
+
+#: src/vecteur.cc:14057
+msgid "Unable to find exact eigenvalues. Trying approx"
+msgstr ""
+
+#: src/vecteur.cc:14218
+msgid ""
+"Low accuracy or not diagonalizable at some eigenvalue. Try jordan if the "
+"matrix is exact."
+msgstr ""
+
+#: src/vecteur.cc:14342
+msgid "Unable to find all eigenvalues"
+msgstr ""
+
+#: src/vecteur.cc:14366
+msgid " is not analytic"
+msgstr ""
+
+#: src/vecteur.cc:14522 src/vecteur.cc:14569
+msgid "cross"
+msgstr ""
+
+#: src/vecteur.cc:14637
+msgid "vecteur.cc vecteur2gsl_vector"
+msgstr ""
+
+#: src/vecteur.cc:14869 src/vecteur.cc:14893
+msgid "LAPACK LU error"
+msgstr ""
+
+#: src/vecteur.cc:14916
+msgid "Expecting a square matrix"
+msgstr ""
+
+#: src/vecteur.cc:15039 src/vecteur.cc:15286
+msgid "LAPACK not available"
+msgstr ""
+
+#: src/vecteur.cc:15045
+msgid "Lapack conversion error"
+msgstr ""
+
+#: src/vecteur.cc:15057 src/vecteur.cc:15069 src/vecteur.cc:15088
+#: src/vecteur.cc:15311 src/vecteur.cc:15325
+msgid "LAPACK error "
+msgstr ""
+
+#: src/vecteur.cc:15278
+msgid "Warning: svd is implemented for numeric matrices"
+msgstr ""
+
+#: src/vecteur.cc:15547
+msgid "Non positive definite"
+msgstr ""
+
+#: src/vecteur.cc:15567
+msgid "Not invertible matrice"
+msgstr ""
+
+#: src/vecteur.cc:16030 src/vecteur.cc:16208
+msgid "Integer matrix expected"
+msgstr ""
+
+#: src/vecteur.cc:16362
+msgid "Expecting file name to convert"
+msgstr ""
+
+#: src/csturm.cc:83
+msgid "Singular parametric Sturm sequence "
+msgstr ""
+
+#: src/csturm.cc:843
+msgid "Bad precision, using 1e-12 instead of "
+msgstr ""
+
+#: src/csturm.cc:1191
+msgid "Square is flat!"
+msgstr ""
+
+#: src/global.cc:3555
+msgid ""
+"\n"
+"Evaluation time: "
+msgstr ""
+
+#: src/global.cc:3571
+msgid "Thread "
+msgstr ""
+
+#: src/global.cc:3637
+msgid "Cancel thread "
+msgstr ""
+
+#: src/global.cc:3659
+msgid "Evaluation time: "
+msgstr ""
+
+#: src/ifactor.cc:702
+msgid "Sieve tolerance factor "
+msgstr ""
+
+#: src/ifactor.cc:706
+msgid " reset"
+msgstr ""
+
+#: src/ifactor.cc:725
+msgid " end reset, nbits "
+msgstr ""
+
+#: src/ifactor.cc:754
+msgid "Sieve first prime "
+msgstr ""
+
+#: src/ifactor.cc:784
+msgid " sieve begin "
+msgstr ""
+
+#: src/ifactor.cc:823
+msgid "relations "
+msgstr ""
+
+#: src/ifactor.cc:1017
+msgid " true relation "
+msgstr ""
+
+#: src/ifactor.cc:1034
+msgid " Sieve large remainder:"
+msgstr ""
+
+#: src/ifactor.cc:1067
+msgid " already additional"
+msgstr ""
+
+#: src/ifactor.cc:1104
+msgid " end relations "
+msgstr ""
+
+#: src/ifactor.cc:1355
+msgid "multiplier "
+msgstr ""
+
+#: src/ifactor.cc:1361
+msgid "Using multiplier "
+msgstr ""
+
+#: src/ifactor.cc:1911
+msgid " sieve on "
+msgstr ""
+
+#: src/ifactor.cc:1911
+msgid "Number of primes "
+msgstr ""
+
+#: src/ifactor.cc:1937 src/ifactor.cc:1993
+msgid " sieve current basis size "
+msgstr ""
+
+#: src/ifactor.cc:2046
+msgid " sieve basis OK, size "
+msgstr ""
+
+#: src/ifactor.cc:2147
+msgid "Using "
+msgstr ""
+
+#: src/ifactor.cc:2148
+msgid " fixed begin at "
+msgstr ""
+
+#: src/ifactor.cc:2242
+msgid "First M "
+msgstr ""
+
+#: src/ifactor.cc:2361
+msgid " initial value for M= "
+msgstr ""
+
+#: src/ifactor.cc:2416
+msgid " Computing inverses mod p of the basis "
+msgstr ""
+
+#: src/ifactor.cc:2433
+msgid " Computing c "
+msgstr ""
+
+#: src/ifactor.cc:2477
+msgid " Computing roots mod the basis "
+msgstr ""
+
+#: src/ifactor.cc:2504
+msgid " Init large prime hashtables "
+msgstr ""
+
+#: src/ifactor.cc:2531
+msgid " End large prime hashtables "
+msgstr ""
+
+#: src/ifactor.cc:2605
+msgid " Polynomial a,b,M="
+msgstr ""
+
+#: src/ifactor.cc:2650
+msgid "Sieve error: Not enough memory "
+msgstr ""
+
+#: src/ifactor.cc:2680
+msgid " sieved : "
+msgstr ""
+
+#: src/ifactor.cc:2684
+msgid "Polynomials a,b in use: #a "
+msgstr ""
+
+#: src/ifactor.cc:2697
+msgid " sieve done: used "
+msgstr ""
+
+#: src/ifactor.cc:2711
+msgid " removing additional primes"
+msgstr ""
+
+#: src/ifactor.cc:2750
+msgid " end removing additional primes"
+msgstr ""
+
+#: src/ifactor.cc:2867
+msgid "error, odd exponent for prime "
+msgstr ""
+
+#: src/ifactor.cc:2894
+msgid "error"
+msgstr ""
+
+#: src/ifactor.cc:2925
+msgid "checking gcd"
+msgstr ""
+
+#: src/ifactor.cc:3025
+msgid " Pollard-rho try "
+msgstr ""
+
+#: src/ifactor.cc:3028
+msgid " Pollard-rho failure, ntries "
+msgstr ""
+
+#: src/ifactor.cc:3525
+msgid "\fPollard-rho on "
+msgstr ""
+
+#: src/ifactor.cc:3619
+msgid "Quadratic sieve failure, perhaps number too large"
+msgstr ""
+
+#: src/ifactor.cc:3621
+msgid "Stopped by user interruption"
+msgstr ""
+
+#: src/ifactor.cc:3645 src/ifactor.cc:3743 src/ifactor.cc:3850
+msgid "ifactors"
+msgstr ""
+
+#: src/ifactor.cc:3740
+msgid "(Mac OS) Large number, you can try pari(); pari_factor("
+msgstr ""
+
+#: src/ifactor.cc:3752
+msgid "ifactor.cc/ifactors"
+msgstr ""
+
+#: src/ifactor.cc:4066
+msgid "Integer too large"
+msgstr ""
+
+#: src/ifactor.cc:4299 src/ifactor.cc:4329
+msgid "No solution in ring"
+msgstr ""
+
+#: src/alg_ext.cc:345
+msgid "ext_reduce"
+msgstr ""
+
+#: src/alg_ext.cc:351 src/alg_ext.cc:360 src/alg_ext.cc:361
+msgid "alg_ext.cc/ext_reduce"
+msgstr ""
+
+#: src/alg_ext.cc:378 src/alg_ext.cc:612
+msgid "alg_ext.cc/polynome2vecteur"
+msgstr ""
+
+#: src/alg_ext.cc:432
+msgid "Invalid _EXT in replace_ext"
+msgstr ""
+
+#: src/alg_ext.cc:544 src/alg_ext.cc:586
+msgid "Unable to find common minimal polynomial"
+msgstr ""
+
+#: src/alg_ext.cc:717
+msgid "alg_ext.cc/min_pol"
+msgstr ""
+
+#: src/alg_ext.cc:805 src/alg_ext.cc:812
+msgid "alg_ext.cc/common_EXT"
+msgstr ""
+
+#: src/alg_ext.cc:866
+msgid ""
+"Warning, need to choose a branch for the root of a polynomial with "
+"parameters. This might be wrong."
+msgstr ""
+
+#: src/alg_ext.cc:915
+msgid "The choice was done assuming "
+msgstr ""
+
+#: src/alg_ext.cc:917
+msgid "Non regular value "
+msgstr ""
+
+#: src/alg_ext.cc:917
+msgid " was discarded and replaced randomly by "
+msgstr ""
+
+#: src/alg_ext.cc:1057 src/alg_ext.cc:1062
+msgid "inv_EXT"
+msgstr ""
+
+#: src/alg_ext.cc:1134 src/alg_ext.cc:1143
+msgid "rootof"
+msgstr ""
+
+#: src/alg_ext.cc:1151
+msgid "Algebraic extensions not allowed in a rootof"
+msgstr ""
+
+#: src/alg_ext.cc:1353
+msgid "Warning: variable name ignored: "
+msgstr ""
+
+#: src/alg_ext.cc:1526
+msgid "Or condition not implemented"
+msgstr ""
+
+#: src/alg_ext.cc:1530
+msgid "fminmax, range "
+msgstr ""
+
+#: src/alg_ext.cc:1594
+msgid "Warning: "
+msgstr ""
+
+#: src/alg_ext.cc:1594
+msgid "=0: no solution found"
+msgstr ""
+
+#: src/gauss.cc:128 src/gauss.cc:408
+msgid "q is not quadratic"
+msgstr ""
+
+#: src/gauss.cc:357 src/gen.cc:393
+msgid "Invalid dimension"
+msgstr ""
+
+#: src/gauss.cc:532
+msgid "Empty parabola"
+msgstr ""
+
+#: src/gauss.cc:537
+msgid "2 parallel lines"
+msgstr ""
+
+#: src/gauss.cc:605
+msgid "Ellipsis reduced to ("
+msgstr ""
+
+#: src/gauss.cc:612
+msgid "Empty ellipsis"
+msgstr ""
+
+#: src/gauss.cc:617
+msgid "Ellipsis of center ("
+msgstr ""
+
+#: src/gauss.cc:647
+msgid "2 secant lines at ("
+msgstr ""
+
+#: src/gauss.cc:659
+msgid "Hyperbola of center ("
+msgstr ""
+
+#: src/gauss.cc:755
+msgid "Can't check sign "
+msgstr ""
+
+#: src/gauss.cc:811
+msgid "Cone of center "
+msgstr ""
+
+#: src/gauss.cc:823
+msgid "Empty ellipsoid"
+msgstr ""
+
+#: src/gauss.cc:828
+msgid "Ellipsoid of center "
+msgstr ""
+
+#: src/gauss.cc:843 src/gauss.cc:857
+msgid "2-fold hyperboloid of center "
+msgstr ""
+
+#: src/gauss.cc:881
+msgid "Elliptic cylinder around "
+msgstr ""
+
+#: src/gauss.cc:902
+msgid "2 plans intersecting at "
+msgstr ""
+
+#: src/gauss.cc:910
+msgid "Hyperbolic cylinder around "
+msgstr ""
+
+#: src/gauss.cc:949
+msgid "Elliptic paraboloid of center "
+msgstr ""
+
+#: src/gauss.cc:964
+msgid "Hyperbolic paraboloid of center "
+msgstr ""
+
+#: src/gauss.cc:999
+msgid "Paraboloid cylinder"
+msgstr ""
+
+#: src/gauss.cc:1006
+msgid "2 parallel plans"
+msgstr ""
+
+#: src/plot.cc:420
+msgid "Plotfunc: bad variable name"
+msgstr ""
+
+#: src/plot.cc:641 src/plot.cc:646
+msgid "Gnuplot write error"
+msgstr ""
+
+#: src/plot.cc:1227
+msgid "Plotfunc: unable to discretize: xmin, xmax, step="
+msgstr ""
+
+#: src/plot.cc:1227
+msgid ""
+"\n"
+"Try a larger value for xstep"
+msgstr ""
+
+#: src/plot.cc:1453
+msgid "Plotfunc 2nd arg must be var or [var1,var2]"
+msgstr ""
+
+#: src/plot.cc:1911
+msgid "Plotfunc: Range must be [xmin,ymin] or [xmax,ymax]"
+msgstr ""
+
+#: src/plot.cc:1917 src/plot.cc:1928 src/plot.cc:1944
+msgid "Plotfunc: bad range value!"
+msgstr ""
+
+#: src/plot.cc:2126
+msgid "pointon"
+msgstr ""
+
+#: src/plot.cc:2241
+msgid "Non linear equations"
+msgstr ""
+
+#: src/plot.cc:2244
+msgid "Parallel plans"
+msgstr ""
+
+#: src/plot.cc:2359
+msgid "Not a line!"
+msgstr ""
+
+#: src/plot.cc:2377
+msgid "2-d instruction"
+msgstr ""
+
+#: src/plot.cc:3167
+msgid "3-d instruction"
+msgstr ""
+
+#: src/plot.cc:3516
+msgid "milieu"
+msgstr ""
+
+#: src/plot.cc:3591
+msgid "3 points expected"
+msgstr ""
+
+#: src/plot.cc:3623
+msgid "midpoint"
+msgstr ""
+
+#: src/plot.cc:4682
+msgid "Sum of coeff is 0"
+msgstr ""
+
+#: src/plot.cc:4922
+msgid "line2curve"
+msgstr ""
+
+#: src/plot.cc:4941
+msgid "Distance curve/curve not implemented"
+msgstr ""
+
+#: src/plot.cc:5359 src/plot.cc:5371
+msgid "area(f(x),x=a..b,n,method])"
+msgstr ""
+
+#: src/plot.cc:5511
+msgid "angle plan with unknown"
+msgstr ""
+
+#: src/plot.cc:5521 src/plot.cc:5547 src/plot.cc:5561
+msgid "angle"
+msgstr ""
+
+#: src/plot.cc:5528
+msgid "Lines must intersect"
+msgstr ""
+
+#: src/plot.cc:5873 src/plot.cc:5885 src/plot.cc:5897 src/plot.cc:5900
+#: src/plot.cc:5906
+msgid "plot.cc/parameter2point"
+msgstr ""
+
+#: src/plot.cc:6077
+msgid "Line "
+msgstr ""
+
+#: src/plot.cc:6398
+msgid "Locus on an unknown parametric curve type"
+msgstr ""
+
+#: src/plot.cc:6433
+msgid "3-d enveloppe not implemented"
+msgstr ""
+
+#: src/plot.cc:6481
+msgid "Equation 0 = "
+msgstr ""
+
+#: src/plot.cc:6673 src/plot.cc:6676 src/plot.cc:6690
+msgid "sommet"
+msgstr ""
+
+#: src/plot.cc:7266
+msgid "gen2complex"
+msgstr ""
+
+#: src/plot.cc:7461
+msgid "Not implemented or bad argument type/value"
+msgstr ""
+
+#: src/plot.cc:7705
+msgid "First arg of translation should not be a point"
+msgstr ""
+
+#: src/plot.cc:7765
+msgid "Plotparam: unable to discretize: tmin, tmax, tstep="
+msgstr ""
+
+#: src/plot.cc:7765
+msgid ""
+"\n"
+"Try a larger value for tstep"
+msgstr ""
+
+#: src/plot.cc:8039 src/plot.cc:8206
+msgid "2nd arg must be a free variable"
+msgstr ""
+
+#: src/plot.cc:8226
+msgid "Variable x should be purged"
+msgstr ""
+
+#: src/plot.cc:8233
+msgid "Variable y should be purged"
+msgstr ""
+
+#: src/plot.cc:8240
+msgid "Variable z should be purged"
+msgstr ""
+
+#: src/plot.cc:8247
+msgid "Variable "
+msgstr ""
+
+#: src/plot.cc:8247
+msgid " should be purged"
+msgstr ""
+
+#: src/plot.cc:8254
+msgid "Variable t should be purged"
+msgstr ""
+
+#: src/plot.cc:8261
+msgid "Variable u should be purged"
+msgstr ""
+
+#: src/plot.cc:8268
+msgid "Variable v should be purged"
+msgstr ""
+
+#: src/plot.cc:8527
+msgid "Wrong parameter type "
+msgstr ""
+
+#: src/plot.cc:8545
+msgid "Can't isolate"
+msgstr ""
+
+#: src/plot.cc:8654
+msgid "3-d line/2-d circle"
+msgstr ""
+
+#: src/plot.cc:8656
+msgid "2-d line/sphere"
+msgstr ""
+
+#: src/plot.cc:8800
+msgid "Unable to solve intersection equation "
+msgstr ""
+
+#: src/plot.cc:9151
+msgid "Point is not on curve"
+msgstr ""
+
+#: src/plot.cc:9153
+msgid "2-d point expected"
+msgstr ""
+
+#: src/plot.cc:9235
+msgid "Hypersurface w/o equation not implemented"
+msgstr ""
+
+#: src/plot.cc:9240
+msgid "f(t)!=0:"
+msgstr ""
+
+#: src/plot.cc:9739
+msgid "Bug in conique reducing "
+msgstr ""
+
+#: src/plot.cc:9747
+msgid "Bug in conique, equation "
+msgstr ""
+
+#: src/plot.cc:10211
+msgid "Time"
+msgstr ""
+
+#: src/plot.cc:10504
+msgid "End interactive_plotode"
+msgstr ""
+
+#: src/plot.cc:10690
+msgid "End of stream"
+msgstr ""
+
+#: src/plot.cc:11021
+msgid "Error writing "
+msgstr ""
+
+#: src/plot.cc:11043
+msgid "Unable to read file"
+msgstr ""
+
+#: src/plot.cc:11232
+msgid "Bad iteration"
+msgstr ""
+
+#: src/plot.cc:11484
+msgid "Near "
+msgstr ""
+
+#: src/plot.cc:11591
+msgid ""
+"Singular points directions: [cell_i, cell_j, singularity, next solution] "
+msgstr ""
+
+#: src/plot.cc:11793
+msgid "Bad branch, questionnable accuracy"
+msgstr ""
+
+#: src/plot.cc:11863 src/plot.cc:11905 src/plot.cc:11967
+msgid "Warning! Could not loop or reach boundaries "
+msgstr ""
+
+#: src/plot.cc:11961
+msgid "Implicitplot "
+msgstr ""
+
+#: src/plot.cc:11985 src/plot3d.cc:2146
+msgid "Variables must be free"
+msgstr ""
+
+#: src/plot.cc:11989
+msgid "Impliciplot: temporarily swtiching to real mode"
+msgstr ""
+
+#: src/plot.cc:13254
+msgid "vecteur2turtle"
+msgstr ""
+
+#: src/plot.cc:13553
+msgid "Give a name to the procedure, e.g. test"
+msgstr ""
+
+#: src/plot.cc:13558
+msgid "Give a name to thr procedure, e.g. \"test\""
+msgstr ""
+
+#: src/plot.cc:13576
+msgid "Give a filename, e.g. \"test\""
+msgstr ""
+
+#: src/plot.cc:13584
+msgid "Instruction debut_enregistrement not found"
+msgstr ""
+
+#: src/plot.cc:13808
+msgid "Integer argument >= 2"
+msgstr ""
+
+#: src/plot.cc:13938
+msgid "Collinear points"
+msgstr ""
+
+#: src/plot.cc:14253
+msgid "Circle centers are identical"
+msgstr ""
+
+#: src/plot.cc:14636 src/plot.cc:14640 src/plot.cc:14655
+msgid "conj_harmonique"
+msgstr ""
+
+#: src/plot.cc:14917
+msgid "enveloppe"
+msgstr ""
+
+#: src/plot3d.cc:97
+msgid "hyperplan_normal"
+msgstr ""
+
+#: src/plot3d.cc:423
+msgid "Parallel lines"
+msgstr ""
+
+#: src/plot3d.cc:492
+msgid "Each element must be a face (vector of 3/4 points)"
+msgstr ""
+
+#: src/plot3d.cc:496
+msgid "at least 3 points by face"
+msgstr ""
+
+#: src/plot3d.cc:1150 src/plot3d.cc:1153
+msgid "hypersphere_equation"
+msgstr ""
+
+#: src/plot3d.cc:1161 src/plot3d.cc:1164
+msgid "hypersphere_parameq"
+msgstr ""
+
+#: src/plot3d.cc:1204
+msgid "Hypersurface w/o equation"
+msgstr ""
+
+#: src/plot3d.cc:1423 src/plot3d.cc:1426 src/plot3d.cc:1428 src/plot3d.cc:1433
+msgid "hyperplan2hypersurface"
+msgstr ""
+
+#: src/plot3d.cc:1440
+msgid "hypersphere2hypersurface"
+msgstr ""
+
+#: src/plot3d.cc:2244
+msgid "Bug in quadrique reducing "
+msgstr ""
+
+#: src/plot3d.cc:2251
+msgid "Bug in quadrique, equation "
+msgstr ""
+
+#: src/rpn.cc:897 src/gen.cc:9004
+msgid "Bad index"
+msgstr ""
+
+#: src/rpn.cc:906 src/rpn.cc:911 src/usual.cc:3282
+msgid "Bad rootof"
+msgstr ""
+
+#: src/rpn.cc:970
+msgid "Non-empty folder"
+msgstr ""
+
+#: src/rpn.cc:1866
+msgid "Invalid step value"
+msgstr ""
+
+#: src/rpn.cc:1927
+msgid "∂(expression,variable=value)"
+msgstr ""
+
+#: src/rpn.cc:1932
+msgid "Order of derivation must be positive"
+msgstr ""
+
+#: src/rpn.cc:1989
+msgid "∫(expression,var,lower,upper)"
+msgstr ""
+
+#: src/rpn.cc:2224
+msgid "SVD is implemented for numeric matrices, running evalf first"
+msgstr ""
+
+#: src/prog.cc:161
+msgid "Running in secure mode"
+msgstr ""
+
+#: src/prog.cc:409
+msgid "Warning, =< is in-place assign, check "
+msgstr ""
+
+#: src/prog.cc:489
+msgid " compiling "
+msgstr ""
+
+#: src/prog.cc:500
+msgid "// Warning, duplicate argument name: "
+msgstr ""
+
+#: src/prog.cc:512
+msgid "// Warning, assignation is :=, check the lines below:\n"
+msgstr ""
+
+#: src/prog.cc:521
+msgid "// Warning: "
+msgstr ""
+
+#: src/prog.cc:527
+msgid ""
+" declared as global variable(s). If symbolic variables are required, declare "
+"them as local and run purge\n"
+msgstr ""
+
+#: src/prog.cc:530
+msgid "// Error(s)\n"
+msgstr ""
+
+#: src/prog.cc:530
+msgid "// Success\n"
+msgstr ""
+
+#: src/prog.cc:549
+msgid "check_type must have 2 args"
+msgstr ""
+
+#: src/prog.cc:583
+msgid "Argument should be of type "
+msgstr ""
+
+#: src/prog.cc:686
+msgid "Proc Parameters"
+msgstr ""
+
+#: src/prog.cc:844
+msgid "Unitialized parameter "
+msgstr ""
+
+#: src/prog.cc:963
+msgid "// Parsing "
+msgstr ""
+
+#: src/prog.cc:965
+msgid ""
+"Warning, defining a derivative function should be done with function_diff or "
+"unapply: "
+msgstr ""
+
+#: src/prog.cc:975
+msgid ""
+"Warning: algebraic function defined in term of others functions may lead to "
+"evaluation errors"
+msgstr ""
+
+#: src/prog.cc:977
+msgid "Perhaps you meant "
+msgstr ""
+
+#: src/prog.cc:999
+msgid "Warning: Local variables shadow function arguments "
+msgstr ""
+
+#: src/prog.cc:1146 src/prog.cc:1160 src/prog.cc:1166
+msgid "Too many recursions"
+msgstr ""
+
+#: src/prog.cc:1154 src/gen.cc:2052 src/gen.cc:2064 src/gen.cc:11257
+msgid "Too many recursion levels"
+msgstr ""
+
+#: src/prog.cc:1528
+msgid "Ifte must have 3 args"
+msgstr ""
+
+#: src/prog.cc:1676
+msgid "3 or 4 arguments expected"
+msgstr ""
+
+#: src/prog.cc:1706
+msgid "from_increment"
+msgstr ""
+
+#: src/prog.cc:1941
+msgid "Unable to eval test in loop : "
+msgstr ""
+
+#: src/prog.cc:1987
+msgid "For must have 4 args"
+msgstr ""
+
+#: src/prog.cc:2006 src/prog.cc:2008
+msgid "Invalid loop index (hint: i=sqrt(-1)!)"
+msgstr ""
+
+#: src/prog.cc:2233
+msgid "Invalid variable "
+msgstr ""
+
+#: src/prog.cc:2233
+msgid " using "
+msgstr ""
+
+#: src/prog.cc:2233
+msgid " instead."
+msgstr ""
+
+#: src/prog.cc:2251 src/prog.cc:2253
+msgid "Reserved word:"
+msgstr ""
+
+#: src/prog.cc:2259 src/prog.cc:2261
+msgid "Not bindable"
+msgstr ""
+
+#: src/prog.cc:2299
+msgid "prog.cc/leave"
+msgstr ""
+
+#: src/prog.cc:2440
+msgid "Local must have 2 args"
+msgstr ""
+
+#: src/prog.cc:2455
+msgid "Unitialized local variable "
+msgstr ""
+
+#: src/prog.cc:2617
+msgid "Try_catch must have 3 or 4 args"
+msgstr ""
+
+#: src/prog.cc:2798
+msgid "Unknown subsop rule "
+msgstr ""
+
+#: src/prog.cc:3509
+msgid "asc"
+msgstr ""
+
+#: src/prog.cc:3660
+msgid "apply"
+msgstr ""
+
+#: src/prog.cc:3735
+msgid "Invalid null step"
+msgstr ""
+
+#: src/prog.cc:3859
+msgid "Union"
+msgstr ""
+
+#: src/prog.cc:3943
+msgid "Minus"
+msgstr ""
+
+#: src/prog.cc:4117
+msgid "makemat"
+msgstr ""
+
+#: src/prog.cc:4121
+msgid "interval"
+msgstr ""
+
+#: src/prog.cc:4125
+msgid "Boundaries not integer"
+msgstr ""
+
+#: src/prog.cc:4357
+msgid "Program killed"
+msgstr ""
+
+#: src/prog.cc:4815
+msgid "Sorry! Debugging requires a true operating system"
+msgstr ""
+
+#: src/prog.cc:4816
+msgid "Please try xcas on Linux or an Unix"
+msgstr ""
+
+#: src/prog.cc:4859 src/prog.cc:7580
+msgid "Archiving "
+msgstr ""
+
+#: src/prog.cc:4868
+msgid "Click reads "
+msgstr ""
+
+#: src/prog.cc:5020
+msgid "check_binary"
+msgstr ""
+
+#: src/prog.cc:5179
+msgid "No such user "
+msgstr ""
+
+#: src/prog.cc:5514
+msgid "Cas_setup "
+msgstr ""
+
+#: src/prog.cc:5792
+msgid "Parent insmod"
+msgstr ""
+
+#: src/prog.cc:6117
+msgid "Float too large"
+msgstr ""
+
+#: src/prog.cc:6153
+msgid "Incompatible units"
+msgstr ""
+
+#: src/prog.cc:6347
+msgid "Some units could not be converted to MKSA"
+msgstr ""
+
+#: src/prog.cc:6373
+msgid "Bad conversion basis"
+msgstr ""
+
+#: src/prog.cc:6735
+msgid "Running maple text translation __.map"
+msgstr ""
+
+#: src/prog.cc:6755
+msgid "Running TI89 text translation __.ti"
+msgstr ""
+
+#: src/prog.cc:6970
+msgid "No help file found"
+msgstr ""
+
+#: src/prog.cc:7156
+msgid "Restoring epsilon to 1e-6 from "
+msgstr ""
+
+#: src/prog.cc:7160
+msgid "Restoring proba epsilon to 1e-6 from "
+msgstr ""
+
+#: src/prog.cc:7478
+msgid "Invalid |"
+msgstr ""
+
+#: src/prog.cc:7564
+msgid "inputform may be used in a window environment only"
+msgstr ""
+
+#: src/prog.cc:7592
+msgid "Inputform reads "
+msgstr ""
+
+#: src/prog.cc:9174
+msgid "Invalid unit exponent"
+msgstr ""
+
+#: src/prog.cc:9475
+msgid "User operator not available on this architecture"
+msgstr ""
+
+#: src/prog.cc:9575
+msgid "Non existent Folder"
+msgstr ""
+
+#: src/prog.cc:9623
+msgid "No case applies"
+msgstr ""
+
+#: src/prog.cc:9759
+msgid "Unable to handle when condition "
+msgstr ""
+
+#: src/pari.cc:569 src/pari.cc:574 src/pari.cc:762 src/pari.cc:831
+#: src/pari.cc:846
+msgid "Error in PARI subsystem"
+msgstr ""
+
+#: src/pari.cc:601
+msgid ""
+"PARI locked by another thread. Try again later.\n"
+"If PARI is locked by a cancelled thread, you can unlock it with pari_unlock()"
+msgstr ""
+
+#: src/pari.cc:1190
+msgid "Not implemented, please recompile giac with PARI"
+msgstr ""
+
+#: src/cocoa.cc:123 src/cocoa.cc:146
+msgid "Invalid giac gen -> CoCoA ZZ conversion"
+msgstr ""
+
+#: src/cocoa.cc:135 src/cocoa.cc:158
+msgid "Unable to convert CoCoA data"
+msgstr ""
+
+#: src/cocoa.cc:13829 src/cocoa.cc:13983
+msgid ""
+"Running a probabilistic check for the reconstructed Groebner basis. If "
+"successfull, error probability is less than "
+msgstr ""
+
+#: src/cocoa.cc:13829 src/cocoa.cc:13983
+msgid " and is estimated to be less than 10^-"
+msgstr ""
+
+#: src/cocoa.cc:13829 src/cocoa.cc:13983
+msgid ". Use proba_epsilon:=0 to certify (this takes more time)."
+msgstr ""
+
+#: src/unary.cc:85 src/unary.cc:93 src/unary.cc:135 src/unary.cc:143
+msgid "Unable to register "
+msgstr ""
+
+#: src/unary.cc:560
+msgid " should be of type _VECT (unary.cc)"
+msgstr ""
+
+#: src/usual.cc:260
+msgid "apply_to_equal"
+msgstr ""
+
+#: src/usual.cc:1055
+msgid "sqrt_noabs of "
+msgstr ""
+
+#: src/usual.cc:2915
+msgid "Taylor sign with unsigned limit"
+msgstr ""
+
+#: src/usual.cc:2951
+msgid "Taylor abs with unsigned limit"
+msgstr ""
+
+#: src/usual.cc:3471 src/usual.cc:3491
+msgid " is locked by thread "
+msgstr ""
+
+#: src/usual.cc:3481 src/usual.cc:3483 src/usual.cc:3506 src/usual.cc:3508
+msgid ": recursive definition"
+msgstr ""
+
+#: src/usual.cc:3590 src/usual.cc:3956
+msgid "sto "
+msgstr ""
+
+#: src/usual.cc:3631 src/usual.cc:3779 src/usual.cc:3875 src/usual.cc:3905
+#: src/usual.cc:3925
+msgid "Bad index "
+msgstr ""
+
+#: src/usual.cc:3724
+msgid "Index outside of range"
+msgstr ""
+
+#: src/usual.cc:3951
+msgid " is a reserved word, sto not allowed:"
+msgstr ""
+
+#: src/usual.cc:3956
+msgid " not allowed!"
+msgstr ""
+
+#: src/usual.cc:4050
+msgid "Increment"
+msgstr ""
+
+#: src/usual.cc:4082
+msgid "Non assigned variable"
+msgstr ""
+
+#: src/usual.cc:4659
+msgid "bad pow "
+msgstr ""
+
+#: src/usual.cc:4831
+msgid "Too many variables "
+msgstr ""
+
+#: src/usual.cc:5018
+msgid "Implicit multiplication does not work with complex numbers."
+msgstr ""
+
+#: src/usual.cc:5020
+msgid "Warning : using implicit multiplication for ("
+msgstr ""
+
+#: src/usual.cc:5700
+msgid ""
+"Warning, the test a==b is performed by checking\n"
+"that the internal representation of "
+msgstr ""
+
+#: src/usual.cc:5700
+msgid ""
+"(a-b) is not 0.\n"
+"Therefore a==b may return false even if a and b are mathematically equal,\n"
+"if they have different internal representations.\n"
+"You can explicitly call a simplification function like simplify(a-b)==0 to "
+"avoid this."
+msgstr ""
+
+#: src/usual.cc:5883
+msgid "Iquo"
+msgstr ""
+
+#: src/usual.cc:5926 src/gen.cc:7268
+msgid "Division by 0"
+msgstr ""
+
+#: src/usual.cc:6185
+msgid "Taylor of floor with unsigned limit"
+msgstr ""
+
+#: src/usual.cc:6239
+msgid "Taylor of ceil with unsigned limit"
+msgstr ""
+
+#: src/usual.cc:6324
+msgid "Taylor of round with unsigned limit"
+msgstr ""
+
+#: src/usual.cc:6348
+msgid "Local var protected "
+msgstr ""
+
+#: src/usual.cc:6474
+msgid "Vector of 2 integer arguments expected"
+msgstr ""
+
+#: src/usual.cc:6482
+msgid "Non integer argument"
+msgstr ""
+
+#: src/usual.cc:6484
+msgid "Bad mod value"
+msgstr ""
+
+#: src/usual.cc:6499
+msgid "ichinrem2 1"
+msgstr ""
+
+#: src/usual.cc:6502
+msgid "Null polynomial"
+msgstr ""
+
+#: src/usual.cc:6515 src/usual.cc:6519
+msgid "Expecting modular coeff"
+msgstr ""
+
+#: src/usual.cc:6537
+msgid "ichinrem2 2"
+msgstr ""
+
+#: src/usual.cc:6545 src/usual.cc:6551 src/usual.cc:6557
+msgid "ichinrem2 3"
+msgstr ""
+
+#: src/usual.cc:6564
+msgid "ichinrem2 4"
+msgstr ""
+
+#: src/usual.cc:6569
+msgid "[a % p, b % q,...]"
+msgstr ""
+
+#: src/usual.cc:6799
+msgid "Longfloat library not available"
+msgstr ""
+
+#: src/usual.cc:7018
+msgid ""
+"Powered by Giac 1.1.3, B. Parisse and R. De Graeve, Institut Fourier, "
+"Universite Grenoble I, France"
+msgstr ""
+
+#: src/usual.cc:9687
+msgid "Warning, Ei(x,1) is defined as -Ei(-x), not as Ei(x)"
+msgstr ""
+
+#: src/identificateur.cc:905
+msgid "Function not defined"
+msgstr ""
+
+#: src/gen.cc:305
+msgid " in "
+msgstr ""
+
+#: src/gen.cc:322
+msgid " instruction #"
+msgstr ""
+
+#: src/gen.cc:324
+msgid " error, try debug("
+msgstr ""
+
+#: src/gen.cc:385
+msgid "Bad Argument Type"
+msgstr ""
+
+#: src/gen.cc:389
+msgid "Bad Argument Value"
+msgstr ""
+
+#: src/gen.cc:397 src/gen.cc:477 src/gen.cc:481
+msgid " Error: Bad Argument Type"
+msgstr ""
+
+#: src/gen.cc:401 src/gen.cc:485 src/gen.cc:489
+msgid " Error: Bad Argument Value"
+msgstr ""
+
+#: src/gen.cc:405 src/gen.cc:493 src/gen.cc:497
+msgid " Error: Invalid dimension"
+msgstr ""
+
+#: src/gen.cc:409
+msgid "Division of "
+msgstr ""
+
+#: src/gen.cc:409 src/gen.cc:501
+msgid " by 0"
+msgstr ""
+
+#: src/gen.cc:413
+msgid "Unable to check sign: "
+msgstr ""
+
+#: src/gen.cc:417
+msgid "Invalid series expansion: "
+msgstr ""
+
+#: src/gen.cc:421
+msgid "Too few arguments: "
+msgstr ""
+
+#: src/gen.cc:425
+msgid "Too many arguments: "
+msgstr ""
+
+#: src/gen.cc:429
+msgid "Max order ("
+msgstr ""
+
+#: src/gen.cc:429 src/gen.cc:522
+msgid ") exceeded or non unidirectional series"
+msgstr ""
+
+#: src/gen.cc:433
+msgid "calculation size limit exceeded"
+msgstr ""
+
+#: src/gen.cc:453 src/gen.cc:457
+msgid "Error: Bad Argument Type"
+msgstr ""
+
+#: src/gen.cc:461 src/gen.cc:465
+msgid "Error: Bad Argument Value"
+msgstr ""
+
+#: src/gen.cc:469 src/gen.cc:473
+msgid "Error: Invalid dimension"
+msgstr ""
+
+#: src/gen.cc:501
+msgid "Error: Division of "
+msgstr ""
+
+#: src/gen.cc:505
+msgid "Error: Unable to check sign: "
+msgstr ""
+
+#: src/gen.cc:509
+msgid "Error: Invalid series expansion: "
+msgstr ""
+
+#: src/gen.cc:514
+msgid "Error: Too few arguments: "
+msgstr ""
+
+#: src/gen.cc:518
+msgid "Error: Too many arguments: "
+msgstr ""
+
+#: src/gen.cc:522
+msgid "Error: Max order ("
+msgstr ""
+
+#: src/gen.cc:526
+msgid "Error: calculation size limit exceeded"
+msgstr ""
+
+#: src/gen.cc:1235
+msgid "complex constructor"
+msgstr ""
+
+#: src/gen.cc:1291
+msgid "makegen of type "
+msgstr ""
+
+#: src/gen.cc:1303 src/gen.cc:1316
+msgid "complex<double>"
+msgstr ""
+
+#: src/gen.cc:1526
+msgid "Gen Destructor"
+msgstr ""
+
+#: src/gen.cc:1607
+msgid "Gen Operator ="
+msgstr ""
+
+#: src/gen.cc:1651
+msgid "To_int"
+msgstr ""
+
+#: src/gen.cc:1681
+msgid "gen.cc/_FRAC2_SYMB"
+msgstr ""
+
+#: src/gen.cc:2067 src/gen.cc:2080
+msgid "Running non recursive evaluator"
+msgstr ""
+
+#: src/gen.cc:2077
+msgid "Too many recursions)"
+msgstr ""
+
+#: src/gen.cc:2643 src/gen.cc:2653
+msgid "Undefined"
+msgstr ""
+
+#: src/gen.cc:2645 src/gen.cc:2656
+msgid "Infinity error"
+msgstr ""
+
+#: src/gen.cc:2997
+msgid "Conj"
+msgstr ""
+
+#: src/gen.cc:3436
+msgid "reim"
+msgstr ""
+
+#: src/gen.cc:3555
+msgid "Re"
+msgstr ""
+
+#: src/gen.cc:3670
+msgid "Im"
+msgstr ""
+
+#: src/gen.cc:3832
+msgid "Abs"
+msgstr ""
+
+#: src/gen.cc:3861
+msgid "Linfnorm"
+msgstr ""
+
+#: src/gen.cc:3954
+msgid "Arg"
+msgstr ""
+
+#: src/gen.cc:3995
+msgid "Bindigits"
+msgstr ""
+
+#: src/gen.cc:4005 src/gen.cc:4007
+msgid "addpoly"
+msgstr ""
+
+#: src/gen.cc:4075 src/gen.cc:4077
+msgid "Bad mod:"
+msgstr ""
+
+#: src/gen.cc:4103 src/gen.cc:4112 src/gen.cc:4120
+msgid "Mod are different"
+msgstr ""
+
+#: src/gen.cc:4876 src/gen.cc:4878
+msgid "subpoly"
+msgstr ""
+
+#: src/gen.cc:5440 src/gen.cc:5442
+msgid "mulpoly"
+msgstr ""
+
+#: src/gen.cc:6243
+msgid ""
+"Warning, ^ is ambiguous on non square matrices. Use .^ to apply ^ element by "
+"element."
+msgstr ""
+
+#: src/gen.cc:6474
+msgid "Use matpow to force computation of a power of matrix via jordanisation"
+msgstr ""
+
+#: src/gen.cc:6515
+msgid "Negative to a fractional power"
+msgstr ""
+
+#: src/gen.cc:6769
+msgid "Unable to multiply two graphic objects"
+msgstr ""
+
+#: src/gen.cc:7025
+msgid "Inv of non-square matrix"
+msgstr ""
+
+#: src/gen.cc:7158
+msgid "Pow"
+msgstr ""
+
+#: src/gen.cc:7285
+msgid "iquo"
+msgstr ""
+
+#: src/gen.cc:7441
+msgid ""
+"Warning: A/B with B a square matrix is a misleading notation interpreted as "
+"inv(B)*A"
+msgstr ""
+
+#: src/gen.cc:7444
+msgid ""
+"Warning, pointwise division of a by b. For matrix division, please use inv(b)"
+"*a or a*inv(b)"
+msgstr ""
+
+#: src/gen.cc:7648
+msgid "rdiv"
+msgstr ""
+
+#: src/gen.cc:8248
+msgid ""
+"Warning, sign might return 0 incorrectly because the value of eps is too "
+"large "
+msgstr ""
+
+#: src/gen.cc:8691
+msgid "Gen [int]"
+msgstr ""
+
+#: src/gen.cc:8697
+msgid "Index outside range : "
+msgstr ""
+
+#: src/gen.cc:8981
+msgid "Warning, evaluating ("
+msgstr ""
+
+#: src/gen.cc:9006
+msgid "Index out of range"
+msgstr ""
+
+#: src/gen.cc:9101
+msgid "islesscomplexthan mod"
+msgstr ""
+
+#: src/gen.cc:9376
+msgid "power_basis_exp"
+msgstr ""
+
+#: src/gen.cc:9966
+msgid "symgcd"
+msgstr ""
+
+#: src/gen.cc:10048
+msgid "simplify: Polynomials do not have the same dimension"
+msgstr ""
+
+#: src/gen.cc:10096
+msgid "gen.cc:simplify"
+msgstr ""
+
+#: src/gen.cc:10100
+msgid "gen.cc:simplify/tmp.type!=_EXT"
+msgstr ""
+
+#: src/gen.cc:10368
+msgid "irem"
+msgstr ""
+
+#: src/gen.cc:10539
+msgid "Not invertible "
+msgstr ""
+
+#: src/gen.cc:10564 src/gen.cc:10567
+msgid "invmod"
+msgstr ""
+
+#: src/gen.cc:10705
+msgid "Reconstructed denominator is not prime with modulo"
+msgstr ""
+
+#: src/gen.cc:10753 src/gen.cc:10770
+msgid "powmod"
+msgstr ""
+
+#: src/gen.cc:10791
+msgid "No Integer Solution"
+msgstr ""
+
+#: src/gen.cc:10798
+msgid "isqrt"
+msgstr ""
+
+#: src/gen.cc:10840
+msgid "is_probab_prime_p"
+msgstr ""
+
+#: src/gen.cc:10874
+msgid "nextprime"
+msgstr ""
+
+#: src/gen.cc:10883 src/gen.cc:10904
+msgid "Interrupted"
+msgstr ""
+
+#: src/gen.cc:10891
+msgid "prevprime"
+msgstr ""
+
+#: src/gen.cc:10914
+msgid "jacobi"
+msgstr ""
+
+#: src/gen.cc:10950
+msgid "legendre"
+msgstr ""
+
+#: src/gen.cc:10991
+msgid "has_denominator"
+msgstr ""
+
+#: src/gen.cc:11287 src/gen.cc:11298 src/gen.cc:11306
+msgid ""
+"Warning, i is usually sqrt(-1), I'm using a symbolic variable instead but "
+"you should check your input"
+msgstr ""
+
+#: src/gen.cc:11649
+msgid "Empty array"
+msgstr ""
+
+#: src/gen.cc:11654
+msgid "Bad array indexes"
+msgstr ""
+
+#: src/gen.cc:13950 src/gen.cc:14009
+msgid "Unable to convert to real "
+msgstr ""
+
+#: src/gen.cc:14095 src/gen.cc:14116 src/gen.cc:14222 src/gen.cc:14241
+msgid "real_object + gen"
+msgstr ""
+
+#: src/gen.cc:14378
+msgid ""
+"Compile with MPFR or USE_GMP_REPLACEMENTS if you want transcendental long "
+"float support"
+msgstr ""
+
+#: src/gen.cc:14666
+msgid "real_interval inv"
+msgstr ""
+
+#: src/gen.cc:14682 src/gen.cc:14704 src/gen.cc:14715 src/gen.cc:14726
+#: src/gen.cc:14737 src/gen.cc:14748 src/gen.cc:14759 src/gen.cc:14770
+#: src/gen.cc:14781 src/gen.cc:14792 src/gen.cc:14803 src/gen.cc:14814
+#: src/gen.cc:14825 src/gen.cc:14836 src/gen.cc:14847
+msgid "real_interval sqrt"
+msgstr ""
+
+#: src/gen.cc:14693
+msgid "real_interval abs"
+msgstr ""
+
+#: src/gen.cc:14923
+msgid "real_interval mul"
+msgstr ""
+
+#: src/gen.cc:14953
+msgid "real_interval mul 2"
+msgstr ""
+
+#: src/gen.cc:15055
+msgid "MPFR error reading binary "
+msgstr ""
+
+#: src/gen.cc:15057
+msgid "Error no MPFR reading "
+msgstr ""
+
+#: src/help.cc:165 src/help.cc:633
+msgid "Best match has score "
+msgstr ""
+
+#: src/help.cc:597
+msgid "No help available for "
+msgstr ""
+
+#: src/help.cc:658
+msgid "See also: "
+msgstr ""
