@@ -1,0 +1,5 @@
+ln((sin(x)^2+2*sin(x)+1)/(sin(x)^2-2*sin(x)+1))/4,
+ln(a*b/c),
+1/7*cos(2*pi/7)*ln(x^2-2*cos(2*pi/7)*x+1)-2/7*sin(2*pi/7)*atan((x-cos(2*pi/7))/sin(2*pi/7))+1/7*ln(abs(x-1))-1/7*cos(3*pi/7)*ln(x^2+2*cos(3*pi/7)*x+1)-2/7*sin(3*pi/7)*atan((x+cos(3*pi/7))/sin(3*pi/7))-1/7*cos(pi/7)*ln(x^2+2*cos(pi/7)*x+1)-2/7*sin(pi/7)*atan((x+cos(pi/7))/sin(pi/7)),
+ln(abs(x)),
+(-i)*x^2+integrate(i*x/(exp(2*i*x)+1)+i*x/(exp(i*x*2)+1),x)
