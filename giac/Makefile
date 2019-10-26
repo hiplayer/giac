@@ -4,7 +4,7 @@ include $(CLEAR_VARS)
 
 LOCAL_MODULE := giac
 
-GIAC_DIR:=giac-1.2.3
+GIAC_DIR:=giac-1.5.0
 
 LOCAL_SRC_FILES:= \
 	$(GIAC_DIR)/src/input_lexer.cc \
@@ -77,7 +77,7 @@ LOCAL_SRC_FILES:= \
 	$(GIAC_DIR)/src/Flv_Table.cc \
 	$(GIAC_DIR)/src/gl2ps.cc \
 	$(GIAC_DIR)/src/icas.cc \
-	#$(GIAC_DIR)/src/Xcas1.cc \
+	$(GIAC_DIR)/src/Xcas1.cc \
 
 LOCAL_CFLAGS := \
 	-DHAVE_CONFIG_H -DIN_GIAC -fno-strict-aliasing -DGIAC_GENERIC_CONSTANTS

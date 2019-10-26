@@ -5,5 +5,5 @@ OBJECTS="input_lexer.lo sym2poly.lo gausspol.lo threaded.lo moyal.lo maple.lo ti
 
 for i in $OBJECTS
 do
-    echo "giac-1.2.1/src/"$i" \\"|sed "s/\.lo/.cc/g"
+    echo "giac-1.5.0/src/"$i" \\"|sed "s/\.lo/.cc/g"
 done

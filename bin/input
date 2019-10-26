@@ -2,3 +2,4 @@ simplify(int(1/cos(x),x));
 simplify(ln(a)-ln(c)+ln(b));
 int(1/(x^7-1),x);
 int(1/(x-00),x);
+simplify(int(x/(2*i)/(exp(i*x)+exp(-i*x))*2*exp(i*x)+(-i)*x/(exp((-i)*x)^2+1),x));

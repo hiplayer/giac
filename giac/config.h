@@ -480,7 +480,9 @@
 
 /* Define as the maximum value of type 'size_t', if the system doesn't define
    it. */
+#ifndef SIZE_MAX
 #define SIZE_MAX 18446744073709551615UL
+#endif
 
 /* If using the C implementation of alloca, define if you know the
    direction of stack growth for your system; otherwise it will be
