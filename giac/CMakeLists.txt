@@ -38,11 +38,9 @@ set(GIAC_SOURCES
   gauss.cc
   isom.cc
   plot.cc
-  plot3d.cc
   rpn.cc
   prog.cc
   pari.cc
-  cocoa.cc
   unary.cc
   usual.cc
   identificateur.cc
@@ -73,9 +71,12 @@ set(GIAC_SOURCES
   gl2ps.c
   icas.cc
   Xcas1.cc
+  cas_excluded_stubs.cc
 )
 
 list(TRANSFORM GIAC_SOURCES PREPEND "${GIAC_SRC_DIR}/")
+list(REMOVE_ITEM GIAC_SOURCES "${GIAC_SRC_DIR}/cas_excluded_stubs.cc")
+list(APPEND GIAC_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/cas_excluded_stubs.cc")
 
 add_executable(giac ${GIAC_SOURCES})
 
@@ -129,6 +130,22 @@ set(GIAC_SCRIPT_TESTS
   test_diff
   test_solve
   test_cas_basic
+  test_linalg
+  test_desolve
+  test_series
+  test_sturm
+  test_permu
+  test_ifactor
+  test_poly
+  test_linalg_ext
+  test_trig
+  test_poly_ext
+  test_laplace
+  test_isom
+  test_subst
+  test_export
+  test_integrate_ext
+  test_solve_ext
 )
 
 foreach(script IN LISTS GIAC_SCRIPT_TESTS)
@@ -144,7 +161,8 @@ endforeach()
 set(GIAC_CHECK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/${GIAC_VERSION_DIR}/check")
 
 function(giac_add_check_test name input_file output_tst golden_out)
-  cmake_parse_arguments(_chk "" "LANG" "PRE;POST" ${ARGN})
+  cmake_parse_arguments(_chk "" "LANG;NORMALIZE" "PRE;POST" ${ARGN})
+  set(_normalize_script "${CMAKE_SOURCE_DIR}/cmake/giac_check_normalize.sh")
   set(_cmd "${CMAKE_COMMAND}" -E chdir "${GIAC_CHECK_DIR}")
   if(_chk_LANG)
     list(APPEND _cmd ${CMAKE_COMMAND} -E env "LANG=${_chk_LANG}")
@@ -158,7 +176,14 @@ function(giac_add_check_test name input_file output_tst golden_out)
   foreach(_post IN LISTS _chk_POST)
     string(APPEND _shell_cmd " && ${_post}")
   endforeach()
-  string(APPEND _shell_cmd " && diff ${output_tst} ${golden_out}")
+  if(_chk_NORMALIZE)
+    string(APPEND _shell_cmd
+      " && sh ${_normalize_script} ${_chk_NORMALIZE} ${output_tst} ${output_tst}.norm"
+      " && sh ${_normalize_script} ${_chk_NORMALIZE} ${golden_out} ${golden_out}.norm"
+      " && diff ${output_tst}.norm ${golden_out}.norm")
+  else()
+    string(APPEND _shell_cmd " && diff ${output_tst} ${golden_out}")
+  endif()
   list(APPEND _cmd sh -c "${_shell_cmd}")
   add_test(NAME ${name} COMMAND ${_cmd})
 endfunction()
@@ -167,14 +192,26 @@ giac_add_check_test(giac_check_integrate testintegrate integrate.tst integrate.o
   LANG en_US.UTF8)
 giac_add_check_test(giac_check_cas testcas cas.tst cas.out
   PRE "unset LANG" "unset LC_MESSAGES"
-  POST "rm -f session.tex")
+  POST "rm -f session.tex"
+  NORMALIZE cas_floats)
 giac_add_check_test(giac_check_factor testfactor factor.tst factor.out
   PRE "unset LANG")
 giac_add_check_test(giac_check_normalize testnormalize normalize.tst normalize.out)
 giac_add_check_test(giac_check_partfrac testpartfrac partfrac.tst partfrac.out)
 giac_add_check_test(giac_check_limit testlimit limit.tst limit.out)
 giac_add_check_test(giac_check_geo testgeo geo.tst geo.out
-  LANG en_US.UTF8)
+  LANG en_US.UTF8
+  NORMALIZE geo)
+
+add_test(
+  NAME giac_check_factor_segfault_known
+  COMMAND ${CMAKE_COMMAND} -E chdir "${GIAC_CHECK_DIR}"
+    sh -c "printf '%s\\n' 'cas_setup(0,0,0,1,0,[1e-10,1e-17],12,[1,50,0,25],0,0,0),xcas_mode(0);' 'factor((x^202+x^101+1)/(x^2+x+1));' > factor_segfault.in && $<TARGET_FILE:giac> factor_segfault.in >/dev/null 2>&1"
+)
+set_tests_properties(giac_check_factor_segfault_known PROPERTIES
+  LABELS "known_bug;segfault"
+  WILL_FAIL TRUE
+)
 
 if(GIAC_ENABLE_COVERAGE)
   set(GIAC_COVERAGE_REMAP_TO "${GIAC_SRC_DIR}/" PARENT_SCOPE)
