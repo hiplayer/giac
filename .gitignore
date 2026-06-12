@@ -1,3 +1,5 @@
 build/
+build-coverage/
 bin/
 obj/
+session.tex

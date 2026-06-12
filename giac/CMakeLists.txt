@@ -123,6 +123,12 @@ set(GIAC_SCRIPT_TESTS
   2
   3
   input
+  test_integrate
+  test_factor
+  test_limit
+  test_diff
+  test_solve
+  test_cas_basic
 )
 
 foreach(script IN LISTS GIAC_SCRIPT_TESTS)
@@ -134,6 +140,41 @@ foreach(script IN LISTS GIAC_SCRIPT_TESTS)
     WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
   )
 endforeach()
+
+set(GIAC_CHECK_DIR "${CMAKE_CURRENT_SOURCE_DIR}/${GIAC_VERSION_DIR}/check")
+
+function(giac_add_check_test name input_file output_tst golden_out)
+  cmake_parse_arguments(_chk "" "LANG" "PRE;POST" ${ARGN})
+  set(_cmd "${CMAKE_COMMAND}" -E chdir "${GIAC_CHECK_DIR}")
+  if(_chk_LANG)
+    list(APPEND _cmd ${CMAKE_COMMAND} -E env "LANG=${_chk_LANG}")
+  endif()
+  set(_shell_cmd "")
+  foreach(_pre IN LISTS _chk_PRE)
+    string(APPEND _shell_cmd "${_pre} && ")
+  endforeach()
+  string(APPEND _shell_cmd
+    "$<TARGET_FILE:giac> ${input_file} > ${output_tst}")
+  foreach(_post IN LISTS _chk_POST)
+    string(APPEND _shell_cmd " && ${_post}")
+  endforeach()
+  string(APPEND _shell_cmd " && diff ${output_tst} ${golden_out}")
+  list(APPEND _cmd sh -c "${_shell_cmd}")
+  add_test(NAME ${name} COMMAND ${_cmd})
+endfunction()
+
+giac_add_check_test(giac_check_integrate testintegrate integrate.tst integrate.out
+  LANG en_US.UTF8)
+giac_add_check_test(giac_check_cas testcas cas.tst cas.out
+  PRE "unset LANG" "unset LC_MESSAGES"
+  POST "rm -f session.tex")
+giac_add_check_test(giac_check_factor testfactor factor.tst factor.out
+  PRE "unset LANG")
+giac_add_check_test(giac_check_normalize testnormalize normalize.tst normalize.out)
+giac_add_check_test(giac_check_partfrac testpartfrac partfrac.tst partfrac.out)
+giac_add_check_test(giac_check_limit testlimit limit.tst limit.out)
+giac_add_check_test(giac_check_geo testgeo geo.tst geo.out
+  LANG en_US.UTF8)
 
 if(GIAC_ENABLE_COVERAGE)
   set(GIAC_COVERAGE_REMAP_TO "${GIAC_SRC_DIR}/" PARENT_SCOPE)

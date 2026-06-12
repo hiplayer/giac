@@ -40,12 +40,31 @@ function(giac_add_coverage_report_target)
   set(_coverage_html "${CMAKE_BINARY_DIR}/coverage_html")
   set(_remap_script "${GIAC_CODE_COVERAGE_MODULE_DIR}/RemapCoverageInfo.cmake")
 
+  set(_gcov_tool gcov)
+  if(CMAKE_C_COMPILER_ID STREQUAL "GNU")
+    string(REGEX MATCH "^([0-9]+)" _gcc_major "${CMAKE_C_COMPILER_VERSION}")
+    if(_gcc_major)
+      find_program(_gcov_path "gcov-${_gcc_major}")
+      if(_gcov_path)
+        set(_gcov_tool "${_gcov_path}")
+      endif()
+    endif()
+  endif()
+  if(NOT IS_ABSOLUTE "${_gcov_tool}")
+    find_program(_gcov_path "${_gcov_tool}")
+    if(_gcov_path)
+      set(_gcov_tool "${_gcov_path}")
+    endif()
+  endif()
+  message(STATUS "Coverage gcov tool: ${_gcov_tool}")
+
   set(_coverage_commands
     COMMAND ${CMAKE_CTEST_COMMAND} --output-on-failure
     COMMAND ${LCOV_PATH}
       --directory "${CMAKE_BINARY_DIR}"
       --capture
       --output-file "${_coverage_info}"
+      --gcov-tool "${_gcov_tool}"
       --rc lcov_branch_coverage=1
     COMMAND ${LCOV_PATH}
       --remove "${_coverage_info}"
