@@ -117,3 +117,24 @@ if(GIAC_BUILD_GUI)
 endif()
 
 install(TARGETS giac RUNTIME DESTINATION bin)
+
+set(GIAC_SCRIPT_TESTS
+  1
+  2
+  3
+  input
+)
+
+foreach(script IN LISTS GIAC_SCRIPT_TESTS)
+  add_test(
+    NAME giac_bin_${script}
+    COMMAND $<TARGET_FILE:giac> "${CMAKE_SOURCE_DIR}/bin/${script}"
+  )
+  set_tests_properties(giac_bin_${script} PROPERTIES
+    WORKING_DIRECTORY "${CMAKE_SOURCE_DIR}"
+  )
+endforeach()
+
+if(GIAC_ENABLE_COVERAGE)
+  set(GIAC_COVERAGE_REMAP_TO "${GIAC_SRC_DIR}/" PARENT_SCOPE)
+endif()

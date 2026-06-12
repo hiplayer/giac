@@ -134,3 +134,9 @@ target_compile_options(tommath PRIVATE
 )
 
 set_target_properties(tommath PROPERTIES OUTPUT_NAME tommath)
+
+if(GIAC_ENABLE_COVERAGE)
+  add_executable(tommath_smoke_test "${CMAKE_CURRENT_SOURCE_DIR}/tests/smoke_test.c")
+  target_link_libraries(tommath_smoke_test PRIVATE tommath)
+  add_test(NAME tommath_smoke_test COMMAND tommath_smoke_test)
+endif()
