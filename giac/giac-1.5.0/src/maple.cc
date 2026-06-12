@@ -1000,7 +1000,7 @@ namespace giac {
     gen tmp(_exp2pow(_lin(recursive_normal(g,contextptr),contextptr),contextptr));
     vecteur l(lop(tmp,at_arg));
     if (!l.empty()){
-      vecteur lp=*apply(l,gen_feuille)._VECTptr;
+      vecteur lp=*giac::apply(gen(l),gen_feuille)._VECTptr;
       lp=*apply(lp,contextptr,arg_CPLX)._VECTptr;
       tmp=subst(tmp,l,lp,false,contextptr);
     }
@@ -2817,7 +2817,7 @@ namespace giac {
     vecteur uv(gen2vecteur(u));
     int uvs=int(uv.size());
     vecteur initcond;
-    aplatir(*apply(initcond0,equal2diff)._VECTptr,initcond);
+    aplatir(*giac::apply(gen(initcond0),equal2diff)._VECTptr,initcond);
     gen f=apply(f0,equal2diff);
     if (n.type!=_IDNT){
       identificateur N(" rsolve_N");

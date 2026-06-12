@@ -98,7 +98,7 @@
 #define HAVE_GETPWUID 1
 
 /* Define if the GNU gettext() function is already present or preinstalled. */
-/* #undef HAVE_GETTEXT */
+#define HAVE_GETTEXT 1
 
 /* Define to 1 if you have the `getuid' function. */
 #define HAVE_GETUID 1
