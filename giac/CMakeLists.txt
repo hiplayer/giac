@@ -146,6 +146,21 @@ set(GIAC_SCRIPT_TESTS
   test_export
   test_integrate_ext
   test_solve_ext
+  test_desolve_ext
+  test_sturm_ext
+  test_ifactor_ext
+  test_permu_ext
+  test_gauss_ext
+  test_integrate_more
+  test_special
+  test_modular
+  test_numerical
+  test_probstat
+  test_linalg_decomp
+  test_vector_calc
+  test_partfrac_ext
+  test_prog
+  test_groebner
 )
 
 foreach(script IN LISTS GIAC_SCRIPT_TESTS)
@@ -198,10 +213,16 @@ giac_add_check_test(giac_check_factor testfactor factor.tst factor.out
   PRE "unset LANG")
 giac_add_check_test(giac_check_normalize testnormalize normalize.tst normalize.out)
 giac_add_check_test(giac_check_partfrac testpartfrac partfrac.tst partfrac.out)
+giac_add_check_test(giac_check_partfrac_ext testpartfrac_ext partfrac_ext.tst partfrac_ext.out
+  LANG en_US.UTF8)
 giac_add_check_test(giac_check_limit testlimit limit.tst limit.out)
 giac_add_check_test(giac_check_geo testgeo geo.tst geo.out
   LANG en_US.UTF8
   NORMALIZE geo)
+giac_add_check_test(giac_check_other testother other.tst other.out
+  LANG en_US.UTF8)
+giac_add_check_test(giac_check_flanex flanex flanex.tst flanex.out
+  LANG en_US.UTF8)
 
 add_test(
   NAME giac_check_factor_segfault_known

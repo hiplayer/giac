@@ -1,0 +1,4 @@
+partfrac(1/(x^2-1));
+partfrac(1/(x^4-1));
+partfrac((x^5-2*x^3+1)/(x^4-2*x^3+2*x^2-2*x+1));
+partfrac((x^5-2*x^3+1)/(x^4-2*x^3+2*x^2-2*x+1),x);
