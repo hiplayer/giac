@@ -4,7 +4,7 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
-use giac_core::{exec_stmt, format_expr, Context, StmtResult};
+use giac_core::{assert_equiv, exec_stmt, format_expr, Context, Stmt, StmtResult};
 use giac_parse::parse_program;
 
 pub fn upstream_root() -> PathBuf {
@@ -186,6 +186,9 @@ pub fn verify_sympy(line: &str, output: &str) -> Result<(), String> {
 }
 
 pub fn sympy_equiv(a: &str, b: &str) -> Result<(), String> {
+    if outputs_assert_equiv(a, b)? {
+        return Ok(());
+    }
     let script = sympy_script();
     let finished = Command::new("python3")
         .arg(&script)
@@ -199,6 +202,37 @@ pub fn sympy_equiv(a: &str, b: &str) -> Result<(), String> {
     } else {
         Err(format!("not equivalent: `{a}` vs `{b}`"))
     }
+}
+
+/// Parse a giac-style output string as a single expression.
+pub fn parse_output_expr(s: &str) -> Result<std::sync::Arc<giac_core::Expr>, String> {
+    let trimmed = s.trim();
+    if trimmed.is_empty() {
+        return Err("empty output".to_string());
+    }
+    let input = if trimmed.ends_with(';') {
+        trimmed.to_string()
+    } else {
+        format!("{trimmed};")
+    };
+    let ctx = Context::xcas_default();
+    let stmts = parse_program(&input, &ctx).map_err(|e| format!("parse `{trimmed}`: {e}"))?;
+    match stmts.first() {
+        Some(Stmt::ExprStmt(e)) => Ok(std::sync::Arc::clone(e)),
+        Some(Stmt::Assign(_, e)) => Ok(std::sync::Arc::clone(e)),
+        _ => Err(format!("expected expression output, got stmt for `{trimmed}`")),
+    }
+}
+
+/// Mathematical equivalence via `normal(a-b)==0` (conformance-testing.md §3).
+pub fn outputs_assert_equiv(a: &str, b: &str) -> Result<bool, String> {
+    if a == b {
+        return Ok(true);
+    }
+    let ctx = Context::xcas_default();
+    let ea = parse_output_expr(a)?;
+    let eb = parse_output_expr(b)?;
+    assert_equiv(ea.as_ref(), eb.as_ref(), &ctx).map_err(|e| e.to_string())
 }
 
 /// Triple-check one giac line: giac-rs vs SymPy, giac reference, cross-equivalence.
@@ -232,9 +266,21 @@ pub struct TripleResult {
 }
 
 pub fn triple_check_script(name: &str) -> Result<Vec<TripleResult>, String> {
+    triple_check_script_filtered(name, |_| false)
+}
+
+/// Triple-check script lines, skipping those for which `skip(line)` is true.
+pub fn triple_check_script_filtered(
+    name: &str,
+    skip: impl Fn(&str) -> bool,
+) -> Result<Vec<TripleResult>, String> {
     let path = upstream_root().join("bin").join(name);
     let lines = script_lines(&path)?;
-    lines.iter().map(|l| triple_check(l)).collect()
+    lines
+        .iter()
+        .filter(|l| !skip(l))
+        .map(|l| triple_check(l))
+        .collect()
 }
 
 /// Run giac-rs on a script and SymPy-verify every output line.

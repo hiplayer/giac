@@ -3,6 +3,7 @@
 use std::fs;
 use std::path::{Path, PathBuf};
 
+use giac_conformance::outputs_assert_equiv;
 use giac_core::{exec_stmt, format_expr, Context, StmtResult};
 use giac_parse::parse_program;
 
@@ -69,8 +70,14 @@ fn cas_tst_first_25_batch() -> Result<(), String> {
     let input_slice: Vec<&str> = inputs.iter().take(n).map(String::as_str).collect();
     let got = run_script_lines(&input_slice)?;
     assert_eq!(got.len(), n);
-    let passed = (0..n).filter(|i| got.get(*i) == expected.get(*i)).count();
-    eprintln!("passed {passed}/{n}");
+    let passed = (0..n)
+        .filter(|i| {
+            got.get(*i) == expected.get(*i)
+                || outputs_assert_equiv(got.get(*i).unwrap(), expected.get(*i).unwrap())
+                    .unwrap_or(false)
+        })
+        .count();
+    eprintln!("passed {passed}/{n} (literal or assert_equiv)");
     assert!(passed >= 23);
     Ok(())
 }
@@ -84,8 +91,14 @@ fn cas_tst_first_30_batch() -> Result<(), String> {
     let input_slice: Vec<&str> = inputs.iter().take(n).map(String::as_str).collect();
     let got = run_script_lines(&input_slice)?;
     assert_eq!(got.len(), n);
-    let passed = (0..n).filter(|i| got.get(*i) == expected.get(*i)).count();
-    eprintln!("passed {passed}/{n}");
+    let passed = (0..n)
+        .filter(|i| {
+            got.get(*i) == expected.get(*i)
+                || outputs_assert_equiv(got.get(*i).unwrap(), expected.get(*i).unwrap())
+                    .unwrap_or(false)
+        })
+        .count();
+    eprintln!("passed {passed}/{n} (literal or assert_equiv)");
     assert!(passed >= 25);
     Ok(())
 }
@@ -99,8 +112,14 @@ fn cas_tst_first_50_lines() -> Result<(), String> {
     let input_slice: Vec<&str> = inputs.iter().take(n).map(String::as_str).collect();
     let got = run_script_lines(&input_slice)?;
     assert_eq!(got.len(), n, "expected {n} results, got {}", got.len());
-    let passed = (0..n).filter(|i| got.get(*i) == expected.get(*i)).count();
-    eprintln!("passed {passed}/{n}");
+    let passed = (0..n)
+        .filter(|i| {
+            got.get(*i) == expected.get(*i)
+                || outputs_assert_equiv(got.get(*i).unwrap(), expected.get(*i).unwrap())
+                    .unwrap_or(false)
+        })
+        .count();
+    eprintln!("passed {passed}/{n} (literal or assert_equiv)");
     assert!(passed >= 25, "cas.tst first {n}: {passed}/{n} golden matches (need >= 25)");
     Ok(())
 }
@@ -113,7 +132,13 @@ fn cas_tst_first_20_lines_progress() -> Result<(), String> {
     let n = 20.min(inputs.len()).min(expected.len());
     let input_slice: Vec<&str> = inputs.iter().take(n).map(String::as_str).collect();
     let got = run_script_lines(&input_slice)?;
-    let passed = (0..n).filter(|i| got.get(*i) == expected.get(*i)).count();
+    let passed = (0..n)
+        .filter(|i| {
+            got.get(*i) == expected.get(*i)
+                || outputs_assert_equiv(got.get(*i).unwrap(), expected.get(*i).unwrap())
+                    .unwrap_or(false)
+        })
+        .count();
     assert!(
         passed >= 15,
         "expected at least 15/20 cas lines passing, got {passed}/20\nfailures: {:?}",

@@ -911,13 +911,24 @@ pub fn expr_to_f64(c: &ExprArc, ctx: &Context) -> Result<f64, EvalError> {
     }
 }
 
-pub fn f64_to_expr(v: f64) -> ExprArc {
-    if (v - v.round()).abs() < 1e-12 {
-        Expr::int(v.round() as i64)
+pub fn f64_to_expr_numeric(v: f64) -> ExprArc {
+    if !v.is_finite() {
+        return Expr::int(0);
+    }
+    let tol = 1e-10_f64 * v.abs().max(1.0);
+    if (v - v.round()).abs() < tol {
+        return Expr::int(v.round() as i64);
+    }
+    const DEN: i64 = 1_000_000_000_000;
+    let num = (v * DEN as f64).round() as i64;
+    if num == 0 {
+        return Expr::int(0);
+    }
+    let (n, d) = crate::num_util::reduce_rational_pair(num, DEN);
+    if d == 1 {
+        Expr::int(n)
     } else {
-        let den = 1_000_000_i64;
-        let num = (v * den as f64).round() as i64;
-        Expr::rat(num, den)
+        Expr::rat(n, d)
     }
 }
 

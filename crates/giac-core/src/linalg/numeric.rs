@@ -7,7 +7,7 @@ use giac_linalg::{lu_decomp, qr_decomp, svd_decomp};
 use crate::context::Context;
 use crate::error::EvalError;
 use crate::expr::{Expr, ExprArc};
-use crate::linalg::symbolic::{f64_to_expr, try_to_f64_matrix};
+use crate::linalg::symbolic::{f64_to_expr_numeric, try_to_f64_matrix};
 
 pub fn eval_lu(m: &ExprArc, ctx: &Context) -> Result<ExprArc, EvalError> {
     let a = try_to_f64_matrix(m, ctx)?;
@@ -33,7 +33,7 @@ pub fn eval_svd(m: &ExprArc, ctx: &Context) -> Result<ExprArc, EvalError> {
     let a = try_to_f64_matrix(m, ctx)?;
     let (u, sigma, vt) = svd_decomp(&a).ok_or(EvalError::TypeError("SVD failed"))?;
     let u_e = f64_matrix_to_giac(&u);
-    let s_e: Vec<ExprArc> = sigma.into_iter().map(f64_to_expr).collect();
+    let s_e: Vec<ExprArc> = sigma.into_iter().map(f64_to_expr_numeric).collect();
     let vt_e = f64_matrix_to_giac(&vt);
     Ok(Arc::new(Expr::Seq(vec![
         u_e,
@@ -45,7 +45,7 @@ pub fn eval_svd(m: &ExprArc, ctx: &Context) -> Result<ExprArc, EvalError> {
 fn f64_matrix_to_giac(m: &[Vec<f64>]) -> ExprArc {
     let rows: Vec<Vec<ExprArc>> = m
         .iter()
-        .map(|row| row.iter().map(|&v| f64_to_expr(v)).collect())
+        .map(|row| row.iter().map(|&v| f64_to_expr_numeric(v)).collect())
         .collect();
     Arc::new(Expr::GiacMatrix(rows))
 }

@@ -1,5 +1,6 @@
 use std::sync::Arc;
 
+use giac_linalg::format_float;
 use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::One;
@@ -50,10 +51,20 @@ fn format_mod(a: &Arc<Expr>, m: &Arc<Expr>) -> String {
 
 fn format_rational(r: &Ratio<BigInt>) -> String {
     if r.denom().is_one() {
-        r.numer().to_string()
-    } else {
-        format!("{}/{}", r.numer(), r.denom())
+        return r.numer().to_string();
     }
+    // Numeric LU/QR/SVD use large-denominator rationals; print as cas_floats (§2.1).
+    if r.denom() > &BigInt::from(1_000_000) {
+        if let (Ok(n), Ok(d)) = (
+            r.numer().to_string().parse::<f64>(),
+            r.denom().to_string().parse::<f64>(),
+        ) {
+            if d != 0.0 {
+                return format_float(n / d, 10);
+            }
+        }
+    }
+    format!("{}/{}", r.numer(), r.denom())
 }
 
 fn format_complex(re: &Arc<Expr>, im: &Arc<Expr>) -> String {

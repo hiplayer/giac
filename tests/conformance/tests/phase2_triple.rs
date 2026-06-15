@@ -1,13 +1,13 @@
 //! Phase 2 triple validation: giac-rs + Giac reference + SymPy (third-party CAS).
 
 use giac_conformance::{
-    run_giac, run_line, sympy_equiv, triple_check_script, upstream_root, verify_sympy,
+    run_giac, run_line, sympy_equiv, triple_check_script_filtered, upstream_root, verify_sympy,
 };
 
 /// Lines from bin/test_poly — giac-rs must pass SymPy; cross-check Giac.
 #[test]
 fn test_poly_triple() -> Result<(), String> {
-    let results = triple_check_script("test_poly")?;
+    let results = triple_check_script_filtered("test_poly", |_| false)?;
     assert_eq!(results.len(), 5);
     for r in &results {
         assert!(r.sympy_rs_ok, "giac-rs failed SymPy: {} -> {}", r.line, r.giac_rs);
@@ -25,7 +25,7 @@ fn test_poly_triple() -> Result<(), String> {
 /// Extended polynomial ops — SymPy property checks on giac-rs; format diffs vs giac allowed.
 #[test]
 fn test_poly_ext_triple() -> Result<(), String> {
-    let results = triple_check_script("test_poly_ext")?;
+    let results = triple_check_script_filtered("test_poly_ext", |_| false)?;
     assert_eq!(results.len(), 7);
     for r in &results {
         if !r.sympy_rs_ok && !is_known_sympy_gap(&r.line) {
@@ -46,7 +46,7 @@ fn test_poly_ext_triple() -> Result<(), String> {
 
 #[test]
 fn test_modular_triple() -> Result<(), String> {
-    let results = triple_check_script("test_modular")?;
+    let results = triple_check_script_filtered("test_modular", |_| false)?;
     assert_eq!(results.len(), 8);
     for r in &results {
         if !r.sympy_rs_ok && !is_known_sympy_gap(&r.line) {
@@ -67,7 +67,7 @@ fn test_modular_triple() -> Result<(), String> {
 
 #[test]
 fn test_factor_triple() -> Result<(), String> {
-    let results = triple_check_script("test_factor")?;
+    let results = triple_check_script_filtered("test_factor", |_| false)?;
     assert_eq!(results.len(), 3);
     for r in &results {
         assert!(r.sympy_rs_ok, "giac-rs SymPy: {} -> {}", r.line, r.giac_rs);
@@ -81,7 +81,7 @@ fn test_factor_triple() -> Result<(), String> {
 /// greduce: Giac + SymPy agree; giac-rs MVP may not reduce (known gap).
 #[test]
 fn test_groebner_triple() -> Result<(), String> {
-    let results = triple_check_script("test_groebner")?;
+    let results = triple_check_script_filtered("test_groebner", |_| false)?;
     assert_eq!(results.len(), 2);
     for r in &results {
         assert!(

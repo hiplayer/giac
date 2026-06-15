@@ -1,7 +1,8 @@
 //! Phase 3 triple validation: giac-rs + Giac reference + SymPy (third-party CAS).
 
 use giac_conformance::{
-    run_giac, run_line, script_lines, sympy_equiv, triple_check, upstream_root, verify_sympy,
+    run_giac, run_line, script_lines, sympy_equiv, triple_check, triple_check_script_filtered,
+    upstream_root, verify_sympy,
 };
 
 // ── Script-level triple checks ────────────────────────────────────────
@@ -32,15 +33,10 @@ fn test_linalg_triple() -> Result<(), String> {
 /// test_linalg_ext: ker/image/tran/pcar — SymPy on giac-rs; jordan/egv are partial.
 #[test]
 fn test_linalg_ext_triple() -> Result<(), String> {
-    let path = upstream_root().join("bin/test_linalg_ext");
-    let lines = script_lines(&path)?;
-    assert_eq!(lines.len(), 6, "test_linalg_ext should have 6 lines");
-    for line in &lines {
-        if is_skip_line(line) {
-            continue;
-        }
-        let r = triple_check(line)?;
-        if !r.sympy_rs_ok && !is_known_sympy_gap(line) {
+    let results = triple_check_script_filtered("test_linalg_ext", is_skip_line)?;
+    assert_eq!(results.len(), 4, "test_linalg_ext: 4 checked lines (2 skipped)");
+    for r in &results {
+        if !r.sympy_rs_ok && !is_known_sympy_gap(&r.line) {
             return Err(format!(
                 "giac-rs failed SymPy on {}: {}",
                 r.line, r.giac_rs
@@ -54,23 +50,18 @@ fn test_linalg_ext_triple() -> Result<(), String> {
 #[test]
 fn test_linalg_decomp_triple() -> Result<(), String> {
     let path = upstream_root().join("bin/test_linalg_decomp");
-    let lines = script_lines(&path)?;
-    assert_eq!(lines.len(), 6, "test_linalg_decomp should have 6 lines");
-    for line in &lines {
-        if is_skip_line(line) {
+    assert_eq!(script_lines(&path)?.len(), 6, "test_linalg_decomp should have 6 lines");
+    let results = triple_check_script_filtered("test_linalg_decomp", is_skip_line)?;
+    assert_eq!(results.len(), 5, "test_linalg_decomp: 5 checked lines (gramschmidt skipped)");
+    for r in &results {
+        if is_numerical_decomp(&r.line) {
+            verify_reconstruction(&r.line, &r.giac_rs)?;
             continue;
         }
-        let r = triple_check(line)?;
-        if is_numerical_decomp(line) {
-            if !is_known_numeric_gap(line) {
-                verify_reconstruction(line, &r.giac_rs)?;
-            }
-            continue;
-        }
-        if !r.sympy_rs_ok && !is_known_sympy_gap(line) {
+        if !r.sympy_rs_ok && !is_known_sympy_gap(&r.line) {
             return Err(format!(
                 "giac-rs failed SymPy on {}: {}",
-                line, r.giac_rs
+                r.line, r.giac_rs
             ));
         }
     }
@@ -329,11 +320,6 @@ fn is_skip_line(line: &str) -> bool {
 
 fn is_numerical_decomp(line: &str) -> bool {
     line.starts_with("lu(") || line.starts_with("qr(") || line.starts_with("svd(")
-}
-
-fn is_known_numeric_gap(line: &str) -> bool {
-    // giac-rs 3x3 SVD rationals do not reconstruct A (see giac reference)
-    matches!(line, "svd([[1,2,1],[3,4,1],[1,5,6]])")
 }
 
 /// For numerical decompositions, verify SymPy can parse and validate

@@ -52,4 +52,28 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn svd_3x3_reconstructs() {
+        let a = vec![
+            vec![1.0, 2.0, 1.0],
+            vec![3.0, 4.0, 1.0],
+            vec![1.0, 5.0, 6.0],
+        ];
+        let (u, s, vt) = svd_decomp(&a).unwrap();
+        assert_eq!(s.len(), 3);
+        for i in 0..3 {
+            for j in 0..3 {
+                let mut sum = 0.0;
+                for k in 0..3 {
+                    sum += u[i][k] * s[k] * vt[k][j];
+                }
+                assert!(
+                    (sum - a[i][j]).abs() < 1e-9,
+                    "A[{i}][{j}] got {sum} want {}",
+                    a[i][j]
+                );
+            }
+        }
+    }
 }

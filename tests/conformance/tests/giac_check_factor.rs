@@ -4,8 +4,8 @@
 //! Golden literal match is reported but not required until general factor is implemented.
 
 use giac_conformance::{
-    factor_check_paths, load_factor_check_lines, run_lines, sympy_equiv, sympy_verify_lines,
-    upstream_root, verify_sympy,
+    factor_check_paths, load_factor_check_lines, outputs_assert_equiv, run_lines, sympy_equiv,
+    sympy_verify_lines, upstream_root, verify_sympy,
 };
 
 #[test]
@@ -60,14 +60,14 @@ fn giac_check_factor_golden_report() -> Result<(), String> {
             exact += 1;
             continue;
         }
-        if sympy_equiv(out, want).is_ok() {
+        if outputs_assert_equiv(out, want).unwrap_or(false) || sympy_equiv(out, want).is_ok() {
             equiv += 1;
         } else {
             eprintln!("factor golden diff: `{line}` -> rs=`{out}` giac=`{want}`");
         }
     }
     eprintln!(
-        "giac_check_factor: {}/{} exact, {}/{} sympy-equivalent to factor.out",
+        "giac_check_factor: {}/{} exact, {}/{} equivalent to factor.out",
         exact,
         inputs.len(),
         exact + equiv,

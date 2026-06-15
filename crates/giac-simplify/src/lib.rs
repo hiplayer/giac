@@ -4,11 +4,11 @@
 #![cfg_attr(not(test), warn(clippy::unwrap_used))]
 #![cfg_attr(not(test), warn(clippy::expect_used))]
 
-pub use giac_core::{expand, factor, normal, ratnormal};
+pub use giac_core::{assert_equiv, expand, factor, is_zero, normal, ratnormal, sub};
 
 #[cfg(test)]
 mod tests {
-    use giac_core::{format_expr, normal, expand, factor, Context, Expr};
+    use giac_core::{format_expr, normal, expand, factor, assert_equiv, Context, Expr};
 
     #[test]
     fn facade_normal_matches_core() {
@@ -39,6 +39,14 @@ mod tests {
         let r = factor(e.as_ref(), &ctx).unwrap();
         let s = format_expr(r.as_ref());
         assert!(s.contains("(x-1)") && s.contains("(x+1)"));
+    }
+
+    #[test]
+    fn facade_assert_equiv_commutative() {
+        let ctx = Context::default();
+        let a = Expr::add(vec![Expr::sym("x"), Expr::int(1)]);
+        let b = Expr::add(vec![Expr::int(1), Expr::sym("x")]);
+        assert!(assert_equiv(a.as_ref(), b.as_ref(), &ctx).unwrap());
     }
 
     #[test]

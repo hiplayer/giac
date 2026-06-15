@@ -129,9 +129,7 @@ fn is_known_sympy_gap(line: &str) -> bool {
         || line.starts_with("gramschmidt(")
         || matches!(
             line,
-            "jordan([[1,1],[0,1]])"
-                | "egv([[4,1,-2],[1,2,-1],[2,1,0]])"
-                | "svd([[1,2,1],[3,4,1],[1,5,6]])"
+            "jordan([[1,1],[0,1]])" | "egv([[4,1,-2],[1,2,-1],[2,1,0]])"
         )
 }
 
@@ -139,9 +137,7 @@ fn is_phase3_skip(line: &str) -> bool {
     line.starts_with("gramschmidt(")
         || matches!(
             line,
-            "jordan([[1,1],[0,1]])"
-                | "egv([[4,1,-2],[1,2,-1],[2,1,0]])"
-                | "svd([[1,2,1],[3,4,1],[1,5,6]])"
+            "jordan([[1,1],[0,1]])" | "egv([[4,1,-2],[1,2,-1],[2,1,0]])"
         )
 }
 

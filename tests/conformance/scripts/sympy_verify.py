@@ -874,10 +874,11 @@ def verify_decomp(line: str, output: str) -> tuple[bool, str]:
                 return False, f"svd expected 3 components, got {len(parts)}"
             u_mat = parse_output_matrix(parts[0])
             singular = giac_to_sympy(parts[1].strip("[]"))
-            v_mat = parse_output_matrix(parts[2])
+            vt_mat = parse_output_matrix(parts[2])
             s_vec = as_tuple(singular)
             s_mat = Matrix.diag(*s_vec)
-            recon = u_mat * s_mat * v_mat.T
+            # giac-rs / nalgebra return Vᵀ as the third component (A = U·Σ·Vᵀ).
+            recon = u_mat * s_mat * vt_mat
             if not matrices_numerically_close(recon, a):
                 return False, "SVD reconstruction U*S*V^T != A"
             return True, "ok"

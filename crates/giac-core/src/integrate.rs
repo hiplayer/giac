@@ -5,10 +5,12 @@ use num_bigint::BigInt;
 use crate::error::EvalError;
 use crate::expr::{Expr, ExprArc, FuncKind};
 use crate::ident::Ident;
+use crate::num_util::bigint_to_i64;
 
 /// Basic integration rules (Phase 1 subset).
 pub fn integrate(expr: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     match expr.as_ref() {
+        Expr::Symbol(id) if id == var => integrate_pow(expr, &Expr::int(1), var),
         Expr::Pow(base, exp) => integrate_pow(base, exp, var),
         Expr::Frac(num, den) => integrate_frac(num, den, var),
         Expr::Mul(factors) => integrate_mul(factors, var),
@@ -100,8 +102,19 @@ fn integrate_mul(factors: &[ExprArc], var: &Ident) -> Result<ExprArc, EvalError>
 }
 
 fn integrate_pow(base: &ExprArc, exp: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
-    if is_var(base, var) && matches!(exp.as_ref(), Expr::Int(n) if n == &-BigInt::from(1)) {
-        return Ok(ln_abs(var));
+    if is_var(base, var) {
+        if let Expr::Int(n) = exp.as_ref() {
+            let n = bigint_to_i64(n)?;
+            if n == -1 {
+                return Ok(ln_abs(var));
+            }
+            if n >= 0 {
+                return Ok(Expr::mul(vec![
+                    Expr::rat(1, n + 1),
+                    Expr::pow(Arc::clone(base), Expr::int(n + 1)),
+                ]));
+            }
+        }
     }
     if let Expr::Add(terms) = base.as_ref() {
         if matches!(exp.as_ref(), Expr::Int(n) if n == &-BigInt::from(1)) {
@@ -269,10 +282,24 @@ mod tests {
     fn integrate_const_times_x() {
         let x = Ident::new("x");
         let e = Expr::mul(vec![Expr::int(3), Expr::sym("x")]);
-        assert!(matches!(
-            integrate(&e, &x),
-            Err(EvalError::NotImplemented(_))
-        ));
+        let r = integrate(&e, &x).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "(1/2*x^2)*3");
+    }
+
+    #[test]
+    fn integrate_x_and_x_squared() {
+        let x = Ident::new("x");
+        let r = integrate(&Expr::sym("x"), &x).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "1/2*x^2");
+        let r = integrate(&Expr::pow(Expr::sym("x"), Expr::int(2)), &x).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "1/3*x^3");
+    }
+
+    #[test]
+    fn integrate_one() {
+        let x = Ident::new("x");
+        let r = integrate(&Expr::int(1), &x).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "1*x");
     }
 
     #[test]

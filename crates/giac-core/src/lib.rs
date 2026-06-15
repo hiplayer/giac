@@ -27,6 +27,6 @@ pub use eval::eval;
 pub use expr::{Expr, ExprArc, FuncKind, RelOp};
 pub use ident::Ident;
 pub use limits::MAX_POLY_EXPONENT;
-pub use algebra::{expand, factor, normal, ratnormal};
+pub use algebra::{assert_equiv, expand, factor, is_zero, normal, ratnormal, sub};
 pub use simplify::simplify;
 pub use stmt::{exec_stmt, Stmt, StmtResult};
