@@ -25,3 +25,43 @@ anyhow = "=1.0.75"
 giac-core = { path = "crates/giac-core" }
 giac-simplify = { path = "crates/giac-simplify" }
 giac-parse = { path = "crates/giac-parse" }
+
+[workspace.lints.rust]
+unsafe_code = "deny"
+unsafe_op_in_unsafe_fn = "warn"
+
+[workspace.lints.clippy]
+# --- Deny: memory / UB (plan §8) ---
+undocumented_unsafe_blocks = "deny"
+missing_safety_doc = "deny"
+mem_forget = "deny"
+
+# --- Warn in source; allow here so `cargo ci-clippy` (-D warnings) stays green
+# until call sites adopt `.get()` / checked casts (supplement §6.4) ---
+indexing_slicing = "allow"
+integer_division = "allow"
+cast_sign_loss = "allow"
+cast_possible_truncation = "allow"
+cast_precision_loss = "allow"
+float_cmp = "allow"
+lossy_float_literal = "allow"
+only_used_in_recursion = "allow"
+rc_mutex = "allow"
+mutex_atomic = "allow"
+single_char_pattern = "allow"
+
+# --- Failure modes (supplement §6) ---
+dbg_macro = "warn"
+todo = "warn"
+unimplemented = "warn"
+
+# --- Noise / project-specific ---
+arithmetic_side_effects = "allow"
+print_stdout = "allow"
+print_stderr = "allow"
+cognitive_complexity = "allow"
+too_many_lines = "allow"
+type_complexity = "allow"
+needless_borrow = "warn"
+needless_range_loop = "allow"
+

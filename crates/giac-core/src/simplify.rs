@@ -50,7 +50,7 @@ fn simplify_add(terms: &[ExprArc]) -> Result<ExprArc, EvalError> {
 
     if !int_sum.is_zero() {
         let term = Expr::int(int_to_i64(&int_sum)?);
-        if symbolic.iter().any(|t| contains_imaginary_unit(t)) {
+        if symbolic.iter().any(contains_imaginary_unit) {
             symbolic.insert(0, term);
         } else {
             symbolic.push(term);
@@ -60,7 +60,7 @@ fn simplify_add(terms: &[ExprArc]) -> Result<ExprArc, EvalError> {
         if rat_sum.denom() == &BigInt::one() {
             if int_sum.is_zero() {
                 let term = Expr::int(int_to_i64(rat_sum.numer())?);
-                if symbolic.iter().any(|t| contains_imaginary_unit(t)) {
+                if symbolic.iter().any(contains_imaginary_unit) {
                     symbolic.insert(0, term);
                 } else {
                     symbolic.push(term);
@@ -120,7 +120,7 @@ fn simplify_mul(factors: &[ExprArc]) -> Result<ExprArc, EvalError> {
 fn simplify_pow(base: &ExprArc, exp: &ExprArc) -> Result<ExprArc, EvalError> {
     match (base.as_ref(), exp.as_ref()) {
         (Expr::Int(b), Expr::Int(e)) if e >= &BigInt::from(0) && e <= &BigInt::from(20) => {
-            let e = e.to_string().parse::<u32>().unwrap();
+            let e = crate::num_util::bigint_to_nonneg_u32(e)?;
             Ok(Expr::int(int_to_i64(&b.pow(e))?))
         }
         (Expr::Int(b), Expr::Int(e)) if e == &BigInt::from(2) => {

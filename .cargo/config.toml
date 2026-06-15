@@ -1,0 +1,5 @@
+# Workspace-local Cargo aliases and tooling defaults.
+
+[alias]
+# Matches migration-plan §8.4 CI recipe.
+ci-clippy = ["clippy", "--workspace", "--all-targets", "--", "-D", "warnings"]

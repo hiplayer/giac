@@ -2,9 +2,8 @@ use std::collections::BTreeMap;
 use std::sync::Arc;
 
 use num_bigint::BigInt;
-use num_integer::Integer;
 use num_rational::Ratio;
-use num_traits::{One, Signed, Zero};
+use num_traits::{One, Zero};
 
 use crate::{EvalError, Expr, ExprArc, Ident};
 
@@ -123,6 +122,7 @@ impl Poly {
         Self { terms }
     }
 
+    #[allow(dead_code)] // used by future poly normal-form paths
     pub fn neg(&self) -> Self {
         let terms = self
             .terms
@@ -208,8 +208,9 @@ impl Poly {
         }
         let mut remainder = self.clone();
         let mut quotient = Self::zero();
-        let div_lt = divisor.leading_term().unwrap().0.clone();
-        let div_lc = divisor.leading_term().unwrap().1.clone();
+        let Some((div_lt, div_lc)) = divisor.leading_term() else {
+            return (Self::zero(), self.clone());
+        };
 
         loop {
             let Some((r_lt, r_lc)) = remainder.leading_term() else {
@@ -218,10 +219,12 @@ impl Poly {
             if r_lt.degree() < div_lt.degree() {
                 break;
             }
-            if !r_lt.is_dividing(&div_lt) {
+            if !r_lt.is_dividing(div_lt) {
                 break;
             }
-            let q_m = r_lt.div_exact(&div_lt).unwrap();
+            let Some(q_m) = r_lt.div_exact(div_lt) else {
+                break;
+            };
             let q_c = r_lc.clone() / div_lc.clone();
             let q_term = Poly {
                 terms: [(q_m, q_c)].into(),
@@ -281,7 +284,8 @@ pub fn expr_to_poly(expr: &Expr) -> Result<Poly, EvalError> {
             let base_p = expr_to_poly(base)?;
             if let Expr::Int(e) = exp.as_ref() {
                 if e >= &BigInt::zero() && e <= &BigInt::from(50) {
-                    return Ok(base_p.pow(e.to_string().parse().unwrap()));
+                    let e_u = crate::num_util::bigint_to_nonneg_u32(e)?;
+                    return Ok(base_p.pow(e_u));
                 }
             }
             Err(EvalError::TypeError("non-polynomial power"))
@@ -308,11 +312,10 @@ fn ratio_to_expr(r: &Ratio<BigInt>) -> ExprArc {
     if r.is_zero() {
         Expr::int(0)
     } else if r.denom() == &BigInt::one() {
-        let n = r.numer();
-        if n >= &BigInt::zero() {
-            Expr::int(n.to_string().parse().unwrap_or(0))
+        if let Ok(v) = r.numer().to_string().parse::<i64>() {
+            Expr::int(v)
         } else {
-            Expr::int(n.to_string().parse().unwrap_or(0))
+            Arc::new(Expr::Rat(r.clone()))
         }
     } else {
         Arc::new(Expr::Rat(r.clone()))

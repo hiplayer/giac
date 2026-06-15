@@ -216,7 +216,9 @@ impl<'a, 'ctx> Parser<'a, 'ctx> {
                     return Ok(Arc::new(Expr::Mod(lhs, rhs)));
                 }
                 Some(Token::Ident(_) | Token::LParen | Token::Number(_))
-                    if imp_mult_after(factors.last().unwrap()) =>
+                    if factors
+                        .last()
+                        .is_some_and(imp_mult_after) =>
                 {
                     factors.push(self.parse_pow()?);
                 }
@@ -392,10 +394,6 @@ fn imp_mult_after(factor: &ExprArc) -> bool {
             | Expr::Matrix(_)
             | Expr::GiacMatrix(_)
     )
-}
-
-fn is_numeric_factor(expr: &ExprArc) -> bool {
-    matches!(expr.as_ref(), Expr::Int(_) | Expr::Rat(_))
 }
 
 fn parse_number(s: &str) -> ExprArc {

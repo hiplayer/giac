@@ -55,7 +55,7 @@ fn expand_pow(base: &ExprArc, exp: &ExprArc, ctx: &Context) -> Result<ExprArc, E
     let base_e = expand(base, ctx)?;
     if let Expr::Int(n) = exp.as_ref() {
         if n >= &BigInt::zero() && n <= &BigInt::from(20) {
-            let e: u32 = n.to_string().parse().unwrap();
+            let e = crate::num_util::bigint_to_nonneg_u32(n)?;
             if e == 0 {
                 return Ok(Expr::int(1));
             }

@@ -77,13 +77,11 @@ impl<'a> Lexer<'a> {
     }
 
     pub fn next_token(&mut self) -> Option<Result<Token<'a>, ()>> {
-        loop {
-            match self.inner.next() {
-                None => return None,
-                Some(Ok(Token::Error)) => return Some(Err(())),
-                Some(Ok(tok)) => return Some(Ok(tok)),
-                Some(Err(())) => return Some(Err(())),
-            }
+        match self.inner.next() {
+            None => None,
+            Some(Ok(Token::Error)) => Some(Err(())),
+            Some(Ok(tok)) => Some(Ok(tok)),
+            Some(Err(())) => Some(Err(())),
         }
     }
 

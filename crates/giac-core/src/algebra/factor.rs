@@ -1,7 +1,6 @@
 use crate::{Context, EvalError, Expr, ExprArc};
 use num_traits::{One, Signed, Zero};
 
-use super::expand::expand;
 use super::normal::normal;
 use super::poly::{expr_to_poly, poly_to_expr, Poly};
 
@@ -77,10 +76,8 @@ fn integer_nth_root(n: &num_bigint::BigInt, exp: u32) -> Option<num_bigint::BigI
         return None;
     }
     let root = n.sqrt(); // only works for exp=2
-    if exp == 2 {
-        if &root * &root == *n {
-            return Some(root);
-        }
+    if exp == 2 && &root * &root == *n {
+        return Some(root);
     }
     // general nth root by binary search
     let mut lo = num_bigint::BigInt::zero();

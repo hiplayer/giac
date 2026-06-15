@@ -1,0 +1,51 @@
+# Clippy configuration for giac-rs (Giac CAS Rust port).
+#
+# Lint severities: Cargo.toml [workspace.lints] (Rust 1.74+).
+# This file: MSRV, complexity thresholds, and hard deny-lists for patterns
+# incompatible with safe-core discipline (plan §8, supplement §6).
+#
+# CI: cargo ci-clippy  (alias in .cargo/config.toml)
+
+msrv = "1.75.0"
+
+# --- Complexity (eval / integrate / display are legitimately large) ---
+cognitive-complexity-threshold = 50
+too-many-arguments-threshold = 8
+too-many-lines-threshold = 200
+type-complexity-threshold = 350
+single-char-binding-names-threshold = 12
+max-trait-bounds = 4
+
+# Symbolic math bindings: x, y, z, i (= sqrt(-1)), polynomial indices, etc.
+allowed-idents-below-min-chars = [
+    "a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k",
+    "m", "n", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z",
+]
+
+# Expr/Arc/Ratio cloning is intentional in the CAS pipeline.
+pass-by-value-size-limit = 512
+trivial-copy-size-limit = 16
+
+# --- Hard deny-lists ---
+
+# C ABI and raw pointers belong in giac-ffi only (migration-plan §8.2).
+disallowed-types = [
+    { path = "std::ffi::CString", reason = "FFI isolated to giac-ffi" },
+    { path = "std::ffi::CStr", reason = "FFI isolated to giac-ffi" },
+    { path = "std::ptr::NonNull", reason = "no raw pointers in safe core crates" },
+]
+
+# Runtime stubs hide missing CAS behaviour; use EvalError / ParseError instead.
+disallowed-macros = [
+    { path = "std::todo", reason = "return EvalError::NotImplemented or open an issue" },
+    { path = "std::unimplemented", reason = "return EvalError::NotImplemented" },
+]
+
+# Must not abort or invoke UB on bad user input.
+disallowed-methods = [
+    { path = "std::process::abort", reason = "CAS errors must be Result, not abort" },
+    { path = "std::hint::unreachable_unchecked", reason = "UB; use EvalError or debug_assert" },
+]
+
+# Placeholder / debug names that hide intent in symbolic code.
+disallowed-names = ["foo", "bar", "baz", "tmp", "temp", "data", "stuff"]

@@ -45,12 +45,12 @@ fn rational_parts(expr: &Expr, ctx: &Context) -> Result<(Poly, Poly), EvalError>
         Expr::Pow(base, exp) => {
             if let Expr::Int(e) = exp.as_ref() {
                 if e < &BigInt::zero() {
-                    let e_u: u32 = (-e).to_string().parse().unwrap();
+                    let e_u = crate::num_util::bigint_to_u32_abs(e)?;
                     let (n, d) = rational_parts(base, ctx)?;
                     return Ok((d.pow(e_u), n.pow(e_u)));
                 }
                 if e >= &BigInt::zero() {
-                    let e_u: u32 = e.to_string().parse().unwrap();
+                    let e_u = crate::num_util::bigint_to_nonneg_u32(e)?;
                     let (n, d) = rational_parts(base, ctx)?;
                     return Ok((n.pow(e_u), d.pow(e_u)));
                 }

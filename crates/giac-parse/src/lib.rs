@@ -1,4 +1,6 @@
 #![deny(unsafe_code)]
+#![cfg_attr(not(test), warn(clippy::unwrap_used))]
+#![cfg_attr(not(test), warn(clippy::expect_used))]
 
 mod lexer;
 mod parser;

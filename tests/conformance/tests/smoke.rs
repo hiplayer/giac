@@ -13,34 +13,35 @@ fn upstream_root() -> PathBuf {
         .expect("upstream giac root")
 }
 
-fn run_script(path: &Path) -> Vec<String> {
-    let input = fs::read_to_string(path).unwrap_or_else(|e| panic!("read {}: {e}", path.display()));
+fn run_script(path: &Path) -> Result<Vec<String>, String> {
+    let input = fs::read_to_string(path).map_err(|e| format!("read {}: {e}", path.display()))?;
     let mut ctx = Context::xcas_default();
-    let stmts = parse_program(&input, &ctx).unwrap_or_else(|e| {
-        panic!("parse {}: {e}", path.display())
-    });
+    let stmts = parse_program(&input, &ctx).map_err(|e| format!("parse {}: {e}", path.display()))?;
     let mut out = Vec::new();
-    for stmt in &stmts {
-        match exec_stmt(stmt, &mut ctx).unwrap() {
+    for (idx, stmt) in stmts.iter().enumerate() {
+        match exec_stmt(stmt, &mut ctx)
+            .map_err(|e| format!("eval stmt {idx} in {}: {e}", path.display()))?
+        {
             StmtResult::Value(v) | StmtResult::Assign { value: v, .. } => {
                 out.push(format_expr(v.as_ref()));
             }
             StmtResult::NoValue => {}
         }
     }
-    out
+    Ok(out)
 }
 
 #[test]
-fn test_cas_basic_matches_giac() {
+fn test_cas_basic_matches_giac() -> Result<(), String> {
     let script = upstream_root().join("bin/test_cas_basic");
-    let got = run_script(&script);
+    let got = run_script(&script)?;
     let want = vec![
         "sqrt(5)".to_string(),
         "15".to_string(),
         "-3-4*i".to_string(),
     ];
     assert_eq!(got, want, "bin/test_cas_basic");
+    Ok(())
 }
 
 #[test]

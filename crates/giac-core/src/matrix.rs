@@ -1,7 +1,6 @@
 use std::sync::Arc;
 
 use num_bigint::BigInt;
-use num_rational::Ratio;
 use num_traits::{One, Zero};
 
 use crate::error::EvalError;
@@ -12,7 +11,7 @@ pub fn eval_matrix_mul(a: &ExprArc, b: &ExprArc) -> Result<ExprArc, EvalError> {
     let b_rows = as_matrix(b)?;
     let cols_a = a_rows[0].len();
     let rows_a = a_rows.len();
-    let rows_b = b_rows.len();
+    let _rows_b = b_rows.len();
     if cols_a != b_rows.len() {
         return Err(EvalError::TypeError("incompatible matrix dimensions"));
     }
@@ -306,6 +305,7 @@ pub fn as_matrix(e: &ExprArc) -> Result<Vec<Vec<ExprArc>>, EvalError> {
     }
 }
 
+#[allow(dead_code)] // exercised from matrix unit tests
 pub fn is_identity_matrix(m: &ExprArc) -> bool {
     let Ok(rows) = as_matrix(m) else {
         return false;
@@ -333,7 +333,12 @@ pub fn inv_scalar(n: &BigInt) -> Result<ExprArc, EvalError> {
     if n.is_zero() {
         return Err(EvalError::DivisionByZero);
     }
-    Ok(Expr::rat(1, n.to_string().parse().unwrap_or(1)))
+    Ok(Expr::rat(
+        1,
+        n.to_string()
+            .parse()
+            .map_err(|_| EvalError::TypeError("scalar inv denominator"))?,
+    ))
 }
 
 #[cfg(test)]

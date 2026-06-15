@@ -1,4 +1,6 @@
 #![deny(unsafe_code)]
+#![cfg_attr(not(test), warn(clippy::unwrap_used))]
+#![cfg_attr(not(test), warn(clippy::expect_used))]
 
 mod algebra;
 mod context;
@@ -9,6 +11,7 @@ mod expr;
 mod ident;
 mod integrate;
 mod matrix;
+mod num_util;
 mod simplify;
 mod stmt;
 

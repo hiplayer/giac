@@ -94,9 +94,7 @@ fn format_add(terms: &[Arc<Expr>]) -> String {
     let mut parts = Vec::new();
     for (i, t) in terms.iter().enumerate() {
         let s = format_expr(t);
-        if i == 0 {
-            parts.push(s);
-        } else if s.starts_with('-') {
+        if i == 0 || s.starts_with('-') {
             parts.push(s);
         } else {
             parts.push(format!("+{s}"));

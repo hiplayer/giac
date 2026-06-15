@@ -100,14 +100,13 @@ fn eval_add(terms: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
 }
 
 fn eval_mul(factors: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
-    if factors.len() == 2 {
-        if matches!(factors[0].as_ref(), Expr::Matrix(_) | Expr::GiacMatrix(_))
-            && matches!(factors[1].as_ref(), Expr::Matrix(_) | Expr::GiacMatrix(_))
-        {
-            let a = eval(&factors[0], ctx)?;
-            let b = eval(&factors[1], ctx)?;
-            return crate::matrix::eval_matrix_mul(&a, &b).and_then(|m| eval(m.as_ref(), ctx));
-        }
+    if factors.len() == 2
+        && matches!(factors[0].as_ref(), Expr::Matrix(_) | Expr::GiacMatrix(_))
+        && matches!(factors[1].as_ref(), Expr::Matrix(_) | Expr::GiacMatrix(_))
+    {
+        let a = eval(&factors[0], ctx)?;
+        let b = eval(&factors[1], ctx)?;
+        return crate::matrix::eval_matrix_mul(&a, &b).and_then(|m| eval(m.as_ref(), ctx));
     }
 
     let mut complex_prod = ComplexVal::one();
@@ -162,7 +161,7 @@ fn eval_pow(base: &ExprArc, exp: &ExprArc, ctx: &Context) -> Result<ExprArc, Eva
 
     if let (Expr::Int(b), Expr::Int(e)) = (base.as_ref(), exp.as_ref()) {
         if e >= &BigInt::zero() && e <= &BigInt::from(30) {
-            let e_u = e.to_string().parse::<u32>().unwrap();
+            let e_u = crate::num_util::bigint_to_nonneg_u32(e)?;
             return Ok(Expr::int(int_to_i64(&(b.pow(e_u)))?));
         }
     }
@@ -256,27 +255,23 @@ fn eval_gcd(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
         return Err(EvalError::TooFewArgs("gcd"));
     }
     if args.iter().all(|a| as_int(a.as_ref()).is_some()) {
-        let mut result: Option<BigInt> = None;
-        for a in args {
-            let n = as_int(a.as_ref()).unwrap();
-            result = Some(match result {
-                None => n.clone(),
-                Some(r) => r.gcd(n),
-            });
+        let first = as_int(args[0].as_ref()).ok_or(EvalError::TypeError("gcd expects integers"))?;
+        let mut result = first.clone();
+        for a in &args[1..] {
+            let n = as_int(a.as_ref()).ok_or(EvalError::TypeError("gcd expects integers"))?;
+            result = result.gcd(n);
         }
-        return Ok(Expr::int(int_to_i64(result.as_ref().unwrap())?));
+        return Ok(Expr::int(int_to_i64(&result)?));
     }
-    use crate::algebra::poly::{expr_to_poly, poly_to_expr, Poly};
-    let mut result: Option<Poly> = None;
-    for a in args {
+    use crate::algebra::poly::{expr_to_poly, poly_to_expr};
+    let first = expr_to_poly(args[0].as_ref())?;
+    let mut result = first;
+    for a in &args[1..] {
         let p = expr_to_poly(a.as_ref())?;
-        result = Some(match result {
-            None => p,
-            Some(r) => r.gcd(&p),
-        });
+        result = result.gcd(&p);
     }
     let _ = ctx;
-    Ok(poly_to_expr(result.as_ref().unwrap()))
+    Ok(poly_to_expr(&result))
 }
 
 fn eval_conj(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
