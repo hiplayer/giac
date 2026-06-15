@@ -251,6 +251,10 @@ def eval_phase1(line: str) -> Any | None:
     if m:
         return expand_trig(giac_to_sympy(m.group(1)))
 
+    m = re.fullmatch(r"(?:diff|derive)\((.+),x\)", line)
+    if m:
+        return sp.diff(giac_to_sympy(m.group(1)), x)
+
     m = re.fullmatch(r"idn\((\d+)\)", line)
     if m:
         n = int(m.group(1))
@@ -663,6 +667,14 @@ def verify_property(line: str, output: str) -> tuple[bool, str]:
         result = giac_to_sympy(output)
         if sp.simplify(sp.diff(result, x) - integrand) != 0:
             return False, "integrate derivative mismatch"
+        return True, "ok"
+
+    m = re.fullmatch(r"(?:diff|derive)\((.+),x\)", line)
+    if m:
+        inp = giac_to_sympy(m.group(1))
+        got = giac_to_sympy(output)
+        if sp.simplify(sp.diff(inp, x) - got) != 0:
+            return False, "diff mismatch"
         return True, "ok"
 
     m = re.fullmatch(r"texpand\((.+)\)", line)
@@ -1081,6 +1093,8 @@ def verify(line: str, output: str) -> tuple[bool, str]:
     if line.startswith(("integrate(", "int(", "ker(", "image(", "pcar(")):
         return verify_property(line, output)
     if line.startswith(("texpand(", "halftan(", "lin(", "tlin(")):
+        return verify_property(line, output)
+    if line.startswith(("diff(", "derive(")):
         return verify_property(line, output)
     if line.startswith(("egv(", "jordan(")):
         return verify_property(line, output)

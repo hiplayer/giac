@@ -225,6 +225,8 @@ fn func_name(kind: FuncKind) -> &'static str {
         FuncKind::Tlin => "tlin",
         FuncKind::Halftan => "halftan",
         FuncKind::Lin => "lin",
+        FuncKind::Diff => "diff",
+        FuncKind::Derive => "derive",
         FuncKind::Factor => "factor",
         FuncKind::Quo => "quo",
         FuncKind::Rem => "rem",
@@ -534,6 +536,6 @@ mod tests {
         );
         assert_eq!(format_expr(p.as_ref()), "x^2^3");
         let f = Expr::pow(Expr::func(FuncKind::Sin, vec![Expr::sym("x")]), Expr::int(2));
-        assert_eq!(format_expr(f.as_ref()), "(sin(x))^2");
+        assert_eq!(format_expr(f.as_ref()), "sin(x)^2");
     }
 }

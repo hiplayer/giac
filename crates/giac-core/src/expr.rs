@@ -106,6 +106,8 @@ pub enum FuncKind {
     Tlin,
     Halftan,
     Lin,
+    Diff,
+    Derive,
 }
 
 impl Expr {

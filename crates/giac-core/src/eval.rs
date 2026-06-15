@@ -233,6 +233,7 @@ fn eval_func(kind: FuncKind, args: &[ExprArc], ctx: &Context) -> Result<ExprArc,
     match kind {
         FuncKind::Subst => return eval_subst(args, ctx),
         FuncKind::Integrate | FuncKind::Int => return eval_integrate(args, ctx),
+        FuncKind::Diff | FuncKind::Derive => return eval_diff(args, ctx),
         FuncKind::Lambda => return Ok(Expr::func(FuncKind::Lambda, args.to_vec())),
         FuncKind::Smod => return crate::eval_poly::eval_smod(args),
         FuncKind::Irem => return crate::eval_poly::eval_irem(args),
@@ -766,6 +767,17 @@ fn eval_integrate(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError>
     )
 }
 
+fn eval_diff(args: &[ExprArc], _ctx: &Context) -> Result<ExprArc, EvalError> {
+    if args.len() != 2 {
+        return Err(EvalError::TooFewArgs("diff"));
+    }
+    let var = match args[1].as_ref() {
+        Expr::Symbol(id) => id.clone(),
+        _ => return Err(EvalError::TypeError("differentiation variable")),
+    };
+    crate::diff::diff(&args[0], &var)
+}
+
 fn eval_subst(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     if args.len() != 2 {
         return Err(EvalError::TooFewArgs("subst"));
@@ -929,6 +941,8 @@ fn func_name(kind: FuncKind) -> &'static str {
         FuncKind::Rref => "rref",
         FuncKind::Integrate => "integrate",
         FuncKind::Int => "int",
+        FuncKind::Diff => "diff",
+        FuncKind::Derive => "derive",
         FuncKind::Idn => "idn",
         FuncKind::Inv => "inv",
         FuncKind::Det => "det",

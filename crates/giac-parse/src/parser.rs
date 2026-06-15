@@ -504,6 +504,8 @@ fn lookup_func(name: &str) -> Option<FuncKind> {
         "greduce" => Some(FuncKind::Greduce),
         "rref" => Some(FuncKind::Rref),
         "integrate" | "int" => Some(FuncKind::Integrate),
+        "diff" => Some(FuncKind::Diff),
+        "derive" => Some(FuncKind::Derive),
         "idn" => Some(FuncKind::Idn),
         "inv" => Some(FuncKind::Inv),
         "det" => Some(FuncKind::Det),

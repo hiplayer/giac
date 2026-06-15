@@ -14,6 +14,7 @@ mod expr;
 pub mod float_format;
 mod ident;
 mod integrate;
+mod diff;
 pub mod limits;
 mod linalg_plugin;
 mod matrix;

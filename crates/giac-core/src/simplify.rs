@@ -9,18 +9,18 @@ use crate::error::EvalError;
 use crate::expr::{Expr, ExprArc};
 
 /// Flatten nested Add/Mul and combine numeric coefficients.
-pub fn simplify(expr: &Expr, _ctx: &Context) -> Result<ExprArc, EvalError> {
+pub fn simplify(expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
     match expr {
         Expr::Add(terms) => simplify_add(terms),
         Expr::Mul(factors) => simplify_mul(factors),
         Expr::Pow(base, exp) => simplify_pow(base, exp),
         Expr::Func(kind, args) => {
-            let args: Result<Vec<_>, _> = args.iter().map(|a| simplify(a, _ctx)).collect();
+            let args: Result<Vec<_>, _> = args.iter().map(|a| simplify(a, ctx)).collect();
             Ok(Expr::func(*kind, args?))
         }
         Expr::Complex(re, im) => {
-            let re = simplify(re, _ctx)?;
-            let im = simplify(im, _ctx)?;
+            let re = simplify(re, ctx)?;
+            let im = simplify(im, ctx)?;
             Ok(Arc::new(Expr::Complex(re, im)))
         }
         other => Ok(Arc::new(other.clone())),
@@ -92,6 +92,14 @@ fn simplify_mul(factors: &[ExprArc]) -> Result<ExprArc, EvalError> {
     let mut symbolic = Vec::new();
 
     for f in flat {
+        let f = match f.as_ref() {
+            Expr::Pow(b, e) => match e.as_ref() {
+                Expr::Int(n) if n == &BigInt::from(1) => Arc::clone(b),
+                Expr::Int(n) if n == &BigInt::from(0) => Expr::int(1),
+                _ => f,
+            },
+            _ => f,
+        };
         match f.as_ref() {
             Expr::Int(n) => int_prod *= n,
             Expr::Rat(r) => rat_prod *= r,
@@ -119,6 +127,8 @@ fn simplify_mul(factors: &[ExprArc]) -> Result<ExprArc, EvalError> {
 
 fn simplify_pow(base: &ExprArc, exp: &ExprArc) -> Result<ExprArc, EvalError> {
     match (base.as_ref(), exp.as_ref()) {
+        (_, Expr::Int(e)) if e == &BigInt::from(0) => Ok(Expr::int(1)),
+        (_, Expr::Int(e)) if e == &BigInt::from(1) => Ok(Arc::clone(base)),
         (Expr::Int(b), Expr::Int(e)) if e >= &BigInt::from(0) && e <= &BigInt::from(20) => {
             let e = crate::num_util::bigint_to_nonneg_u32(e)?;
             Ok(Expr::int(int_to_i64(&b.pow(e))?))
