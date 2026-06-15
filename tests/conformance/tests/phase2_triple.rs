@@ -1,7 +1,9 @@
 //! Phase 2 triple validation: giac-rs + Giac reference + SymPy (third-party CAS).
 
 use giac_conformance::{
-    run_giac, run_line, sympy_equiv, triple_check_script_filtered, upstream_root, verify_sympy,
+    phase2_format_diff, phase2_giac_gap, phase2_sympy_gap, run_giac, run_line, sympy_equiv,
+    triple_assert_sympy_rs, triple_check_script_filtered, triple_note_format_diffs,
+    upstream_root, verify_sympy,
 };
 
 /// Lines from bin/test_poly — giac-rs must pass SymPy; cross-check Giac.
@@ -12,7 +14,7 @@ fn test_poly_triple() -> Result<(), String> {
     for r in &results {
         assert!(r.sympy_rs_ok, "giac-rs failed SymPy: {} -> {}", r.line, r.giac_rs);
         assert!(
-            r.rs_giac_equiv || is_known_format_diff(&r.line),
+            r.rs_giac_equiv || phase2_format_diff(&r.line),
             "giac-rs `{}` = `{}` differs from giac `{}`",
             r.line,
             r.giac_rs,
@@ -27,20 +29,8 @@ fn test_poly_triple() -> Result<(), String> {
 fn test_poly_ext_triple() -> Result<(), String> {
     let results = triple_check_script_filtered("test_poly_ext", |_| false)?;
     assert_eq!(results.len(), 7);
-    for r in &results {
-        if !r.sympy_rs_ok && !is_known_sympy_gap(&r.line) {
-            return Err(format!(
-                "giac-rs failed SymPy on {}: {}",
-                r.line, r.giac_rs
-            ));
-        }
-        if !r.rs_giac_equiv && !is_known_format_diff(&r.line) {
-            eprintln!(
-                "note: {} giac-rs={} giac={} (sympy_rs={} sympy_giac={})",
-                r.line, r.giac_rs, r.giac, r.sympy_rs_ok, r.sympy_giac_ok
-            );
-        }
-    }
+    triple_assert_sympy_rs(&results, phase2_sympy_gap)?;
+    triple_note_format_diffs(&results, phase2_format_diff);
     Ok(())
 }
 
@@ -48,14 +38,9 @@ fn test_poly_ext_triple() -> Result<(), String> {
 fn test_modular_triple() -> Result<(), String> {
     let results = triple_check_script_filtered("test_modular", |_| false)?;
     assert_eq!(results.len(), 8);
+    triple_assert_sympy_rs(&results, phase2_sympy_gap)?;
     for r in &results {
-        if !r.sympy_rs_ok && !is_known_sympy_gap(&r.line) {
-            return Err(format!(
-                "giac-rs failed SymPy on {}: {}",
-                r.line, r.giac_rs
-            ));
-        }
-        if !r.sympy_giac_ok && !is_known_giac_gap(&r.line) {
+        if !r.sympy_giac_ok && !phase2_giac_gap(&r.line) {
             eprintln!(
                 "note: giac failed SymPy on {}: {}",
                 r.line, r.giac
@@ -71,7 +56,7 @@ fn test_factor_triple() -> Result<(), String> {
     assert_eq!(results.len(), 3);
     for r in &results {
         assert!(r.sympy_rs_ok, "giac-rs SymPy: {} -> {}", r.line, r.giac_rs);
-        if !r.rs_giac_equiv && !is_known_format_diff(&r.line) {
+        if !r.rs_giac_equiv && !phase2_format_diff(&r.line) {
             eprintln!("note: {} giac-rs={} giac={}", r.line, r.giac_rs, r.giac);
         }
     }
@@ -121,27 +106,6 @@ fn gcd_mod_13_triple() -> Result<(), String> {
     verify_sympy(line, &giac)?;
     assert!(rs.contains('x'), "giac-rs gcd mod 13 should be linear, got {rs}");
     Ok(())
-}
-
-fn is_known_format_diff(line: &str) -> bool {
-    matches!(
-        line,
-        "gauss(2*x*y,[x,y])"
-            | "egcd(x^2+2*x+1,x^2-1)"
-            | "abcuv(x^2+2*x+1,x^2-1,x+1)"
-            | "lcm(x^2+2*x+1,x^2-1)"
-            | "roots(x^3-1,x)"
-            | "partfrac(1/(x^2-1),x)"
-            | "chinrem([x+2,x^2+1],[x+1,x^2+x+1])"
-    )
-}
-
-fn is_known_sympy_gap(line: &str) -> bool {
-    matches!(line, "roots(x^3-1,x)")
-}
-
-fn is_known_giac_gap(line: &str) -> bool {
-    matches!(line, "chinrem([x+2,x^2+1],[x+1,x^2+x+1])")
 }
 
 #[test]

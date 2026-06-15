@@ -1,5 +1,7 @@
 //! Shared harness for giac-rs conformance tests (giac reference + SymPy third-party).
 
+mod triple_skip;
+
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
@@ -7,6 +9,11 @@ use std::process::{Command, Output, Stdio};
 use giac_core::{assert_equiv, exec_stmt, format_expr, Stmt, StmtResult};
 use giac_linalg::xcas_default;
 use giac_parse::parse_program;
+
+pub use triple_skip::{
+    phase2_format_diff, phase2_giac_gap, phase2_sympy_gap, phase3_format_diff,
+    phase3_numerical_decomp, phase3_skip, phase3_sympy_gap,
+};
 
 pub fn upstream_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -282,6 +289,53 @@ pub fn triple_check_script_filtered(
         .filter(|l| !skip(l))
         .map(|l| triple_check(l))
         .collect()
+}
+
+/// Require SymPy verification on giac-rs for every triple result (with optional gaps).
+pub fn triple_assert_sympy_rs(
+    results: &[TripleResult],
+    known_gap: impl Fn(&str) -> bool,
+) -> Result<(), String> {
+    for r in results {
+        if !r.sympy_rs_ok && !known_gap(&r.line) {
+            return Err(format!(
+                "giac-rs failed SymPy on {}: {}",
+                r.line, r.giac_rs
+            ));
+        }
+    }
+    Ok(())
+}
+
+/// Log giac-rs vs giac format differences that are not SymPy failures.
+pub fn triple_note_format_diffs(results: &[TripleResult], format_diff: impl Fn(&str) -> bool) {
+    for r in results {
+        if !r.rs_giac_equiv && !format_diff(&r.line) {
+            eprintln!(
+                "note: {} giac-rs={} giac={} (sympy_rs={} sympy_giac={})",
+                r.line, r.giac_rs, r.giac, r.sympy_rs_ok, r.sympy_giac_ok
+            );
+        }
+    }
+}
+
+/// Outcome of comparing giac-rs output to golden (conformance-testing.md §3.5).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum CheckOutcome {
+    LiteralMatch,
+    EquivMatch,
+    Fail,
+}
+
+/// Compare outputs: literal first, then `assert_equiv`.
+pub fn check_output_equiv(got: &str, expected: &str) -> Result<CheckOutcome, String> {
+    if got == expected {
+        return Ok(CheckOutcome::LiteralMatch);
+    }
+    if outputs_assert_equiv(got, expected)? {
+        return Ok(CheckOutcome::EquivMatch);
+    }
+    Ok(CheckOutcome::Fail)
 }
 
 /// Run giac-rs on a script and SymPy-verify every output line.

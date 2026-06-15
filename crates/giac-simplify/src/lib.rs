@@ -50,6 +50,21 @@ mod tests {
     }
 
     #[test]
+    fn facade_assert_equiv_sqrt_forms() {
+        use giac_core::FuncKind;
+        let ctx = Context::default();
+        let a = Expr::mul(vec![
+            Expr::func(FuncKind::Sqrt, vec![Expr::int(2)]),
+            Expr::rat(1, 2),
+        ]);
+        let b = Expr::pow(
+            Expr::func(FuncKind::Sqrt, vec![Expr::int(2)]),
+            Expr::int(-1),
+        );
+        assert!(assert_equiv(a.as_ref(), b.as_ref(), &ctx).unwrap());
+    }
+
+    #[test]
     fn facade_normal_mod_power() {
         let ctx = Context::default();
         let e = Expr::pow(

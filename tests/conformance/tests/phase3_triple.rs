@@ -1,8 +1,8 @@
 //! Phase 3 triple validation: giac-rs + Giac reference + SymPy (third-party CAS).
 
 use giac_conformance::{
-    run_giac, run_line, script_lines, sympy_equiv, triple_check, triple_check_script_filtered,
-    upstream_root, verify_sympy,
+    phase3_format_diff, phase3_numerical_decomp, phase3_skip, phase3_sympy_gap, run_giac,
+    run_line, script_lines, sympy_equiv, triple_assert_sympy_rs, triple_check_script_filtered, triple_note_format_diffs, upstream_root, verify_sympy,
 };
 
 // ── Script-level triple checks ────────────────────────────────────────
@@ -10,39 +10,19 @@ use giac_conformance::{
 /// test_linalg: basic matrix ops — strict SymPy verification on every line.
 #[test]
 fn test_linalg_triple() -> Result<(), String> {
-    let path = upstream_root().join("bin/test_linalg");
-    let lines = script_lines(&path)?;
-    assert_eq!(lines.len(), 5, "test_linalg should have 5 lines");
-    for line in &lines {
-        let r = triple_check(line)?;
-        assert!(
-            r.sympy_rs_ok,
-            "giac-rs failed SymPy: {} -> {}",
-            r.line, r.giac_rs
-        );
-        if !r.rs_giac_equiv && !is_known_format_diff(&r.line) {
-            eprintln!(
-                "note: {} giac-rs={} giac={} (sympy_rs={} sympy_giac={})",
-                r.line, r.giac_rs, r.giac, r.sympy_rs_ok, r.sympy_giac_ok
-            );
-        }
-    }
+    let results = triple_check_script_filtered("test_linalg", phase3_skip)?;
+    assert_eq!(results.len(), 5, "test_linalg should have 5 lines");
+    triple_assert_sympy_rs(&results, phase3_sympy_gap)?;
+    triple_note_format_diffs(&results, phase3_format_diff);
     Ok(())
 }
 
 /// test_linalg_ext: ker/image/tran/pcar/jordan/egv — SymPy property checks on giac-rs.
 #[test]
 fn test_linalg_ext_triple() -> Result<(), String> {
-    let results = triple_check_script_filtered("test_linalg_ext", |_| false)?;
+    let results = triple_check_script_filtered("test_linalg_ext", phase3_skip)?;
     assert_eq!(results.len(), 6, "test_linalg_ext: all 6 lines checked");
-    for r in &results {
-        if !r.sympy_rs_ok {
-            return Err(format!(
-                "giac-rs failed SymPy on {}: {}",
-                r.line, r.giac_rs
-            ));
-        }
-    }
+    triple_assert_sympy_rs(&results, phase3_sympy_gap)?;
     Ok(())
 }
 
@@ -51,14 +31,14 @@ fn test_linalg_ext_triple() -> Result<(), String> {
 fn test_linalg_decomp_triple() -> Result<(), String> {
     let path = upstream_root().join("bin/test_linalg_decomp");
     assert_eq!(script_lines(&path)?.len(), 6, "test_linalg_decomp should have 6 lines");
-    let results = triple_check_script_filtered("test_linalg_decomp", is_skip_line)?;
+    let results = triple_check_script_filtered("test_linalg_decomp", phase3_skip)?;
     assert_eq!(results.len(), 6, "test_linalg_decomp: 6 lines");
     for r in &results {
-        if is_numerical_decomp(&r.line) {
+        if phase3_numerical_decomp(&r.line) {
             verify_reconstruction(&r.line, &r.giac_rs)?;
             continue;
         }
-        if !r.sympy_rs_ok && !is_known_sympy_gap(&r.line) {
+        if !r.sympy_rs_ok && !phase3_sympy_gap(&r.line) {
             return Err(format!(
                 "giac-rs failed SymPy on {}: {}",
                 r.line, r.giac_rs
@@ -71,17 +51,9 @@ fn test_linalg_decomp_triple() -> Result<(), String> {
 /// test_gauss_ext: quadratic form diagonalization.
 #[test]
 fn test_gauss_ext_triple() -> Result<(), String> {
-    let path = upstream_root().join("bin/test_gauss_ext");
-    let lines = script_lines(&path)?;
-    assert_eq!(lines.len(), 3, "test_gauss_ext should have 3 lines");
-    for line in &lines {
-        let r = triple_check(line)?;
-        assert!(
-            r.sympy_rs_ok,
-            "giac-rs gauss failed SymPy: {} -> {}",
-            r.line, r.giac_rs
-        );
-    }
+    let results = triple_check_script_filtered("test_gauss_ext", phase3_skip)?;
+    assert_eq!(results.len(), 3, "test_gauss_ext should have 3 lines");
+    triple_assert_sympy_rs(&results, phase3_sympy_gap)?;
     Ok(())
 }
 
@@ -283,31 +255,6 @@ fn giac_binary_available() {
         "Giac reference binary required at {} for triple tests",
         giac.display()
     );
-}
-
-// ── helpers ───────────────────────────────────────────────────────────
-
-fn is_known_format_diff(line: &str) -> bool {
-    matches!(
-        line,
-        "[[1,2],[3,4]]^2"
-            | "tran([[1,2],[3,4]])"
-            | "ker([[1,2],[3,6]])"
-            | "image([[1,2],[3,6]])"
-            | "pcar([[4,1,-2],[1,2,-1],[2,1,0]])"
-    )
-}
-
-fn is_known_sympy_gap(_line: &str) -> bool {
-    false
-}
-
-fn is_skip_line(_line: &str) -> bool {
-    false
-}
-
-fn is_numerical_decomp(line: &str) -> bool {
-    line.starts_with("lu(") || line.starts_with("qr(") || line.starts_with("svd(")
 }
 
 /// For numerical decompositions, verify SymPy can parse and validate
