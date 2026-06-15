@@ -49,6 +49,14 @@ cargo ci-clippy             # required (-D warnings)
 echo 'sqrt(5)' | cargo run -q --bin giac-cli
 ```
 
+Optional coverage (see [supplement §7](../.doc/rust-migration-supplement.md#7-工程门禁)):
+
+```bash
+cargo install cargo-tarpaulin   # once
+cargo tarpaulin -p giac-core --out Stdout    # target ≥70%
+cargo tarpaulin -p giac-linalg --out Stdout  # Phase 3 linalg
+```
+
 Triple validation (giac-rs + upstream Giac + SymPy) needs the reference binary at `../build/bin/giac`.
 
 ## Conformance tests

@@ -49,3 +49,26 @@ impl Context {
             .ok_or(EvalError::NotImplemented("linalg plugin not installed"))
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use super::*;
+    use crate::{EvalError, Expr, FuncKind};
+
+    #[test]
+    fn linalg_missing_plugin_returns_not_implemented() {
+        let ctx = Context::xcas_default();
+        let m = Arc::new(Expr::Matrix(vec![
+            vec![Expr::int(1), Expr::int(2)],
+            vec![Expr::int(3), Expr::int(4)],
+        ]));
+        let err = crate::eval(
+            Expr::func(FuncKind::Det, vec![m]).as_ref(),
+            &ctx,
+        )
+        .unwrap_err();
+        assert!(matches!(err, EvalError::NotImplemented(_)));
+    }
+}

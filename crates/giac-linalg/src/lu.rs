@@ -44,6 +44,16 @@ mod tests {
     use super::*;
 
     #[test]
+    fn lu_empty_fails() {
+        assert!(lu_decomp(&[]).is_none());
+    }
+
+    #[test]
+    fn lu_non_square_fails() {
+        assert!(lu_decomp(&[vec![1.0, 2.0], vec![3.0, 4.0, 5.0]]).is_none());
+    }
+
+    #[test]
     fn lu_2x2() {
         let a = vec![vec![3.0, 5.0], vec![4.0, 5.0]];
         let (p, l, u) = lu_decomp(&a).unwrap();

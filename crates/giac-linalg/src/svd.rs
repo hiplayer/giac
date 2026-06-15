@@ -76,4 +76,10 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn svd_empty_fails() {
+        assert!(svd_decomp(&[]).is_none());
+        assert!(svd_decomp(&[vec![]]).is_none());
+    }
 }

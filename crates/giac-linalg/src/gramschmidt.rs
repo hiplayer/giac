@@ -242,4 +242,21 @@ mod tests {
         let err = gramschmidt_vectors(&[Expr::int(1)], &inner, &ctx).unwrap_err();
         assert!(matches!(err, EvalError::TypeError(_)));
     }
+
+    #[test]
+    fn eval_gramschmidt_arg_errors() {
+        let ctx = crate::plugin::xcas_default();
+        assert!(matches!(
+            eval_gramschmidt(&[], &ctx).unwrap_err(),
+            EvalError::TooFewArgs(_)
+        ));
+        assert!(matches!(
+            eval_gramschmidt(&[Expr::int(1), Expr::int(2), Expr::int(3)], &ctx).unwrap_err(),
+            EvalError::TooManyArgs(_)
+        ));
+        assert!(matches!(
+            eval_gramschmidt(&[Expr::int(1), Expr::int(2)], &ctx).unwrap_err(),
+            EvalError::TypeError(_)
+        ));
+    }
 }

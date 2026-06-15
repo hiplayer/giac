@@ -19,3 +19,17 @@ pub fn format_float(v: f64, digits: u32) -> String {
     let s = format!("{rounded:.12}");
     s.trim_end_matches('0').trim_end_matches('.').to_string()
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn format_float_basic() {
+        assert_eq!(format_float(0.0, 10), "0");
+        assert_eq!(format_float(f64::INFINITY, 10), "inf");
+        assert_eq!(format_float(f64::NEG_INFINITY, 10), "-inf");
+        assert_eq!(format_float(f64::NAN, 10), "undef");
+        assert!(!format_float(1.23456789, 6).is_empty());
+    }
+}

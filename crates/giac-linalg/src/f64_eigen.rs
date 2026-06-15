@@ -28,6 +28,18 @@ mod tests {
     use super::*;
 
     #[test]
+    fn eigenvalues_empty() {
+        assert_eq!(real_eigenvalues(&[]), None);
+    }
+
+    #[test]
+    fn eigenvalues_complex_returns_none() {
+        // rotation matrix: eigenvalues are ±i
+        let a = vec![vec![0.0, 1.0], vec![-1.0, 0.0]];
+        assert!(real_eigenvalues(&a).is_none());
+    }
+
+    #[test]
     fn eigenvalues_diagonal_3x3() {
         let a = vec![vec![1.0, 0.0, 0.0], vec![0.0, 2.0, 0.0], vec![0.0, 0.0, 3.0]];
         let ev = real_eigenvalues(&a).unwrap();

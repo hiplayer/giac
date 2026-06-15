@@ -49,3 +49,26 @@ fn f64_matrix_to_giac(m: &[Vec<f64>]) -> ExprArc {
         .collect();
     Arc::new(Expr::GiacMatrix(rows))
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::plugin::xcas_default;
+
+    fn mat2() -> ExprArc {
+        Arc::new(Expr::Matrix(vec![
+            vec![Expr::int(1), Expr::int(2)],
+            vec![Expr::int(3), Expr::int(4)],
+        ]))
+    }
+
+    #[test]
+    fn eval_lu_qr_svd_2x2() {
+        let ctx = xcas_default();
+        let m = mat2();
+        assert!(eval_lu(&m, &ctx).is_ok());
+        assert!(eval_qr(&m, &ctx).is_ok());
+        let svd = eval_svd(&m, &ctx).unwrap();
+        assert!(matches!(svd.as_ref(), Expr::Seq(items) if items.len() == 3));
+    }
+}

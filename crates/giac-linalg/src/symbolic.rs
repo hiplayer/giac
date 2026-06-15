@@ -987,4 +987,33 @@ mod tests {
             "charpoly 4x4 diagonal got: {s}"
         );
     }
+
+    #[test]
+    fn inv_and_rref_2x2() {
+        use crate::plugin::xcas_default;
+
+        let ctx = xcas_default();
+        let m = Arc::new(Expr::Matrix(vec![
+            vec![Expr::int(1), Expr::int(2)],
+            vec![Expr::int(3), Expr::int(4)],
+        ]));
+        eval_inv(&m, &ctx).unwrap();
+        eval_rref(&[Arc::clone(&m)], &ctx).unwrap();
+        eval_trace(&m).unwrap();
+        eval_tran(&m).unwrap();
+    }
+
+    #[test]
+    fn f64_to_expr_and_try_matrix() {
+        use crate::plugin::xcas_default;
+
+        let ctx = xcas_default();
+        let m = Arc::new(Expr::Matrix(vec![
+            vec![Expr::int(1), Expr::rat(1, 2)],
+            vec![Expr::int(3), Expr::int(4)],
+        ]));
+        let f = try_to_f64_matrix(&m, &ctx).unwrap();
+        assert!((f[0][1] - 0.5).abs() < 1e-9);
+        let _ = f64_to_expr_numeric(1.23456789);
+    }
 }

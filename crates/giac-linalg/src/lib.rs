@@ -21,7 +21,7 @@ pub use qr::qr_decomp;
 pub use symbolic::{
     as_matrix, eval_charpoly, eval_det, eval_idn, eval_image, eval_inv, eval_ker,
     eval_linsolve, eval_matrix_mul, eval_matrix_pow, eval_pcar, eval_rref, eval_trace,
-    eval_tran, f64_to_expr_numeric, try_to_f64_matrix,
+    eval_tran, f64_to_expr_numeric, is_identity_matrix, try_to_f64_matrix,
 };
 pub use symbolic_eigen::{eval_egv, eval_jordan};
 pub use svd::svd_decomp;
@@ -57,4 +57,14 @@ pub fn from_dmatrix(m: &DMatrix<f64>) -> Vec<Vec<f64>> {
 /// Format a float with `digits` significant figures (giac `evalf` style).
 pub fn format_float(v: f64, digits: u32) -> String {
     giac_core::float_format::format_float(v, digits)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn to_dmatrix_rejects_jagged_rows() {
+        assert!(to_dmatrix(&[vec![1.0, 2.0], vec![3.0]]).is_none());
+    }
 }

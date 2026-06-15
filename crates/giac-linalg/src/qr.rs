@@ -59,4 +59,10 @@ mod tests {
             }
         }
     }
+
+    #[test]
+    fn qr_empty_fails() {
+        assert!(qr_decomp(&[]).is_none());
+        assert!(qr_decomp(&[vec![]]).is_none());
+    }
 }
