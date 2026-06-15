@@ -7,6 +7,9 @@ mod context;
 mod display;
 mod error;
 mod eval;
+mod eval_poly;
+#[cfg(test)]
+mod eval_poly_tests;
 mod expr;
 mod ident;
 mod integrate;

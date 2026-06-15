@@ -1,10 +1,12 @@
 use std::sync::Arc;
 
-use crate::{Context, EvalError, Expr, ExprArc};
+use giac_poly::modp;
 use num_bigint::BigInt;
 use num_traits::Zero;
 
-use super::poly::{expr_to_poly, poly_to_expr};
+use crate::{Context, EvalError, Expr, ExprArc};
+
+use super::poly::{expr_to_poly, poly_mod_to_expr, poly_to_expr};
 
 /// Distribute products over sums and expand powers of sums.
 pub fn expand(expr: &Expr, _ctx: &Context) -> Result<ExprArc, EvalError> {
@@ -52,6 +54,17 @@ fn expand_mul_pair(lhs: &Expr, rhs: &Expr, ctx: &Context) -> Result<ExprArc, Eva
 }
 
 fn expand_pow(base: &ExprArc, exp: &ExprArc, ctx: &Context) -> Result<ExprArc, EvalError> {
+    if let Expr::Mod(b, m) = base.as_ref() {
+        if let (Ok(p), Ok(mod_i)) = (expr_to_poly(b), modulus_from_expr(m)) {
+            if let Expr::Int(n) = exp.as_ref() {
+                if n >= &num_bigint::BigInt::zero() && n <= &num_bigint::BigInt::from(50) {
+                    let e = crate::num_util::bigint_to_nonneg_u32(n)?;
+                    let pm = modp(&p.pow(e), mod_i).map_err(mod_err)?;
+                    return Ok(poly_mod_to_expr(&pm));
+                }
+            }
+        }
+    }
     let base_e = expand(base, ctx)?;
     if let Expr::Int(n) = exp.as_ref() {
         if n >= &BigInt::zero() && n <= &BigInt::from(20) {
@@ -93,10 +106,51 @@ pub fn normal(expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
     Ok(expanded)
 }
 
+fn modulus_from_expr(m: &Expr) -> Result<i64, EvalError> {
+    match m {
+        Expr::Int(n) => n
+            .to_string()
+            .parse()
+            .map_err(|_| EvalError::TypeError("integer modulus expected")),
+        _ => Err(EvalError::TypeError("integer modulus expected")),
+    }
+}
+
+fn mod_err(e: giac_poly::PolyError) -> EvalError {
+    match e {
+        giac_poly::PolyError::DivisionByZero => EvalError::DivisionByZero,
+        giac_poly::PolyError::TypeError(m) => EvalError::TypeError(m),
+        giac_poly::PolyError::NotImplemented(m) => EvalError::NotImplemented(m),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::{format_expr, Context, Expr};
+
+    #[test]
+    fn normal_mod_power_displays_giac_style() {
+        let ctx = Context::default();
+        let e = Expr::func(
+            crate::expr::FuncKind::Normal,
+            vec![Expr::pow(
+                Arc::new(Expr::Mod(
+                    Expr::add(vec![
+                        Expr::mul(vec![Expr::int(2), Expr::sym("x")]),
+                        Expr::int(1),
+                    ]),
+                    Expr::int(13),
+                )),
+                Expr::int(5),
+            )],
+        );
+        let r = crate::eval::eval(e.as_ref(), &ctx).unwrap();
+        let s = format_expr(r.as_ref());
+        assert!(s.contains("% 13"), "got {s}");
+        assert!(!s.contains(" mod 13*"), "nested mod display: {s}");
+        assert!(s.contains("x^5"));
+    }
 
     #[test]
     fn expand_square_of_sum() {

@@ -1,6 +1,6 @@
 [package]
-name = "giac-core"
-description = "Core expression types and evaluation for giac-rs"
+name = "giac-poly"
+description = "Polynomial ring operations for giac-rs (Phase 2)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -15,5 +15,3 @@ num-integer = { workspace = true }
 num-rational = { workspace = true }
 num-traits = { workspace = true }
 thiserror = { workspace = true }
-giac-poly = { workspace = true }
-giac-groebner = { workspace = true }

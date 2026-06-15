@@ -12,7 +12,7 @@ pub fn format_expr(expr: &Expr) -> String {
         Expr::Int(n) => n.to_string(),
         Expr::Rat(r) => format_rational(r),
         Expr::Frac(num, den) => format_frac(num, den),
-        Expr::Mod(a, m) => format!("{} mod {}", format_expr(a), format_expr(m)),
+        Expr::Mod(a, m) => format_mod(a, m),
         Expr::Complex(re, im) => format_complex(re, im),
         Expr::Symbol(id) => id.to_string(),
         Expr::Add(terms) => format_add(terms),
@@ -39,6 +39,13 @@ fn format_frac(num: &Arc<Expr>, den: &Arc<Expr>) -> String {
         return format!("{}/{}", n, d);
     }
     format!("({})/({})", format_expr(num), format_expr(den))
+}
+
+fn format_mod(a: &Arc<Expr>, m: &Arc<Expr>) -> String {
+    if matches!(a.as_ref(), Expr::Int(_)) && matches!(m.as_ref(), Expr::Int(_)) {
+        return format!("({} % {})", format_expr(a), format_expr(m));
+    }
+    format!("{} mod {}", format_expr(a), format_expr(m))
 }
 
 fn format_rational(r: &Ratio<BigInt>) -> String {
@@ -187,6 +194,24 @@ fn func_name(kind: FuncKind) -> &'static str {
         FuncKind::Ratnormal => "ratnormal",
         FuncKind::Expand => "expand",
         FuncKind::Factor => "factor",
+        FuncKind::Quo => "quo",
+        FuncKind::Rem => "rem",
+        FuncKind::Content => "content",
+        FuncKind::Gauss => "gauss",
+        FuncKind::Egcd => "egcd",
+        FuncKind::Abcuv => "abcuv",
+        FuncKind::Simp2 => "simp2",
+        FuncKind::Lcm => "lcm",
+        FuncKind::Horner => "horner",
+        FuncKind::Resultant => "resultant",
+        FuncKind::Roots => "roots",
+        FuncKind::Modp => "modp",
+        FuncKind::Smod => "smod",
+        FuncKind::Irem => "irem",
+        FuncKind::Chinrem => "chinrem",
+        FuncKind::Partfrac => "partfrac",
+        FuncKind::Greduce => "greduce",
+        FuncKind::Rref => "rref",
         FuncKind::Integrate => "integrate",
         FuncKind::Int => "int",
         FuncKind::Idn => "idn",
@@ -305,6 +330,14 @@ mod tests {
     }
 
     #[test]
+    fn format_mod_integer_style() {
+        assert_eq!(
+            format_expr(&Expr::Mod(Expr::int(6), Expr::int(13))),
+            "(6 % 13)"
+        );
+    }
+
+    #[test]
     fn format_complex_im_part_variants() {
         assert_eq!(
             format_expr(&Expr::Complex(Expr::int(0), Expr::rat(-1, 1))),
@@ -367,7 +400,7 @@ mod tests {
         assert_eq!(format_expr(Expr::rat(3, 1).as_ref()), "3");
         assert_eq!(
             format_expr(&Expr::Mod(Expr::int(7), Expr::int(3))),
-            "7 mod 3"
+            "(7 % 3)"
         );
     }
 

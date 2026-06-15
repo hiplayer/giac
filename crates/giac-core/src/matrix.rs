@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use num_bigint::BigInt;
+use num_integer::Integer;
 use num_traits::{One, Zero};
 
 use crate::error::EvalError;
@@ -238,6 +239,114 @@ fn pcar_3x3(rows: &[Vec<ExprArc>]) -> Result<ExprArc, EvalError> {
     Ok(Expr::func(
         crate::expr::FuncKind::Poly1,
         vec![Arc::new(Expr::Seq(coeffs))],
+    ))
+}
+
+pub fn eval_rref(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc, EvalError> {
+    if args.is_empty() {
+        return Err(EvalError::TooFewArgs("rref"));
+    }
+    let mut rows = Vec::new();
+    let mut modulus: Option<i64> = None;
+    for arg in args {
+        let (row, m) = split_mod_row(arg)?;
+        if let Some(prev) = modulus {
+            if prev != m {
+                return Err(EvalError::TypeError("modulus mismatch"));
+            }
+        } else if m != 0 {
+            modulus = Some(m);
+        }
+        rows.push(row);
+    }
+    if let Some(m) = modulus {
+        let out = mod_rref(&rows, m)?;
+        return Ok(Arc::new(Expr::Matrix(out)));
+    }
+    let (out, _) = rref(&rows)?;
+    Ok(Arc::new(Expr::Matrix(out)))
+}
+
+fn split_mod_row(e: &ExprArc) -> Result<(Vec<ExprArc>, i64), EvalError> {
+    match e.as_ref() {
+        Expr::Mod(inner, m) => {
+            let m_i = int_from_expr(m.as_ref())?;
+            Ok((row_to_vec(inner)?, m_i))
+        }
+        other => Ok((row_to_vec(&Arc::new(other.clone()))?, 0)),
+    }
+}
+
+fn row_to_vec(e: &ExprArc) -> Result<Vec<ExprArc>, EvalError> {
+    match e.as_ref() {
+        Expr::List(items) | Expr::Seq(items) => Ok(items.clone()),
+        Expr::Matrix(rows) if rows.len() == 1 => Ok(rows[0].clone()),
+        _ => Err(EvalError::TypeError("expected row vector")),
+    }
+}
+
+fn int_from_expr(e: &Expr) -> Result<i64, EvalError> {
+    match e {
+        Expr::Int(n) => n
+            .to_string()
+            .parse()
+            .map_err(|_| EvalError::TypeError("integer expected")),
+        _ => Err(EvalError::TypeError("integer expected")),
+    }
+}
+
+fn mod_rref(rows: &[Vec<ExprArc>], modulus: i64) -> Result<Vec<Vec<ExprArc>>, EvalError> {
+    let mut m: Vec<Vec<i64>> = rows
+        .iter()
+        .map(|row| row.iter().map(|c| int_from_expr(c.as_ref())).collect())
+        .collect::<Result<_, _>>()?;
+    let ncols = m[0].len();
+    let mut pivot_row = 0usize;
+    for col in 0..ncols {
+        if pivot_row >= m.len() {
+            break;
+        }
+        let mut sel = None;
+        for r in pivot_row..m.len() {
+            if m[r][col] % modulus != 0 {
+                sel = Some(r);
+                break;
+            }
+        }
+        let Some(r) = sel else { continue };
+        m.swap(pivot_row, r);
+        let inv = mod_inv(m[pivot_row][col], modulus)?;
+        for c in 0..ncols {
+            m[pivot_row][c] = smod_i64(m[pivot_row][c] * inv, modulus);
+        }
+        for r in 0..m.len() {
+            if r == pivot_row || m[r][col] == 0 {
+                continue;
+            }
+            let factor = m[r][col];
+            for c in 0..ncols {
+                m[r][c] = smod_i64(m[r][c] - factor * m[pivot_row][c], modulus);
+            }
+        }
+        pivot_row += 1;
+    }
+    Ok(m.into_iter()
+        .map(|row| row.into_iter().map(Expr::int).collect())
+        .collect())
+}
+
+fn smod_i64(a: i64, m: i64) -> i64 {
+    giac_poly::smod(a, m)
+}
+
+fn mod_inv(a: i64, m: i64) -> Result<i64, EvalError> {
+    let eg = BigInt::from(a).extended_gcd(&BigInt::from(m));
+    if eg.gcd != BigInt::one() {
+        return Err(EvalError::TypeError("not invertible"));
+    }
+    Ok(smod_i64(
+        eg.x.to_string().parse().unwrap_or(0),
+        m,
     ))
 }
 

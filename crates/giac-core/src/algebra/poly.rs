@@ -1,267 +1,15 @@
-use std::collections::BTreeMap;
 use std::sync::Arc;
 
+pub use giac_poly::{Monomial, Poly, Var};
+use giac_poly::PolyMod;
 use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::{One, Zero};
 
 use crate::{EvalError, Expr, ExprArc, Ident};
 
-/// Exponent vector sorted by variable name.
-#[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Monomial(BTreeMap<Ident, u32>);
-
-impl Monomial {
-    pub fn one() -> Self {
-        Self(BTreeMap::new())
-    }
-
-    pub fn var(id: Ident) -> Self {
-        let mut m = BTreeMap::new();
-        m.insert(id, 1);
-        Self(m)
-    }
-
-    pub fn degree(&self) -> u32 {
-        self.0.values().sum()
-    }
-
-    pub fn mul(&self, other: &Self) -> Self {
-        let mut out = self.0.clone();
-        for (v, e) in &other.0 {
-            *out.entry(v.clone()).or_insert(0) += e;
-        }
-        Self(out)
-    }
-
-    pub fn div_exact(&self, other: &Self) -> Option<Self> {
-        let mut out = self.0.clone();
-        for (v, e) in &other.0 {
-            let entry = out.get_mut(v)?;
-            if *entry < *e {
-                return None;
-            }
-            *entry -= e;
-            if *entry == 0 {
-                out.remove(v);
-            }
-        }
-        Some(Self(out))
-    }
-
-    pub fn is_dividing(&self, other: &Self) -> bool {
-        other.0.iter().all(|(v, e)| self.0.get(v).copied().unwrap_or(0) >= *e)
-    }
-}
-
-/// Sparse multivariate polynomial with rational coefficients.
-#[derive(Clone, Debug, PartialEq)]
-pub struct Poly {
-    pub(crate) terms: BTreeMap<Monomial, Ratio<BigInt>>,
-}
-
-impl Poly {
-    pub fn zero() -> Self {
-        Self {
-            terms: BTreeMap::new(),
-        }
-    }
-
-    pub fn one() -> Self {
-        let mut terms = BTreeMap::new();
-        terms.insert(Monomial::one(), Ratio::one());
-        Self { terms }
-    }
-
-    pub fn constant(c: Ratio<BigInt>) -> Self {
-        if c.is_zero() {
-            return Self::zero();
-        }
-        let mut terms = BTreeMap::new();
-        terms.insert(Monomial::one(), c);
-        Self { terms }
-    }
-
-    pub fn is_zero(&self) -> bool {
-        self.terms.is_empty()
-    }
-
-    pub fn leading_term(&self) -> Option<(&Monomial, &Ratio<BigInt>)> {
-        self.terms.iter().next_back()
-    }
-
-    pub fn degree(&self) -> u32 {
-        self.terms
-            .keys()
-            .map(|m| m.degree())
-            .max()
-            .unwrap_or(0)
-    }
-
-    pub fn add(&self, other: &Self) -> Self {
-        let mut terms = self.terms.clone();
-        for (m, c) in &other.terms {
-            let entry = terms.entry(m.clone()).or_insert_with(Ratio::zero);
-            *entry += c;
-            if entry.is_zero() {
-                terms.remove(m);
-            }
-        }
-        Self { terms }
-    }
-
-    pub fn sub(&self, other: &Self) -> Self {
-        let mut terms = self.terms.clone();
-        for (m, c) in &other.terms {
-            let entry = terms.entry(m.clone()).or_insert_with(Ratio::zero);
-            *entry -= c;
-            if entry.is_zero() {
-                terms.remove(m);
-            }
-        }
-        Self { terms }
-    }
-
-    #[allow(dead_code)] // used by future poly normal-form paths
-    pub fn neg(&self) -> Self {
-        let terms = self
-            .terms
-            .iter()
-            .map(|(m, c)| (m.clone(), -c.clone()))
-            .collect();
-        Self { terms }
-    }
-
-    pub fn mul(&self, other: &Self) -> Self {
-        let mut out = BTreeMap::new();
-        for (m1, c1) in &self.terms {
-            for (m2, c2) in &other.terms {
-                let m = m1.mul(m2);
-                *out.entry(m).or_insert_with(Ratio::zero) += c1 * c2;
-            }
-        }
-        out.retain(|_, c| !c.is_zero());
-        Self { terms: out }
-    }
-
-    pub fn mul_scalar(&self, s: &Ratio<BigInt>) -> Self {
-        if s.is_zero() {
-            return Self::zero();
-        }
-        let terms = self
-            .terms
-            .iter()
-            .map(|(m, c)| (m.clone(), c * s))
-            .collect();
-        Self { terms }
-    }
-
-    pub fn pow(&self, exp: u32) -> Self {
-        if exp == 0 {
-            return Self::one();
-        }
-        let mut result = Self::one();
-        let mut base = self.clone();
-        let mut e = exp;
-        while e > 0 {
-            if e % 2 == 1 {
-                result = result.mul(&base);
-            }
-            base = base.mul(&base);
-            e /= 2;
-        }
-        result
-    }
-
-    pub fn gcd(&self, other: &Self) -> Self {
-        if self.is_zero() {
-            return other.clone();
-        }
-        if other.is_zero() {
-            return self.clone();
-        }
-        let mut a = self.clone();
-        let mut b = other.clone();
-        loop {
-            if b.is_zero() {
-                return a.monic();
-            }
-            let (_, r) = a.div_rem(&b);
-            a = b;
-            b = r;
-        }
-    }
-
-    pub fn monic(&self) -> Self {
-        if let Some((_, lc)) = self.leading_term() {
-            if lc.is_one() {
-                return self.clone();
-            }
-            return self.mul_scalar(&(&Ratio::one() / lc));
-        }
-        self.clone()
-    }
-
-    pub fn div_rem(&self, divisor: &Self) -> (Self, Self) {
-        if divisor.is_zero() {
-            return (Self::zero(), self.clone());
-        }
-        let mut remainder = self.clone();
-        let mut quotient = Self::zero();
-        let Some((div_lt, div_lc)) = divisor.leading_term() else {
-            return (Self::zero(), self.clone());
-        };
-
-        loop {
-            let Some((r_lt, r_lc)) = remainder.leading_term() else {
-                break;
-            };
-            if r_lt.degree() < div_lt.degree() {
-                break;
-            }
-            if !r_lt.is_dividing(div_lt) {
-                break;
-            }
-            let Some(q_m) = r_lt.div_exact(div_lt) else {
-                break;
-            };
-            let q_c = r_lc.clone() / div_lc.clone();
-            let q_term = Poly {
-                terms: [(q_m, q_c)].into(),
-            };
-            quotient = quotient.add(&q_term);
-            remainder = remainder.sub(&q_term.mul(divisor));
-        }
-        (quotient, remainder)
-    }
-
-    /// Least common multiple for polynomial denominators.
-    pub fn lcm(&self, other: &Self) -> Self {
-        if self.is_zero() {
-            return other.clone();
-        }
-        if other.is_zero() {
-            return self.clone();
-        }
-        if *self == Self::one() {
-            return other.clone();
-        }
-        if *other == Self::one() {
-            return self.clone();
-        }
-        let g = self.gcd(other);
-        self.mul(other).div_rem(&g).0
-    }
-
-    /// Divide exactly when remainder is zero.
-    pub fn div_exact(&self, divisor: &Self) -> Option<Self> {
-        let (q, r) = self.div_rem(divisor);
-        if r.is_zero() {
-            Some(q)
-        } else {
-            None
-        }
-    }
+fn var(id: &Ident) -> Var {
+    Arc::from(id.as_str())
 }
 
 /// Try to convert an expression to a polynomial.
@@ -269,9 +17,7 @@ pub fn expr_to_poly(expr: &Expr) -> Result<Poly, EvalError> {
     match expr {
         Expr::Int(n) => Ok(Poly::constant(Ratio::from_integer(n.clone()))),
         Expr::Rat(r) => Ok(Poly::constant(r.clone())),
-        Expr::Symbol(id) => Ok(Poly {
-            terms: [(Monomial::var(id.clone()), Ratio::one())].into(),
-        }),
+        Expr::Symbol(id) => Ok(Poly::var(var(id))),
         Expr::Add(terms) => terms
             .iter()
             .map(|t| expr_to_poly(t))
@@ -308,6 +54,30 @@ pub fn poly_to_expr(poly: &Poly) -> ExprArc {
     Expr::add(terms.into_iter().map(|(_, t)| t).collect())
 }
 
+/// Format a polynomial over ℤ/pℤ with per-coefficient `(c % p)` display (giac style).
+pub fn poly_mod_to_expr(pm: &PolyMod) -> ExprArc {
+    let modulus = pm
+        .modulus
+        .to_string()
+        .parse::<i64>()
+        .unwrap_or(0);
+    if pm.is_zero() {
+        return Arc::new(Expr::Mod(Expr::int(0), Expr::int(modulus)));
+    }
+    let mut terms: Vec<(u32, ExprArc)> = Vec::new();
+    for (m, c) in &pm.terms {
+        let rem = giac_poly::smod(
+            c.val.to_string().parse().unwrap_or(0),
+            modulus,
+        );
+        let coeff = Arc::new(Expr::Mod(Expr::int(rem), Expr::int(modulus)));
+        let term = monomial_to_expr(m, coeff);
+        terms.push((m.degree(), term));
+    }
+    terms.sort_by(|a, b| b.0.cmp(&a.0));
+    Expr::add(terms.into_iter().map(|(_, t)| t).collect())
+}
+
 fn ratio_to_expr(r: &Ratio<BigInt>) -> ExprArc {
     if r.is_zero() {
         Expr::int(0)
@@ -323,19 +93,19 @@ fn ratio_to_expr(r: &Ratio<BigInt>) -> ExprArc {
 }
 
 fn monomial_to_expr(m: &Monomial, coeff: ExprArc) -> ExprArc {
-    if m.0.is_empty() {
+    if m.is_const() {
         return coeff;
     }
     let mut factors: Vec<ExprArc> = Vec::new();
     if !matches!(coeff.as_ref(), Expr::Int(n) if n.is_one()) {
         factors.push(coeff);
     }
-    for (v, e) in &m.0 {
-        let base = Expr::sym(v.as_str());
-        if *e == 1 {
+    for (v, e) in m.iter() {
+        let base = Expr::sym(v.as_ref());
+        if e == 1 {
             factors.push(base);
         } else {
-            factors.push(Expr::pow(base, Expr::int(*e as i64)));
+            factors.push(Expr::pow(base, Expr::int(e as i64)));
         }
     }
     if factors.is_empty() {
@@ -347,110 +117,68 @@ fn monomial_to_expr(m: &Monomial, coeff: ExprArc) -> ExprArc {
     }
 }
 
+pub fn vars_from_expr(expr: &Expr) -> Vec<Var> {
+    let mut out = Vec::new();
+    collect_vars(expr, &mut out);
+    out.sort();
+    out.dedup();
+    out
+}
+
+fn collect_vars(expr: &Expr, out: &mut Vec<Var>) {
+    match expr {
+        Expr::Symbol(id) => out.push(var(id)),
+        Expr::Add(ts) | Expr::Mul(ts) => ts.iter().for_each(|t| collect_vars(t, out)),
+        Expr::Pow(b, e) => {
+            collect_vars(b, out);
+            collect_vars(e, out);
+        }
+        _ => {}
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::Expr;
 
     #[test]
-    fn poly_add_mul() {
+    fn gcd_linear_bridge() {
         let x = Ident::new("x");
-        let p1 = Poly {
-            terms: [(Monomial::var(x.clone()), Ratio::one())].into(),
-        };
-        let p2 = Poly::constant(Ratio::from_integer(BigInt::from(3)));
-        let sum = p1.add(&p2);
-        let e = poly_to_expr(&sum);
-        match e.as_ref() {
-            Expr::Add(v) => assert_eq!(v.len(), 2),
-            _ => panic!("expected add"),
-        }
-    }
-
-    #[test]
-    fn gcd_linear() {
-        let x = Ident::new("x");
-        let one = |c: i64| Poly::constant(Ratio::from_integer(BigInt::from(c)));
-        let x_m = |c: i64, e: u32| {
-            let mut m = BTreeMap::new();
-            if e > 0 {
-                m.insert(x.clone(), e);
-            }
-            Poly {
-                terms: [(Monomial(m), Ratio::from_integer(BigInt::from(c)))].into(),
-            }
-        };
-        // x^2 - 2x + 1 = (x-1)^2
-        let p = x_m(1, 2).sub(&x_m(2, 1)).add(&one(1));
-        // x^3 - 1
-        let q = x_m(1, 3).sub(&one(1));
+        let p = expr_to_poly(
+            &Expr::add(vec![
+                Expr::pow(Expr::sym("x"), Expr::int(2)),
+                Expr::int(-1),
+            ]),
+        )
+        .unwrap();
+        let q = expr_to_poly(
+            &Expr::add(vec![
+                Expr::pow(Expr::sym("x"), Expr::int(3)),
+                Expr::int(-1),
+            ]),
+        )
+        .unwrap();
         let g = p.gcd(&q);
-        let g_expr = poly_to_expr(&g);
-        // gcd should be x-1
-        let expected = Expr::add(vec![Expr::sym("x"), Expr::int(-1)]);
-        assert_eq!(g_expr, expected);
+        assert_eq!(poly_to_expr(&g), Expr::add(vec![Expr::sym("x"), Expr::int(-1)]));
+        let _ = x;
     }
 
     #[test]
-    fn poly_pow_and_sub() {
-        let x = Ident::new("x");
-        let _one = |c: i64| Poly::constant(Ratio::from_integer(BigInt::from(c)));
-        let x_m = |c: i64, e: u32| {
-            let mut m = BTreeMap::new();
-            if e > 0 {
-                m.insert(x.clone(), e);
-            }
-            Poly {
-                terms: [(Monomial(m), Ratio::from_integer(BigInt::from(c)))].into(),
-            }
-        };
-        let p = x_m(1, 1);
-        let sq = p.pow(2);
-        assert_eq!(sq.degree(), 2);
-        let diff = sq.sub(&p);
-        assert!(!diff.is_zero());
-    }
-
-    #[test]
-    fn poly_to_expr_edge_cases() {
-        let zero = Poly::zero();
-        assert_eq!(poly_to_expr(&zero), Expr::int(0));
-        let one = Poly::one();
-        assert_eq!(poly_to_expr(&one), Expr::int(1));
-    }
-
-    #[test]
-    fn monomial_div_and_poly_algebra() {
-        let x = Ident::new("x");
-        let y = Ident::new("y");
-        let m = Monomial::var(x.clone()).mul(&Monomial::var(y.clone()));
-        let d = Monomial::var(x.clone());
-        assert_eq!(m.div_exact(&d).unwrap(), Monomial::var(y.clone()));
-        assert!(Monomial::var(x.clone()).div_exact(&m).is_none());
-
-        let p = Poly {
-            terms: [(Monomial::var(x.clone()), Ratio::from_integer(BigInt::from(2)))].into(),
-        };
-        assert_eq!(p.neg().terms.values().next().unwrap().numer(), &-BigInt::from(2));
-        assert!(p.mul_scalar(&Ratio::zero()).is_zero());
-        assert_eq!(Poly::zero().gcd(&p), p);
-        assert_eq!(p.gcd(&Poly::zero()), p);
-
-        let (q, r) = p.div_rem(&Poly::one());
-        assert_eq!(q, p);
-        assert!(r.is_zero());
-    }
-
-    #[test]
-    fn poly_monic_non_unit_leading() {
-        let x = Ident::new("x");
-        let p = Poly {
-            terms: [(Monomial::var(x.clone()), Ratio::from_integer(BigInt::from(4)))].into(),
-        };
-        let m = p.monic();
-        assert_eq!(
-            m.terms.values().next().unwrap().numer(),
-            &BigInt::one()
-        );
+    fn expr_to_poly_matches_expanded_power() {
+        let expanded = Expr::add(vec![
+            Expr::pow(Expr::sym("x"), Expr::int(4)),
+            Expr::mul(vec![Expr::int(12), Expr::pow(Expr::sym("x"), Expr::int(3))]),
+            Expr::mul(vec![Expr::int(54), Expr::pow(Expr::sym("x"), Expr::int(2))]),
+            Expr::mul(vec![Expr::int(108), Expr::sym("x")]),
+            Expr::int(81),
+        ]);
+        let p = expr_to_poly(&expanded).unwrap();
+        let x = Poly::var("x");
+        let expected = x
+            .add(&Poly::constant(Ratio::from_integer(BigInt::from(3))))
+            .pow(4);
+        assert_eq!(p, expected);
+        assert_eq!(giac_poly::factor_poly(&p), expected);
     }
 }

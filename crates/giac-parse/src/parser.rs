@@ -121,6 +121,11 @@ impl<'a, 'ctx> Parser<'a, 'ctx> {
                     let rhs = self.parse_unary()?;
                     expr = Expr::mul(vec![expr, Expr::pow(rhs, Expr::int(-1))]);
                 }
+                Some(Token::Mod) => {
+                    self.bump()?;
+                    let rhs = self.parse_unary()?;
+                    expr = Arc::new(Expr::Mod(expr, rhs));
+                }
                 Some(Token::Plus | Token::Minus) => {
                     return self.parse_add_from(expr);
                 }
@@ -431,6 +436,24 @@ fn lookup_func(name: &str) -> Option<FuncKind> {
         "ratnormal" => Some(FuncKind::Ratnormal),
         "expand" => Some(FuncKind::Expand),
         "factor" => Some(FuncKind::Factor),
+        "quo" => Some(FuncKind::Quo),
+        "rem" => Some(FuncKind::Rem),
+        "content" => Some(FuncKind::Content),
+        "gauss" => Some(FuncKind::Gauss),
+        "egcd" => Some(FuncKind::Egcd),
+        "abcuv" => Some(FuncKind::Abcuv),
+        "simp2" => Some(FuncKind::Simp2),
+        "lcm" => Some(FuncKind::Lcm),
+        "horner" => Some(FuncKind::Horner),
+        "resultant" => Some(FuncKind::Resultant),
+        "roots" => Some(FuncKind::Roots),
+        "modp" => Some(FuncKind::Modp),
+        "smod" => Some(FuncKind::Smod),
+        "irem" => Some(FuncKind::Irem),
+        "chinrem" => Some(FuncKind::Chinrem),
+        "partfrac" => Some(FuncKind::Partfrac),
+        "greduce" => Some(FuncKind::Greduce),
+        "rref" => Some(FuncKind::Rref),
         "integrate" | "int" => Some(FuncKind::Integrate),
         "idn" => Some(FuncKind::Idn),
         "inv" => Some(FuncKind::Inv),
@@ -504,6 +527,11 @@ mod tests {
         assert!(matches!(
             &rel[0],
             Stmt::ExprStmt(e) if matches!(e.as_ref(), Expr::Relation(RelOp::Eq, _, _))
+        ));
+        let fm = parse_program("factor(x^4-1) mod 2;", &ctx).unwrap();
+        assert!(matches!(
+            &fm[0],
+            Stmt::ExprStmt(e) if matches!(e.as_ref(), Expr::Mod(_, _))
         ));
     }
 

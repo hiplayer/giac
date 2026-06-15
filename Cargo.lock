@@ -47,6 +47,8 @@ dependencies = [
 name = "giac-core"
 version = "0.1.0"
 dependencies = [
+ "giac-groebner",
+ "giac-poly",
  "num-bigint",
  "num-integer",
  "num-rational",
@@ -55,11 +57,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "giac-groebner"
+version = "0.1.0"
+dependencies = [
+ "giac-poly",
+ "num-bigint",
+ "num-rational",
+ "num-traits",
+]
+
+[[package]]
 name = "giac-parse"
 version = "0.1.0"
 dependencies = [
  "giac-core",
  "logos",
+ "thiserror",
+]
+
+[[package]]
+name = "giac-poly"
+version = "0.1.0"
+dependencies = [
+ "num-bigint",
+ "num-integer",
+ "num-rational",
+ "num-traits",
  "thiserror",
 ]
 

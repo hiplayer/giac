@@ -51,7 +51,8 @@ pub fn eval(expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
                 _ => Arc::new(Expr::Matrix(rows)),
             }
         }
-        Expr::Relation(_, _, _) | Expr::Mod(_, _) => Arc::new(expr.clone()),
+        Expr::Relation(_, _, _) => Arc::new(expr.clone()),
+        Expr::Mod(a, m) => eval_mod(a, m, ctx)?,
     };
     simplify(result.as_ref(), ctx)
 }
@@ -67,6 +68,37 @@ fn eval_symbol(id: &Ident, ctx: &Context) -> Result<ExprArc, EvalError> {
         return Ok(Expr::sym("pi"));
     }
     Ok(Expr::sym(id.as_str()))
+}
+
+fn eval_mod(a: &ExprArc, m: &ExprArc, ctx: &Context) -> Result<ExprArc, EvalError> {
+    let inner = eval(a, ctx)?;
+    let modulus = eval(m, ctx)?;
+    if let Expr::Func(FuncKind::Factor, args) = inner.as_ref() {
+        if args.len() == 1 {
+            let arg = eval(&args[0], ctx)?;
+            let mod_i = int_from_expr(modulus.as_ref())?;
+            return crate::eval_poly::eval_factor_mod(&[arg], mod_i, ctx);
+        }
+    }
+    if let (Some(a_i), Some(m_i)) = (as_int(inner.as_ref()), as_int(modulus.as_ref())) {
+        let m_abs = m_i.abs();
+        let mut r = (a_i % &m_abs).to_string().parse::<i64>().unwrap_or(0);
+        if r < 0 {
+            r += m_abs.to_string().parse::<i64>().unwrap_or(0);
+        }
+        return Ok(Expr::int(r));
+    }
+    if crate::algebra::poly::expr_to_poly(inner.as_ref()).is_ok() {
+        let reduced = crate::eval_poly::eval_modp(&[Arc::clone(&inner), Arc::clone(&modulus)], ctx)?;
+        return Ok(Arc::new(Expr::Mod(reduced, modulus)));
+    }
+    Ok(Arc::new(Expr::Mod(inner, modulus)))
+}
+
+fn int_from_expr(e: &Expr) -> Result<i64, EvalError> {
+    as_int(e)
+        .and_then(|n| n.to_string().parse().ok())
+        .ok_or(EvalError::TypeError("integer expected"))
 }
 
 fn eval_add(terms: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
@@ -188,6 +220,8 @@ fn eval_func(kind: FuncKind, args: &[ExprArc], ctx: &Context) -> Result<ExprArc,
     match kind {
         FuncKind::Subst => return eval_subst(args, ctx),
         FuncKind::Integrate | FuncKind::Int => return eval_integrate(args, ctx),
+        FuncKind::Smod => return crate::eval_poly::eval_smod(args),
+        FuncKind::Irem => return crate::eval_poly::eval_irem(args),
         _ => {}
     }
     let ev: Result<Vec<_>, _> = args.iter().map(|a| eval(a, ctx)).collect();
@@ -207,6 +241,22 @@ fn eval_func(kind: FuncKind, args: &[ExprArc], ctx: &Context) -> Result<ExprArc,
         FuncKind::Ratnormal => crate::algebra::ratnormal(args[0].as_ref(), ctx),
         FuncKind::Expand => crate::algebra::expand(args[0].as_ref(), ctx),
         FuncKind::Factor => crate::algebra::factor(args[0].as_ref(), ctx),
+        FuncKind::Quo => crate::eval_poly::eval_quo(&args, ctx),
+        FuncKind::Rem => crate::eval_poly::eval_rem(&args, ctx),
+        FuncKind::Content => crate::eval_poly::eval_content(&args, ctx),
+        FuncKind::Gauss => crate::eval_poly::eval_gauss(&args, ctx),
+        FuncKind::Egcd => crate::eval_poly::eval_egcd(&args, ctx),
+        FuncKind::Abcuv => crate::eval_poly::eval_abcuv(&args, ctx),
+        FuncKind::Simp2 => crate::eval_poly::eval_simp2(&args, ctx),
+        FuncKind::Lcm => crate::eval_poly::eval_lcm(&args, ctx),
+        FuncKind::Horner => crate::eval_poly::eval_horner(&args, ctx),
+        FuncKind::Resultant => crate::eval_poly::eval_resultant(&args, ctx),
+        FuncKind::Roots => crate::eval_poly::eval_roots(&args, ctx),
+        FuncKind::Modp => crate::eval_poly::eval_modp(&args, ctx),
+        FuncKind::Chinrem => crate::eval_poly::eval_chinrem(&args, ctx),
+        FuncKind::Partfrac => crate::eval_poly::eval_partfrac(&args, ctx),
+        FuncKind::Greduce => crate::eval_poly::eval_greduce(&args, ctx),
+        FuncKind::Rref => crate::matrix::eval_rref(&args, ctx),
         FuncKind::Idn => eval_idn(&args),
         FuncKind::Inv => eval_inv(&args),
         FuncKind::Det => eval_det(&args, ctx),
@@ -253,6 +303,10 @@ fn eval_abs(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
 fn eval_gcd(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     if args.len() < 2 {
         return Err(EvalError::TooFewArgs("gcd"));
+    }
+    let has_mod = args.iter().any(|a| matches!(a.as_ref(), Expr::Mod(_, _)));
+    if has_mod {
+        return crate::eval_poly::eval_mod_gcd(args, ctx);
     }
     if args.iter().all(|a| as_int(a.as_ref()).is_some()) {
         let first = as_int(args[0].as_ref()).ok_or(EvalError::TypeError("gcd expects integers"))?;
@@ -665,6 +719,24 @@ fn func_name(kind: FuncKind) -> &'static str {
         FuncKind::Ratnormal => "ratnormal",
         FuncKind::Expand => "expand",
         FuncKind::Factor => "factor",
+        FuncKind::Quo => "quo",
+        FuncKind::Rem => "rem",
+        FuncKind::Content => "content",
+        FuncKind::Gauss => "gauss",
+        FuncKind::Egcd => "egcd",
+        FuncKind::Abcuv => "abcuv",
+        FuncKind::Simp2 => "simp2",
+        FuncKind::Lcm => "lcm",
+        FuncKind::Horner => "horner",
+        FuncKind::Resultant => "resultant",
+        FuncKind::Roots => "roots",
+        FuncKind::Modp => "modp",
+        FuncKind::Smod => "smod",
+        FuncKind::Irem => "irem",
+        FuncKind::Chinrem => "chinrem",
+        FuncKind::Partfrac => "partfrac",
+        FuncKind::Greduce => "greduce",
+        FuncKind::Rref => "rref",
         FuncKind::Integrate => "integrate",
         FuncKind::Int => "int",
         FuncKind::Idn => "idn",
@@ -901,7 +973,7 @@ mod tests {
         let rel = Arc::new(Expr::Relation(RelOp::Eq, Expr::sym("x"), Expr::int(1)));
         assert!(matches!(eval(rel.as_ref(), &ctx).unwrap().as_ref(), Expr::Relation(RelOp::Eq, _, _)));
         let md = Arc::new(Expr::Mod(Expr::int(7), Expr::int(3)));
-        assert!(matches!(eval(md.as_ref(), &ctx).unwrap().as_ref(), Expr::Mod(_, _)));
+        assert_eq!(eval(md.as_ref(), &ctx).unwrap(), Expr::int(1));
     }
 
     #[test]
@@ -1470,6 +1542,24 @@ mod tests {
             (FuncKind::Ratnormal, "ratnormal"),
             (FuncKind::Expand, "expand"),
             (FuncKind::Factor, "factor"),
+            (FuncKind::Quo, "quo"),
+            (FuncKind::Rem, "rem"),
+            (FuncKind::Content, "content"),
+            (FuncKind::Gauss, "gauss"),
+            (FuncKind::Egcd, "egcd"),
+            (FuncKind::Abcuv, "abcuv"),
+            (FuncKind::Simp2, "simp2"),
+            (FuncKind::Lcm, "lcm"),
+            (FuncKind::Horner, "horner"),
+            (FuncKind::Resultant, "resultant"),
+            (FuncKind::Roots, "roots"),
+            (FuncKind::Modp, "modp"),
+            (FuncKind::Smod, "smod"),
+            (FuncKind::Irem, "irem"),
+            (FuncKind::Chinrem, "chinrem"),
+            (FuncKind::Partfrac, "partfrac"),
+            (FuncKind::Greduce, "greduce"),
+            (FuncKind::Rref, "rref"),
             (FuncKind::Integrate, "integrate"),
             (FuncKind::Int, "int"),
             (FuncKind::Idn, "idn"),

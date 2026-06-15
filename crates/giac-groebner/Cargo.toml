@@ -1,0 +1,18 @@
+[package]
+name = "giac-groebner"
+description = "Polynomial reduction (greduce) for giac-rs (Phase 2)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+giac-poly = { path = "../giac-poly" }
+num-rational = { workspace = true }
+num-traits = { workspace = true }
+
+[dev-dependencies]
+num-bigint = { workspace = true }
