@@ -1,6 +1,6 @@
 use num_bigint::BigInt;
 use num_rational::Ratio;
-use num_traits::{One, Zero};
+use num_traits::{One, Signed, Zero};
 
 use crate::error::{PolyError, PolyResult};
 use crate::exp::bigint_pow;
@@ -169,9 +169,80 @@ pub fn roots(p: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
             }
             Ok(vec![Poly::constant(-&b / &a)])
         }
+        2 => quadratic_roots(p, var),
         3 if is_xn_minus_one(p, var, 3) => Ok(vec![Poly::constant(Ratio::one())]),
         _ => Err(PolyError::NotImplemented("roots")),
     }
+}
+
+fn quadratic_coeffs(
+    p: &Poly,
+    var: &Var,
+) -> Result<(Ratio<BigInt>, Ratio<BigInt>, Ratio<BigInt>), PolyError> {
+    let mut a = Ratio::zero();
+    let mut b = Ratio::zero();
+    let mut c = Ratio::zero();
+    for (m, coeff) in &p.terms {
+        match m.exp_of(var) {
+            2 => a += coeff,
+            1 => b += coeff,
+            0 => c += coeff,
+            _ => return Err(PolyError::TypeError("not quadratic")),
+        }
+    }
+    if a.is_zero() {
+        return Err(PolyError::TypeError("not quadratic"));
+    }
+    Ok((a, b, c))
+}
+
+fn ratio_is_perfect_square(r: &Ratio<BigInt>) -> Option<Ratio<BigInt>> {
+    if !r.denom().is_one() {
+        return None;
+    }
+    let n = r.numer();
+    if n.is_negative() {
+        return None;
+    }
+    let root = int_isqrt(n)?;
+    if &root * &root == *n {
+        Some(Ratio::from_integer(root))
+    } else {
+        None
+    }
+}
+
+fn int_isqrt(n: &BigInt) -> Option<BigInt> {
+    if n.is_negative() {
+        return None;
+    }
+    if n.is_zero() {
+        return Some(BigInt::zero());
+    }
+    let s = n.to_string();
+    let f = s.parse::<f64>().ok()?;
+    let mut x = BigInt::from(f.sqrt() as i64);
+    loop {
+        let next = (x.clone() + n / &x) / BigInt::from(2);
+        if next >= x {
+            return Some(x);
+        }
+        x = next;
+    }
+}
+
+fn quadratic_roots(p: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
+    let (a, b, c) = quadratic_coeffs(p, var)?;
+    let disc = &b * &b - Ratio::from_integer(BigInt::from(4)) * &a * &c;
+    if disc.is_zero() {
+        let r = -&b / (Ratio::from_integer(BigInt::from(2)) * &a);
+        return Ok(vec![Poly::constant(r)]);
+    }
+    let sqrt_d = ratio_is_perfect_square(&disc).ok_or(PolyError::NotImplemented("roots"))?;
+    let two_a = Ratio::from_integer(BigInt::from(2)) * &a;
+    let r1 = (-&b + &sqrt_d) / &two_a;
+    let r2 = (-&b - &sqrt_d) / &two_a;
+    Ok(vec![Poly::constant(r1), Poly::constant(r2)])
 }
 
 fn is_xn_minus_one(p: &Poly, var: &Var, n: u64) -> bool {
@@ -270,8 +341,16 @@ mod tests {
     }
 
     #[test]
-    fn roots_quadratic_not_implemented() {
-        let p = x().pow(2).sub(&Poly::one());
+    fn roots_quadratic_perfect_square() {
+        let p = x().pow(2).sub(&x().mul_scalar(&Ratio::from_integer(BigInt::from(2)))).add(&Poly::one());
+        let rs = roots(&p, &Var::from("x")).unwrap();
+        assert_eq!(rs.len(), 1);
+        assert_eq!(rs[0], Poly::constant(Ratio::one()));
+    }
+
+    #[test]
+    fn roots_quadratic_irrational_discriminant() {
+        let p = x().pow(2).add(&Poly::one());
         let err = roots(&p, &Var::from("x")).unwrap_err();
         assert!(matches!(err, PolyError::NotImplemented(_)));
     }

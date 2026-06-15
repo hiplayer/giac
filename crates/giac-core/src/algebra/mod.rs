@@ -1,7 +1,7 @@
 #![deny(unsafe_code)]
 
 mod expand;
-pub(crate) mod poly;
+pub mod poly;
 mod equiv;
 mod factor;
 mod normal;

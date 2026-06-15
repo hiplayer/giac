@@ -49,6 +49,7 @@ dependencies = [
  "giac-core",
  "giac-linalg",
  "giac-parse",
+ "giac-solve",
 ]
 
 [[package]]
@@ -58,6 +59,7 @@ dependencies = [
  "giac-core",
  "giac-linalg",
  "giac-parse",
+ "giac-solve",
 ]
 
 [[package]]
@@ -121,6 +123,16 @@ name = "giac-simplify"
 version = "0.1.0"
 dependencies = [
  "giac-core",
+]
+
+[[package]]
+name = "giac-solve"
+version = "0.1.0"
+dependencies = [
+ "giac-core",
+ "giac-linalg",
+ "giac-poly",
+ "num-bigint",
 ]
 
 [[package]]

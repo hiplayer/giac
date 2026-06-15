@@ -855,6 +855,32 @@ def verify_property(line: str, output: str) -> tuple[bool, str]:
                 return False, f"linsolve got={got} does not satisfy {eq}"
         return True, "ok"
 
+    m = re.fullmatch(r"solve\(\[(.+)\],\[(.+)\]\)", line)
+    if m:
+        return verify_property(
+            f"linsolve([{m.group(1)}],[{m.group(2)}])",
+            output,
+        )
+
+    m = re.fullmatch(r"solve\((.+),(.+)\)", line)
+    if m:
+        eq_str = m.group(1).strip()
+        var = symbols(m.group(2).strip())
+        mm = re.fullmatch(r"(.+?)=(.+)", eq_str)
+        if mm:
+            eq = sp.Eq(giac_to_sympy(mm.group(1)), giac_to_sympy(mm.group(2)))
+        else:
+            eq = sp.Eq(giac_to_sympy(eq_str), 0)
+        got = giac_to_sympy(output)
+        if isinstance(got, sp.Tuple):
+            roots_got = list(got.args)
+        else:
+            roots_got = [got]
+        for r in roots_got:
+            if sp.simplify(eq.subs(var, r)) != True:
+                return False, f"solve root {r} does not satisfy {eq}"
+        return True, "ok"
+
     m = re.fullmatch(
         r"gramschmidt\(\[(.+)\],\(p,q\)->integrate\(p\*q,x,(-?\d+),(\d+)\)\)",
         line,
@@ -1104,6 +1130,8 @@ def verify(line: str, output: str) -> tuple[bool, str]:
     if line.startswith("charpoly("):
         return verify_property(line, output)
     if line.startswith("linsolve("):
+        return verify_property(line, output)
+    if line.startswith("solve("):
         return verify_property(line, output)
     if line.startswith("gauss("):
         return verify_property(line, output)

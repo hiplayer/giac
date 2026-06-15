@@ -108,6 +108,10 @@ pub enum FuncKind {
     Lin,
     Diff,
     Derive,
+    Solve,
+    Fsolve,
+    Sturm,
+    Realroot,
 }
 
 impl Expr {

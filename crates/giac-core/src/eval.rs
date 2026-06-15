@@ -234,6 +234,10 @@ fn eval_func(kind: FuncKind, args: &[ExprArc], ctx: &Context) -> Result<ExprArc,
         FuncKind::Subst => return eval_subst(args, ctx),
         FuncKind::Integrate | FuncKind::Int => return eval_integrate(args, ctx),
         FuncKind::Diff | FuncKind::Derive => return eval_diff(args, ctx),
+        FuncKind::Solve => return eval_solve(args, ctx),
+        FuncKind::Fsolve => return eval_fsolve(args, ctx),
+        FuncKind::Sturm => return eval_sturm(args, ctx),
+        FuncKind::Realroot => return eval_realroot(args, ctx),
         FuncKind::Lambda => return Ok(Expr::func(FuncKind::Lambda, args.to_vec())),
         FuncKind::Smod => return crate::eval_poly::eval_smod(args),
         FuncKind::Irem => return crate::eval_poly::eval_irem(args),
@@ -704,7 +708,23 @@ fn eval_linsolve(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> 
     if args.len() != 2 {
         return Err(EvalError::TooFewArgs("linsolve"));
     }
-    ctx.linalg()?.eval_linsolve(&args[0], &args[1], ctx)
+    ctx.solve()?.eval_linsolve(&args[0], &args[1], ctx)
+}
+
+fn eval_solve(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
+    ctx.solve()?.eval_solve(args, ctx)
+}
+
+fn eval_fsolve(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
+    ctx.solve()?.eval_fsolve(args, ctx)
+}
+
+fn eval_sturm(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
+    ctx.solve()?.eval_sturm(args, ctx)
+}
+
+fn eval_realroot(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
+    ctx.solve()?.eval_realroot(args, ctx)
 }
 
 fn eval_tran(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
@@ -943,6 +963,10 @@ fn func_name(kind: FuncKind) -> &'static str {
         FuncKind::Int => "int",
         FuncKind::Diff => "diff",
         FuncKind::Derive => "derive",
+        FuncKind::Solve => "solve",
+        FuncKind::Fsolve => "fsolve",
+        FuncKind::Sturm => "sturm",
+        FuncKind::Realroot => "realroot",
         FuncKind::Idn => "idn",
         FuncKind::Inv => "inv",
         FuncKind::Det => "det",

@@ -4,6 +4,7 @@ use std::sync::Arc;
 use crate::expr::ExprArc;
 use crate::ident::Ident;
 use crate::linalg_plugin::LinalgPlugin;
+use crate::solve_plugin::SolvePlugin;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Assumption {
@@ -21,6 +22,7 @@ pub struct Context {
     pub series_order: u32,
     pub float_digits: u32,
     pub(crate) linalg_plugin: Option<Arc<dyn LinalgPlugin>>,
+    pub(crate) solve_plugin: Option<Arc<dyn SolvePlugin>>,
 }
 
 impl Default for Context {
@@ -33,6 +35,7 @@ impl Default for Context {
             series_order: 6,
             float_digits: 12,
             linalg_plugin: None,
+            solve_plugin: None,
         }
     }
 }
