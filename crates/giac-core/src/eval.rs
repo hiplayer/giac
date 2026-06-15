@@ -233,6 +233,7 @@ fn eval_func(kind: FuncKind, args: &[ExprArc], ctx: &Context) -> Result<ExprArc,
     match kind {
         FuncKind::Subst => return eval_subst(args, ctx),
         FuncKind::Integrate | FuncKind::Int => return eval_integrate(args, ctx),
+        FuncKind::Lambda => return Ok(Expr::func(FuncKind::Lambda, args.to_vec())),
         FuncKind::Smod => return crate::eval_poly::eval_smod(args),
         FuncKind::Irem => return crate::eval_poly::eval_irem(args),
         _ => {}
@@ -316,7 +317,6 @@ fn eval_func(kind: FuncKind, args: &[ExprArc], ctx: &Context) -> Result<ExprArc,
             }
             crate::linalg::eval_trace(&args[0])
         }
-        FuncKind::Lambda => Ok(Expr::func(FuncKind::Lambda, args.to_vec())),
         FuncKind::RootOf => Ok(Expr::func(FuncKind::RootOf, args.to_vec())),
         FuncKind::Poly1 => Ok(Expr::func(FuncKind::Poly1, args.to_vec())),
         other => Err(EvalError::NotImplemented(func_name(other))),
@@ -732,18 +732,24 @@ fn eval_integrate(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError>
     if args.len() == 2 {
         return Ok(antideriv);
     }
+    let lo_bound = eval(&args[2], ctx)?;
+    let hi_bound = eval(&args[3], ctx)?;
     let hi = eval(
-        subst_expr(&antideriv, &var, &eval(&args[2], ctx)?)?.as_ref(),
+        subst_expr(&antideriv, &var, &hi_bound)?.as_ref(),
         ctx,
     )?;
     let lo = eval(
-        subst_expr(&antideriv, &var, &eval(&args[3], ctx)?)?.as_ref(),
+        subst_expr(&antideriv, &var, &lo_bound)?.as_ref(),
         ctx,
     )?;
-    Ok(Expr::add(vec![
-        hi,
-        Expr::mul(vec![Expr::int(-1), lo]),
-    ]))
+    eval(
+        Expr::add(vec![
+            hi,
+            Expr::mul(vec![Expr::int(-1), lo]),
+        ])
+        .as_ref(),
+        ctx,
+    )
 }
 
 fn eval_subst(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
@@ -1042,6 +1048,60 @@ mod tests {
         );
         let r = eval(e.as_ref(), &ctx);
         assert!(r.is_ok());
+    }
+
+    #[test]
+    fn integrate_definite_one() {
+        let ctx = Context::default();
+        let e = Expr::func(
+            FuncKind::Integrate,
+            vec![Expr::int(1), Expr::sym("x"), Expr::int(-1), Expr::int(1)],
+        );
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "2");
+    }
+
+    #[test]
+    fn integrate_definite_x_squared() {
+        let ctx = Context::default();
+        let e = Expr::func(
+            FuncKind::Integrate,
+            vec![
+                Expr::pow(Expr::sym("x"), Expr::int(2)),
+                Expr::sym("x"),
+                Expr::int(-1),
+                Expr::int(1),
+            ],
+        );
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "2/3");
+    }
+
+    #[test]
+    fn lambda_body_not_evaluated_prematurely() {
+        let ctx = Context::default();
+        let lambda = Expr::func(
+            FuncKind::Lambda,
+            vec![
+                Arc::new(Expr::List(vec![Expr::sym("p"), Expr::sym("q")])),
+                Expr::func(
+                    FuncKind::Integrate,
+                    vec![
+                        Expr::mul(vec![Expr::sym("p"), Expr::sym("q")]),
+                        Expr::sym("x"),
+                        Expr::int(-1),
+                        Expr::int(1),
+                    ],
+                ),
+            ],
+        );
+        let r = eval(lambda.as_ref(), &ctx).unwrap();
+        let Expr::Func(FuncKind::Lambda, parts) = r.as_ref() else {
+            panic!("lambda not preserved");
+        };
+        let Expr::Func(FuncKind::Integrate, _) = parts[1].as_ref() else {
+            panic!("integrate body not preserved");
+        };
     }
 
     #[test]

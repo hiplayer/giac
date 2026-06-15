@@ -2,11 +2,14 @@
 
 use std::sync::Arc;
 
+use num_bigint::BigInt;
+use num_rational::Ratio;
+use num_traits::{One, Signed, Zero};
+
 use crate::context::Context;
 use crate::error::EvalError;
 use crate::eval::eval;
 use crate::expr::{Expr, ExprArc, FuncKind};
-use crate::integrate::integrate;
 
 pub fn eval_gramschmidt(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     if args.len() != 2 {
@@ -66,16 +69,27 @@ fn gramschmidt_vectors(
     }
     let mut lv = vectors.to_vec();
     let mut norms = Vec::with_capacity(n);
-    norms.push(inner(&lv[0], &lv[0], ctx)?);
+    let n0 = inner(&lv[0], &lv[0], ctx)?;
+    ensure_non_negative_inner(&n0, ctx)?;
+    norms.push(n0);
     for i in 1..n {
-        let mut proj = Expr::int(0);
+        let mut proj: ExprArc = Expr::int(0);
         for j in 0..i {
             let ip = inner(&lv[i], &lv[j], ctx)?;
-            let coeff = div_expr(&ip, &norms[j])?;
-            proj = Expr::add(vec![proj, Expr::mul(vec![coeff, Arc::clone(&lv[j])])]);
+            let coeff = scalar_div(&ip, &norms[j], ctx)?;
+            let term = eval(
+                Expr::mul(vec![coeff, Arc::clone(&lv[j])]).as_ref(),
+                ctx,
+            )?;
+            proj = Expr::add(vec![proj, term]);
         }
-        lv[i] = Expr::add(vec![Arc::clone(&lv[i]), neg_expr(&proj)]);
-        norms.push(inner(&lv[i], &lv[i], ctx)?);
+        lv[i] = eval(
+            Expr::add(vec![Arc::clone(&lv[i]), neg_expr(&proj)]).as_ref(),
+            ctx,
+        )?;
+        let ni = inner(&lv[i], &lv[i], ctx)?;
+        ensure_non_negative_inner(&ni, ctx)?;
+        norms.push(ni);
     }
     let mut out = Vec::with_capacity(n);
     for (i, v) in lv.into_iter().enumerate() {
@@ -83,7 +97,7 @@ fn gramschmidt_vectors(
             Expr::func(FuncKind::Sqrt, vec![norms[i].clone()]).as_ref(),
             ctx,
         )?;
-        out.push(div_expr(&v, &norm)?);
+        out.push(eval(div_expr(&v, &norm)?.as_ref(), ctx)?);
     }
     let list = Arc::new(Expr::List(out));
     eval(list.as_ref(), ctx)
@@ -93,17 +107,139 @@ fn div_expr(a: &ExprArc, b: &ExprArc) -> Result<ExprArc, EvalError> {
     Ok(Expr::mul(vec![Arc::clone(a), Expr::pow(Arc::clone(b), Expr::int(-1))]))
 }
 
+fn scalar_div(num: &ExprArc, den: &ExprArc, ctx: &Context) -> Result<ExprArc, EvalError> {
+    let n = eval(num.as_ref(), ctx)?;
+    let d = eval(den.as_ref(), ctx)?;
+    if let (Some(a), Some(b)) = (as_scalar(n.as_ref()), as_scalar(d.as_ref())) {
+        if b.is_zero() {
+            return Err(EvalError::TypeError("division by zero"));
+        }
+        return scalar_to_expr(a / b);
+    }
+    eval(div_expr(num, den)?.as_ref(), ctx)
+}
+
+fn as_scalar(e: &Expr) -> Option<Ratio<BigInt>> {
+    match e {
+        Expr::Int(n) => Some(Ratio::from_integer(n.clone())),
+        Expr::Rat(r) => Some(r.clone()),
+        _ => None,
+    }
+}
+
+fn scalar_to_expr(r: Ratio<BigInt>) -> Result<ExprArc, EvalError> {
+    if r.is_zero() {
+        return Ok(Expr::int(0));
+    }
+    if r.denom().is_one() {
+        return Ok(Expr::int(
+            r.numer()
+                .to_string()
+                .parse()
+                .map_err(|_| EvalError::TypeError("scalar overflow"))?,
+        ));
+    }
+    Ok(Arc::new(Expr::Rat(r)))
+}
+
 fn neg_expr(e: &ExprArc) -> ExprArc {
     Expr::mul(vec![Expr::int(-1), Arc::clone(e)])
 }
 
-#[allow(dead_code)]
-pub fn default_poly_inner_product(
-    p: &ExprArc,
-    q: &ExprArc,
-    _ctx: &Context,
-) -> Result<ExprArc, EvalError> {
-    let prod = Expr::mul(vec![Arc::clone(p), Arc::clone(q)]);
-    let x = crate::ident::Ident::new("x");
-    integrate(&prod, &x)
+fn ensure_non_negative_inner(norm: &ExprArc, ctx: &Context) -> Result<(), EvalError> {
+    let v = eval(norm.as_ref(), ctx)?;
+    match v.as_ref() {
+        Expr::Int(n) if n.is_negative() => {
+            Err(EvalError::TypeError("inner product must be non-negative"))
+        }
+        Expr::Rat(r) if r.is_negative() => {
+            Err(EvalError::TypeError("inner product must be non-negative"))
+        }
+        _ => Ok(()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::collections::HashMap;
+
+    use super::*;
+    use crate::eval::eval_subst_map;
+    use crate::format_expr;
+
+    fn integrate_inner_lambda() -> ExprArc {
+        let body = Expr::func(
+            FuncKind::Integrate,
+            vec![
+                Expr::mul(vec![Expr::sym("p"), Expr::sym("q")]),
+                Expr::sym("x"),
+                Expr::int(-1),
+                Expr::int(1),
+            ],
+        );
+        Expr::func(
+            FuncKind::Lambda,
+            vec![
+                Arc::new(Expr::List(vec![Expr::sym("p"), Expr::sym("q")])),
+                body,
+            ],
+        )
+    }
+
+    fn call_inner(inner: &ExprArc, p: &ExprArc, q: &ExprArc, ctx: &Context) -> ExprArc {
+        let lambda = inner;
+        let Expr::Func(FuncKind::Lambda, parts) = lambda.as_ref() else {
+            panic!("not lambda");
+        };
+        let Expr::List(params) = parts[0].as_ref() else {
+            panic!("bad params");
+        };
+        let p_id = match params[0].as_ref() {
+            Expr::Symbol(id) => id.clone(),
+            _ => panic!("bad p"),
+        };
+        let q_id = match params[1].as_ref() {
+            Expr::Symbol(id) => id.clone(),
+            _ => panic!("bad q"),
+        };
+        let mut subs = HashMap::new();
+        subs.insert(p_id, Arc::clone(p));
+        subs.insert(q_id, Arc::clone(q));
+        let substituted = eval_subst_map(&parts[1], &subs).unwrap();
+        eval(substituted.as_ref(), ctx).unwrap()
+    }
+
+    #[test]
+    fn inner_products_for_gramschmidt_basis() {
+        let ctx = Context::xcas_default();
+        let v0 = Expr::int(1);
+        let v1 = Expr::add(vec![Expr::int(1), Expr::sym("x")]);
+        let lambda = integrate_inner_lambda();
+        let n0 = call_inner(&lambda, &v0, &v0, &ctx);
+        let cross = call_inner(&lambda, &v1, &v0, &ctx);
+        assert_eq!(format_expr(n0.as_ref()), "2");
+        assert_eq!(format_expr(cross.as_ref()), "2");
+    }
+
+    #[test]
+    fn gramschmidt_poly_orthonormal() {
+        let ctx = Context::xcas_default();
+        let vectors = vec![
+            Expr::int(1),
+            Expr::add(vec![Expr::int(1), Expr::sym("x")]),
+        ];
+        let inner = parse_inner_product(&integrate_inner_lambda()).unwrap();
+        let r = gramschmidt_vectors(&vectors, &inner, &ctx).unwrap();
+        let s = format_expr(r.as_ref());
+        assert!(s.contains("sqrt"), "got {s}");
+        assert!(s.contains("x"), "got {s}");
+    }
+
+    #[test]
+    fn gramschmidt_rejects_negative_inner_product() {
+        let ctx = Context::xcas_default();
+        let inner: InnerProductFn = Box::new(|_, _, _| Ok(Expr::int(-1)));
+        let err = gramschmidt_vectors(&[Expr::int(1)], &inner, &ctx).unwrap_err();
+        assert!(matches!(err, EvalError::TypeError(_)));
+    }
 }

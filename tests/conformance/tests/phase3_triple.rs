@@ -52,7 +52,7 @@ fn test_linalg_decomp_triple() -> Result<(), String> {
     let path = upstream_root().join("bin/test_linalg_decomp");
     assert_eq!(script_lines(&path)?.len(), 6, "test_linalg_decomp should have 6 lines");
     let results = triple_check_script_filtered("test_linalg_decomp", is_skip_line)?;
-    assert_eq!(results.len(), 5, "test_linalg_decomp: 5 checked lines (gramschmidt skipped)");
+    assert_eq!(results.len(), 6, "test_linalg_decomp: 6 lines");
     for r in &results {
         if is_numerical_decomp(&r.line) {
             verify_reconstruction(&r.line, &r.giac_rs)?;
@@ -315,7 +315,7 @@ fn is_not_yet_implemented(line: &str) -> bool {
 }
 
 fn is_skip_line(line: &str) -> bool {
-    is_not_yet_implemented(line) || line.starts_with("gramschmidt(")
+    is_not_yet_implemented(line)
 }
 
 fn is_numerical_decomp(line: &str) -> bool {

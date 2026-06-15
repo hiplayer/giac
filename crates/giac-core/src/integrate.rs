@@ -2,10 +2,12 @@ use std::sync::Arc;
 
 use num_bigint::BigInt;
 
+use crate::expand;
 use crate::error::EvalError;
 use crate::expr::{Expr, ExprArc, FuncKind};
 use crate::ident::Ident;
 use crate::num_util::bigint_to_i64;
+use crate::Context;
 
 /// Basic integration rules (Phase 1 subset).
 pub fn integrate(expr: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
@@ -96,8 +98,42 @@ fn integrate_mul(factors: &[ExprArc], var: &Ident) -> Result<ExprArc, EvalError>
                     }
                 }
             }
-            Err(EvalError::NotImplemented("integrate product"))
+            if var_part.len() == 2 {
+                if let (Expr::Add(as_), Expr::Add(bs)) =
+                    (var_part[0].as_ref(), var_part[1].as_ref())
+                {
+                    let mut terms = Vec::new();
+                    for a in as_ {
+                        for b in bs {
+                            terms.push(Expr::mul(vec![Arc::clone(a), Arc::clone(b)]));
+                        }
+                    }
+                    return integrate(&Expr::add(terms), var);
+                }
+                if var_part[0] == var_part[1] {
+                    return integrate_pow(&var_part[0], &Expr::int(2), var);
+                }
+            }
+            let product = Expr::mul(var_part);
+            let ctx = Context::default();
+            let expanded = expand(product.as_ref(), &ctx)?;
+            let var_factors = count_var_factors(expanded.as_ref(), var);
+            if var_factors > 1 {
+                return Err(EvalError::NotImplemented("integrate product"));
+            }
+            integrate(&expanded, var)
         }
+    }
+}
+
+fn count_var_factors(e: &Expr, var: &Ident) -> usize {
+    match e {
+        Expr::Mul(fs) => fs.iter().filter(|f| !is_const_wrt(f, var)).count(),
+        _ => if is_const_wrt(&Arc::new(e.clone()), var) {
+            0
+        } else {
+            1
+        },
     }
 }
 
@@ -119,6 +155,16 @@ fn integrate_pow(base: &ExprArc, exp: &ExprArc, var: &Ident) -> Result<ExprArc, 
     if let Expr::Add(terms) = base.as_ref() {
         if matches!(exp.as_ref(), Expr::Int(n) if n == &-BigInt::from(1)) {
             return integrate_reciprocal_quadratic(terms, var);
+        }
+    }
+    if let Expr::Add(_) = base.as_ref() {
+        if let Expr::Int(n) = exp.as_ref() {
+            if bigint_to_i64(n)? >= 0 {
+                let ctx = Context::default();
+                let powered = Expr::pow(Arc::clone(base), Arc::clone(exp));
+                let expanded = expand(powered.as_ref(), &ctx)?;
+                return integrate(&expanded, var);
+            }
         }
     }
     Err(EvalError::NotImplemented("integrate pow"))
@@ -352,6 +398,31 @@ mod tests {
         let e = Expr::mul(vec![Expr::int(2), Expr::int(3)]);
         let r = integrate(&e, &x).unwrap();
         assert_eq!(format_expr(r.as_ref()), "(2*3)*x");
+    }
+
+    #[test]
+    fn integrate_definite_bounds() {
+        let ctx = Context::default();
+        let e = Expr::func(
+            FuncKind::Integrate,
+            vec![
+                Expr::pow(Expr::add(vec![Expr::int(1), Expr::sym("x")]), Expr::int(2)),
+                Expr::sym("x"),
+                Expr::int(-1),
+                Expr::int(1),
+            ],
+        );
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "8/3");
+    }
+
+    #[test]
+    fn integrate_product_one_plus_x_squared() {
+        let x = Ident::new("x");
+        let factor = Expr::add(vec![Expr::int(1), Expr::sym("x")]);
+        let e = Expr::mul(vec![factor.clone(), factor]);
+        let r = integrate(&e, &x).unwrap();
+        assert!(format_expr(r.as_ref()).contains("x^3"));
     }
 
     #[test]

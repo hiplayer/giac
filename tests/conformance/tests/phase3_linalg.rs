@@ -1,6 +1,6 @@
 //! Phase 3 linear algebra conformance tests.
 
-use giac_conformance::{run_line, upstream_root, PHASE3_SCRIPTS};
+use giac_conformance::{run_line, upstream_root, verify_sympy, PHASE3_SCRIPTS};
 
 #[test]
 fn phase3_scripts_parseable() {
@@ -81,14 +81,15 @@ fn test_linalg_decomp_numeric() -> Result<(), String> {
 }
 
 #[test]
-fn test_linalg_gramschmidt_not_yet() -> Result<(), String> {
-    let got = run_line("gramschmidt([1,1+x],(p,q)->integrate(p*q,x,-1,1))");
-    match got {
-        Ok(s) if s.contains("sqrt") || s.contains("1/sqrt") => Ok(()),
-        Ok(s) => Err(format!("unexpected gramschmidt: {s}")),
-        Err(e) if e.contains("sqrt") || e.contains("integrate") || e.contains("NotImplemented") => {
-            Ok(())
-        }
-        Err(e) => Err(e),
-    }
+fn test_linalg_gramschmidt() -> Result<(), String> {
+    let s = run_line("gramschmidt([1,1+x],(p,q)->integrate(p*q,x,-1,1))")?;
+    assert!(
+        s.contains("sqrt"),
+        "gramschmidt should be orthonormal with sqrt, got {s}"
+    );
+    verify_sympy(
+        "gramschmidt([1,1+x],(p,q)->integrate(p*q,x,-1,1))",
+        &s,
+    )?;
+    Ok(())
 }

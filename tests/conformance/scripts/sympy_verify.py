@@ -795,6 +795,31 @@ def verify_property(line: str, output: str) -> tuple[bool, str]:
                 return False, f"linsolve got={got} does not satisfy {eq}"
         return True, "ok"
 
+    m = re.fullmatch(
+        r"gramschmidt\(\[(.+)\],\(p,q\)->integrate\(p\*q,x,(-?\d+),(\d+)\)\)",
+        line,
+    )
+    if m:
+        lo, hi = int(m.group(2)), int(m.group(3))
+        orth = list(parse_giac_tuple(output))
+        if len(orth) < 1:
+            return False, "gramschmidt empty output"
+
+        def inner(p, q):
+            prod = sp.expand(p * q)
+            antideriv = sp.integrate(prod, x)
+            return sp.simplify(antideriv.subs(x, hi) - antideriv.subs(x, lo))
+
+        for i, oi in enumerate(orth):
+            for j, oj in enumerate(orth):
+                ip = sp.simplify(inner(oi, oj))
+                if i == j:
+                    if sp.simplify(ip - 1) != 0:
+                        return False, f"gramschmidt norm[{i}]={ip}, want 1"
+                elif sp.simplify(ip) != 0:
+                    return False, f"gramschmidt orth[{i},{j}]={ip}, want 0"
+        return True, "ok"
+
     m = re.fullmatch(r"gauss\((.+),\[(.+)\]\)", line)
     if m:
         # gauss: verify diagonal form is congruent to original quadratic form
@@ -989,6 +1014,8 @@ def verify(line: str, output: str) -> tuple[bool, str]:
     if line.startswith("linsolve("):
         return verify_property(line, output)
     if line.startswith("gauss("):
+        return verify_property(line, output)
+    if line.startswith("gramschmidt("):
         return verify_property(line, output)
     if line.startswith(("lu(", "qr(", "svd(")):
         return verify_decomp(line, output)
