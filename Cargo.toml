@@ -3,6 +3,7 @@ resolver = "2"
 members = [
     "crates/giac-core",
     "crates/giac-poly",
+    "crates/giac-linalg",
     "crates/giac-groebner",
     "crates/giac-simplify",
     "crates/giac-parse",
@@ -26,9 +27,11 @@ logos = "=0.13.0"
 anyhow = "=1.0.75"
 giac-core = { path = "crates/giac-core" }
 giac-poly = { path = "crates/giac-poly" }
+giac-linalg = { path = "crates/giac-linalg" }
 giac-groebner = { path = "crates/giac-groebner" }
 giac-simplify = { path = "crates/giac-simplify" }
 giac-parse = { path = "crates/giac-parse" }
+nalgebra = "0.33"
 
 [workspace.lints.rust]
 unsafe_code = "deny"

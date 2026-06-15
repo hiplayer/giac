@@ -14,6 +14,7 @@ mod expr;
 mod ident;
 mod integrate;
 pub mod limits;
+mod linalg;
 mod matrix;
 mod num_util;
 mod simplify;

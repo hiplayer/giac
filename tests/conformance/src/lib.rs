@@ -38,6 +38,14 @@ pub const PHASE2_SCRIPTS: &[&str] = &[
     "test_groebner",
 ];
 
+/// Phase 3 bin scripts (linear algebra).
+pub const PHASE3_SCRIPTS: &[&str] = &[
+    "test_linalg",
+    "test_linalg_ext",
+    "test_linalg_decomp",
+    "test_gauss_ext",
+];
+
 /// Upstream `check/testfactor` + `check/factor.out` (giac_check_factor).
 pub fn factor_check_paths() -> (PathBuf, PathBuf) {
     let root = upstream_root().join("giac/giac-1.5.0/check");

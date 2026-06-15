@@ -9,6 +9,9 @@ pub enum Token<'a> {
     #[token(":=")]
     Assign,
 
+    #[token("->")]
+    Arrow,
+
     #[token("+")]
     Plus,
     #[token("-")]

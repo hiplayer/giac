@@ -1,0 +1,14 @@
+[package]
+name = "giac-linalg"
+description = "Numeric linear algebra (LU/QR/SVD) for giac-rs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+num-traits = { workspace = true }
+nalgebra = { workspace = true }

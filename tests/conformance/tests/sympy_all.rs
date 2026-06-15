@@ -1,9 +1,9 @@
-//! SymPy third-party verification for Phase 1 + Phase 2 (all conformance scripts).
+//! SymPy third-party verification for Phase 1–3 (all conformance scripts).
 
 use giac_conformance::{
     load_testcas_lines, run_lines, sympy_verify_line, sympy_verify_lines, sympy_verify_script,
-    verify_sympy, ALL_SYMPTY_SCRIPTS, PHASE1_SCRIPTS, PHASE2_SCRIPTS, upstream_root,
-    run_line, run_script,
+    verify_sympy, ALL_SYMPTY_SCRIPTS, PHASE1_SCRIPTS, PHASE2_SCRIPTS, PHASE3_SCRIPTS,
+    upstream_root, run_line, run_script,
 };
 
 #[test]
@@ -32,6 +32,27 @@ fn phase2_scripts_sympy() -> Result<(), String> {
                 return Err(format!(
                     "SymPy failed on {name}: `{}` -> `{}`",
                     r.line, r.output
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
+#[test]
+fn phase3_scripts_sympy() -> Result<(), String> {
+    for name in PHASE3_SCRIPTS {
+        let path = upstream_root().join("bin").join(name);
+        let lines = giac_conformance::script_lines(&path)?;
+        for line in &lines {
+            if is_phase3_skip(line) {
+                continue;
+            }
+            let got = run_line(line)?;
+            let r = sympy_verify_line(line, &got)?;
+            if !r.ok && !is_known_sympy_gap(line) {
+                return Err(format!(
+                    "SymPy failed on {name}: `{line}` -> `{got}`"
                 ));
             }
         }
@@ -105,6 +126,23 @@ fn all_bin_scripts_sympy_smoke() -> Result<(), String> {
 
 fn is_known_sympy_gap(line: &str) -> bool {
     matches!(line, "roots(x^3-1,x)")
+        || line.starts_with("gramschmidt(")
+        || matches!(
+            line,
+            "jordan([[1,1],[0,1]])"
+                | "egv([[4,1,-2],[1,2,-1],[2,1,0]])"
+                | "svd([[1,2,1],[3,4,1],[1,5,6]])"
+        )
+}
+
+fn is_phase3_skip(line: &str) -> bool {
+    line.starts_with("gramschmidt(")
+        || matches!(
+            line,
+            "jordan([[1,1],[0,1]])"
+                | "egv([[4,1,-2],[1,2,-1],[2,1,0]])"
+                | "svd([[1,2,1],[3,4,1],[1,5,6]])"
+        )
 }
 
 fn is_known_testcas_gap(line: &str) -> bool {

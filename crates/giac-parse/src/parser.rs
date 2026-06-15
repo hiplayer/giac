@@ -25,42 +25,54 @@ pub fn parse_program(input: &str, ctx: &Context) -> Result<Vec<Stmt>, ParseError
 }
 
 struct Parser<'a, 'ctx> {
-    lexer: Lexer<'a>,
-    current: Option<Result<Token<'a>, ()>>,
+    tokens: Vec<Token<'a>>,
+    pos: usize,
     ctx: &'ctx Context,
 }
 
 impl<'a, 'ctx> Parser<'a, 'ctx> {
     fn new(input: &'a str, ctx: &'ctx Context) -> Self {
         let mut lexer = Lexer::new(input);
-        let current = lexer.next_token();
+        let mut tokens = Vec::new();
+        while let Some(tok) = lexer.next_token() {
+            match tok {
+                Ok(t) => tokens.push(t),
+                Err(()) => tokens.push(Token::Error),
+            }
+        }
         Self {
-            lexer,
-            current,
+            tokens,
+            pos: 0,
             ctx,
         }
     }
 
     fn at_end(&self) -> bool {
-        self.current.is_none()
+        self.pos >= self.tokens.len()
     }
 
     fn bump(&mut self) -> Result<Token<'a>, ParseError> {
-        match self.current.take() {
-            Some(Ok(tok)) => {
-                self.current = self.lexer.next_token();
-                Ok(tok)
-            }
-            Some(Err(())) => Err(ParseError::Lexer),
-            None => Err(ParseError::Eof),
+        if self.pos >= self.tokens.len() {
+            return Err(ParseError::Eof);
         }
+        let tok = self.tokens[self.pos].clone();
+        self.pos += 1;
+        if tok == Token::Error {
+            return Err(ParseError::Lexer);
+        }
+        Ok(tok)
     }
 
     fn peek(&self) -> Option<&Token<'a>> {
-        match &self.current {
-            Some(Ok(tok)) => Some(tok),
-            _ => None,
-        }
+        self.tokens.get(self.pos)
+    }
+
+    fn save(&self) -> usize {
+        self.pos
+    }
+
+    fn restore(&mut self, pos: usize) {
+        self.pos = pos;
     }
 
     fn expect(&mut self, want: Token<'a>) -> Result<(), ParseError> {
@@ -88,6 +100,32 @@ impl<'a, 'ctx> Parser<'a, 'ctx> {
         let expr = self.parse_expr()?;
         self.expect_semi()?;
         Ok(Stmt::ExprStmt(expr))
+    }
+
+    fn try_parse_lambda(&mut self) -> Result<ExprArc, ParseError> {
+        let mut params = Vec::new();
+        loop {
+            match self.bump()? {
+                Token::Ident(name) => params.push(Expr::sym(name)),
+                _ => return Err(ParseError::Unexpected("lambda parameter")),
+            }
+            match self.peek() {
+                Some(Token::Comma) => {
+                    self.bump()?;
+                }
+                Some(Token::RParen) => {
+                    self.bump()?;
+                    break;
+                }
+                _ => return Err(ParseError::Unexpected("lambda parameter list")),
+            }
+        }
+        self.expect(Token::Arrow)?;
+        let body = self.parse_expr()?;
+        Ok(Expr::func(
+            FuncKind::Lambda,
+            vec![Arc::new(Expr::List(params)), body],
+        ))
     }
 
     /// Continue parsing infix/postfix after a leading identifier was consumed.
@@ -306,6 +344,12 @@ impl<'a, 'ctx> Parser<'a, 'ctx> {
                 }
             }
             Token::LParen => {
+                let saved = self.save();
+                // `(` already consumed; try `(p,q)->body` before treating as grouped expr.
+                match self.try_parse_lambda() {
+                    Ok(lambda) => return Ok(lambda),
+                    Err(_) => self.restore(saved),
+                }
                 let e = self.parse_expr()?;
                 self.expect(Token::RParen)?;
                 Ok(e)
@@ -462,6 +506,15 @@ fn lookup_func(name: &str) -> Option<FuncKind> {
         "ker" => Some(FuncKind::Ker),
         "image" => Some(FuncKind::Image),
         "pcar" => Some(FuncKind::Pcar),
+        "charpoly" => Some(FuncKind::Charpoly),
+        "linsolve" => Some(FuncKind::Linsolve),
+        "jordan" => Some(FuncKind::Jordan),
+        "egv" => Some(FuncKind::Egv),
+        "lu" => Some(FuncKind::Lu),
+        "qr" => Some(FuncKind::Qr),
+        "svd" => Some(FuncKind::Svd),
+        "gramschmidt" => Some(FuncKind::Gramschmidt),
+        "trace" => Some(FuncKind::Trace),
         "subst" => Some(FuncKind::Subst),
         "rootof" => Some(FuncKind::RootOf),
         _ => None,
