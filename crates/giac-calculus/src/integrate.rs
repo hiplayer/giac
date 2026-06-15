@@ -2,12 +2,9 @@ use std::sync::Arc;
 
 use num_bigint::BigInt;
 
-use crate::expand;
-use crate::error::EvalError;
-use crate::expr::{Expr, ExprArc, FuncKind};
-use crate::ident::Ident;
-use crate::num_util::bigint_to_i64;
-use crate::Context;
+use giac_core::{
+    bigint_to_i64, expand, Context, EvalError, Expr, ExprArc, FuncKind, Ident,
+};
 
 /// Basic integration rules (Phase 1 / GIAC-110 subset).
 ///
@@ -298,9 +295,7 @@ fn is_const_wrt(e: &ExprArc, var: &Ident) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::display::format_expr;
-    use crate::eval::eval;
-    use crate::Context;
+    use giac_core::{eval, format_expr, Context, FuncKind};
 
     #[test]
     fn integrate_reciprocal() {
@@ -420,7 +415,7 @@ mod tests {
 
     #[test]
     fn integrate_definite_bounds() {
-        let ctx = Context::default();
+        let ctx = crate::plugin::xcas_default();
         let e = Expr::func(
             FuncKind::Integrate,
             vec![

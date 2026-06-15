@@ -7,7 +7,7 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
 use giac_core::{assert_equiv, exec_stmt, format_expr, Stmt, StmtResult};
-use giac_solve::xcas_default;
+use giac_calculus::xcas_default;
 use giac_parse::parse_program;
 
 pub use triple_skip::{

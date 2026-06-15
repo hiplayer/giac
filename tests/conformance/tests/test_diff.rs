@@ -1,7 +1,7 @@
 //! GIAC-113: `bin/test_diff` parse + SymPy verification.
 
 use giac_conformance::{run_lines, script_lines, sympy_verify_lines, upstream_root, verify_sympy};
-use giac_linalg::xcas_default;
+use giac_calculus::xcas_default;
 use giac_parse::parse_program;
 
 const MAX_LINES: usize = 10;

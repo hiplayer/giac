@@ -17,3 +17,6 @@ num-integer = { workspace = true }
 num-rational = { workspace = true }
 num-traits = { workspace = true }
 nalgebra = { workspace = true }
+
+[dev-dependencies]
+giac-calculus = { workspace = true }

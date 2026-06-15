@@ -7,7 +7,7 @@ use giac_linalg::{
     as_matrix, eval_charpoly, eval_det, eval_egv, eval_idn, eval_image, eval_inv, eval_jordan,
     eval_ker, eval_linsolve, eval_lu, eval_matrix_mul, eval_matrix_pow, eval_pcar, eval_qr,
     eval_rref, eval_svd, eval_trace, eval_tran, f64_to_expr_numeric, format_float,
-    is_identity_matrix, real_eigenvalues, to_dmatrix, DefaultLinalgPlugin, xcas_default,
+    is_identity_matrix, real_eigenvalues, to_dmatrix, DefaultLinalgPlugin,
 };
 
 fn mat2() -> ExprArc {
@@ -18,7 +18,7 @@ fn mat2() -> ExprArc {
 }
 
 fn ctx() -> giac_core::Context {
-    xcas_default()
+    giac_calculus::xcas_default()
 }
 
 #[test]

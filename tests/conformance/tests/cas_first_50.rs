@@ -5,7 +5,7 @@ use std::path::{Path, PathBuf};
 
 use giac_conformance::{check_output_equiv, CheckOutcome};
 use giac_core::{exec_stmt, format_expr, StmtResult};
-use giac_linalg::xcas_default;
+use giac_calculus::xcas_default;
 use giac_parse::parse_program;
 
 fn upstream_root() -> PathBuf {

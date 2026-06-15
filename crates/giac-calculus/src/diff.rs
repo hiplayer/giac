@@ -1,13 +1,10 @@
 use std::sync::Arc;
 
-use crate::error::EvalError;
-use crate::expr::{Expr, ExprArc, FuncKind};
-use crate::ident::Ident;
-use crate::num_util::bigint_to_i64;
+use giac_core::{
+    bigint_to_i64, EvalError, Expr, ExprArc, FuncKind, Ident,
+};
 
-/// Symbolic differentiation (Phase 4 probe / GIAC-113).
-///
-/// Lives in `giac-core` for now; a dedicated `giac-calculus` crate is deferred to GIAC-115.
+/// Symbolic differentiation (GIAC-113 / `giac-calculus`).
 pub fn diff(expr: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     match expr.as_ref() {
         Expr::Add(terms) => {
@@ -152,9 +149,7 @@ fn is_const_wrt(e: &ExprArc, var: &Ident) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::context::Context;
-    use crate::format_expr;
-    use crate::simplify::simplify;
+    use giac_core::{assert_equiv, format_expr, simplify, Context};
 
     fn x() -> Ident {
         Ident::new("x")
@@ -171,7 +166,7 @@ mod tests {
         let r = diff_simplified(e);
         let expected = Expr::mul(vec![Expr::int(2), Expr::sym("x")]);
         let ctx = Context::default();
-        assert!(crate::assert_equiv(r.as_ref(), expected.as_ref(), &ctx).unwrap());
+        assert!(assert_equiv(r.as_ref(), expected.as_ref(), &ctx).unwrap());
     }
 
     #[test]

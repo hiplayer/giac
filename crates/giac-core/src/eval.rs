@@ -756,46 +756,11 @@ fn eval_pcar(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
 }
 
 fn eval_integrate(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
-    if args.len() != 2 && args.len() != 4 {
-        return Err(EvalError::TooFewArgs("integrate"));
-    }
-    let var = match args[1].as_ref() {
-        Expr::Symbol(id) => id.clone(),
-        _ => return Err(EvalError::TypeError("integration variable")),
-    };
-    let antideriv = crate::integrate::integrate(&args[0], &var)?;
-    if args.len() == 2 {
-        return Ok(antideriv);
-    }
-    let lo_bound = eval(&args[2], ctx)?;
-    let hi_bound = eval(&args[3], ctx)?;
-    let hi = eval(
-        subst_expr(&antideriv, &var, &hi_bound)?.as_ref(),
-        ctx,
-    )?;
-    let lo = eval(
-        subst_expr(&antideriv, &var, &lo_bound)?.as_ref(),
-        ctx,
-    )?;
-    eval(
-        Expr::add(vec![
-            hi,
-            Expr::mul(vec![Expr::int(-1), lo]),
-        ])
-        .as_ref(),
-        ctx,
-    )
+    ctx.calculus()?.eval_integrate(args, ctx)
 }
 
-fn eval_diff(args: &[ExprArc], _ctx: &Context) -> Result<ExprArc, EvalError> {
-    if args.len() != 2 {
-        return Err(EvalError::TooFewArgs("diff"));
-    }
-    let var = match args[1].as_ref() {
-        Expr::Symbol(id) => id.clone(),
-        _ => return Err(EvalError::TypeError("differentiation variable")),
-    };
-    crate::diff::diff(&args[0], &var)
+fn eval_diff(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
+    ctx.calculus()?.eval_diff(args, ctx)
 }
 
 fn eval_subst(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
@@ -1114,8 +1079,8 @@ mod tests {
             FuncKind::Integrate,
             vec![Expr::int(1), Expr::sym("x"), Expr::int(-1), Expr::int(1)],
         );
-        let r = eval(e.as_ref(), &ctx).unwrap();
-        assert_eq!(format_expr(r.as_ref()), "2");
+        let err = eval(e.as_ref(), &ctx).unwrap_err();
+        assert!(matches!(err, EvalError::NotImplemented(_)));
     }
 
     #[test]
@@ -1130,8 +1095,8 @@ mod tests {
                 Expr::int(1),
             ],
         );
-        let r = eval(e.as_ref(), &ctx).unwrap();
-        assert_eq!(format_expr(r.as_ref()), "2/3");
+        let err = eval(e.as_ref(), &ctx).unwrap_err();
+        assert!(matches!(err, EvalError::NotImplemented(_)));
     }
 
     #[test]
@@ -1171,8 +1136,8 @@ mod tests {
                 Expr::sym("x"),
             ],
         );
-        let r = eval(e.as_ref(), &ctx);
-        assert!(r.is_ok(), "{:?}", r.err());
+        let err = eval(e.as_ref(), &ctx).unwrap_err();
+        assert!(matches!(err, EvalError::NotImplemented(_)));
     }
 
     #[test]
@@ -1422,7 +1387,10 @@ mod tests {
                 Expr::sym("x"),
             ],
         );
-        assert!(eval(e.as_ref(), &ctx).is_ok());
+        assert!(matches!(
+            eval(e.as_ref(), &ctx),
+            Err(EvalError::NotImplemented(_))
+        ));
         assert!(matches!(
             eval(Expr::func(FuncKind::Idn, vec![Expr::int(2)]).as_ref(), &ctx),
             Err(EvalError::NotImplemented(_))
@@ -1549,12 +1517,15 @@ mod tests {
             (FuncKind::Ker, "ker"),
             (FuncKind::Image, "image"),
             (FuncKind::Pcar, "pcar"),
-            (FuncKind::Integrate, "integrate"),
             (FuncKind::Subst, "subst"),
         ] {
             let r = eval(Expr::func(kind, vec![]).as_ref(), &ctx);
             assert!(matches!(r, Err(EvalError::TooFewArgs(n)) if n == name), "{name}");
         }
+        assert!(matches!(
+            eval(Expr::func(FuncKind::Integrate, vec![]).as_ref(), &ctx),
+            Err(EvalError::NotImplemented(_))
+        ));
     }
 
     #[test]
@@ -1568,7 +1539,7 @@ mod tests {
                 .as_ref(),
                 &ctx()
             ),
-            Err(EvalError::TypeError(_))
+            Err(EvalError::NotImplemented(_))
         ));
     }
 

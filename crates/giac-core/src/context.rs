@@ -3,6 +3,7 @@ use std::sync::Arc;
 
 use crate::expr::ExprArc;
 use crate::ident::Ident;
+use crate::calculus_plugin::CalculusPlugin;
 use crate::linalg_plugin::LinalgPlugin;
 use crate::solve_plugin::SolvePlugin;
 
@@ -23,6 +24,7 @@ pub struct Context {
     pub float_digits: u32,
     pub(crate) linalg_plugin: Option<Arc<dyn LinalgPlugin>>,
     pub(crate) solve_plugin: Option<Arc<dyn SolvePlugin>>,
+    pub(crate) calculus_plugin: Option<Arc<dyn CalculusPlugin>>,
 }
 
 impl Default for Context {
@@ -36,6 +38,7 @@ impl Default for Context {
             float_digits: 12,
             linalg_plugin: None,
             solve_plugin: None,
+            calculus_plugin: None,
         }
     }
 }

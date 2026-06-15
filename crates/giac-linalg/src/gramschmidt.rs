@@ -211,7 +211,7 @@ mod tests {
 
     #[test]
     fn inner_products_for_gramschmidt_basis() {
-        let ctx = crate::plugin::xcas_default();
+        let ctx = giac_calculus::xcas_default();
         let v0 = Expr::int(1);
         let v1 = Expr::add(vec![Expr::int(1), Expr::sym("x")]);
         let lambda = integrate_inner_lambda();
@@ -223,7 +223,7 @@ mod tests {
 
     #[test]
     fn gramschmidt_poly_orthonormal() {
-        let ctx = crate::plugin::xcas_default();
+        let ctx = giac_calculus::xcas_default();
         let vectors = vec![
             Expr::int(1),
             Expr::add(vec![Expr::int(1), Expr::sym("x")]),

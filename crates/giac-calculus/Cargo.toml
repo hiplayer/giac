@@ -1,0 +1,15 @@
+[package]
+name = "giac-calculus"
+description = "Symbolic calculus (integrate, diff, limit, series) for giac-rs"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[dependencies]
+giac-core = { workspace = true }
+num-bigint = { workspace = true }
+giac-solve = { workspace = true }
