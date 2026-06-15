@@ -1,0 +1,16 @@
+[package]
+name = "giac-cli"
+description = "Headless giac-compatible CLI"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[[bin]]
+name = "giac-cli"
+path = "src/main.rs"
+
+[dependencies]
+giac-core = { workspace = true }
+giac-parse = { workspace = true }
+anyhow = { workspace = true }
