@@ -1,0 +1,96 @@
+{
+  "version": 1,
+  "generator": "extract_maxima_rtest.py",
+  "source": "maxima:rtest_limit_wester.mac",
+  "note": "Draft from Maxima Wester limit rtest. Entries disabled until giac-rs limit() lands; flip enabled and re-run phase4_maxima_rtest.",
+  "entries": [
+    {
+      "id": "MX_LIMIT_WESTER-LIM-001",
+      "line": "limit((1 + 1/n)^n, n, +infinity)",
+      "api": "limit",
+      "verify": "sympy_limit",
+      "enabled": false,
+      "maxima_input": "limit((1 + 1/n)^n, n, inf)",
+      "maxima_expected": "%e",
+      "source_file": "rtest_limit_wester.mac",
+      "source_line": 15
+    },
+    {
+      "id": "MX_LIMIT_WESTER-LIM-002",
+      "line": "limit((1 - cos(x))/x^2, x, 0)",
+      "api": "limit",
+      "verify": "sympy_limit",
+      "enabled": false,
+      "maxima_input": "limit((1 - cos(x))/x^2, x, 0)",
+      "maxima_expected": "1/2",
+      "source_file": "rtest_limit_wester.mac",
+      "source_line": 19
+    },
+    {
+      "id": "MX_LIMIT_WESTER-LIM-003",
+      "line": "limit((3^x + 5^x)^(1/x), x, +infinity)",
+      "api": "limit",
+      "verify": "sympy_limit",
+      "enabled": false,
+      "maxima_input": "limit((3^x + 5^x)^(1/x), x, inf)",
+      "maxima_expected": "5",
+      "source_file": "rtest_limit_wester.mac",
+      "source_line": 25
+    },
+    {
+      "id": "MX_LIMIT_WESTER-LIM-004",
+      "line": "limit(ln(x)/(ln(x) + sin(x)), x, +infinity)",
+      "api": "limit",
+      "verify": "sympy_limit",
+      "enabled": false,
+      "maxima_input": "limit(log(x)/(log(x) + sin(x)), x, inf)",
+      "maxima_expected": "1",
+      "source_file": "rtest_limit_wester.mac",
+      "source_line": 29
+    },
+    {
+      "id": "MX_LIMIT_WESTER-LIM-005",
+      "line": "limit((exp(x*exp(-x)/(exp(-x) + exp(-2*x^2/(x + 1)))) - exp(x))/x, x, +infinity)",
+      "api": "limit",
+      "verify": "sympy_limit",
+      "enabled": false,
+      "maxima_input": "limit((exp(x*exp(-x)/(exp(-x) + exp(-2*x^2/(x + 1)))) - exp(x))/x, x, inf)",
+      "maxima_expected": "-%e^2",
+      "source_file": "rtest_limit_wester.mac",
+      "source_line": 33
+    },
+    {
+      "id": "MX_LIMIT_WESTER-LIM-006",
+      "line": "limit(x*ln(x)*ln(x*exp(x) - x^2)^2/ln(ln(x^2 + 2*exp(exp(3*x^3*ln(x))))),x, +infinity)",
+      "api": "limit",
+      "verify": "sympy_limit",
+      "enabled": false,
+      "maxima_input": "limit(x*log(x)*log(x*exp(x) - x^2)^2/log(log(x^2 + 2*exp(exp(3*x^3*log(x))))),x, inf)",
+      "maxima_expected": "1/3",
+      "source_file": "rtest_limit_wester.mac",
+      "source_line": 37
+    },
+    {
+      "id": "MX_LIMIT_WESTER-LIM-007",
+      "line": "limit(hgfred([1, k], [1], z/k), k, +infinity)",
+      "api": "limit",
+      "verify": "sympy_limit",
+      "enabled": false,
+      "maxima_input": "limit(hgfred([1, k], [1], z/k), k, inf)",
+      "maxima_expected": "exp(z)",
+      "source_file": "rtest_limit_wester.mac",
+      "source_line": 64
+    },
+    {
+      "id": "MX_LIMIT_WESTER-LIM-008",
+      "line": "limit(zeta(x) - 1/(x - 1), x, 1)",
+      "api": "limit",
+      "verify": "sympy_limit",
+      "enabled": false,
+      "maxima_input": "limit(zeta(x) - 1/(x - 1), x, 1)",
+      "maxima_expected": "%gamma",
+      "source_file": "rtest_limit_wester.mac",
+      "source_line": 68
+    }
+  ]
+}
