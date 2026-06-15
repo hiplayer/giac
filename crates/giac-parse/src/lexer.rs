@@ -122,6 +122,13 @@ mod tests {
     }
 
     #[test]
+    fn lex_matrix_literal() {
+        let toks = lex_all("[[1,2],[3,4]]");
+        eprintln!("{toks:?}");
+        assert!(matches!(toks.first(), Some(Token::LMat)));
+    }
+
+    #[test]
     fn lex_assign_and_power() {
         let toks = lex_all("x:=a^2;");
         assert!(matches!(toks.as_slice(), [

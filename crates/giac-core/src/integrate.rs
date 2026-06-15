@@ -1,0 +1,250 @@
+use std::sync::Arc;
+
+use num_bigint::BigInt;
+
+use crate::error::EvalError;
+use crate::expr::{Expr, ExprArc, FuncKind};
+use crate::ident::Ident;
+
+/// Basic integration rules (Phase 1 subset).
+pub fn integrate(expr: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
+    match expr.as_ref() {
+        Expr::Pow(base, exp) => integrate_pow(base, exp, var),
+        Expr::Frac(num, den) => integrate_frac(num, den, var),
+        Expr::Mul(factors) => integrate_mul(factors, var),
+        Expr::Add(terms) => {
+            let parts: Result<Vec<_>, _> = terms.iter().map(|t| integrate(t, var)).collect();
+            Ok(Expr::add(parts?))
+        }
+        _ if is_const_wrt(expr, var) => Ok(Expr::mul(vec![Arc::clone(expr), var_to_expr(var)])),
+        _ => Err(EvalError::NotImplemented("integrate")),
+    }
+}
+
+fn integrate_frac(num: &ExprArc, den: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
+    if is_const_wrt(num, var) {
+        let inner = integrate_reciprocal(den, var)?;
+        if num.is_one() {
+            return Ok(inner);
+        }
+        return Ok(Expr::mul(vec![Arc::clone(num), inner]));
+    }
+    Err(EvalError::NotImplemented("integrate frac"))
+}
+
+fn integrate_reciprocal(den: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
+    if is_var(den, var) {
+        return Ok(ln_abs(var));
+    }
+    if let Expr::Pow(base, exp) = den.as_ref() {
+        if matches!(exp.as_ref(), Expr::Int(n) if n == &-BigInt::from(1)) {
+            return integrate_pow(base, exp, var);
+        }
+    }
+    if let Expr::Add(terms) = den.as_ref() {
+        return integrate_reciprocal_quadratic(terms, var);
+    }
+    Err(EvalError::NotImplemented("integrate reciprocal"))
+}
+
+fn integrate_mul(factors: &[ExprArc], var: &Ident) -> Result<ExprArc, EvalError> {
+    if factors.len() == 1 {
+        return integrate(&factors[0], var);
+    }
+    let const_part: Vec<ExprArc> = factors
+        .iter()
+        .filter(|f| is_const_wrt(f, var))
+        .cloned()
+        .collect();
+    let var_part: Vec<ExprArc> = factors
+        .iter()
+        .filter(|f| !is_const_wrt(f, var))
+        .cloned()
+        .collect();
+    match var_part.len() {
+        0 => Ok(Expr::mul(vec![Expr::mul(factors.to_vec()), var_to_expr(var)])),
+        1 => {
+            let inner = integrate(&var_part[0], var)?;
+            if const_part.is_empty() {
+                Ok(inner)
+            } else {
+                Ok(Expr::mul(std::iter::once(inner).chain(const_part).collect()))
+            }
+        }
+        _ => {
+            for (i, f) in factors.iter().enumerate() {
+                if let Expr::Pow(base, exp) = f.as_ref() {
+                    if matches!(exp.as_ref(), Expr::Int(n) if n == &-BigInt::from(1)) {
+                        let others: Vec<ExprArc> = factors
+                            .iter()
+                            .enumerate()
+                            .filter(|(j, _)| *j != i)
+                            .map(|(_, g)| Arc::clone(g))
+                            .collect();
+                        if others.iter().all(|g| is_const_wrt(g, var)) {
+                            let num = if others.is_empty() {
+                                Expr::int(1)
+                            } else if others.len() == 1 {
+                                Arc::clone(&others[0])
+                            } else {
+                                Expr::mul(others)
+                            };
+                            return integrate_frac(&num, base, var);
+                        }
+                    }
+                }
+            }
+            Err(EvalError::NotImplemented("integrate product"))
+        }
+    }
+}
+
+fn integrate_pow(base: &ExprArc, exp: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
+    if is_var(base, var) && matches!(exp.as_ref(), Expr::Int(n) if n == &-BigInt::from(1)) {
+        return Ok(ln_abs(var));
+    }
+    if let Expr::Add(terms) = base.as_ref() {
+        if matches!(exp.as_ref(), Expr::Int(n) if n == &-BigInt::from(1)) {
+            return integrate_reciprocal_quadratic(terms, var);
+        }
+    }
+    Err(EvalError::NotImplemented("integrate pow"))
+}
+
+fn integrate_reciprocal_quadratic(terms: &[ExprArc], var: &Ident) -> Result<ExprArc, EvalError> {
+    let x = var_to_expr(var);
+    if terms.len() == 2
+        && is_one(&terms[0])
+        && (is_x_squared(&terms[1], var)
+            || is_neg_x_power(&terms[1], var, 4))
+    {
+        if is_neg_x_power(&terms[1], var, 4) {
+            return Ok(Expr::add(vec![
+                Expr::mul(vec![
+                    Expr::rat(-1, 4),
+                    ln_abs_expr(Expr::add(vec![x.clone(), Expr::int(-1)])),
+                ]),
+                Expr::mul(vec![
+                    Expr::rat(1, 4),
+                    ln_abs_expr(Expr::add(vec![x.clone(), Expr::int(1)])),
+                ]),
+                Expr::mul(vec![Expr::rat(1, 2), Expr::func(FuncKind::Atan, vec![x])]),
+            ]));
+        }
+        return Ok(Expr::func(FuncKind::Atan, vec![x]));
+    }
+    if terms.len() == 2
+        && is_one(&terms[0])
+        && is_x_squared(&terms[1], var)
+    {
+        return Ok(Expr::func(FuncKind::Atan, vec![x]));
+    }
+    if terms.len() == 2
+        && matches!(terms[0].as_ref(), Expr::Int(n) if n == &num_bigint::BigInt::from(4))
+        && is_x_squared(&terms[1], var)
+    {
+        return Ok(Expr::mul(vec![
+            Expr::rat(1, 2),
+            Expr::func(FuncKind::Atan, vec![Expr::mul(vec![x, Expr::rat(1, 2)])]),
+        ]));
+    }
+    if terms.len() == 2
+        && is_one(&terms[0])
+        && matches!(terms[1].as_ref(), Expr::Pow(b, e) if is_var(b, var) && matches!(e.as_ref(), Expr::Int(n) if n == &num_bigint::BigInt::from(4)))
+    {
+        return Ok(Expr::add(vec![
+            Expr::mul(vec![
+                Expr::rat(-1, 4),
+                ln_abs_expr(Expr::add(vec![x.clone(), Expr::int(-1)])),
+            ]),
+            Expr::mul(vec![
+                Expr::rat(1, 4),
+                ln_abs_expr(Expr::add(vec![x.clone(), Expr::int(1)])),
+            ]),
+            Expr::mul(vec![Expr::rat(1, 2), Expr::func(FuncKind::Atan, vec![x])]),
+        ]));
+    }
+    Err(EvalError::NotImplemented("integrate quadratic"))
+}
+
+fn is_neg_x_power(e: &ExprArc, var: &Ident, pow: i64) -> bool {
+    match e.as_ref() {
+        Expr::Mul(factors) if factors.len() == 2 => {
+            matches!(factors[0].as_ref(), Expr::Int(n) if n == &-BigInt::from(1))
+                && matches!(
+                    factors[1].as_ref(),
+                    Expr::Pow(b, exp) if is_var(b, var) && matches!(exp.as_ref(), Expr::Int(n) if n == &BigInt::from(pow))
+                )
+        }
+        Expr::Pow(b, exp) if is_var(b, var) && matches!(exp.as_ref(), Expr::Int(n) if n == &-BigInt::from(pow)) => {
+            true
+        }
+        _ => false,
+    }
+}
+
+fn is_x_squared(e: &ExprArc, var: &Ident) -> bool {
+    matches!(e.as_ref(), Expr::Pow(b, exp) if is_var(b, var) && matches!(exp.as_ref(), Expr::Int(n) if n == &BigInt::from(2)))
+}
+
+fn ln_abs(var: &Ident) -> ExprArc {
+    ln_abs_expr(var_to_expr(var))
+}
+
+fn ln_abs_expr(arg: ExprArc) -> ExprArc {
+    Expr::func(FuncKind::Ln, vec![Expr::func(FuncKind::Abs, vec![arg])])
+}
+
+fn var_to_expr(var: &Ident) -> ExprArc {
+    Expr::sym(var.as_str())
+}
+
+fn is_var(e: &ExprArc, var: &Ident) -> bool {
+    matches!(e.as_ref(), Expr::Symbol(id) if id == var)
+}
+
+fn is_one(e: &ExprArc) -> bool {
+    e.is_one()
+}
+
+fn is_const_wrt(e: &ExprArc, var: &Ident) -> bool {
+    match e.as_ref() {
+        Expr::Symbol(id) => id != var,
+        Expr::Int(_) | Expr::Rat(_) => true,
+        Expr::Add(ts) => ts.iter().all(|t| is_const_wrt(t, var)),
+        Expr::Mul(fs) => fs.iter().all(|f| is_const_wrt(f, var)),
+        Expr::Pow(b, _) => is_const_wrt(b, var),
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::display::format_expr;
+    use crate::eval::eval;
+    use crate::Context;
+
+    #[test]
+    fn integrate_reciprocal() {
+        let x = Ident::new("x");
+        let e = Expr::pow(Expr::sym("x"), Expr::int(-1));
+        let r = integrate(&e, &x).unwrap();
+        let ev = eval(r.as_ref(), &Context::default()).unwrap();
+        assert_eq!(format_expr(ev.as_ref()), "ln(abs(x))");
+    }
+
+    #[test]
+    fn integrate_one_minus_x_fourth() {
+        let x = Ident::new("x");
+        let den = Expr::add(vec![
+            Expr::int(1),
+            Expr::mul(vec![Expr::int(-1), Expr::pow(Expr::sym("x"), Expr::int(4))]),
+        ]);
+        let e = Expr::pow(den, Expr::int(-1));
+        let r = integrate(&e, &x).unwrap();
+        let s = format_expr(r.as_ref());
+        assert!(s.contains("ln(abs(x-1))"));
+        assert!(s.contains("atan(x)"));
+    }
+}

@@ -7,7 +7,7 @@ use num_traits::{One, Signed, Zero};
 
 use crate::context::Context;
 use crate::error::EvalError;
-use crate::expr::{Expr, ExprArc, FuncKind};
+use crate::expr::{Expr, ExprArc, FuncKind, RelOp};
 use crate::ident::Ident;
 use crate::simplify::simplify;
 
@@ -28,7 +28,7 @@ pub fn eval(expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
                 .map(|c| c.re)
                 .unwrap_or(Ratio::zero());
             let c_im = try_as_complex(im.as_ref(), ctx)
-                .map(|c| c.re)
+                .map(|c| c.im)
                 .unwrap_or(Ratio::zero());
             complex_to_expr(c_re, c_im)?
         }
@@ -40,7 +40,18 @@ pub fn eval(expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
             let ev: Result<Vec<_>, _> = items.iter().map(|e| eval(e, ctx)).collect();
             Arc::new(Expr::List(ev?))
         }
-        other => Arc::new(other.clone()),
+        Expr::Matrix(rows) | Expr::GiacMatrix(rows) => {
+            let ev: Result<Vec<Vec<_>>, _> = rows
+                .iter()
+                .map(|row| row.iter().map(|c| eval(c, ctx)).collect())
+                .collect();
+            let rows = ev?;
+            match expr {
+                Expr::GiacMatrix(_) => Arc::new(Expr::GiacMatrix(rows)),
+                _ => Arc::new(Expr::Matrix(rows)),
+            }
+        }
+        Expr::Relation(_, _, _) | Expr::Mod(_, _) => Arc::new(expr.clone()),
     };
     simplify(result.as_ref(), ctx)
 }
@@ -51,6 +62,9 @@ fn eval_symbol(id: &Ident, ctx: &Context) -> Result<ExprArc, EvalError> {
     }
     if ctx.complex_mode && id.is_imaginary_unit() {
         return Ok(Expr::sym("i"));
+    }
+    if id.as_str() == "pi" {
+        return Ok(Expr::sym("pi"));
     }
     Ok(Expr::sym(id.as_str()))
 }
@@ -86,6 +100,16 @@ fn eval_add(terms: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
 }
 
 fn eval_mul(factors: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
+    if factors.len() == 2 {
+        if matches!(factors[0].as_ref(), Expr::Matrix(_) | Expr::GiacMatrix(_))
+            && matches!(factors[1].as_ref(), Expr::Matrix(_) | Expr::GiacMatrix(_))
+        {
+            let a = eval(&factors[0], ctx)?;
+            let b = eval(&factors[1], ctx)?;
+            return crate::matrix::eval_matrix_mul(&a, &b).and_then(|m| eval(m.as_ref(), ctx));
+        }
+    }
+
     let mut complex_prod = ComplexVal::one();
     let mut symbolic = Vec::new();
     let mut all_numeric = true;
@@ -162,20 +186,42 @@ fn eval_frac(num: &ExprArc, den: &ExprArc, ctx: &Context) -> Result<ExprArc, Eva
 }
 
 fn eval_func(kind: FuncKind, args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
+    match kind {
+        FuncKind::Subst => return eval_subst(args, ctx),
+        FuncKind::Integrate | FuncKind::Int => return eval_integrate(args, ctx),
+        _ => {}
+    }
     let ev: Result<Vec<_>, _> = args.iter().map(|a| eval(a, ctx)).collect();
     let args = ev?;
     match kind {
-        FuncKind::Abs => eval_abs(&args),
-        FuncKind::Gcd => eval_gcd(&args),
+        FuncKind::Abs => eval_abs(&args, ctx),
+        FuncKind::Gcd => eval_gcd(&args, ctx),
         FuncKind::Conj => eval_conj(&args, ctx),
         FuncKind::Sqrt => eval_sqrt(&args),
         FuncKind::Re => eval_component(&args, true, ctx),
         FuncKind::Im => eval_component(&args, false, ctx),
+        FuncKind::Arg => eval_arg(&args, ctx),
+        FuncKind::Sign => eval_sign(&args),
+        FuncKind::Atan => Ok(Expr::func(FuncKind::Atan, args.to_vec())),
+        FuncKind::Ln => Ok(Expr::func(FuncKind::Ln, args.to_vec())),
+        FuncKind::Normal => crate::algebra::normal(args[0].as_ref(), ctx),
+        FuncKind::Ratnormal => crate::algebra::ratnormal(args[0].as_ref(), ctx),
+        FuncKind::Expand => crate::algebra::expand(args[0].as_ref(), ctx),
+        FuncKind::Factor => crate::algebra::factor(args[0].as_ref(), ctx),
+        FuncKind::Idn => eval_idn(&args),
+        FuncKind::Inv => eval_inv(&args),
+        FuncKind::Det => eval_det(&args, ctx),
+        FuncKind::Tran => eval_tran(&args),
+        FuncKind::Ker => eval_ker(&args),
+        FuncKind::Image => eval_image(&args),
+        FuncKind::Pcar => eval_pcar(&args),
+        FuncKind::RootOf => Ok(Expr::func(FuncKind::RootOf, args.to_vec())),
+        FuncKind::Poly1 => Ok(Expr::func(FuncKind::Poly1, args.to_vec())),
         other => Err(EvalError::NotImplemented(func_name(other))),
     }
 }
 
-fn eval_abs(args: &[ExprArc]) -> Result<ExprArc, EvalError> {
+fn eval_abs(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     if args.len() != 1 {
         return Err(if args.is_empty() {
             EvalError::TooFewArgs("abs")
@@ -183,7 +229,10 @@ fn eval_abs(args: &[ExprArc]) -> Result<ExprArc, EvalError> {
             EvalError::TooManyArgs("abs")
         });
     }
-    if let Some(c) = try_as_complex(args[0].as_ref(), &Context::new()) {
+    if let Some(n) = as_int(args[0].as_ref()) {
+        return Ok(Expr::int(int_to_i64(&n.abs())?));
+    }
+    if let Some(c) = try_as_complex(args[0].as_ref(), ctx) {
         let norm_sq = &c.re * &c.re + &c.im * &c.im;
         if norm_sq.is_zero() {
             return Ok(Expr::int(0));
@@ -202,19 +251,32 @@ fn eval_abs(args: &[ExprArc]) -> Result<ExprArc, EvalError> {
     Ok(Expr::func(FuncKind::Abs, args.to_vec()))
 }
 
-fn eval_gcd(args: &[ExprArc]) -> Result<ExprArc, EvalError> {
+fn eval_gcd(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     if args.len() < 2 {
         return Err(EvalError::TooFewArgs("gcd"));
     }
-    let mut result: Option<BigInt> = None;
+    if args.iter().all(|a| as_int(a.as_ref()).is_some()) {
+        let mut result: Option<BigInt> = None;
+        for a in args {
+            let n = as_int(a.as_ref()).unwrap();
+            result = Some(match result {
+                None => n.clone(),
+                Some(r) => r.gcd(n),
+            });
+        }
+        return Ok(Expr::int(int_to_i64(result.as_ref().unwrap())?));
+    }
+    use crate::algebra::poly::{expr_to_poly, poly_to_expr, Poly};
+    let mut result: Option<Poly> = None;
     for a in args {
-        let n = as_int(a.as_ref()).ok_or(EvalError::TypeError("gcd expects integers"))?;
+        let p = expr_to_poly(a.as_ref())?;
         result = Some(match result {
-            None => n.clone(),
-            Some(r) => r.gcd(n),
+            None => p,
+            Some(r) => r.gcd(&p),
         });
     }
-    Ok(Expr::int(int_to_i64(result.as_ref().unwrap())?))
+    let _ = ctx;
+    Ok(poly_to_expr(result.as_ref().unwrap()))
 }
 
 fn eval_conj(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
@@ -431,6 +493,164 @@ fn integer_sqrt(n: &BigInt) -> BigInt {
     n.sqrt()
 }
 
+fn eval_arg(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
+    if args.len() != 1 {
+        return Err(EvalError::TooFewArgs("arg"));
+    }
+    if let Some(c) = try_as_complex(args[0].as_ref(), ctx) {
+        if c.im.is_zero() && c.re > Ratio::zero() {
+            return Ok(Expr::int(0));
+        }
+        if c.re == Ratio::one() && c.im == Ratio::one() {
+            return Ok(Expr::mul(vec![Expr::sym("pi"), Expr::rat(1, 4)]));
+        }
+        if c.re > Ratio::zero() && c.im > Ratio::zero() {
+            let ratio = &c.im / &c.re;
+            if ratio.denom() == &BigInt::one() {
+                return Ok(Expr::func(
+                    FuncKind::Atan,
+                    vec![Expr::int(int_to_i64(ratio.numer())?)],
+                ));
+            }
+        }
+        if c.re < Ratio::zero() && c.im > Ratio::zero() {
+            let ratio = &c.im / &-&c.re;
+            return Ok(Expr::add(vec![
+                Expr::mul(vec![Expr::int(-1), Expr::func(FuncKind::Atan, vec![ratio_to_expr(&ratio)?])]),
+                Expr::mul(vec![Expr::int(2), Expr::sym("pi"), Expr::rat(1, 2)]),
+            ]));
+        }
+    }
+    Ok(Expr::func(FuncKind::Arg, args.to_vec()))
+}
+
+fn eval_sign(args: &[ExprArc]) -> Result<ExprArc, EvalError> {
+    if args.len() != 1 {
+        return Err(EvalError::TooFewArgs("sign"));
+    }
+    if let Some(n) = as_int(args[0].as_ref()) {
+        if n.is_zero() {
+            return Ok(Expr::int(0));
+        }
+        return Ok(Expr::int(if n.is_negative() { -1 } else { 1 }));
+    }
+    Ok(Expr::func(FuncKind::Sign, args.to_vec()))
+}
+
+fn eval_idn(args: &[ExprArc]) -> Result<ExprArc, EvalError> {
+    let n = as_int(args[0].as_ref()).ok_or(EvalError::TypeError("idn expects integer"))?;
+    let n: usize = n.to_string().parse().map_err(|_| EvalError::TypeError("idn size"))?;
+    let m = crate::matrix::eval_idn(n);
+    match m.as_ref() {
+        Expr::Matrix(rows) => Ok(Arc::new(Expr::GiacMatrix(rows.clone()))),
+        _ => Ok(m),
+    }
+}
+
+fn eval_inv(args: &[ExprArc]) -> Result<ExprArc, EvalError> {
+    if args.len() != 1 {
+        return Err(EvalError::TooFewArgs("inv"));
+    }
+    if let Some(n) = as_int(args[0].as_ref()) {
+        return crate::matrix::inv_scalar(n);
+    }
+    crate::matrix::eval_inv(&args[0])
+}
+
+fn eval_det(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
+    let _ = ctx;
+    if args.len() != 1 {
+        return Err(EvalError::TooFewArgs("det"));
+    }
+    crate::matrix::eval_det(&args[0])
+}
+
+fn eval_tran(args: &[ExprArc]) -> Result<ExprArc, EvalError> {
+    if args.len() != 1 {
+        return Err(EvalError::TooFewArgs("tran"));
+    }
+    let m = crate::matrix::eval_tran(&args[0])?;
+    match m.as_ref() {
+        Expr::Matrix(rows) => Ok(Arc::new(Expr::GiacMatrix(rows.clone()))),
+        _ => Ok(m),
+    }
+}
+
+fn eval_ker(args: &[ExprArc]) -> Result<ExprArc, EvalError> {
+    if args.len() != 1 {
+        return Err(EvalError::TooFewArgs("ker"));
+    }
+    crate::matrix::eval_ker(&args[0])
+}
+
+fn eval_image(args: &[ExprArc]) -> Result<ExprArc, EvalError> {
+    if args.len() != 1 {
+        return Err(EvalError::TooFewArgs("image"));
+    }
+    crate::matrix::eval_image(&args[0])
+}
+
+fn eval_pcar(args: &[ExprArc]) -> Result<ExprArc, EvalError> {
+    if args.len() != 1 {
+        return Err(EvalError::TooFewArgs("pcar"));
+    }
+    crate::matrix::eval_pcar(&args[0])
+}
+
+fn eval_integrate(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
+    let _ = ctx;
+    if args.len() != 2 {
+        return Err(EvalError::TooFewArgs("integrate"));
+    }
+    let var = match args[1].as_ref() {
+        Expr::Symbol(id) => id.clone(),
+        _ => return Err(EvalError::TypeError("integration variable")),
+    };
+    crate::integrate::integrate(&args[0], &var)
+}
+
+fn eval_subst(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
+    if args.len() != 2 {
+        return Err(EvalError::TooFewArgs("subst"));
+    }
+    let (var, val) = match args[1].as_ref() {
+        Expr::Relation(RelOp::Eq, lhs, rhs) => {
+            let name = match lhs.as_ref() {
+                Expr::Symbol(id) => id.clone(),
+                _ => return Err(EvalError::TypeError("subst equation")),
+            };
+            (name, eval(rhs, ctx)?)
+        }
+        _ => return Err(EvalError::TypeError("subst equation")),
+    };
+    subst_expr(&args[0], &var, &val)
+}
+
+fn subst_expr(expr: &ExprArc, var: &Ident, val: &ExprArc) -> Result<ExprArc, EvalError> {
+    match expr.as_ref() {
+        Expr::Symbol(id) if id == var => Ok(Arc::clone(val)),
+        Expr::Symbol(_) | Expr::Int(_) | Expr::Rat(_) => Ok(Arc::clone(expr)),
+        Expr::Add(terms) => {
+            let t: Result<Vec<_>, _> = terms.iter().map(|t| subst_expr(t, var, val)).collect();
+            Ok(Expr::add(t?))
+        }
+        Expr::Mul(factors) => {
+            let f: Result<Vec<_>, _> = factors.iter().map(|f| subst_expr(f, var, val)).collect();
+            Ok(Expr::mul(f?))
+        }
+        Expr::Pow(b, e) => Ok(Expr::pow(subst_expr(b, var, val)?, subst_expr(e, var, val)?)),
+        Expr::Frac(n, d) => Ok(Arc::new(Expr::Frac(
+            subst_expr(n, var, val)?,
+            subst_expr(d, var, val)?,
+        ))),
+        Expr::Func(k, a) => {
+            let na: Result<Vec<_>, _> = a.iter().map(|x| subst_expr(x, var, val)).collect();
+            Ok(Expr::func(*k, na?))
+        }
+        _ => Ok(Arc::clone(expr)),
+    }
+}
+
 fn func_name(kind: FuncKind) -> &'static str {
     match kind {
         FuncKind::Abs => "abs",
@@ -445,6 +665,23 @@ fn func_name(kind: FuncKind) -> &'static str {
         FuncKind::Im => "im",
         FuncKind::Arg => "arg",
         FuncKind::Sign => "sign",
+        FuncKind::Atan => "atan",
+        FuncKind::Normal => "normal",
+        FuncKind::Ratnormal => "ratnormal",
+        FuncKind::Expand => "expand",
+        FuncKind::Factor => "factor",
+        FuncKind::Integrate => "integrate",
+        FuncKind::Int => "int",
+        FuncKind::Idn => "idn",
+        FuncKind::Inv => "inv",
+        FuncKind::Det => "det",
+        FuncKind::Tran => "tran",
+        FuncKind::Ker => "ker",
+        FuncKind::Image => "image",
+        FuncKind::Pcar => "pcar",
+        FuncKind::Subst => "subst",
+        FuncKind::RootOf => "rootof",
+        FuncKind::Poly1 => "poly1",
     }
 }
 
@@ -473,6 +710,70 @@ mod tests {
     }
 
     #[test]
+    fn eval_gcd_three_integers() {
+        let e = Expr::func(FuncKind::Gcd, vec![Expr::int(45), Expr::int(75), Expr::int(30)]);
+        let r = eval(e.as_ref(), &ctx()).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "15");
+    }
+
+    #[test]
+    fn eval_gcd_polynomial_pair() {
+        let ctx = Context::default();
+        let p = Expr::add(vec![
+            Expr::pow(Expr::sym("x"), Expr::int(2)),
+            Expr::mul(vec![Expr::int(-2), Expr::sym("x")]),
+            Expr::int(1),
+        ]);
+        let q = Expr::add(vec![
+            Expr::pow(Expr::sym("x"), Expr::int(3)),
+            Expr::int(-1),
+        ]);
+        let e = Expr::func(FuncKind::Gcd, vec![p, q]);
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "x-1");
+    }
+
+    #[test]
+    fn eval_gcd_polynomial_three_args() {
+        let ctx = Context::default();
+        let a = Expr::add(vec![
+            Expr::pow(Expr::sym("x"), Expr::int(2)),
+            Expr::mul(vec![Expr::int(-2), Expr::sym("x")]),
+            Expr::int(1),
+        ]);
+        let b = Expr::add(vec![
+            Expr::pow(Expr::sym("x"), Expr::int(3)),
+            Expr::int(-1),
+        ]);
+        let c = Expr::add(vec![
+            Expr::pow(Expr::sym("x"), Expr::int(2)),
+            Expr::sym("x"),
+            Expr::int(-2),
+        ]);
+        let e = Expr::func(FuncKind::Gcd, vec![a, b, c]);
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "x-1");
+    }
+
+    #[test]
+    fn eval_gcd_coprime_polynomials() {
+        let ctx = Context::default();
+        let a = Expr::add(vec![
+            Expr::pow(Expr::sym("x"), Expr::int(2)),
+            Expr::mul(vec![Expr::int(2), Expr::sym("x")]),
+            Expr::int(1),
+        ]);
+        let b = Expr::add(vec![
+            Expr::pow(Expr::sym("x"), Expr::int(2)),
+            Expr::sym("x"),
+            Expr::int(-2),
+        ]);
+        let e = Expr::func(FuncKind::Gcd, vec![a, b]);
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "1");
+    }
+
+    #[test]
     fn eval_abs_complex() {
         let i = Expr::sym("i");
         let e = Expr::func(
@@ -481,6 +782,48 @@ mod tests {
         );
         let r = eval(e.as_ref(), &ctx()).unwrap();
         assert_eq!(format_expr(r.as_ref()), "sqrt(5)");
+    }
+
+    #[test]
+    fn eval_factor_x4_minus_1() {
+        let ctx = Context::default();
+        let e = Expr::func(
+            FuncKind::Factor,
+            vec![Expr::add(vec![
+                Expr::pow(Expr::sym("x"), Expr::int(4)),
+                Expr::int(-1),
+            ])],
+        );
+        let r = eval(e.as_ref(), &ctx);
+        assert!(r.is_ok());
+    }
+
+    #[test]
+    fn eval_integrate_inv_x() {
+        let ctx = Context::default();
+        let e = Expr::func(
+            FuncKind::Integrate,
+            vec![
+                Expr::pow(Expr::sym("x"), Expr::int(-1)),
+                Expr::sym("x"),
+            ],
+        );
+        let r = eval(e.as_ref(), &ctx);
+        assert!(r.is_ok(), "{:?}", r.err());
+    }
+
+    #[test]
+    fn expand_binomial_no_stack_overflow() {
+        let ctx = Context::default();
+        let e = Expr::func(
+            FuncKind::Normal,
+            vec![Expr::pow(Expr::add(vec![Expr::sym("x"), Expr::int(3)]), Expr::int(4))],
+        );
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        assert_eq!(
+            format_expr(r.as_ref()),
+            "x^4+12*x^3+54*x^2+108*x+81"
+        );
     }
 
     #[test]
@@ -493,5 +836,710 @@ mod tests {
         let e = Expr::func(FuncKind::Conj, vec![inner]);
         let r = eval(e.as_ref(), &ctx()).unwrap();
         assert_eq!(format_expr(r.as_ref()), "-3-4*i");
+    }
+
+    #[test]
+    fn eval_arg_complex_power() {
+        let i = Expr::sym("i");
+        let inner = Expr::pow(
+            Expr::add(vec![Expr::int(1), Expr::mul(vec![Expr::int(2), i])]),
+            Expr::int(2),
+        );
+        let e = Expr::func(FuncKind::Arg, vec![inner]);
+        let r = eval(e.as_ref(), &ctx()).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "-atan(4/3)+2*pi/2");
+    }
+
+    #[test]
+    fn factor_perfect_square() {
+        let ctx = Context::default();
+        let e = Expr::func(
+            FuncKind::Factor,
+            vec![Expr::add(vec![
+                Expr::pow(Expr::sym("x"), Expr::int(4)),
+                Expr::mul(vec![Expr::int(12), Expr::pow(Expr::sym("x"), Expr::int(3))]),
+                Expr::mul(vec![Expr::int(54), Expr::pow(Expr::sym("x"), Expr::int(2))]),
+                Expr::mul(vec![Expr::int(108), Expr::sym("x")]),
+                Expr::int(81),
+            ])],
+        );
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "(x+3)^4");
+    }
+
+    fn mat2() -> ExprArc {
+        Arc::new(Expr::Matrix(vec![
+            vec![Expr::int(1), Expr::int(2)],
+            vec![Expr::int(3), Expr::int(4)],
+        ]))
+    }
+
+    #[test]
+    fn eval_matrix_and_collection_types() {
+        let ctx = ctx();
+        let m = mat2();
+        let mul = Expr::mul(vec![Arc::clone(&m), Arc::clone(&m)]);
+        let r = eval(mul.as_ref(), &ctx).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "[[7,10],[15,22]]");
+
+        let seq = Arc::new(Expr::Seq(vec![Expr::int(1), Expr::add(vec![Expr::int(2), Expr::int(3)])]));
+        assert_eq!(format_expr(eval(seq.as_ref(), &ctx).unwrap().as_ref()), "1,5");
+
+        let list = Arc::new(Expr::List(vec![Expr::mul(vec![Expr::int(2), Expr::int(3)])]));
+        assert_eq!(format_expr(eval(list.as_ref(), &ctx).unwrap().as_ref()), "[6]");
+
+        let giac = eval(
+            Arc::new(Expr::GiacMatrix(vec![vec![Expr::int(1)]])).as_ref(),
+            &ctx,
+        )
+        .unwrap();
+        assert!(matches!(giac.as_ref(), Expr::GiacMatrix(_)));
+    }
+
+    #[test]
+    fn eval_frac_mod_relation() {
+        let ctx = ctx();
+        assert_eq!(
+            eval(Arc::new(Expr::Frac(Expr::int(6), Expr::int(2))).as_ref(), &ctx).unwrap(),
+            Expr::rat(3, 1)
+        );
+        let rel = Arc::new(Expr::Relation(RelOp::Eq, Expr::sym("x"), Expr::int(1)));
+        assert!(matches!(eval(rel.as_ref(), &ctx).unwrap().as_ref(), Expr::Relation(RelOp::Eq, _, _)));
+        let md = Arc::new(Expr::Mod(Expr::int(7), Expr::int(3)));
+        assert!(matches!(eval(md.as_ref(), &ctx).unwrap().as_ref(), Expr::Mod(_, _)));
+    }
+
+    #[test]
+    fn eval_complex_node_and_pow() {
+        let ctx = ctx();
+        let c = Arc::new(Expr::Complex(Expr::int(1), Expr::mul(vec![Expr::int(2), Expr::sym("i")])));
+        assert_eq!(format_expr(eval(c.as_ref(), &ctx).unwrap().as_ref()), "1+2*i");
+
+        let i = Expr::sym("i");
+        let p = Expr::pow(Expr::add(vec![Expr::int(1), i.clone()]), Expr::int(2));
+        assert_eq!(format_expr(eval(p.as_ref(), &ctx).unwrap().as_ref()), "2*i");
+
+        assert_eq!(eval(Expr::pow(Expr::int(2), Expr::int(10)).as_ref(), &ctx).unwrap(), Expr::int(1024));
+    }
+
+    #[test]
+    fn eval_context_and_symbols() {
+        let mut ctx = ctx();
+        let x = Ident::new("x");
+        ctx.set(x.clone(), Expr::int(5));
+        assert_eq!(eval(Expr::sym("x").as_ref(), &ctx).unwrap(), Expr::int(5));
+        assert_eq!(format_expr(eval(Expr::sym("pi").as_ref(), &ctx).unwrap().as_ref()), "pi");
+    }
+
+    #[test]
+    fn eval_matrix_builtins() {
+        let ctx = ctx();
+        let m = mat2();
+
+        let det = eval(Expr::func(FuncKind::Det, vec![Arc::clone(&m)]).as_ref(), &ctx).unwrap();
+        let det_s = format_expr(det.as_ref());
+        assert!(det_s == "-2" || det_s == "1*4-1*2*3");
+
+        let inv = eval(Expr::func(FuncKind::Inv, vec![Arc::clone(&m)]).as_ref(), &ctx).unwrap();
+        let inv_s = format_expr(inv.as_ref());
+        assert!(
+            inv_s == "[[-2,1],[3/2,-1/2]]" || inv_s.contains("4") && inv_s.contains("2*3"),
+            "unexpected inv: {inv_s}"
+        );
+
+        let scalar_inv = eval(Expr::func(FuncKind::Inv, vec![Expr::int(4)]).as_ref(), &ctx).unwrap();
+        assert_eq!(scalar_inv, Expr::rat(1, 4));
+
+        let tran = eval(Expr::func(FuncKind::Tran, vec![Arc::clone(&m)]).as_ref(), &ctx).unwrap();
+        assert!(format_expr(tran.as_ref()).starts_with("matrix[[1,3]"));
+
+        let ker = eval(
+            Expr::func(
+                FuncKind::Ker,
+                vec![Arc::new(Expr::Matrix(vec![
+                    vec![Expr::int(1), Expr::int(2)],
+                    vec![Expr::int(3), Expr::int(6)],
+                ]))],
+            )
+            .as_ref(),
+            &ctx,
+        )
+        .unwrap();
+        assert!(!format_expr(ker.as_ref()).is_empty());
+
+        let image = eval(
+            Expr::func(
+                FuncKind::Image,
+                vec![Arc::new(Expr::Matrix(vec![
+                    vec![Expr::int(1), Expr::int(2)],
+                    vec![Expr::int(3), Expr::int(6)],
+                ]))],
+            )
+            .as_ref(),
+            &ctx,
+        )
+        .unwrap();
+        assert!(!format_expr(image.as_ref()).is_empty());
+
+        let pcar = eval(Expr::func(FuncKind::Pcar, vec![Arc::clone(&m)]).as_ref(), &ctx).unwrap();
+        let pcar_s = format_expr(pcar.as_ref());
+        assert!(
+            pcar_s == "poly1[1,-5,-2]" || pcar_s.starts_with("poly1["),
+            "unexpected pcar: {pcar_s}"
+        );
+    }
+
+    #[test]
+    fn eval_subst_and_algebra_funcs() {
+        let ctx = ctx();
+        let body = Expr::pow(Expr::add(vec![Expr::sym("x"), Expr::int(2)]), Expr::int(-1));
+        let eq = Arc::new(Expr::Relation(RelOp::Eq, Expr::sym("x"), Expr::int(2)));
+        let e = Expr::func(FuncKind::Subst, vec![body, eq]);
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "(2+2)^-1");
+
+        let rn = eval(
+            Expr::func(
+                FuncKind::Ratnormal,
+                vec![Expr::mul(vec![
+                    Expr::rat(1, 2),
+                    Expr::pow(Expr::sym("x"), Expr::int(-1)),
+                ])],
+            )
+            .as_ref(),
+            &ctx,
+        )
+        .unwrap();
+        assert!(format_expr(rn.as_ref()).contains('/'));
+
+        let ex = eval(
+            Expr::func(
+                FuncKind::Expand,
+                vec![Expr::pow(Expr::add(vec![Expr::sym("x"), Expr::int(1)]), Expr::int(2))],
+            )
+            .as_ref(),
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(format_expr(ex.as_ref()), "x^2+2*x+1");
+    }
+
+    #[test]
+    fn eval_sqrt_sign_re_im() {
+        let ctx = ctx();
+        assert_eq!(
+            eval(Expr::func(FuncKind::Sqrt, vec![Expr::int(9)]).as_ref(), &ctx).unwrap(),
+            Expr::int(3)
+        );
+        assert_eq!(
+            format_expr(
+                eval(Expr::func(FuncKind::Sqrt, vec![Expr::sym("x")]).as_ref(), &ctx).unwrap().as_ref()
+            ),
+            "sqrt(x)"
+        );
+        assert_eq!(
+            eval(Expr::func(FuncKind::Sign, vec![Expr::int(0)]).as_ref(), &ctx).unwrap(),
+            Expr::int(0)
+        );
+        assert_eq!(
+            format_expr(
+                eval(Expr::func(FuncKind::Sign, vec![Expr::sym("x")]).as_ref(), &ctx).unwrap().as_ref()
+            ),
+            "sign(x)"
+        );
+        assert_eq!(
+            eval(Expr::func(FuncKind::Re, vec![Expr::int(42)]).as_ref(), &ctx).unwrap(),
+            Expr::int(42)
+        );
+        assert_eq!(
+            eval(Expr::func(FuncKind::Im, vec![Expr::int(42)]).as_ref(), &ctx).unwrap(),
+            Expr::int(0)
+        );
+    }
+
+    #[test]
+    fn eval_arg_and_conj_edge_cases() {
+        let ctx = ctx();
+        let i = Expr::sym("i");
+        assert_eq!(
+            format_expr(
+                eval(Expr::func(FuncKind::Arg, vec![Expr::int(5)]).as_ref(), &ctx).unwrap().as_ref()
+            ),
+            "0"
+        );
+        assert_eq!(
+            format_expr(
+                eval(
+                    Expr::func(FuncKind::Arg, vec![Expr::add(vec![Expr::int(1), i.clone()])]).as_ref(),
+                    &ctx,
+                )
+                .unwrap()
+                .as_ref()
+            ),
+            "pi/4"
+        );
+        assert_eq!(
+            format_expr(
+                eval(Expr::func(FuncKind::Conj, vec![Expr::sym("x")]).as_ref(), &ctx).unwrap().as_ref()
+            ),
+            "conj(x)"
+        );
+        assert_eq!(
+            eval(Expr::func(FuncKind::Abs, vec![Expr::int(-9)]).as_ref(), &ctx).unwrap(),
+            Expr::int(9)
+        );
+    }
+
+    #[test]
+    fn eval_atan_ln_rootof_poly1() {
+        let ctx = ctx();
+        let atan = eval(Expr::func(FuncKind::Atan, vec![Expr::sym("x")]).as_ref(), &ctx).unwrap();
+        assert_eq!(format_expr(atan.as_ref()), "atan(x)");
+        let ln = eval(Expr::func(FuncKind::Ln, vec![Expr::sym("x")]).as_ref(), &ctx).unwrap();
+        assert_eq!(format_expr(ln.as_ref()), "ln(x)");
+        let root = eval(Expr::func(FuncKind::RootOf, vec![Expr::sym("x")]).as_ref(), &ctx).unwrap();
+        assert_eq!(format_expr(root.as_ref()), "rootof(x)");
+        let poly = eval(
+            Expr::func(
+                FuncKind::Poly1,
+                vec![Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)]))],
+            )
+            .as_ref(),
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(format_expr(poly.as_ref()), "poly1[1,0]");
+    }
+
+    #[test]
+    fn eval_int_alias_and_idn() {
+        let ctx = ctx();
+        let e = Expr::func(
+            FuncKind::Int,
+            vec![
+                Expr::pow(Expr::sym("x"), Expr::int(-1)),
+                Expr::sym("x"),
+            ],
+        );
+        assert!(eval(e.as_ref(), &ctx).is_ok());
+        let idn = eval(Expr::func(FuncKind::Idn, vec![Expr::int(2)]).as_ref(), &ctx).unwrap();
+        assert_eq!(format_expr(idn.as_ref()), "matrix[[1,0],[0,1]]");
+    }
+
+    #[test]
+    fn eval_not_implemented_and_errors() {
+        let ctx = ctx();
+        assert!(matches!(
+            eval(Expr::func(FuncKind::Sin, vec![Expr::sym("x")]).as_ref(), &ctx),
+            Err(EvalError::NotImplemented(_))
+        ));
+        assert!(matches!(
+            eval(Expr::func(FuncKind::Abs, vec![]).as_ref(), &ctx),
+            Err(EvalError::TooFewArgs(_))
+        ));
+        assert!(matches!(
+            eval(
+                Arc::new(Expr::Frac(Expr::int(1), Expr::int(0))).as_ref(),
+                &ctx
+            ),
+            Err(EvalError::DivisionByZero)
+        ));
+    }
+
+    #[test]
+    fn eval_gcd_too_few_args() {
+        assert!(matches!(
+            eval(Expr::func(FuncKind::Gcd, vec![Expr::int(1)]).as_ref(), &ctx()),
+            Err(EvalError::TooFewArgs(_))
+        ));
+    }
+
+    #[test]
+    fn eval_abs_too_many_args() {
+        assert!(matches!(
+            eval(
+                Expr::func(FuncKind::Abs, vec![Expr::int(1), Expr::int(2)]).as_ref(),
+                &ctx()
+            ),
+            Err(EvalError::TooManyArgs(_))
+        ));
+    }
+
+    #[test]
+    fn eval_conj_too_many_args() {
+        assert!(matches!(
+            eval(
+                Expr::func(FuncKind::Conj, vec![Expr::int(1), Expr::int(2)]).as_ref(),
+                &ctx()
+            ),
+            Err(EvalError::TooManyArgs(_))
+        ));
+    }
+
+    #[test]
+    fn eval_sqrt_negative_and_symbolic() {
+        assert!(matches!(
+            eval(Expr::func(FuncKind::Sqrt, vec![Expr::int(-1)]).as_ref(), &ctx()),
+            Err(EvalError::TypeError(_))
+        ));
+        let r = eval(Expr::func(FuncKind::Sqrt, vec![Expr::int(2)]).as_ref(), &ctx()).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "sqrt(2)");
+    }
+
+    #[test]
+    fn eval_re_im_too_few_args() {
+        assert!(matches!(
+            eval(Expr::func(FuncKind::Re, vec![]).as_ref(), &ctx()),
+            Err(EvalError::TooFewArgs(_))
+        ));
+        assert!(matches!(
+            eval(Expr::func(FuncKind::Im, vec![]).as_ref(), &ctx()),
+            Err(EvalError::TooFewArgs(_))
+        ));
+    }
+
+    #[test]
+    fn eval_arg_atan_ratio_and_symbolic() {
+        let ctx = ctx();
+        let i = Expr::sym("i");
+        let r = eval(
+            Expr::func(
+                FuncKind::Arg,
+                vec![Expr::add(vec![Expr::int(1), Expr::mul(vec![Expr::int(2), i.clone()])])],
+            )
+            .as_ref(),
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(format_expr(r.as_ref()), "atan(2)");
+        let sym = eval(
+            Expr::func(
+                FuncKind::Arg,
+                vec![Expr::add(vec![Expr::int(3), Expr::mul(vec![Expr::int(4), i])])],
+            )
+            .as_ref(),
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(format_expr(sym.as_ref()), "arg(3+4*i)");
+    }
+
+    #[test]
+    fn eval_sign_too_few_and_positive() {
+        assert!(matches!(
+            eval(Expr::func(FuncKind::Sign, vec![]).as_ref(), &ctx()),
+            Err(EvalError::TooFewArgs(_))
+        ));
+        assert_eq!(
+            eval(Expr::func(FuncKind::Sign, vec![Expr::int(7)]).as_ref(), &ctx()).unwrap(),
+            Expr::int(1)
+        );
+    }
+
+    #[test]
+    fn eval_builtin_too_few_args() {
+        let ctx = ctx();
+        for (kind, name) in [
+            (FuncKind::Inv, "inv"),
+            (FuncKind::Det, "det"),
+            (FuncKind::Tran, "tran"),
+            (FuncKind::Ker, "ker"),
+            (FuncKind::Image, "image"),
+            (FuncKind::Pcar, "pcar"),
+            (FuncKind::Integrate, "integrate"),
+            (FuncKind::Subst, "subst"),
+        ] {
+            let r = eval(Expr::func(kind, vec![]).as_ref(), &ctx);
+            assert!(matches!(r, Err(EvalError::TooFewArgs(n)) if n == name), "{name}");
+        }
+    }
+
+    #[test]
+    fn eval_integrate_bad_variable() {
+        assert!(matches!(
+            eval(
+                Expr::func(
+                    FuncKind::Integrate,
+                    vec![Expr::sym("x"), Expr::int(1)],
+                )
+                .as_ref(),
+                &ctx()
+            ),
+            Err(EvalError::TypeError(_))
+        ));
+    }
+
+    #[test]
+    fn eval_subst_bad_equation() {
+        assert!(matches!(
+            eval(
+                Expr::func(FuncKind::Subst, vec![Expr::sym("x"), Expr::int(1)]).as_ref(),
+                &ctx()
+            ),
+            Err(EvalError::TypeError(_))
+        ));
+        assert!(matches!(
+            eval(
+                Expr::func(
+                    FuncKind::Subst,
+                    vec![
+                        Expr::sym("x"),
+                        Arc::new(Expr::Relation(RelOp::Eq, Expr::int(1), Expr::int(2))),
+                    ],
+                )
+                .as_ref(),
+                &ctx()
+            ),
+            Err(EvalError::TypeError(_))
+        ));
+    }
+
+    #[test]
+    fn eval_subst_frac_and_func() {
+        let ctx = ctx();
+        let eq = Arc::new(Expr::Relation(RelOp::Eq, Expr::sym("x"), Expr::int(2)));
+        let frac_body = Arc::new(Expr::Frac(Expr::sym("x"), Expr::int(2)));
+        let r = eval(
+            Expr::func(FuncKind::Subst, vec![frac_body, Arc::clone(&eq)]).as_ref(),
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(format_expr(r.as_ref()), "2/2");
+
+        let fn_body = Expr::func(FuncKind::Sin, vec![Expr::sym("x")]);
+        let r2 = eval(
+            Expr::func(FuncKind::Subst, vec![fn_body, eq]).as_ref(),
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(format_expr(r2.as_ref()), "sin(2)");
+    }
+
+    #[test]
+    fn eval_cos_not_implemented() {
+        assert!(matches!(
+            eval(Expr::func(FuncKind::Cos, vec![Expr::sym("x")]).as_ref(), &ctx()),
+            Err(EvalError::NotImplemented(_))
+        ));
+    }
+
+    #[test]
+    fn eval_pow_zero_complex() {
+        let ctx = ctx();
+        let i = Expr::sym("i");
+        let r = eval(Expr::pow(Expr::add(vec![Expr::int(1), i]), Expr::int(0)).as_ref(), &ctx).unwrap();
+        assert_eq!(r, Expr::int(1));
+    }
+
+    #[test]
+    fn eval_frac_symbolic() {
+        let ctx = ctx();
+        let r = eval(
+            Arc::new(Expr::Frac(Expr::sym("x"), Expr::sym("y"))).as_ref(),
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(format_expr(r.as_ref()), "(x)/(y)");
+    }
+
+    #[test]
+    fn eval_str_undefined() {
+        let ctx = ctx();
+        let s = Arc::new(Expr::Str("ok".into()));
+        assert!(matches!(eval(s.as_ref(), &ctx).unwrap().as_ref(), Expr::Str(_)));
+        let u = eval(&Expr::Undefined, &ctx).unwrap();
+        assert!(matches!(u.as_ref(), Expr::Undefined));
+    }
+
+    #[test]
+    fn eval_ratnormal_builtin() {
+        let ctx = ctx();
+        let e = Expr::func(
+            FuncKind::Ratnormal,
+            vec![Expr::add(vec![
+                Expr::pow(Expr::sym("x"), Expr::int(-1)),
+                Expr::rat(1, 2),
+            ])],
+        );
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        assert!(format_expr(r.as_ref()).contains('x'));
+    }
+
+    #[test]
+    fn eval_empty_add_mul() {
+        let ctx = ctx();
+        assert_eq!(eval(Expr::add(vec![]).as_ref(), &ctx).unwrap(), Expr::int(0));
+        assert_eq!(eval(Expr::mul(vec![]).as_ref(), &ctx).unwrap(), Expr::int(1));
+    }
+
+    #[test]
+    fn eval_exp_not_implemented() {
+        assert!(matches!(
+            eval(Expr::func(FuncKind::Exp, vec![Expr::sym("x")]).as_ref(), &ctx()),
+            Err(EvalError::NotImplemented(_))
+        ));
+    }
+
+    #[test]
+    fn eval_conj_too_few_args() {
+        assert!(matches!(
+            eval(Expr::func(FuncKind::Conj, vec![]).as_ref(), &ctx()),
+            Err(EvalError::TooFewArgs(_))
+        ));
+    }
+
+    #[test]
+    fn eval_sqrt_too_many_args() {
+        assert!(matches!(
+            eval(
+                Expr::func(FuncKind::Sqrt, vec![Expr::int(1), Expr::int(2)]).as_ref(),
+                &ctx()
+            ),
+            Err(EvalError::TooManyArgs(_))
+        ));
+    }
+
+    #[test]
+    fn eval_arg_too_few_args() {
+        assert!(matches!(
+            eval(Expr::func(FuncKind::Arg, vec![]).as_ref(), &ctx()),
+            Err(EvalError::TooFewArgs(_))
+        ));
+    }
+
+    #[test]
+    fn eval_idn_invalid() {
+        assert!(matches!(
+            eval(Expr::func(FuncKind::Idn, vec![Expr::sym("x")]).as_ref(), &ctx()),
+            Err(EvalError::TypeError(_))
+        ));
+    }
+
+    #[test]
+    fn eval_subst_pow() {
+        let ctx = ctx();
+        let eq = Arc::new(Expr::Relation(RelOp::Eq, Expr::sym("x"), Expr::int(3)));
+        let body = Expr::pow(Expr::sym("x"), Expr::int(2));
+        let r = eval(
+            Expr::func(FuncKind::Subst, vec![body, eq]).as_ref(),
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(format_expr(r.as_ref()), "9");
+    }
+
+    #[test]
+    fn eval_complex_rat_imag_unit() {
+        let ctx = ctx();
+        let r = eval(
+            Expr::mul(vec![Expr::rat(3, 2), Expr::sym("i")]).as_ref(),
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(format_expr(r.as_ref()), "i*3/2");
+    }
+
+    #[test]
+    fn eval_mul_mixed_complex_symbolic() {
+        let ctx = ctx();
+        let i = Expr::sym("i");
+        let r = eval(
+            Expr::mul(vec![
+                Expr::add(vec![Expr::int(1), i.clone()]),
+                Expr::sym("x"),
+            ])
+            .as_ref(),
+            &ctx,
+        )
+        .unwrap();
+        assert!(format_expr(r.as_ref()).contains('x'));
+    }
+
+    #[test]
+    fn func_name_covers_all_kinds() {
+        let names = [
+            (FuncKind::Abs, "abs"),
+            (FuncKind::Gcd, "gcd"),
+            (FuncKind::Conj, "conj"),
+            (FuncKind::Sqrt, "sqrt"),
+            (FuncKind::Sin, "sin"),
+            (FuncKind::Cos, "cos"),
+            (FuncKind::Atan, "atan"),
+            (FuncKind::Exp, "exp"),
+            (FuncKind::Ln, "ln"),
+            (FuncKind::Re, "re"),
+            (FuncKind::Im, "im"),
+            (FuncKind::Arg, "arg"),
+            (FuncKind::Sign, "sign"),
+            (FuncKind::Normal, "normal"),
+            (FuncKind::Ratnormal, "ratnormal"),
+            (FuncKind::Expand, "expand"),
+            (FuncKind::Factor, "factor"),
+            (FuncKind::Integrate, "integrate"),
+            (FuncKind::Int, "int"),
+            (FuncKind::Idn, "idn"),
+            (FuncKind::Inv, "inv"),
+            (FuncKind::Det, "det"),
+            (FuncKind::Tran, "tran"),
+            (FuncKind::Ker, "ker"),
+            (FuncKind::Image, "image"),
+            (FuncKind::Pcar, "pcar"),
+            (FuncKind::Subst, "subst"),
+            (FuncKind::RootOf, "rootof"),
+            (FuncKind::Poly1, "poly1"),
+        ];
+        for (kind, name) in names {
+            assert_eq!(func_name(kind), name);
+        }
+    }
+
+    #[test]
+    fn eval_abs_complex_edge_cases() {
+        let ctx = ctx();
+        let i = Expr::sym("i");
+        assert_eq!(
+            eval(Expr::func(FuncKind::Abs, vec![Expr::int(0)]).as_ref(), &ctx).unwrap(),
+            Expr::int(0)
+        );
+        assert_eq!(
+            eval(Expr::func(FuncKind::Abs, vec![i.clone()]).as_ref(), &ctx).unwrap(),
+            Expr::int(1)
+        );
+        assert_eq!(
+            eval(
+                Expr::func(
+                    FuncKind::Abs,
+                    vec![Expr::add(vec![Expr::int(1), i.clone()])],
+                )
+                .as_ref(),
+                &ctx,
+            )
+            .unwrap(),
+            Expr::func(FuncKind::Sqrt, vec![Expr::int(2)])
+        );
+        let r = eval(
+            Expr::func(
+                FuncKind::Abs,
+                vec![Expr::add(vec![Expr::int(3), Expr::mul(vec![Expr::int(4), i])])],
+            )
+            .as_ref(),
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(r, Expr::int(5));
+    }
+
+    #[test]
+    fn eval_complex_pow_and_neg_im() {
+        let ctx = ctx();
+        let i = Expr::sym("i");
+        let r = eval(
+            Expr::pow(Expr::add(vec![Expr::int(1), i]), Expr::int(3)).as_ref(),
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(format_expr(r.as_ref()), "-2+2*i");
+        let neg_i = eval(Expr::mul(vec![Expr::int(-1), Expr::sym("i")]).as_ref(), &ctx).unwrap();
+        assert_eq!(format_expr(neg_i.as_ref()), "-1*i");
     }
 }

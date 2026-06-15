@@ -215,9 +215,9 @@ impl<'a, 'ctx> Parser<'a, 'ctx> {
                     let lhs = Expr::mul(factors);
                     return Ok(Arc::new(Expr::Mod(lhs, rhs)));
                 }
-                // implicit multiplication: number followed by ident or '('
-                Some(Token::Ident(_) | Token::LParen) if is_numeric_factor(factors.last().unwrap())
-                => {
+                Some(Token::Ident(_) | Token::LParen | Token::Number(_))
+                    if imp_mult_after(factors.last().unwrap()) =>
+                {
                     factors.push(self.parse_pow()?);
                 }
                 _ => break,
@@ -268,9 +268,17 @@ impl<'a, 'ctx> Parser<'a, 'ctx> {
                 }
                 Some(Token::LBracket) => {
                     self.bump()?;
+                    if let Expr::Symbol(id) = expr.as_ref() {
+                        if id.as_str() == "poly1" {
+                            let items = self.parse_seq_items()?;
+                            self.expect(Token::RBracket)?;
+                            expr = Expr::func(FuncKind::Poly1, vec![Arc::new(Expr::Seq(items))]);
+                            continue;
+                        }
+                    }
                     let idx = self.parse_expr()?;
                     self.expect(Token::RBracket)?;
-                    expr = Expr::func(FuncKind::Sign, vec![expr, idx]); // placeholder: subscript later
+                    expr = Expr::func(FuncKind::Sign, vec![expr, idx]);
                 }
                 _ => break,
             }
@@ -311,17 +319,41 @@ impl<'a, 'ctx> Parser<'a, 'ctx> {
 
     fn parse_matrix(&mut self) -> Result<ExprArc, ParseError> {
         let mut rows = Vec::new();
-        if !matches!(self.peek(), Some(Token::RMat)) {
-            loop {
-                rows.push(self.parse_seq_items()?);
-                if matches!(self.peek(), Some(Token::Comma)) {
+        loop {
+            let row = if matches!(self.peek(), Some(Token::LBracket)) {
+                self.bump()?;
+                let items = self.parse_seq_items()?;
+                match self.peek() {
+                    Some(Token::RMat) => {
+                        rows.push(items);
+                        self.bump()?;
+                        return Ok(Arc::new(Expr::Matrix(rows)));
+                    }
+                    Some(Token::RBracket) => {
+                        self.bump()?;
+                        items
+                    }
+                    _ => return Err(ParseError::Unexpected("expected ']' or ']]'")),
+                }
+            } else {
+                let items = self.parse_seq_items()?;
+                if matches!(self.peek(), Some(Token::RBracket)) {
                     self.bump()?;
-                } else {
+                }
+                items
+            };
+            rows.push(row);
+            match self.peek() {
+                Some(Token::Comma) => {
+                    self.bump()?;
+                }
+                Some(Token::RMat) => {
+                    self.bump()?;
                     break;
                 }
+                _ => return Err(ParseError::Unexpected("expected ',' or ']]'")),
             }
         }
-        self.expect(Token::RMat)?;
         Ok(Arc::new(Expr::Matrix(rows)))
     }
 
@@ -345,6 +377,21 @@ impl<'a, 'ctx> Parser<'a, 'ctx> {
         }
         Ok(items)
     }
+}
+
+fn imp_mult_after(factor: &ExprArc) -> bool {
+    matches!(
+        factor.as_ref(),
+        Expr::Int(_)
+            | Expr::Rat(_)
+            | Expr::Symbol(_)
+            | Expr::Pow(_, _)
+            | Expr::Func(_, _)
+            | Expr::Add(_)
+            | Expr::Mul(_)
+            | Expr::Matrix(_)
+            | Expr::GiacMatrix(_)
+    )
 }
 
 fn is_numeric_factor(expr: &ExprArc) -> bool {
@@ -375,12 +422,27 @@ fn lookup_func(name: &str) -> Option<FuncKind> {
         "sqrt" => Some(FuncKind::Sqrt),
         "sin" => Some(FuncKind::Sin),
         "cos" => Some(FuncKind::Cos),
+        "atan" => Some(FuncKind::Atan),
         "exp" => Some(FuncKind::Exp),
         "ln" => Some(FuncKind::Ln),
         "re" => Some(FuncKind::Re),
         "im" => Some(FuncKind::Im),
         "arg" => Some(FuncKind::Arg),
         "sign" => Some(FuncKind::Sign),
+        "normal" => Some(FuncKind::Normal),
+        "ratnormal" => Some(FuncKind::Ratnormal),
+        "expand" => Some(FuncKind::Expand),
+        "factor" => Some(FuncKind::Factor),
+        "integrate" | "int" => Some(FuncKind::Integrate),
+        "idn" => Some(FuncKind::Idn),
+        "inv" => Some(FuncKind::Inv),
+        "det" => Some(FuncKind::Det),
+        "tran" => Some(FuncKind::Tran),
+        "ker" => Some(FuncKind::Ker),
+        "image" => Some(FuncKind::Image),
+        "pcar" => Some(FuncKind::Pcar),
+        "subst" => Some(FuncKind::Subst),
+        "rootof" => Some(FuncKind::RootOf),
         _ => None,
     }
 }
@@ -409,6 +471,13 @@ mod tests {
             },
             other => panic!("unexpected {other:?}"),
         }
+    }
+
+    #[test]
+    fn parse_matrix_inv() {
+        let ctx = Context::xcas_default();
+        let stmts = parse_program("inv([[1,2],[3,4]]);", &ctx).unwrap();
+        assert_eq!(stmts.len(), 1);
     }
 
     #[test]

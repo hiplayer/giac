@@ -49,12 +49,22 @@ fn simplify_add(terms: &[ExprArc]) -> Result<ExprArc, EvalError> {
     }
 
     if !int_sum.is_zero() {
-        symbolic.insert(0, Expr::int(int_to_i64(&int_sum)?));
+        let term = Expr::int(int_to_i64(&int_sum)?);
+        if symbolic.iter().any(|t| contains_imaginary_unit(t)) {
+            symbolic.insert(0, term);
+        } else {
+            symbolic.push(term);
+        }
     }
     if !rat_sum.is_zero() {
         if rat_sum.denom() == &BigInt::one() {
             if int_sum.is_zero() {
-                symbolic.insert(0, Expr::int(int_to_i64(rat_sum.numer())?));
+                let term = Expr::int(int_to_i64(rat_sum.numer())?);
+                if symbolic.iter().any(|t| contains_imaginary_unit(t)) {
+                    symbolic.insert(0, term);
+                } else {
+                    symbolic.push(term);
+                }
             }
         } else {
             symbolic.push(rat_to_expr(&rat_sum)?);
@@ -121,6 +131,17 @@ fn simplify_pow(base: &ExprArc, exp: &ExprArc) -> Result<ExprArc, EvalError> {
     }
 }
 
+fn contains_imaginary_unit(expr: &ExprArc) -> bool {
+    match expr.as_ref() {
+        Expr::Symbol(id) => id.is_imaginary_unit(),
+        Expr::Mul(factors) => factors
+            .iter()
+            .any(|f| matches!(f.as_ref(), Expr::Symbol(id) if id.is_imaginary_unit())),
+        Expr::Add(terms) => terms.iter().any(contains_imaginary_unit),
+        _ => false,
+    }
+}
+
 fn int_to_i64(n: &BigInt) -> Result<i64, EvalError> {
     n.to_string()
         .parse()
@@ -152,10 +173,40 @@ mod tests {
     }
 
     #[test]
+    fn complex_ordering_preserved() {
+        let ctx = Context::new();
+        let e = Expr::add(vec![
+            Expr::int(1),
+            Expr::mul(vec![Expr::int(2), Expr::sym("i")]),
+        ]);
+        let s = simplify(e.as_ref(), &ctx).unwrap();
+        assert_eq!(crate::format_expr(s.as_ref()), "1+2*i");
+    }
+
+    #[test]
     fn flatten_mul() {
         let ctx = Context::new();
         let e = Expr::mul(vec![Expr::int(2), Expr::int(3), Expr::int(4)]);
         let s = simplify(e.as_ref(), &ctx).unwrap();
         assert_eq!(s, Expr::int(24));
+    }
+
+    #[test]
+    fn constant_term_at_end() {
+        let ctx = Context::new();
+        let e = Expr::add(vec![Expr::sym("x"), Expr::int(-1)]);
+        let s = simplify(e.as_ref(), &ctx).unwrap();
+        assert_eq!(crate::format_expr(s.as_ref()), "x-1");
+    }
+
+    #[test]
+    fn polynomial_constant_last() {
+        let ctx = Context::new();
+        let e = Expr::add(vec![
+            Expr::pow(Expr::sym("x"), Expr::int(2)),
+            Expr::int(3),
+        ]);
+        let s = simplify(e.as_ref(), &ctx).unwrap();
+        assert_eq!(crate::format_expr(s.as_ref()), "x^2+3");
     }
 }

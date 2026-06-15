@@ -64,6 +64,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "giac-simplify"
+version = "0.1.0"
+dependencies = [
+ "giac-core",
+]
+
+[[package]]
 name = "logos"
 version = "0.13.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"

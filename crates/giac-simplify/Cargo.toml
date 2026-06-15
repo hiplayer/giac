@@ -1,0 +1,10 @@
+[package]
+name = "giac-simplify"
+description = "Symbolic simplification facade (expand, normal, ratnormal, factor)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[dependencies]
+giac-core = { workspace = true }

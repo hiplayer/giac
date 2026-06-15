@@ -4,9 +4,12 @@ Rust reimplementation of the [Giac](https://www-fourier.univ-grenoble-alpes.fr/~
 
 ## Status
 
-**Phase 0** (skeleton): workspace, `giac-core`, `giac-parse`, `giac-cli`, conformance harness.
+**Phase 0–1** (in progress):
 
-`bin/test_cas_basic` (3 lines) passes golden equivalence.
+- `giac-core` + `giac-simplify` (facade): `expand`, `normal`, `ratnormal`, `factor`
+- Extended builtins: `arg`, `re`, `im`, `sign`, `gcd` (int + poly), `integrate`, `idn`, `inv`, `det`, `tran`, `ker`, `image`, `pcar`, `subst`
+- `giac-parse`: implicit multiply, `poly1[...]`, `rootof`, matrix `[[...]]` grammar
+- Conformance: `test_cas_basic`, `cas.tst` lines 1–25 (21/25 golden), lines 1–20 (≥15/25)
 
 ## Build & test
 
