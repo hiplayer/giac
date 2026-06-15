@@ -250,11 +250,18 @@ fn eval_func(kind: FuncKind, args: &[ExprArc], ctx: &Context) -> Result<ExprArc,
         FuncKind::Arg => eval_arg(&args, ctx),
         FuncKind::Sign => eval_sign(&args),
         FuncKind::Atan => Ok(Expr::func(FuncKind::Atan, args.to_vec())),
+        FuncKind::Sin | FuncKind::Cos | FuncKind::Exp | FuncKind::Tan => {
+            Ok(Expr::func(kind, args.to_vec()))
+        }
         FuncKind::Ln => Ok(Expr::func(FuncKind::Ln, args.to_vec())),
         FuncKind::Normal => crate::algebra::normal(args[0].as_ref(), ctx),
         FuncKind::Ratnormal => crate::algebra::ratnormal(args[0].as_ref(), ctx),
         FuncKind::Expand => crate::algebra::expand(args[0].as_ref(), ctx),
         FuncKind::Factor => crate::algebra::factor(args[0].as_ref(), ctx),
+        FuncKind::Texpand => crate::algebra::texpand(args[0].as_ref(), ctx),
+        FuncKind::Tlin => Err(EvalError::NotImplemented("tlin")),
+        FuncKind::Halftan => crate::algebra::halftan(args[0].as_ref(), ctx),
+        FuncKind::Lin => crate::algebra::lin(args[0].as_ref(), ctx),
         FuncKind::Quo => crate::eval_poly::eval_quo(&args, ctx),
         FuncKind::Rem => crate::eval_poly::eval_rem(&args, ctx),
         FuncKind::Content => crate::eval_poly::eval_content(&args, ctx),
@@ -897,6 +904,7 @@ fn func_name(kind: FuncKind) -> &'static str {
         FuncKind::Arg => "arg",
         FuncKind::Sign => "sign",
         FuncKind::Atan => "atan",
+        FuncKind::Tan => "tan",
         FuncKind::Normal => "normal",
         FuncKind::Ratnormal => "ratnormal",
         FuncKind::Expand => "expand",
@@ -941,6 +949,10 @@ fn func_name(kind: FuncKind) -> &'static str {
         FuncKind::Subst => "subst",
         FuncKind::RootOf => "rootof",
         FuncKind::Poly1 => "poly1",
+        FuncKind::Texpand => "texpand",
+        FuncKind::Tlin => "tlin",
+        FuncKind::Halftan => "halftan",
+        FuncKind::Lin => "lin",
     }
 }
 
@@ -1383,7 +1395,7 @@ mod tests {
     fn eval_not_implemented_and_errors() {
         let ctx = ctx();
         assert!(matches!(
-            eval(Expr::func(FuncKind::Sin, vec![Expr::sym("x")]).as_ref(), &ctx),
+            eval(Expr::func(FuncKind::Tlin, vec![Expr::sym("x")]).as_ref(), &ctx),
             Err(EvalError::NotImplemented(_))
         ));
         assert!(matches!(
@@ -1569,11 +1581,9 @@ mod tests {
     }
 
     #[test]
-    fn eval_cos_not_implemented() {
-        assert!(matches!(
-            eval(Expr::func(FuncKind::Cos, vec![Expr::sym("x")]).as_ref(), &ctx()),
-            Err(EvalError::NotImplemented(_))
-        ));
+    fn eval_cos_symbolic() {
+        let r = eval(Expr::func(FuncKind::Cos, vec![Expr::sym("x")]).as_ref(), &ctx()).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "cos(x)");
     }
 
     #[test]
@@ -1626,11 +1636,9 @@ mod tests {
     }
 
     #[test]
-    fn eval_exp_not_implemented() {
-        assert!(matches!(
-            eval(Expr::func(FuncKind::Exp, vec![Expr::sym("x")]).as_ref(), &ctx()),
-            Err(EvalError::NotImplemented(_))
-        ));
+    fn eval_exp_symbolic() {
+        let r = eval(Expr::func(FuncKind::Exp, vec![Expr::sym("x")]).as_ref(), &ctx()).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "exp(x)");
     }
 
     #[test]

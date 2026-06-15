@@ -101,6 +101,11 @@ pub enum FuncKind {
     Subst,
     RootOf,
     Poly1,
+    Tan,
+    Texpand,
+    Tlin,
+    Halftan,
+    Lin,
 }
 
 impl Expr {

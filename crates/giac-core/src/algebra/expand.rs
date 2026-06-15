@@ -4,7 +4,7 @@ use giac_poly::modp;
 use num_bigint::BigInt;
 use num_traits::Zero;
 
-use crate::{Context, EvalError, Expr, ExprArc};
+use crate::{Context, EvalError, Expr, ExprArc, FuncKind};
 
 use super::poly::{expr_to_poly, poly_mod_to_expr, poly_to_expr};
 
@@ -77,6 +77,20 @@ fn expand_pow(base: &ExprArc, exp: &ExprArc, ctx: &Context) -> Result<ExprArc, E
             }
             if e == 1 {
                 return Ok(base_e);
+            }
+            if matches!(
+                base_e.as_ref(),
+                Expr::Func(
+                    FuncKind::Sin
+                        | FuncKind::Cos
+                        | FuncKind::Exp
+                        | FuncKind::Ln
+                        | FuncKind::Atan
+                        | FuncKind::Tan,
+                    _,
+                )
+            ) {
+                return Ok(Expr::pow(base_e, Arc::clone(exp)));
             }
             let mut result = base_e.clone();
             for _ in 1..e {

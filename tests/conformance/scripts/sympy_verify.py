@@ -16,7 +16,7 @@ import sys
 from typing import Any
 
 import sympy as sp
-from sympy import Poly, QQ, ZZ, Matrix, symbols, resultant, apart, lcm, gcd, div, groebner
+from sympy import Poly, QQ, ZZ, Matrix, symbols, resultant, apart, lcm, gcd, div, groebner, expand_trig, trigsimp
 
 x, y, z = symbols("x y z")
 
@@ -234,6 +234,22 @@ def eval_phase1(line: str) -> Any | None:
     if m:
         f = giac_to_sympy(m.group(1))
         return sp.integrate(f, x)
+
+    m = re.fullmatch(r"texpand\((.+)\)", line)
+    if m:
+        return expand_trig(giac_to_sympy(m.group(1)))
+
+    m = re.fullmatch(r"halftan\((.+)\)", line)
+    if m:
+        return trigsimp(giac_to_sympy(m.group(1)))
+
+    m = re.fullmatch(r"lin\((.+)\)", line)
+    if m:
+        return sp.expand(giac_to_sympy(m.group(1)))
+
+    m = re.fullmatch(r"tlin\((.+)\)", line)
+    if m:
+        return expand_trig(giac_to_sympy(m.group(1)))
 
     m = re.fullmatch(r"idn\((\d+)\)", line)
     if m:
@@ -649,6 +665,38 @@ def verify_property(line: str, output: str) -> tuple[bool, str]:
             return False, "integrate derivative mismatch"
         return True, "ok"
 
+    m = re.fullmatch(r"texpand\((.+)\)", line)
+    if m:
+        inp = giac_to_sympy(m.group(1))
+        got = giac_to_sympy(output)
+        if sp.simplify(expand_trig(inp) - got) != 0:
+            return False, "texpand mismatch"
+        return True, "ok"
+
+    m = re.fullmatch(r"halftan\((.+)\)", line)
+    if m:
+        inp = trigsimp(giac_to_sympy(m.group(1)))
+        got = trigsimp(giac_to_sympy(output))
+        if sp.simplify(inp - got) != 0:
+            return False, "halftan mismatch"
+        return True, "ok"
+
+    m = re.fullmatch(r"lin\((.+)\)", line)
+    if m:
+        inp = sp.expand(giac_to_sympy(m.group(1)))
+        got = giac_to_sympy(output)
+        if sp.simplify(inp - got) != 0:
+            return False, "lin mismatch"
+        return True, "ok"
+
+    m = re.fullmatch(r"tlin\((.+)\)", line)
+    if m:
+        inp = giac_to_sympy(m.group(1))
+        got = giac_to_sympy(output)
+        if sp.simplify(expand_trig(inp) - got) != 0:
+            return False, "tlin mismatch"
+        return True, "ok"
+
     m = re.fullmatch(r"ker\((.+)\)", line)
     if m:
         mat = parse_giac_matrix_expr(m.group(1))
@@ -1031,6 +1079,8 @@ def verify(line: str, output: str) -> tuple[bool, str]:
     ):
         return verify_property(line, output)
     if line.startswith(("integrate(", "int(", "ker(", "image(", "pcar(")):
+        return verify_property(line, output)
+    if line.startswith(("texpand(", "halftan(", "lin(", "tlin(")):
         return verify_property(line, output)
     if line.startswith(("egv(", "jordan(")):
         return verify_property(line, output)

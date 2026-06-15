@@ -42,6 +42,11 @@ pub fn phase3_skip(_line: &str) -> bool {
     false
 }
 
+/// Trig simplification: giac-rs and giac may print different but equivalent forms.
+pub fn trig_format_diff(line: &str) -> bool {
+    matches!(line, "texpand(cos(3*x))")
+}
+
 pub fn phase3_numerical_decomp(line: &str) -> bool {
     line.starts_with("lu(") || line.starts_with("qr(") || line.starts_with("svd(")
 }

@@ -39,6 +39,19 @@ fn format_frac(num: &Arc<Expr>, den: &Arc<Expr>) -> String {
     if let (Expr::Int(n), Expr::Int(d)) = (num.as_ref(), den.as_ref()) {
         return format!("{}/{}", n, d);
     }
+    if let (Expr::Symbol(s), Expr::Int(d)) = (num.as_ref(), den.as_ref()) {
+        if d.is_one() {
+            return s.to_string();
+        }
+        return format!("{}/{}", s, d);
+    }
+    if matches!(num.as_ref(), Expr::Mul(_)) {
+        let den_s = match den.as_ref() {
+            Expr::Add(_) => format!("({})", format_expr(den)),
+            _ => format_expr(den),
+        };
+        return format!("{}/{}", format_expr(num), den_s);
+    }
     format!("({})/({})", format_expr(num), format_expr(den))
 }
 
@@ -129,8 +142,10 @@ fn format_mul(factors: &[Arc<Expr>]) -> String {
             }
         }
         if matches!(factors[0].as_ref(), Expr::Int(n) if n == &-BigInt::one()) {
-            if let Expr::Func(kind, args) = factors[1].as_ref() {
-                return format!("-{}", format_func(*kind, args));
+            match factors[1].as_ref() {
+                Expr::Func(kind, args) => return format!("-{}", format_func(*kind, args)),
+                Expr::Pow(base, exp) => return format!("-{}", format_pow(base, exp)),
+                _ => {}
             }
         }
     }
@@ -153,7 +168,7 @@ fn format_mul(factors: &[Arc<Expr>]) -> String {
         .iter()
         .map(|f| match f.as_ref() {
             Expr::Add(_) | Expr::Mul(_) => format!("({})", format_expr(f)),
-            Expr::Pow(base, _) if !matches!(base.as_ref(), Expr::Symbol(_)) => {
+            Expr::Pow(base, _) if matches!(base.as_ref(), Expr::Add(_) | Expr::Mul(_)) => {
                 format!("({})", format_expr(f))
             }
             _ => format_expr(f),
@@ -164,7 +179,8 @@ fn format_mul(factors: &[Arc<Expr>]) -> String {
 
 fn format_pow(base: &Arc<Expr>, exp: &Arc<Expr>) -> String {
     let base_s = match base.as_ref() {
-        Expr::Add(_) | Expr::Mul(_) | Expr::Func(_, _) => format!("({})", format_expr(base)),
+        Expr::Add(_) | Expr::Mul(_) => format!("({})", format_expr(base)),
+        Expr::Func(kind, args) => format_func(*kind, args),
         _ => format_expr(base),
     };
     let exp_s = format_expr(exp);
@@ -195,6 +211,7 @@ fn func_name(kind: FuncKind) -> &'static str {
         FuncKind::Sin => "sin",
         FuncKind::Cos => "cos",
         FuncKind::Atan => "atan",
+        FuncKind::Tan => "tan",
         FuncKind::Exp => "exp",
         FuncKind::Ln => "ln",
         FuncKind::Re => "re",
@@ -204,6 +221,10 @@ fn func_name(kind: FuncKind) -> &'static str {
         FuncKind::Normal => "normal",
         FuncKind::Ratnormal => "ratnormal",
         FuncKind::Expand => "expand",
+        FuncKind::Texpand => "texpand",
+        FuncKind::Tlin => "tlin",
+        FuncKind::Halftan => "halftan",
+        FuncKind::Lin => "lin",
         FuncKind::Factor => "factor",
         FuncKind::Quo => "quo",
         FuncKind::Rem => "rem",
@@ -453,7 +474,7 @@ mod tests {
         );
         assert_eq!(
             format_expr(&Expr::Frac(Expr::sym("x"), Expr::int(2))),
-            "(x)/(2)"
+            "x/2"
         );
         assert_eq!(
             format_expr(&Expr::List(vec![Expr::int(1), Expr::sym("x")])),

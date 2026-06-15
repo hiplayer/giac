@@ -12,7 +12,7 @@ use giac_parse::parse_program;
 
 pub use triple_skip::{
     phase2_format_diff, phase2_giac_gap, phase2_sympy_gap, phase3_format_diff,
-    phase3_numerical_decomp, phase3_skip, phase3_sympy_gap,
+    phase3_numerical_decomp, phase3_skip, phase3_sympy_gap, trig_format_diff,
 };
 
 pub fn upstream_root() -> PathBuf {
