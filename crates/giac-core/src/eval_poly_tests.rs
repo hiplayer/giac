@@ -1,6 +1,9 @@
 use std::sync::Arc;
 
-use crate::{eval, format_expr, Context, Expr, FuncKind};
+use num_bigint::BigInt;
+use num_rational::Ratio;
+
+use crate::{eval, format_expr, Context, EvalError, Expr, FuncKind};
 
 #[test]
 fn eval_quo_direct() {
@@ -263,4 +266,153 @@ fn eval_normal_mod_power() {
 
 fn verify_sympy_style_mod(s: &str) {
     assert!(s.contains("% 13"));
+}
+
+#[test]
+fn eval_resultant_linear_pair() {
+    let ctx = Context::xcas_default();
+    let e = Expr::func(
+        FuncKind::Resultant,
+        vec![
+            Expr::add(vec![Expr::sym("x"), Expr::int(-1)]),
+            Expr::add(vec![Expr::sym("x"), Expr::int(1)]),
+            Expr::sym("x"),
+        ],
+    );
+    let r = eval(e.as_ref(), &ctx).unwrap();
+    assert_eq!(format_expr(r.as_ref()), "2");
+}
+
+#[test]
+fn eval_resultant_not_implemented() {
+    let ctx = Context::xcas_default();
+    let e = Expr::func(
+        FuncKind::Resultant,
+        vec![
+            Expr::add(vec![Expr::pow(Expr::sym("x"), Expr::int(2)), Expr::int(1)]),
+            Expr::add(vec![Expr::pow(Expr::sym("x"), Expr::int(2)), Expr::int(-1)]),
+            Expr::sym("x"),
+        ],
+    );
+    assert!(matches!(
+        eval(e.as_ref(), &ctx),
+        Err(EvalError::NotImplemented(_))
+    ));
+}
+
+#[test]
+fn eval_roots_linear() {
+    let ctx = Context::xcas_default();
+    let e = Expr::func(
+        FuncKind::Roots,
+        vec![
+            Expr::add(vec![Expr::sym("x"), Expr::int(-1)]),
+            Expr::sym("x"),
+        ],
+    );
+    let r = eval(e.as_ref(), &ctx).unwrap();
+    assert_eq!(format_expr(r.as_ref()), "[1]");
+}
+
+#[test]
+fn eval_partfrac_not_implemented() {
+    let ctx = Context::xcas_default();
+    let e = Expr::func(
+        FuncKind::Partfrac,
+        vec![Expr::pow(Expr::sym("x"), Expr::int(-1)), Expr::sym("x")],
+    );
+    assert!(matches!(
+        eval(e.as_ref(), &ctx),
+        Err(EvalError::NotImplemented(_))
+    ));
+}
+
+#[test]
+fn eval_mod_gcd_modulus_mismatch() {
+    let ctx = Context::xcas_default();
+    let a = Arc::new(Expr::Mod(Expr::sym("x"), Expr::int(13)));
+    let b = Arc::new(Expr::Mod(Expr::sym("x"), Expr::int(7)));
+    let e = Expr::func(FuncKind::Gcd, vec![a, b]);
+    assert!(matches!(
+        eval(e.as_ref(), &ctx),
+        Err(EvalError::TypeError(_))
+    ));
+}
+
+#[test]
+fn eval_content_rational() {
+    let ctx = Context::xcas_default();
+    let half = Arc::new(Expr::Rat(Ratio::new(BigInt::from(1), BigInt::from(2))));
+    let three_halves = Arc::new(Expr::Rat(Ratio::new(BigInt::from(3), BigInt::from(2))));
+    let e = Expr::func(
+        FuncKind::Content,
+        vec![Expr::add(vec![
+            Expr::mul(vec![three_halves, Expr::sym("x")]),
+            half,
+        ])],
+    );
+    let r = eval(e.as_ref(), &ctx).unwrap();
+    assert_eq!(format_expr(r.as_ref()), "1/2");
+}
+
+#[test]
+fn eval_lcm_integers() {
+    let ctx = Context::xcas_default();
+    let e = Expr::func(FuncKind::Lcm, vec![Expr::int(12), Expr::int(18)]);
+    let r = eval(e.as_ref(), &ctx).unwrap();
+    assert_eq!(format_expr(r.as_ref()), "36");
+}
+
+#[test]
+fn eval_lcm_polynomial() {
+    let ctx = Context::xcas_default();
+    let e = Expr::func(
+        FuncKind::Lcm,
+        vec![
+            Expr::pow(Expr::add(vec![Expr::sym("x"), Expr::int(1)]), Expr::int(2)),
+            Expr::add(vec![Expr::pow(Expr::sym("x"), Expr::int(2)), Expr::int(-1)]),
+        ],
+    );
+    let r = eval(e.as_ref(), &ctx).unwrap();
+    let s = format_expr(r.as_ref());
+    assert!(s.contains("x"), "got {s}");
+}
+
+#[test]
+fn eval_egcd_abcuv() {
+    let ctx = Context::xcas_default();
+    let a = Expr::pow(Expr::add(vec![Expr::sym("x"), Expr::int(1)]), Expr::int(2));
+    let b = Expr::add(vec![Expr::pow(Expr::sym("x"), Expr::int(2)), Expr::int(-1)]);
+    let egcd = Expr::func(FuncKind::Egcd, vec![a.clone(), b.clone()]);
+    let got = format_expr(eval(egcd.as_ref(), &ctx).unwrap().as_ref());
+    assert!(got.contains('x') && got.contains(','), "got {got}");
+
+    let abc = Expr::func(
+        FuncKind::Abcuv,
+        vec![a, b, Expr::add(vec![Expr::sym("x"), Expr::int(1)])],
+    );
+    let got = format_expr(eval(abc.as_ref(), &ctx).unwrap().as_ref());
+    assert!(got.contains(','), "got {got}");
+}
+
+#[test]
+fn eval_modp_and_too_few_args() {
+    let ctx = Context::xcas_default();
+    let e = Expr::func(
+        FuncKind::Modp,
+        vec![
+            Expr::add(vec![Expr::pow(Expr::sym("x"), Expr::int(2)), Expr::int(1)]),
+            Expr::int(3),
+        ],
+    );
+    assert_eq!(
+        format_expr(eval(e.as_ref(), &ctx).unwrap().as_ref()),
+        "x^2+1"
+    );
+
+    let bad = Expr::func(FuncKind::Quo, vec![Expr::sym("x")]);
+    assert!(matches!(
+        eval(bad.as_ref(), &ctx),
+        Err(EvalError::TooFewArgs(_))
+    ));
 }

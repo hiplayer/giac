@@ -24,9 +24,14 @@ fn phase2_scripts_parseable() {
 
 #[test]
 fn test_poly_matches_giac() -> Result<(), String> {
-    let got = run_script(&upstream_root().join("bin/test_poly"))?;
+    let path = upstream_root().join("bin/test_poly");
+    let lines = giac_conformance::script_lines(&path)?;
+    let got = run_script(&path)?;
     let want = ["x-1", "x^2+x+1", "0", "6", "2*x*y"];
     assert_eq!(got, want.iter().map(|s| s.to_string()).collect::<Vec<_>>());
+    for (line, out) in lines.iter().zip(got.iter()) {
+        verify_sympy(line, out)?;
+    }
     Ok(())
 }
 

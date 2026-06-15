@@ -1,35 +1,9 @@
-//! Golden regression harness for giac-rs.
+//! Golden regression harness for giac-rs (Phase 1 + SymPy).
 
-use std::fs;
-use std::path::{Path, PathBuf};
-
-use giac_core::{exec_stmt, format_expr, Context, StmtResult};
+use giac_conformance::{run_script, sympy_verify_script, upstream_root, verify_sympy, run_line, PHASE1_SCRIPTS};
+use giac_core::Context;
 use giac_parse::parse_program;
-
-fn upstream_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../..")
-        .canonicalize()
-        .expect("upstream giac root")
-}
-
-fn run_script(path: &Path) -> Result<Vec<String>, String> {
-    let input = fs::read_to_string(path).map_err(|e| format!("read {}: {e}", path.display()))?;
-    let mut ctx = Context::xcas_default();
-    let stmts = parse_program(&input, &ctx).map_err(|e| format!("parse {}: {e}", path.display()))?;
-    let mut out = Vec::new();
-    for (idx, stmt) in stmts.iter().enumerate() {
-        match exec_stmt(stmt, &mut ctx)
-            .map_err(|e| format!("eval stmt {idx} in {}: {e}", path.display()))?
-        {
-            StmtResult::Value(v) | StmtResult::Assign { value: v, .. } => {
-                out.push(format_expr(v.as_ref()));
-            }
-            StmtResult::NoValue => {}
-        }
-    }
-    Ok(out)
-}
+use std::fs;
 
 #[test]
 fn test_cas_basic_matches_giac() -> Result<(), String> {
@@ -41,13 +15,27 @@ fn test_cas_basic_matches_giac() -> Result<(), String> {
         "-3-4*i".to_string(),
     ];
     assert_eq!(got, want, "bin/test_cas_basic");
+    let lines = giac_conformance::script_lines(&script)?;
+    for (line, out) in lines.iter().zip(got.iter()) {
+        verify_sympy(line, out)?;
+    }
+    Ok(())
+}
+
+#[test]
+fn phase1_scripts_sympy() -> Result<(), String> {
+    for name in PHASE1_SCRIPTS {
+        let results = sympy_verify_script(name)?;
+        for r in results {
+            assert!(r.ok, "SymPy: `{}` -> `{}`", r.line, r.output);
+        }
+    }
     Ok(())
 }
 
 #[test]
 fn harness_phase0_bin_scripts_parseable() {
-    let scripts = ["test_cas_basic"];
-    for name in scripts {
+    for name in PHASE1_SCRIPTS {
         let path = upstream_root().join("bin").join(name);
         let input = fs::read_to_string(&path).unwrap();
         let ctx = Context::xcas_default();
@@ -56,4 +44,12 @@ fn harness_phase0_bin_scripts_parseable() {
             "parse failed for {name}"
         );
     }
+}
+
+#[test]
+fn phase1_complex_gcd_sympy() -> Result<(), String> {
+    let line = "gcd(1999,2001)";
+    let got = run_line(line)?;
+    verify_sympy(line, &got)?;
+    Ok(())
 }

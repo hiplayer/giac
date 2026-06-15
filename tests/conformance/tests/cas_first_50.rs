@@ -49,6 +49,18 @@ fn run_script_lines(lines: &[&str]) -> Result<Vec<String>, String> {
 }
 
 #[test]
+fn cas_tst_first_20_sympy() -> Result<(), String> {
+    let (inputs, outputs) = giac_conformance::load_testcas_lines(20)?;
+    let got = giac_conformance::run_lines(&inputs)?;
+    let results = giac_conformance::sympy_verify_lines(&inputs, &got)?;
+    let ok = results.iter().filter(|r| r.ok).count();
+    eprintln!("cas first 20 sympy: {ok}/{}", results.len());
+    assert!(ok >= 15, "need >= 15/20 sympy verified");
+    let _ = outputs;
+    Ok(())
+}
+
+#[test]
 fn cas_tst_first_25_batch() -> Result<(), String> {
     let root = upstream_root();
     let inputs = load_lines(&root.join("giac/giac-1.5.0/check/testcas"));

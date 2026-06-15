@@ -121,3 +121,89 @@ fn is_xn_minus_one(p: &Poly, var: &Var, n: u32) -> bool {
     }
     has_xn && has_m1
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use num_traits::One;
+
+    fn x() -> Poly {
+        Poly::var("x")
+    }
+
+    #[test]
+    fn resultant_shared_factor_is_zero() {
+        let a = x().pow(2).sub(&Poly::one());
+        let b = x().pow(3).sub(&Poly::one());
+        let r = resultant(&a, &b, &Var::from("x")).unwrap();
+        assert!(r.is_zero());
+    }
+
+    #[test]
+    fn resultant_two_linear_polys() {
+        let a = x().sub(&Poly::one());
+        let b = x().add(&Poly::one());
+        let r = resultant(&a, &b, &Var::from("x")).unwrap();
+        assert_eq!(r, Poly::constant(Ratio::from_integer(BigInt::from(2))));
+    }
+
+    #[test]
+    fn resultant_constant_times_linear() {
+        let a = Poly::constant(Ratio::from_integer(BigInt::from(5)));
+        let b = x().sub(&Poly::one());
+        let r = resultant(&a, &b, &Var::from("x")).unwrap();
+        let expected = b.mul_scalar(&Ratio::from_integer(BigInt::from(5)));
+        assert_eq!(r, expected);
+    }
+
+    #[test]
+    fn resultant_linear_times_constant() {
+        let a = x().sub(&Poly::one());
+        let b = Poly::constant(Ratio::from_integer(BigInt::from(7)));
+        let r = resultant(&a, &b, &Var::from("x")).unwrap();
+        let expected = a.mul_scalar(&Ratio::from_integer(BigInt::from(7)));
+        assert_eq!(r, expected);
+    }
+
+    #[test]
+    fn resultant_quadratic_not_implemented() {
+        let a = x().pow(2).add(&Poly::one());
+        let b = x().pow(2).sub(&Poly::one());
+        let err = resultant(&a, &b, &Var::from("x")).unwrap_err();
+        assert!(matches!(err, PolyError::NotImplemented(_)));
+    }
+
+    #[test]
+    fn roots_linear() {
+        let p = x().sub(&Poly::one());
+        let rs = roots(&p, &Var::from("x")).unwrap();
+        assert_eq!(rs.len(), 1);
+        assert_eq!(rs[0], Poly::constant(Ratio::one()));
+    }
+
+    #[test]
+    fn roots_zero_polynomial() {
+        let rs = roots(&Poly::zero(), &Var::from("x")).unwrap();
+        assert!(rs.is_empty());
+    }
+
+    #[test]
+    fn roots_constant_nonzero_errors() {
+        let err = roots(&Poly::one(), &Var::from("x")).unwrap_err();
+        assert!(matches!(err, PolyError::TypeError(_)));
+    }
+
+    #[test]
+    fn roots_x3_minus_one_real_root() {
+        let p = x().pow(3).sub(&Poly::one());
+        let rs = roots(&p, &Var::from("x")).unwrap();
+        assert_eq!(rs, vec![Poly::constant(Ratio::one())]);
+    }
+
+    #[test]
+    fn roots_quadratic_not_implemented() {
+        let p = x().pow(2).sub(&Poly::one());
+        let err = roots(&p, &Var::from("x")).unwrap_err();
+        assert!(matches!(err, PolyError::NotImplemented(_)));
+    }
+}

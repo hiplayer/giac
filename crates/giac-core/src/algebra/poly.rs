@@ -29,10 +29,9 @@ pub fn expr_to_poly(expr: &Expr) -> Result<Poly, EvalError> {
         Expr::Pow(base, exp) => {
             let base_p = expr_to_poly(base)?;
             if let Expr::Int(e) = exp.as_ref() {
-                if e >= &BigInt::zero() && e <= &BigInt::from(50) {
-                    let e_u = crate::num_util::bigint_to_nonneg_u32(e)?;
-                    return Ok(base_p.pow(e_u));
-                }
+                // Bounded via `limits::MAX_POLY_EXPONENT` (u64 check → u32 for Poly::pow).
+                let e_u = crate::num_util::bigint_to_poly_exponent(e)?;
+                return Ok(base_p.pow(e_u));
             }
             Err(EvalError::TypeError("non-polynomial power"))
         }
@@ -180,5 +179,21 @@ mod tests {
             .pow(4);
         assert_eq!(p, expected);
         assert_eq!(giac_poly::factor_poly(&p), expected);
+    }
+
+    #[test]
+    fn expr_to_poly_high_degree_within_limit() {
+        let e = Expr::pow(Expr::sym("x"), Expr::int(100));
+        assert!(expr_to_poly(&e).is_ok());
+    }
+
+    #[test]
+    fn expr_to_poly_exponent_over_limit() {
+        let over = (crate::limits::MAX_POLY_EXPONENT + 1) as i64;
+        let e = Expr::pow(Expr::sym("x"), Expr::int(over));
+        assert!(matches!(
+            expr_to_poly(&e),
+            Err(EvalError::TypeError("polynomial exponent exceeds limit"))
+        ));
     }
 }
