@@ -1,7 +1,9 @@
 use std::collections::HashMap;
+use std::sync::Arc;
 
 use crate::expr::ExprArc;
 use crate::ident::Ident;
+use crate::linalg_plugin::LinalgPlugin;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Assumption {
@@ -10,8 +12,7 @@ pub enum Assumption {
     Positive(Ident),
 }
 
-/// Evaluation context (session state).
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct Context {
     pub vars: HashMap<Ident, ExprArc>,
     pub assumptions: Vec<Assumption>,
@@ -19,6 +20,7 @@ pub struct Context {
     pub epsilon: f64,
     pub series_order: u32,
     pub float_digits: u32,
+    pub(crate) linalg_plugin: Option<Arc<dyn LinalgPlugin>>,
 }
 
 impl Default for Context {
@@ -30,6 +32,7 @@ impl Default for Context {
             epsilon: 1e-10,
             series_order: 6,
             float_digits: 12,
+            linalg_plugin: None,
         }
     }
 }

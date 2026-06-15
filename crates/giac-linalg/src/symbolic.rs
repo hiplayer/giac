@@ -8,12 +8,12 @@ use num_integer::Integer;
 use num_rational::Ratio;
 use num_traits::{One, Zero};
 
-use crate::algebra::normal;
-use crate::context::Context;
-use crate::error::EvalError;
-use crate::eval::eval;
-use crate::expr::{Expr, ExprArc, FuncKind, RelOp};
-use crate::ident::Ident;
+use giac_core::normal;
+use giac_core::Context;
+use giac_core::EvalError;
+use giac_core::eval;
+use giac_core::{Expr, ExprArc, FuncKind, RelOp};
+use giac_core::Ident;
 
 pub fn as_matrix(e: &ExprArc) -> Result<Vec<Vec<ExprArc>>, EvalError> {
     match e.as_ref() {
@@ -615,7 +615,7 @@ fn eval_subst(
     subs: &HashMap<Ident, ExprArc>,
     _ctx: &Context,
 ) -> Result<ExprArc, EvalError> {
-    crate::eval::eval_subst_map(expr, subs)
+    giac_core::eval_subst_map(expr, subs)
 }
 
 fn split_mod_row(e: &ExprArc) -> Result<(Vec<ExprArc>, i64), EvalError> {
@@ -924,7 +924,7 @@ pub fn f64_to_expr_numeric(v: f64) -> ExprArc {
     if num == 0 {
         return Expr::int(0);
     }
-    let (n, d) = crate::num_util::reduce_rational_pair(num, DEN);
+    let (n, d) = giac_core::reduce_rational_pair(num, DEN);
     if d == 1 {
         Expr::int(n)
     } else {
@@ -935,7 +935,8 @@ pub fn f64_to_expr_numeric(v: f64) -> ExprArc {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Context;
+    use giac_core::format_expr;
+    use giac_core::Context;
 
     #[test]
     fn det_2x2_numeric() {
@@ -959,7 +960,7 @@ mod tests {
         ]));
         let x = Ident::new("x");
         let cp = eval_charpoly(&m, &x, &ctx).unwrap();
-        let s = crate::format_expr(cp.as_ref());
+        let s = format_expr(cp.as_ref());
         // det(λI - I) = (λ-1)^4 => expanded: x^4-4*x^3+6*x^2-4*x+1
         assert!(
             s.contains("x^4") && s.contains("-4"),
@@ -978,7 +979,7 @@ mod tests {
         ]));
         let x = Ident::new("x");
         let cp = eval_charpoly(&m, &x, &ctx).unwrap();
-        let s = crate::format_expr(cp.as_ref());
+        let s = format_expr(cp.as_ref());
         // det(λI - diag(1,2,3,4)) = (x-1)(x-2)(x-3)(x-4)
         // = x^4 - 10x^3 + 35x^2 - 50x + 24
         assert!(

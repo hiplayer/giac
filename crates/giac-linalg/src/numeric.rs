@@ -2,12 +2,12 @@
 
 use std::sync::Arc;
 
-use giac_linalg::{lu_decomp, qr_decomp, svd_decomp};
+use crate::{lu_decomp, qr_decomp, svd_decomp};
 
-use crate::context::Context;
-use crate::error::EvalError;
-use crate::expr::{Expr, ExprArc};
-use crate::linalg::symbolic::{f64_to_expr_numeric, try_to_f64_matrix};
+use giac_core::Context;
+use giac_core::EvalError;
+use giac_core::{Expr, ExprArc};
+use crate::symbolic::{f64_to_expr_numeric, try_to_f64_matrix};
 
 pub fn eval_lu(m: &ExprArc, ctx: &Context) -> Result<ExprArc, EvalError> {
     let a = try_to_f64_matrix(m, ctx)?;

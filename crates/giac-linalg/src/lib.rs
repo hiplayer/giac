@@ -2,14 +2,28 @@
 #![cfg_attr(not(test), warn(clippy::unwrap_used))]
 #![cfg_attr(not(test), warn(clippy::expect_used))]
 
-mod eigen;
+mod f64_eigen;
+mod gramschmidt;
 mod lu;
+mod numeric;
+mod plugin;
 mod qr;
+mod symbolic;
+mod symbolic_eigen;
 mod svd;
 
-pub use eigen::real_eigenvalues;
+pub use f64_eigen::real_eigenvalues;
+pub use gramschmidt::eval_gramschmidt;
 pub use lu::lu_decomp;
+pub use numeric::{eval_lu, eval_qr, eval_svd};
+pub use plugin::{install_linalg, xcas_default, DefaultLinalgPlugin};
 pub use qr::qr_decomp;
+pub use symbolic::{
+    as_matrix, eval_charpoly, eval_det, eval_idn, eval_image, eval_inv, eval_ker,
+    eval_linsolve, eval_matrix_mul, eval_matrix_pow, eval_pcar, eval_rref, eval_trace,
+    eval_tran, f64_to_expr_numeric, try_to_f64_matrix,
+};
+pub use symbolic_eigen::{eval_egv, eval_jordan};
 pub use svd::svd_decomp;
 
 use nalgebra::DMatrix;
@@ -24,7 +38,6 @@ pub fn to_dmatrix(m: &[Vec<f64>]) -> Option<DMatrix<f64>> {
     if !m.iter().all(|r| r.len() == ncols) {
         return None;
     }
-    // nalgebra stores data column-major; we provide row-major data
     let mut entries = Vec::with_capacity(nrows * ncols);
     for row in m {
         entries.extend_from_slice(row);
@@ -43,22 +56,5 @@ pub fn from_dmatrix(m: &DMatrix<f64>) -> Vec<Vec<f64>> {
 
 /// Format a float with `digits` significant figures (giac `evalf` style).
 pub fn format_float(v: f64, digits: u32) -> String {
-    if v.is_nan() {
-        return "undef".to_string();
-    }
-    if v.is_infinite() {
-        return if v.is_sign_positive() {
-            "inf".to_string()
-        } else {
-            "-inf".to_string()
-        };
-    }
-    if v == 0.0 {
-        return "0".to_string();
-    }
-    let exp = v.abs().log10().floor() as i32;
-    let scale = 10_f64.powi(digits as i32 - 1 - exp);
-    let rounded = (v * scale).round() / scale;
-    let s = format!("{rounded:.12}");
-    s.trim_end_matches('0').trim_end_matches('.').to_string()
+    giac_core::float_format::format_float(v, digits)
 }

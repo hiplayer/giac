@@ -17,4 +17,3 @@ num-traits = { workspace = true }
 thiserror = { workspace = true }
 giac-poly = { workspace = true }
 giac-groebner = { workspace = true }
-giac-linalg = { workspace = true }

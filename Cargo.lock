@@ -47,6 +47,7 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "giac-core",
+ "giac-linalg",
  "giac-parse",
 ]
 
@@ -55,6 +56,7 @@ name = "giac-conformance"
 version = "0.1.0"
 dependencies = [
  "giac-core",
+ "giac-linalg",
  "giac-parse",
 ]
 
@@ -63,7 +65,6 @@ name = "giac-core"
 version = "0.1.0"
 dependencies = [
  "giac-groebner",
- "giac-linalg",
  "giac-poly",
  "num-bigint",
  "num-integer",
@@ -86,7 +87,12 @@ dependencies = [
 name = "giac-linalg"
 version = "0.1.0"
 dependencies = [
+ "giac-core",
+ "giac-poly",
  "nalgebra",
+ "num-bigint",
+ "num-integer",
+ "num-rational",
  "num-traits",
 ]
 

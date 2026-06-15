@@ -138,7 +138,10 @@ fn eval_mul(factors: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     {
         let a = eval(&factors[0], ctx)?;
         let b = eval(&factors[1], ctx)?;
-        return crate::linalg::eval_matrix_mul(&a, &b).and_then(|m| eval(m.as_ref(), ctx));
+        return ctx
+            .linalg()?
+            .eval_matrix_mul(&a, &b)
+            .and_then(|m| eval(m.as_ref(), ctx));
     }
 
     let mut complex_prod = ComplexVal::one();
@@ -198,16 +201,13 @@ fn eval_pow(base: &ExprArc, exp: &ExprArc, ctx: &Context) -> Result<ExprArc, Eva
         }
     }
 
-    if let (Ok(_), Some(e_u)) = (
-        crate::linalg::as_matrix(&base),
-        as_nonneg_int(exp.as_ref()),
-    ) {
+    if let (Some(n), Some(e_u)) = (matrix_nrows(base.as_ref()), as_nonneg_int(exp.as_ref())) {
+        let lin = ctx.linalg()?;
         if e_u == 0 {
-            let n = crate::linalg::as_matrix(&base)?.len();
-            return Ok(crate::linalg::eval_idn(n));
+            return Ok(lin.eval_idn(n));
         }
         if e_u <= 20 {
-            return crate::linalg::eval_matrix_pow(&base, e_u, ctx);
+            return lin.eval_matrix_pow(&base, e_u, ctx);
         }
     }
 
@@ -270,52 +270,52 @@ fn eval_func(kind: FuncKind, args: &[ExprArc], ctx: &Context) -> Result<ExprArc,
         FuncKind::Chinrem => crate::eval_poly::eval_chinrem(&args, ctx),
         FuncKind::Partfrac => crate::eval_poly::eval_partfrac(&args, ctx),
         FuncKind::Greduce => crate::eval_poly::eval_greduce(&args, ctx),
-        FuncKind::Rref => crate::linalg::eval_rref(&args, ctx),
-        FuncKind::Idn => eval_idn(&args),
+        FuncKind::Rref => ctx.linalg()?.eval_rref(&args, ctx),
+        FuncKind::Idn => eval_idn(&args, ctx),
         FuncKind::Inv => eval_inv(&args, ctx),
         FuncKind::Det => eval_det(&args, ctx),
-        FuncKind::Tran => eval_tran(&args),
-        FuncKind::Ker => eval_ker(&args),
-        FuncKind::Image => eval_image(&args),
-        FuncKind::Pcar => eval_pcar(&args),
+        FuncKind::Tran => eval_tran(&args, ctx),
+        FuncKind::Ker => eval_ker(&args, ctx),
+        FuncKind::Image => eval_image(&args, ctx),
+        FuncKind::Pcar => eval_pcar(&args, ctx),
         FuncKind::Charpoly => eval_charpoly(&args, ctx),
         FuncKind::Linsolve => eval_linsolve(&args, ctx),
         FuncKind::Jordan => {
             if args.is_empty() {
                 return Err(EvalError::TooFewArgs("jordan"));
             }
-            crate::linalg::eigen::eval_jordan(&args[0], ctx)
+            ctx.linalg()?.eval_jordan(&args[0], ctx)
         }
         FuncKind::Egv => {
             if args.is_empty() {
                 return Err(EvalError::TooFewArgs("egv"));
             }
-            crate::linalg::eigen::eval_egv(&args[0], ctx)
+            ctx.linalg()?.eval_egv(&args[0], ctx)
         }
         FuncKind::Lu => {
             if args.is_empty() {
                 return Err(EvalError::TooFewArgs("lu"));
             }
-            crate::linalg::numeric::eval_lu(&args[0], ctx)
+            ctx.linalg()?.eval_lu(&args[0], ctx)
         }
         FuncKind::Qr => {
             if args.is_empty() {
                 return Err(EvalError::TooFewArgs("qr"));
             }
-            crate::linalg::numeric::eval_qr(&args[0], ctx)
+            ctx.linalg()?.eval_qr(&args[0], ctx)
         }
         FuncKind::Svd => {
             if args.is_empty() {
                 return Err(EvalError::TooFewArgs("svd"));
             }
-            crate::linalg::numeric::eval_svd(&args[0], ctx)
+            ctx.linalg()?.eval_svd(&args[0], ctx)
         }
-        FuncKind::Gramschmidt => crate::linalg::gramschmidt::eval_gramschmidt(&args, ctx),
+        FuncKind::Gramschmidt => ctx.linalg()?.eval_gramschmidt(&args, ctx),
         FuncKind::Trace => {
             if args.is_empty() {
                 return Err(EvalError::TooFewArgs("trace"));
             }
-            crate::linalg::eval_trace(&args[0])
+            ctx.linalg()?.eval_trace(&args[0])
         }
         FuncKind::RootOf => Ok(Expr::func(FuncKind::RootOf, args.to_vec())),
         FuncKind::Poly1 => Ok(Expr::func(FuncKind::Poly1, args.to_vec())),
@@ -639,10 +639,17 @@ fn eval_sign(args: &[ExprArc]) -> Result<ExprArc, EvalError> {
     Ok(Expr::func(FuncKind::Sign, args.to_vec()))
 }
 
-fn eval_idn(args: &[ExprArc]) -> Result<ExprArc, EvalError> {
+fn matrix_nrows(e: &Expr) -> Option<usize> {
+    match e {
+        Expr::Matrix(rows) | Expr::GiacMatrix(rows) => Some(rows.len()),
+        _ => None,
+    }
+}
+
+fn eval_idn(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     let n = as_int(args[0].as_ref()).ok_or(EvalError::TypeError("idn expects integer"))?;
     let n: usize = n.to_string().parse().map_err(|_| EvalError::TypeError("idn size"))?;
-    Ok(crate::linalg::eval_idn(n))
+    Ok(ctx.linalg()?.eval_idn(n))
 }
 
 fn eval_inv(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
@@ -652,7 +659,7 @@ fn eval_inv(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     if let Some(n) = as_int(args[0].as_ref()) {
         return inv_scalar(n);
     }
-    crate::linalg::eval_inv(&args[0], ctx)
+    ctx.linalg()?.eval_inv(&args[0], ctx)
 }
 
 fn inv_scalar(n: &BigInt) -> Result<ExprArc, EvalError> {
@@ -671,7 +678,7 @@ fn eval_det(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     if args.len() != 1 {
         return Err(EvalError::TooFewArgs("det"));
     }
-    crate::linalg::eval_det(&args[0], ctx)
+    ctx.linalg()?.eval_det(&args[0], ctx)
 }
 
 fn eval_charpoly(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
@@ -682,42 +689,42 @@ fn eval_charpoly(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> 
         Expr::Symbol(id) => id.clone(),
         _ => return Err(EvalError::TypeError("charpoly variable")),
     };
-    crate::linalg::eval_charpoly(&args[0], &var, ctx)
+    ctx.linalg()?.eval_charpoly(&args[0], &var, ctx)
 }
 
 fn eval_linsolve(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     if args.len() != 2 {
         return Err(EvalError::TooFewArgs("linsolve"));
     }
-    crate::linalg::eval_linsolve(&args[0], &args[1], ctx)
+    ctx.linalg()?.eval_linsolve(&args[0], &args[1], ctx)
 }
 
-fn eval_tran(args: &[ExprArc]) -> Result<ExprArc, EvalError> {
+fn eval_tran(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     if args.len() != 1 {
         return Err(EvalError::TooFewArgs("tran"));
     }
-    crate::linalg::eval_tran(&args[0])
+    ctx.linalg()?.eval_tran(&args[0])
 }
 
-fn eval_ker(args: &[ExprArc]) -> Result<ExprArc, EvalError> {
+fn eval_ker(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     if args.len() != 1 {
         return Err(EvalError::TooFewArgs("ker"));
     }
-    crate::linalg::eval_ker(&args[0])
+    ctx.linalg()?.eval_ker(&args[0])
 }
 
-fn eval_image(args: &[ExprArc]) -> Result<ExprArc, EvalError> {
+fn eval_image(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     if args.len() != 1 {
         return Err(EvalError::TooFewArgs("image"));
     }
-    crate::linalg::eval_image(&args[0])
+    ctx.linalg()?.eval_image(&args[0])
 }
 
-fn eval_pcar(args: &[ExprArc]) -> Result<ExprArc, EvalError> {
+fn eval_pcar(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     if args.len() != 1 {
         return Err(EvalError::TooFewArgs("pcar"));
     }
-    crate::linalg::eval_pcar(&args[0])
+    ctx.linalg()?.eval_pcar(&args[0])
 }
 
 fn eval_integrate(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
@@ -1173,20 +1180,9 @@ mod tests {
         assert_eq!(format_expr(r.as_ref()), "(x+3)^4");
     }
 
-    fn mat2() -> ExprArc {
-        Arc::new(Expr::Matrix(vec![
-            vec![Expr::int(1), Expr::int(2)],
-            vec![Expr::int(3), Expr::int(4)],
-        ]))
-    }
-
     #[test]
     fn eval_matrix_and_collection_types() {
         let ctx = ctx();
-        let m = mat2();
-        let mul = Expr::mul(vec![Arc::clone(&m), Arc::clone(&m)]);
-        let r = eval(mul.as_ref(), &ctx).unwrap();
-        assert_eq!(format_expr(r.as_ref()), "[[7,10],[15,22]]");
 
         let seq = Arc::new(Expr::Seq(vec![Expr::int(1), Expr::add(vec![Expr::int(2), Expr::int(3)])]));
         assert_eq!(format_expr(eval(seq.as_ref(), &ctx).unwrap().as_ref()), "1,5");
@@ -1240,59 +1236,8 @@ mod tests {
     #[test]
     fn eval_matrix_builtins() {
         let ctx = ctx();
-        let m = mat2();
-
-        let det = eval(Expr::func(FuncKind::Det, vec![Arc::clone(&m)]).as_ref(), &ctx).unwrap();
-        let det_s = format_expr(det.as_ref());
-        assert!(det_s == "-2" || det_s == "1*4-1*2*3");
-
-        let inv = eval(Expr::func(FuncKind::Inv, vec![Arc::clone(&m)]).as_ref(), &ctx).unwrap();
-        let inv_s = format_expr(inv.as_ref());
-        assert!(
-            inv_s == "[[-2,1],[3/2,-1/2]]" || inv_s.contains("4") && inv_s.contains("2*3"),
-            "unexpected inv: {inv_s}"
-        );
-
         let scalar_inv = eval(Expr::func(FuncKind::Inv, vec![Expr::int(4)]).as_ref(), &ctx).unwrap();
         assert_eq!(scalar_inv, Expr::rat(1, 4));
-
-        let tran = eval(Expr::func(FuncKind::Tran, vec![Arc::clone(&m)]).as_ref(), &ctx).unwrap();
-        assert!(format_expr(tran.as_ref()).starts_with("matrix[[1,3]"));
-
-        let ker = eval(
-            Expr::func(
-                FuncKind::Ker,
-                vec![Arc::new(Expr::Matrix(vec![
-                    vec![Expr::int(1), Expr::int(2)],
-                    vec![Expr::int(3), Expr::int(6)],
-                ]))],
-            )
-            .as_ref(),
-            &ctx,
-        )
-        .unwrap();
-        assert!(!format_expr(ker.as_ref()).is_empty());
-
-        let image = eval(
-            Expr::func(
-                FuncKind::Image,
-                vec![Arc::new(Expr::Matrix(vec![
-                    vec![Expr::int(1), Expr::int(2)],
-                    vec![Expr::int(3), Expr::int(6)],
-                ]))],
-            )
-            .as_ref(),
-            &ctx,
-        )
-        .unwrap();
-        assert!(!format_expr(image.as_ref()).is_empty());
-
-        let pcar = eval(Expr::func(FuncKind::Pcar, vec![Arc::clone(&m)]).as_ref(), &ctx).unwrap();
-        let pcar_s = format_expr(pcar.as_ref());
-        assert!(
-            pcar_s == "poly1[1,-5,-2]" || pcar_s.starts_with("poly1["),
-            "unexpected pcar: {pcar_s}"
-        );
     }
 
     #[test]
@@ -1428,8 +1373,10 @@ mod tests {
             ],
         );
         assert!(eval(e.as_ref(), &ctx).is_ok());
-        let idn = eval(Expr::func(FuncKind::Idn, vec![Expr::int(2)]).as_ref(), &ctx).unwrap();
-        assert_eq!(format_expr(idn.as_ref()), "matrix[[1,0],[0,1]]");
+        assert!(matches!(
+            eval(Expr::func(FuncKind::Idn, vec![Expr::int(2)]).as_ref(), &ctx),
+            Err(EvalError::NotImplemented(_))
+        ));
     }
 
     #[test]

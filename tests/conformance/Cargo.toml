@@ -15,4 +15,5 @@ workspace = true
 
 [dependencies]
 giac-core = { workspace = true }
+giac-linalg = { workspace = true }
 giac-parse = { workspace = true }

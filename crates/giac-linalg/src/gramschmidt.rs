@@ -6,10 +6,10 @@ use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::{One, Signed, Zero};
 
-use crate::context::Context;
-use crate::error::EvalError;
-use crate::eval::eval;
-use crate::expr::{Expr, ExprArc, FuncKind};
+use giac_core::Context;
+use giac_core::EvalError;
+use giac_core::eval;
+use giac_core::{Expr, ExprArc, FuncKind};
 
 pub fn eval_gramschmidt(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     if args.len() != 2 {
@@ -47,7 +47,7 @@ fn parse_inner_product(arg: &ExprArc) -> Result<InnerProductFn, EvalError> {
                         let mut subs = std::collections::HashMap::new();
                         subs.insert(p_id.clone(), Arc::clone(p));
                         subs.insert(q_id.clone(), Arc::clone(q));
-                        let substituted = crate::eval::eval_subst_map(&body, &subs)?;
+                        let substituted = giac_core::eval_subst_map(&body, &subs)?;
                         eval(substituted.as_ref(), ctx)
                     }));
                 }
@@ -164,8 +164,8 @@ mod tests {
     use std::collections::HashMap;
 
     use super::*;
-    use crate::eval::eval_subst_map;
-    use crate::format_expr;
+    use giac_core::eval_subst_map;
+    use giac_core::format_expr;
 
     fn integrate_inner_lambda() -> ExprArc {
         let body = Expr::func(
@@ -211,7 +211,7 @@ mod tests {
 
     #[test]
     fn inner_products_for_gramschmidt_basis() {
-        let ctx = Context::xcas_default();
+        let ctx = crate::plugin::xcas_default();
         let v0 = Expr::int(1);
         let v1 = Expr::add(vec![Expr::int(1), Expr::sym("x")]);
         let lambda = integrate_inner_lambda();
@@ -223,7 +223,7 @@ mod tests {
 
     #[test]
     fn gramschmidt_poly_orthonormal() {
-        let ctx = Context::xcas_default();
+        let ctx = crate::plugin::xcas_default();
         let vectors = vec![
             Expr::int(1),
             Expr::add(vec![Expr::int(1), Expr::sym("x")]),
@@ -237,7 +237,7 @@ mod tests {
 
     #[test]
     fn gramschmidt_rejects_negative_inner_product() {
-        let ctx = Context::xcas_default();
+        let ctx = crate::plugin::xcas_default();
         let inner: InnerProductFn = Box::new(|_, _, _| Ok(Expr::int(-1)));
         let err = gramschmidt_vectors(&[Expr::int(1)], &inner, &ctx).unwrap_err();
         assert!(matches!(err, EvalError::TypeError(_)));

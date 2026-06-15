@@ -4,13 +4,14 @@ use std::io::{self, Read};
 use std::path::PathBuf;
 
 use anyhow::{Context as AnyhowCtx, Result};
-use giac_core::{exec_stmt, format_expr, Context, StmtResult};
+use giac_core::{exec_stmt, format_expr, StmtResult};
+use giac_linalg::xcas_default;
 use giac_parse::parse_program;
 
 fn main() -> Result<()> {
     let script = env::args().nth(1).map(PathBuf::from);
     let input = read_input(script.as_deref())?;
-    let mut ctx = Context::xcas_default();
+    let mut ctx = xcas_default();
     let stmts = parse_program(&input, &ctx).map_err(|e| anyhow::anyhow!("parse error: {e}"))?;
 
     let mut first = true;

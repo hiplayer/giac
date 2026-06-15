@@ -4,7 +4,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
-use giac_core::{assert_equiv, exec_stmt, format_expr, Context, Stmt, StmtResult};
+use giac_core::{assert_equiv, exec_stmt, format_expr, Stmt, StmtResult};
+use giac_linalg::xcas_default;
 use giac_parse::parse_program;
 
 pub fn upstream_root() -> PathBuf {
@@ -92,7 +93,7 @@ pub const ALL_SYMPTY_SCRIPTS: &[&str] = &[
 
 pub fn run_script(path: &Path) -> Result<Vec<String>, String> {
     let input = fs::read_to_string(path).map_err(|e| format!("read {}: {e}", path.display()))?;
-    let mut ctx = Context::xcas_default();
+    let mut ctx = xcas_default();
     let stmts = parse_program(&input, &ctx).map_err(|e| format!("parse {}: {e}", path.display()))?;
     let mut out = Vec::new();
     for (idx, stmt) in stmts.iter().enumerate() {
@@ -109,7 +110,7 @@ pub fn run_script(path: &Path) -> Result<Vec<String>, String> {
 }
 
 pub fn run_line(line: &str) -> Result<String, String> {
-    let mut ctx = Context::xcas_default();
+    let mut ctx = xcas_default();
     let stmts = parse_program(&format!("{line};"), &ctx)
         .map_err(|e| format!("parse {line}: {e}"))?;
     let stmt = stmts.first().ok_or_else(|| format!("empty {line}"))?;
@@ -215,7 +216,7 @@ pub fn parse_output_expr(s: &str) -> Result<std::sync::Arc<giac_core::Expr>, Str
     } else {
         format!("{trimmed};")
     };
-    let ctx = Context::xcas_default();
+    let ctx = xcas_default();
     let stmts = parse_program(&input, &ctx).map_err(|e| format!("parse `{trimmed}`: {e}"))?;
     match stmts.first() {
         Some(Stmt::ExprStmt(e)) => Ok(std::sync::Arc::clone(e)),
@@ -229,7 +230,7 @@ pub fn outputs_assert_equiv(a: &str, b: &str) -> Result<bool, String> {
     if a == b {
         return Ok(true);
     }
-    let ctx = Context::xcas_default();
+    let ctx = xcas_default();
     let ea = parse_output_expr(a)?;
     let eb = parse_output_expr(b)?;
     assert_equiv(ea.as_ref(), eb.as_ref(), &ctx).map_err(|e| e.to_string())
@@ -353,7 +354,7 @@ pub fn load_testcas_lines(n: usize) -> Result<(Vec<String>, Vec<String>), String
 }
 
 pub fn run_lines(lines: &[String]) -> Result<Vec<String>, String> {
-    let mut ctx = Context::xcas_default();
+    let mut ctx = xcas_default();
     let mut out = Vec::new();
     for (idx, line) in lines.iter().enumerate() {
         let stmts = parse_program(&format!("{line};"), &ctx)

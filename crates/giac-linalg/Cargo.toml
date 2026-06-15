@@ -1,6 +1,6 @@
 [package]
 name = "giac-linalg"
-description = "Numeric linear algebra (LU/QR/SVD) for giac-rs"
+description = "Symbolic and numeric linear algebra for giac-rs"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -10,5 +10,10 @@ authors.workspace = true
 workspace = true
 
 [dependencies]
+giac-core = { workspace = true }
+giac-poly = { workspace = true }
+num-bigint = { workspace = true }
+num-integer = { workspace = true }
+num-rational = { workspace = true }
 num-traits = { workspace = true }
 nalgebra = { workspace = true }

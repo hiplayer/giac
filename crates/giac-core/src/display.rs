@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use giac_linalg::format_float;
+use crate::float_format::format_float;
 use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::One;

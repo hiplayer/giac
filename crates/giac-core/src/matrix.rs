@@ -1,1 +1,1 @@
-//! Re-exports from `crate::linalg` (Phase 3 linear algebra).
+//! Linear algebra lives in the `giac-linalg` crate; install via [`giac_linalg::install_linalg`].

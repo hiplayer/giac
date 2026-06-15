@@ -4,7 +4,8 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 use giac_conformance::outputs_assert_equiv;
-use giac_core::{exec_stmt, format_expr, Context, StmtResult};
+use giac_core::{exec_stmt, format_expr, StmtResult};
+use giac_linalg::xcas_default;
 use giac_parse::parse_program;
 
 fn upstream_root() -> PathBuf {
@@ -33,7 +34,7 @@ fn run_script_lines(lines: &[&str]) -> Result<Vec<String>, String> {
             }
         })
         .collect::<String>();
-    let mut ctx = Context::xcas_default();
+    let mut ctx = xcas_default();
     let stmts = parse_program(&input, &ctx).map_err(|e| format!("parse: {e}"))?;
     let mut out = Vec::new();
     for (idx, stmt) in stmts.iter().enumerate() {

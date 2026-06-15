@@ -3,15 +3,15 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use giac_linalg::real_eigenvalues;
+use crate::f64_eigen::real_eigenvalues;
 
-use crate::context::Context;
-use crate::error::EvalError;
-use crate::eval::eval;
-use crate::expr::{Expr, ExprArc};
-use crate::ident::Ident;
-use crate::num_util::bigint_to_i64;
-use crate::linalg::symbolic::{as_matrix, eval_charpoly, eval_idn, try_to_f64_matrix};
+use giac_core::Context;
+use giac_core::EvalError;
+use giac_core::eval;
+use giac_core::{Expr, ExprArc};
+use giac_core::Ident;
+use giac_core::bigint_to_i64;
+use crate::symbolic::{as_matrix, eval_charpoly, eval_idn, try_to_f64_matrix};
 
 type Mat3 = [[i64; 3]; 3];
 
@@ -351,7 +351,7 @@ fn f64_to_expr_sorted(v: f64) -> ExprArc {
     if (v - v.round()).abs() < 1e-9 {
         return Expr::int(v.round() as i64);
     }
-    crate::linalg::symbolic::f64_to_expr_numeric(v)
+    crate::symbolic::f64_to_expr_numeric(v)
 }
 
 fn is_integer_matrix(rows: &[Vec<ExprArc>]) -> bool {
@@ -387,7 +387,7 @@ fn int_mat3(rows: &[Vec<ExprArc>]) -> Mat3 {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::format_expr;
+    use giac_core::format_expr;
 
     #[test]
     fn egv_3x3_not_diagonalizable() {
