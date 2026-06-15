@@ -29,7 +29,76 @@ pub fn resultant(a: &Poly, b: &Poly, var: &Var) -> PolyResult<Poly> {
     if da == 1 || db == 1 {
         return Ok(sylvester_det2(a, b, var));
     }
-    Err(PolyError::NotImplemented("resultant"))
+    let ac = univariate_coefficients(a, var, da);
+    let bc = univariate_coefficients(b, var, db);
+    let det = sylvester_det(&ac, da as usize, &bc, db as usize);
+    Ok(Poly::constant(det))
+}
+
+fn univariate_coefficients(p: &Poly, var: &Var, degree: u64) -> Vec<Ratio<BigInt>> {
+    let mut coeffs = vec![Ratio::zero(); (degree + 1) as usize];
+    for (m, c) in &p.terms {
+        if m.is_const() {
+            coeffs[0] += c;
+        } else if m.iter().all(|(v, _)| v == var) {
+            coeffs[m.exp_of(var) as usize] += c;
+        }
+    }
+    coeffs
+}
+
+fn sylvester_det(
+    a: &[Ratio<BigInt>],
+    deg_a: usize,
+    b: &[Ratio<BigInt>],
+    deg_b: usize,
+) -> Ratio<BigInt> {
+    let n = deg_b;
+    let m = deg_a;
+    let size = m + n;
+    let mut mat = vec![vec![Ratio::zero(); size]; size];
+    for i in 0..n {
+        for j in 0..=m {
+            mat[i][i + j] = a[m - j].clone();
+        }
+    }
+    for j in 0..m {
+        for k in 0..=n {
+            mat[n + j][j + k] = b[n - k].clone();
+        }
+    }
+    det_rational(&mut mat)
+}
+
+fn det_rational(mat: &mut [Vec<Ratio<BigInt>>]) -> Ratio<BigInt> {
+    let n = mat.len();
+    let mut det = Ratio::one();
+    for k in 0..n {
+        let mut pivot_row = k;
+        while pivot_row < n && mat[pivot_row][k].is_zero() {
+            pivot_row += 1;
+        }
+        if pivot_row == n {
+            return Ratio::zero();
+        }
+        if pivot_row != k {
+            mat.swap(k, pivot_row);
+            det = -det;
+        }
+        let pivot = mat[k][k].clone();
+        det *= &pivot;
+        for i in (k + 1)..n {
+            if mat[i][k].is_zero() {
+                continue;
+            }
+            let factor = mat[i][k].clone() / pivot.clone();
+            for j in (k + 1)..n {
+                let pivot_val = mat[k][j].clone();
+                mat[i][j] -= &pivot_val * &factor;
+            }
+        }
+    }
+    det
 }
 
 fn sylvester_det2(a: &Poly, b: &Poly, var: &Var) -> Poly {
@@ -40,7 +109,7 @@ fn sylvester_det2(a: &Poly, b: &Poly, var: &Var) -> Poly {
     Poly::constant(a1 * b0 - a0 * b1)
 }
 
-fn coeff_at(p: &Poly, var: &Var, exp: u64) -> Ratio<BigInt> {
+pub(crate) fn coeff_at(p: &Poly, var: &Var, exp: u64) -> Ratio<BigInt> {
     for (m, c) in &p.terms {
         if exp == 0 && m.is_const() {
             return c.clone();
@@ -52,7 +121,7 @@ fn coeff_at(p: &Poly, var: &Var, exp: u64) -> Ratio<BigInt> {
     Ratio::zero()
 }
 
-fn univariate_degree(p: &Poly, var: &Var) -> u64 {
+pub(crate) fn univariate_degree(p: &Poly, var: &Var) -> u64 {
     p.terms
         .keys()
         .filter_map(|m| {
@@ -166,11 +235,11 @@ mod tests {
     }
 
     #[test]
-    fn resultant_quadratic_not_implemented() {
+    fn resultant_quadratic() {
         let a = x().pow(2).add(&Poly::one());
         let b = x().pow(2).sub(&Poly::one());
-        let err = resultant(&a, &b, &Var::from("x")).unwrap_err();
-        assert!(matches!(err, PolyError::NotImplemented(_)));
+        let r = resultant(&a, &b, &Var::from("x")).unwrap();
+        assert_eq!(r, Poly::constant(Ratio::from_integer(BigInt::from(4))));
     }
 
     #[test]

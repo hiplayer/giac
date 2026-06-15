@@ -10,6 +10,7 @@ mod resultant;
 mod factor;
 mod chinrem;
 mod ops;
+mod partfrac;
 
 pub use error::{PolyError, PolyResult};
 pub use monomial::{Monomial, Var};
@@ -18,6 +19,7 @@ pub use modint::{ModInt, irem, smod};
 pub use modular::{PolyMod, modp};
 pub use resultant::{resultant, roots};
 pub use factor::{as_perfect_power, factor_into, factor_poly, factor_poly_mod};
+pub use partfrac::partfrac_terms;
 pub use chinrem::{chinrem, chinrem_lists};
 pub use ops::{content, gauss};
 

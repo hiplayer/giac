@@ -284,7 +284,7 @@ fn eval_resultant_linear_pair() {
 }
 
 #[test]
-fn eval_resultant_not_implemented() {
+fn eval_resultant_quadratic() {
     let ctx = Context::xcas_default();
     let e = Expr::func(
         FuncKind::Resultant,
@@ -294,10 +294,8 @@ fn eval_resultant_not_implemented() {
             Expr::sym("x"),
         ],
     );
-    assert!(matches!(
-        eval(e.as_ref(), &ctx),
-        Err(EvalError::NotImplemented(_))
-    ));
+    let r = eval(e.as_ref(), &ctx).unwrap();
+    assert_eq!(format_expr(r.as_ref()), "4");
 }
 
 #[test]

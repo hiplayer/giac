@@ -34,6 +34,17 @@ pub fn factor_poly(p: &Poly) -> Poly {
 
 /// Factor into irreducible polynomial factors (when known).
 pub fn factor_into(p: &Poly) -> Option<Vec<Poly>> {
+    if is_xn_minus_one_poly(p, 2) {
+        let x = Poly::var("x");
+        return Some(vec![x.sub(&Poly::one()), x.add(&Poly::one())]);
+    }
+    if is_xn_minus_one_poly(p, 3) {
+        let x = Poly::var("x");
+        return Some(vec![
+            x.sub(&Poly::one()),
+            x.pow(2).add(&x).add(&Poly::one()),
+        ]);
+    }
     if is_xn_minus_one_poly(p, 4) {
         let x = Poly::var("x");
         return Some(vec![

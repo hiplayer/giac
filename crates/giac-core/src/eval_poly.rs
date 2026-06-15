@@ -2,8 +2,8 @@ use std::sync::Arc;
 
 use giac_groebner::greduce;
 use giac_poly::{
-    abcuv, chinrem_lists, content, egcd, factor_poly_mod, gauss, modp, quo, rem, resultant, roots,
-    simp2, smod, irem, Poly, Var,
+    abcuv, chinrem_lists, content, egcd, factor_poly_mod, gauss, modp, partfrac_terms, quo, rem,
+    resultant, roots, simp2, smod, irem, Poly, Var,
 };
 use num_bigint::BigInt;
 use num_integer::Integer;
@@ -192,26 +192,35 @@ pub fn eval_partfrac(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc,
     if args.len() != 2 {
         return Err(EvalError::TooFewArgs("partfrac"));
     }
-    let _var = ident_from_expr(args[1].as_ref())?;
-    if let Expr::Pow(base, exp) = args[0].as_ref() {
-        if matches!(exp.as_ref(), Expr::Int(n) if n == &-BigInt::from(1)) {
-            if let Ok(p) = expr_to_poly(base) {
-                if p == Poly::var("x").pow(2).sub(&Poly::one()) {
-                    return Ok(Expr::add(vec![
-                        Expr::mul(vec![
-                            Expr::rat(1, 2),
-                            Expr::pow(Expr::add(vec![Expr::sym("x"), Expr::int(-1)]), Expr::int(-1)),
-                        ]),
-                        Expr::mul(vec![
-                            Expr::rat(-1, 2),
-                            Expr::pow(Expr::add(vec![Expr::sym("x"), Expr::int(1)]), Expr::int(-1)),
-                        ]),
-                    ]));
-                }
-            }
-        }
+    let var = ident_from_expr(args[1].as_ref())?;
+    let var_poly = Var::from(var.as_str());
+    let (num, den) = rational_num_den(args[0].as_ref())?;
+    let (poly_part, terms) = partfrac_terms(&num, &den, &var_poly).map_err(poly_err)?;
+    let mut out = Vec::new();
+    if let Some(q) = poly_part {
+        out.push(poly_to_expr(&q));
     }
-    Err(EvalError::NotImplemented("partfrac"))
+    for (c, f) in terms {
+        out.push(Expr::mul(vec![
+            ratio_to_expr(&c),
+            Expr::pow(poly_to_expr(&f), Expr::int(-1)),
+        ]));
+    }
+    match out.len() {
+        0 => Ok(Expr::int(0)),
+        1 => Ok(out[0].clone()),
+        _ => Ok(Expr::add(out)),
+    }
+}
+
+fn rational_num_den(e: &Expr) -> Result<(Poly, Poly), EvalError> {
+    match e {
+        Expr::Pow(base, exp) if matches!(exp.as_ref(), Expr::Int(n) if n == &-BigInt::from(1)) => {
+            Ok((Poly::one(), expr_to_poly(base)?))
+        }
+        Expr::Frac(n, d) => Ok((expr_to_poly(n.as_ref())?, expr_to_poly(d.as_ref())?)),
+        other => Ok((expr_to_poly(other)?, Poly::one())),
+    }
 }
 
 pub fn eval_greduce(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc, EvalError> {

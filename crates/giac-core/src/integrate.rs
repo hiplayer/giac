@@ -9,7 +9,25 @@ use crate::ident::Ident;
 use crate::num_util::bigint_to_i64;
 use crate::Context;
 
-/// Basic integration rules (Phase 1 subset).
+/// Basic integration rules (Phase 1 / GIAC-110 subset).
+///
+/// ## Supported
+///
+/// - Constants, `x`, and `x^n` for integer `n ≠ -1`
+/// - Sums and constant multiples (`integrate(c*f) = c*integrate(f)`)
+/// - `1/x`, `1/(x^2+1)`, `1/(1-x^2)`, `1/(1+x^4)` (partial)
+/// - Definite bounds via `eval_integrate` (4-arg `integrate(f,x,a,b)`)
+///
+/// ## Still `NotImplemented`
+///
+/// | Message | Trigger |
+/// |---------|---------|
+/// | `"integrate"` | Unknown top-level forms (e.g. `sin(x)`) |
+/// | `"integrate frac"` | Non-constant numerator in `num/den` |
+/// | `"integrate reciprocal"` | Unsupported denominator shape |
+/// | `"integrate product"` | Product with multiple non-constant factors after expand |
+/// | `"integrate pow"` | General power bases |
+/// | `"integrate quadratic"` | Unsupported quadratic denominators |
 pub fn integrate(expr: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     match expr.as_ref() {
         Expr::Symbol(id) if id == var => integrate_pow(expr, &Expr::int(1), var),
@@ -433,6 +451,31 @@ mod tests {
         assert!(matches!(
             integrate(&e, &x),
             Err(EvalError::NotImplemented(_))
+        ));
+    }
+
+    #[test]
+    fn integrate_not_implemented_messages() {
+        let x = Ident::new("x");
+        assert!(matches!(
+            integrate(&Expr::func(FuncKind::Sin, vec![Expr::sym("x")]), &x),
+            Err(EvalError::NotImplemented("integrate"))
+        ));
+        let frac = Arc::new(Expr::Frac(
+            Expr::add(vec![Expr::sym("x"), Expr::int(1)]),
+            Expr::sym("x"),
+        ));
+        assert!(matches!(
+            integrate(&frac, &x),
+            Err(EvalError::NotImplemented("integrate frac"))
+        ));
+        let e = Expr::pow(
+            Expr::add(vec![Expr::pow(Expr::sym("x"), Expr::int(2)), Expr::int(2)]),
+            Expr::int(-1),
+        );
+        assert!(matches!(
+            integrate(&e, &x),
+            Err(EvalError::NotImplemented("integrate quadratic"))
         ));
     }
 }
