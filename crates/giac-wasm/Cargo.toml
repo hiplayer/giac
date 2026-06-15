@@ -1,0 +1,19 @@
+[package]
+name = "giac-wasm"
+description = "WebAssembly bindings for giac-rs (eval_to_string)"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+authors.workspace = true
+
+[lints]
+workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+giac-core = { workspace = true }
+giac-parse = { workspace = true }
+giac-calculus = { workspace = true }
+wasm-bindgen = { workspace = true }

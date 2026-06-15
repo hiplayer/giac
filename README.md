@@ -49,6 +49,16 @@ cargo ci-clippy             # required (-D warnings)
 echo 'sqrt(5)' | cargo run -q --bin giac-cli
 ```
 
+### WebAssembly (`giac-wasm`)
+
+See [crates/giac-wasm/README.md](crates/giac-wasm/README.md). Minimal build:
+
+```bash
+rustup target add wasm32-unknown-unknown
+cargo build --release --target wasm32-unknown-unknown -p giac-wasm
+cargo test -p giac-wasm    # host test: eval_to_string("1+2") == "3"
+```
+
 Optional coverage (see [supplement §7](../.doc/rust-migration-supplement.md#7-工程门禁)):
 
 ```bash
@@ -93,8 +103,11 @@ giac-rs/
 │   ├── giac-simplify/    # expand / normal / ratnormal / factor facade
 │   ├── giac-poly/        # polynomial ring, gcd, factor, modular
 │   ├── giac-groebner/    # greduce
-│   └── giac-linalg/      # symbolic + numeric linear algebra
-├── apps/giac-cli/        # script runner (stdin or file)
+│   ├── giac-linalg/      # symbolic + numeric linear algebra
+│   ├── giac-calculus/    # integrate, diff (CalculusPlugin)
+│   ├── giac-solve/       # solve, linsolve (SolvePlugin)
+│   └── giac-wasm/        # WASM eval_to_string export
+├── apps/giac-cli/        # script runner (native only; not wasm32)
 └── tests/conformance/    # golden + triple checks vs upstream bin/
 ```
 

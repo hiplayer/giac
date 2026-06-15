@@ -8,6 +8,7 @@ use giac_core::{exec_stmt, format_expr, StmtResult};
 use giac_calculus::xcas_default;
 use giac_parse::parse_program;
 
+#[cfg(not(target_arch = "wasm32"))]
 fn main() -> Result<()> {
     let script = env::args().nth(1).map(PathBuf::from);
     let input = read_input(script.as_deref())?;
@@ -40,6 +41,12 @@ fn main() -> Result<()> {
     Ok(())
 }
 
+#[cfg(target_arch = "wasm32")]
+fn main() {
+    panic!("giac-cli is not available on wasm32; use giac-wasm instead");
+}
+
+#[cfg(not(target_arch = "wasm32"))]
 fn read_input(path: Option<&std::path::Path>) -> Result<String> {
     match path {
         Some(p) => fs::read_to_string(p)
