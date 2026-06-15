@@ -487,4 +487,222 @@ mod tests {
             _ => panic!("expected assign"),
         }
     }
+
+    #[test]
+    fn parse_relations_and_modulo() {
+        let ctx = Context::xcas_default();
+        for src in ["1==2;", "1!=2;", "1<2;", "1>=2;", "7 mod 3;"] {
+            let stmts = parse_program(src, &ctx).unwrap();
+            assert_eq!(stmts.len(), 1, "failed on {src}");
+        }
+        let stmts = parse_program("7 mod 3;", &ctx).unwrap();
+        assert!(matches!(
+            &stmts[0],
+            Stmt::ExprStmt(e) if matches!(e.as_ref(), Expr::Mod(_, _))
+        ));
+        let rel = parse_program("(x==1);", &ctx).unwrap();
+        assert!(matches!(
+            &rel[0],
+            Stmt::ExprStmt(e) if matches!(e.as_ref(), Expr::Relation(RelOp::Eq, _, _))
+        ));
+    }
+
+    #[test]
+    fn parse_implicit_mult_and_decimal() {
+        let ctx = Context::xcas_default();
+        let stmts = parse_program("2x; 1.5;", &ctx).unwrap();
+        match &stmts[0] {
+            Stmt::ExprStmt(e) => match e.as_ref() {
+                Expr::Mul(f) => assert_eq!(f.len(), 2),
+                _ => panic!("expected implicit mult"),
+            },
+            _ => panic!("expected expr"),
+        }
+        assert!(matches!(&stmts[1], Stmt::ExprStmt(e) if matches!(e.as_ref(), Expr::Rat(_))));
+    }
+
+    #[test]
+    fn parse_seq_poly1_and_star_star() {
+        let ctx = Context::xcas_default();
+        let seq = parse_program("[1,2,3];", &ctx).unwrap();
+        assert!(matches!(
+            &seq[0],
+            Stmt::ExprStmt(e) if matches!(e.as_ref(), Expr::Seq(_))
+        ));
+        let poly = parse_program("a:=poly1[1,0];", &ctx).unwrap();
+        assert!(matches!(
+            &poly[0],
+            Stmt::Assign(_, e) if matches!(e.as_ref(), Expr::Func(FuncKind::Poly1, _))
+        ));
+        let pow = parse_program("2**3;", &ctx).unwrap();
+        let ev = giac_core::eval(
+            match &pow[0] {
+                Stmt::ExprStmt(e) => e,
+                _ => panic!("expected expr"),
+            },
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(ev, Expr::int(8));
+    }
+
+    #[test]
+    fn parse_matrix_bracket_form() {
+        let ctx = Context::xcas_default();
+        let stmts = parse_program("[[1,2],[3,4]];", &ctx).unwrap();
+        assert!(matches!(
+            &stmts[0],
+            Stmt::ExprStmt(e) if matches!(e.as_ref(), Expr::Matrix(_))
+        ));
+    }
+
+    #[test]
+    fn parse_unary_plus_and_finish_expr() {
+        let ctx = Context::xcas_default();
+        let stmts = parse_program("f:=x/y+1;", &ctx).unwrap();
+        match &stmts[0] {
+            Stmt::Assign(_, e) => assert!(matches!(e.as_ref(), Expr::Add(_))),
+            _ => panic!("expected assign"),
+        }
+        let stmts = parse_program("+3;", &ctx).unwrap();
+        assert_eq!(
+            giac_core::eval(
+                match &stmts[0] {
+                    Stmt::ExprStmt(e) => e,
+                    _ => panic!("expected expr"),
+                },
+                &ctx,
+            )
+            .unwrap(),
+            Expr::int(3)
+        );
+    }
+
+    #[test]
+    fn parse_unknown_function_errors() {
+        let ctx = Context::xcas_default();
+        assert!(parse_program("unknown(1);", &ctx).is_err());
+        assert!(parse_program("(1)(2);", &ctx).is_err());
+    }
+
+    #[test]
+    fn parse_lexer_error() {
+        let ctx = Context::xcas_default();
+        assert_eq!(parse_program("@;", &ctx), Err(ParseError::Lexer));
+    }
+
+    #[test]
+    fn parse_finish_expr_from_ident_statements() {
+        let ctx = Context::xcas_default();
+        for (src, check) in [
+            ("x^2;", "Pow"),
+            ("x*y;", "Mul"),
+            ("x/y;", "Mul"),
+            ("x+y-1;", "Add"),
+            ("gcd(12,18);", "Func"),
+        ] {
+            let stmts = parse_program(src, &ctx).unwrap();
+            let s = format!("{:?}", match &stmts[0] {
+                Stmt::ExprStmt(e) => e.as_ref(),
+                other => panic!("{other:?}"),
+            });
+            assert!(s.contains(check), "{src} -> {s}");
+        }
+    }
+
+    #[test]
+    fn parse_single_eq_relation_and_no_semi() {
+        let ctx = Context::xcas_default();
+        let stmts = parse_program("1=2;", &ctx).unwrap();
+        assert!(matches!(
+            &stmts[0],
+            Stmt::ExprStmt(e) if matches!(e.as_ref(), Expr::Relation(RelOp::Eq, _, _))
+        ));
+        let stmts = parse_program("1+2", &ctx).unwrap();
+        assert_eq!(stmts.len(), 1);
+    }
+
+    #[test]
+    fn parse_implicit_mult_paren() {
+        let ctx = Context::xcas_default();
+        let stmts = parse_program("2*(x+1);", &ctx).unwrap();
+        assert!(matches!(
+            &stmts[0],
+            Stmt::ExprStmt(e) if matches!(e.as_ref(), Expr::Mul(_))
+        ));
+    }
+
+    #[test]
+    fn parse_index_via_sign() {
+        let ctx = Context::xcas_default();
+        let stmts = parse_program("a:=sign(x,2);", &ctx).unwrap();
+        assert!(matches!(
+            &stmts[0],
+            Stmt::Assign(_, e) if matches!(e.as_ref(), Expr::Func(FuncKind::Sign, _))
+        ));
+    }
+
+    #[test]
+    fn parse_matrix_row_bracket_form() {
+        let ctx = Context::xcas_default();
+        let stmts = parse_program("[[1],[2,3]];", &ctx).unwrap();
+        match &stmts[0] {
+            Stmt::ExprStmt(e) => match e.as_ref() {
+                Expr::Matrix(rows) => {
+                    assert_eq!(rows.len(), 2);
+                    assert_eq!(rows[0].len(), 1);
+                    assert_eq!(rows[1].len(), 2);
+                }
+                other => panic!("{other:?}"),
+            },
+            _ => panic!("expected expr"),
+        }
+    }
+
+    #[test]
+    fn parse_empty_call_and_identifiers() {
+        let ctx = Context::xcas_default();
+        let stmts = parse_program("gcd();", &ctx).unwrap();
+        assert!(matches!(
+            &stmts[0],
+            Stmt::ExprStmt(e) if matches!(e.as_ref(), Expr::Func(FuncKind::Gcd, args) if args.is_empty())
+        ));
+        let pi = parse_program("pi;", &ctx).unwrap();
+        assert!(matches!(
+            &pi[0],
+            Stmt::ExprStmt(e) if matches!(e.as_ref(), Expr::Symbol(id) if id.as_str() == "pi")
+        ));
+        let ii = parse_program("a:=ii;", &ctx).unwrap();
+        assert!(matches!(
+            &ii[0],
+            Stmt::Assign(_, e) if matches!(e.as_ref(), Expr::Symbol(id) if id.as_str() == "i")
+        ));
+    }
+
+    #[test]
+    fn parse_le_gt_and_invalid_number() {
+        let ctx = Context::xcas_default();
+        for src in ["1<=2;", "3>2;"] {
+            parse_program(src, &ctx).expect(src);
+        }
+        let stmts = parse_program("9223372036854775808;", &ctx).unwrap();
+        assert_eq!(
+            giac_core::eval(
+                match &stmts[0] {
+                    Stmt::ExprStmt(e) => e,
+                    _ => panic!("expected expr"),
+                },
+                &ctx,
+            )
+            .unwrap(),
+            Expr::int(0)
+        );
+    }
+
+    #[test]
+    fn parse_eof_and_token_mismatch() {
+        let ctx = Context::xcas_default();
+        assert_eq!(parse_program("1+", &ctx), Err(ParseError::Eof));
+        assert!(parse_program("1+);", &ctx).is_err());
+    }
 }

@@ -199,4 +199,24 @@ mod tests {
         let r = ratnormal(e.as_ref(), &ctx);
         assert!(matches!(r, Err(EvalError::TypeError(_))));
     }
+
+    #[test]
+    fn ratnormal_non_integer_power_error() {
+        let ctx = Context::default();
+        let e = Expr::pow(Expr::sym("x"), Expr::rat(1, 2));
+        let r = ratnormal(e.as_ref(), &ctx);
+        assert!(matches!(r, Err(EvalError::TypeError(_))));
+    }
+
+    #[test]
+    fn ratnormal_reduces_common_factor() {
+        let ctx = Context::default();
+        let e = Arc::new(Expr::Frac(
+            Expr::add(vec![Expr::mul(vec![Expr::int(2), Expr::sym("x")]), Expr::int(2)]),
+            Expr::add(vec![Expr::mul(vec![Expr::int(4), Expr::sym("x")]), Expr::int(4)]),
+        ));
+        let r = ratnormal(e.as_ref(), &ctx).unwrap();
+        let s = format_expr(r.as_ref());
+        assert!(s.contains("2") && s.contains("4"));
+    }
 }

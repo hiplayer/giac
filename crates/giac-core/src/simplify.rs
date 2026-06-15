@@ -209,4 +209,81 @@ mod tests {
         let s = simplify(e.as_ref(), &ctx).unwrap();
         assert_eq!(crate::format_expr(s.as_ref()), "x^2+3");
     }
+
+    #[test]
+    fn simplify_complex_children() {
+        let ctx = Context::new();
+        let e = Expr::Complex(
+            Expr::add(vec![Expr::int(1), Expr::int(2)]),
+            Expr::mul(vec![Expr::int(2), Expr::int(3)]),
+        );
+        let s = simplify(&e, &ctx).unwrap();
+        assert_eq!(crate::format_expr(s.as_ref()), "3+6*i");
+    }
+
+    #[test]
+    fn simplify_rat_sum_without_int_part() {
+        let ctx = Context::new();
+        let e = Expr::add(vec![Expr::rat(1, 2), Expr::rat(1, 2)]);
+        let s = simplify(e.as_ref(), &ctx).unwrap();
+        assert_eq!(s, Expr::int(1));
+    }
+
+    #[test]
+    fn simplify_rat_product() {
+        let ctx = Context::new();
+        let e = Expr::mul(vec![Expr::rat(2, 3), Expr::rat(3, 4), Expr::sym("x")]);
+        let s = simplify(e.as_ref(), &ctx).unwrap();
+        assert_eq!(crate::format_expr(s.as_ref()), "x*1/2");
+    }
+
+    #[test]
+    fn simplify_nested_mul_and_pow() {
+        let ctx = Context::new();
+        let e = Expr::mul(vec![
+            Expr::mul(vec![Expr::int(2), Expr::int(3)]),
+            Expr::pow(Expr::int(5), Expr::int(2)),
+        ]);
+        let s = simplify(e.as_ref(), &ctx).unwrap();
+        match s.as_ref() {
+            Expr::Mul(f) => {
+                assert_eq!(f.len(), 2);
+                assert_eq!(f[0], Expr::int(6));
+            }
+            _ => panic!("expected flattened partial product"),
+        }
+    }
+
+    #[test]
+    fn simplify_func_args() {
+        let ctx = Context::new();
+        let e = Expr::func(
+            crate::expr::FuncKind::Abs,
+            vec![Expr::add(vec![Expr::int(1), Expr::int(2)])],
+        );
+        let s = simplify(e.as_ref(), &ctx).unwrap();
+        assert!(matches!(s.as_ref(), Expr::Func(crate::expr::FuncKind::Abs, _)));
+    }
+
+    #[test]
+    fn simplify_rat_only_add_and_empty_cases() {
+        let ctx = Context::new();
+        let e = Expr::add(vec![Expr::rat(1, 2), Expr::rat(1, 2)]);
+        assert_eq!(simplify(e.as_ref(), &ctx).unwrap(), Expr::int(1));
+
+        let with_i = Expr::add(vec![Expr::rat(1, 2), Expr::sym("i")]);
+        let s = simplify(with_i.as_ref(), &ctx).unwrap();
+        assert_eq!(crate::format_expr(s.as_ref()), "i+1/2");
+
+        assert_eq!(simplify(Expr::add(vec![]).as_ref(), &ctx).unwrap(), Expr::int(0));
+        assert_eq!(simplify(Expr::mul(vec![]).as_ref(), &ctx).unwrap(), Expr::int(1));
+    }
+
+    #[test]
+    fn simplify_rat_numerator_in_mul() {
+        let ctx = Context::new();
+        let e = Expr::mul(vec![Expr::rat(4, 2)]);
+        let s = simplify(e.as_ref(), &ctx).unwrap();
+        assert_eq!(crate::format_expr(s.as_ref()), "2");
+    }
 }

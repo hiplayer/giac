@@ -1537,4 +1537,88 @@ mod tests {
         let neg_i = eval(Expr::mul(vec![Expr::int(-1), Expr::sym("i")]).as_ref(), &ctx).unwrap();
         assert_eq!(format_expr(neg_i.as_ref()), "-1*i");
     }
+
+    #[test]
+    fn eval_sign_negative_and_arg_second_quadrant() {
+        let ctx = ctx();
+        let i = Expr::sym("i");
+        assert_eq!(
+            eval(Expr::func(FuncKind::Sign, vec![Expr::int(-4)]).as_ref(), &ctx).unwrap(),
+            Expr::int(-1)
+        );
+        let r = eval(
+            Expr::func(
+                FuncKind::Arg,
+                vec![Expr::add(vec![Expr::int(-1), i.clone()])],
+            )
+            .as_ref(),
+            &ctx,
+        )
+        .unwrap();
+        let s = format_expr(r.as_ref());
+        assert!(s.contains("atan") && s.contains("pi"));
+    }
+
+    #[test]
+    fn eval_gcd_integer_with_polynomial() {
+        let r = eval(
+            Expr::func(FuncKind::Gcd, vec![Expr::int(1), Expr::sym("x")]).as_ref(),
+            &ctx(),
+        )
+        .unwrap();
+        assert_eq!(r, Expr::int(1));
+    }
+
+    #[test]
+    fn eval_subst_mul_and_func() {
+        let ctx = ctx();
+        let eq = Arc::new(Expr::Relation(RelOp::Eq, Expr::sym("x"), Expr::int(3)));
+        let mul_body = Expr::mul(vec![Expr::sym("x"), Expr::int(2)]);
+        let r = eval(
+            Expr::func(FuncKind::Subst, vec![mul_body, Arc::clone(&eq)]).as_ref(),
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(r, Expr::int(6));
+
+        let list_body = Arc::new(Expr::List(vec![Expr::sym("x")]));
+        let r2 = eval(
+            Expr::func(FuncKind::Subst, vec![list_body, eq]).as_ref(),
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(format_expr(r2.as_ref()), "[x]");
+    }
+
+    #[test]
+    fn eval_pure_imaginary_complex_forms() {
+        let ctx = ctx();
+        assert_eq!(
+            format_expr(
+                eval(Expr::mul(vec![Expr::int(-1), Expr::sym("i")]).as_ref(), &ctx)
+                    .unwrap()
+                    .as_ref()
+            ),
+            "-1*i"
+        );
+        assert_eq!(
+            format_expr(
+                eval(Expr::mul(vec![Expr::rat(-1, 2), Expr::sym("i")]).as_ref(), &ctx)
+                    .unwrap()
+                    .as_ref()
+            ),
+            "i*-1/2"
+        );
+        assert_eq!(
+            eval(Expr::func(FuncKind::Abs, vec![Expr::int(0)]).as_ref(), &ctx).unwrap(),
+            Expr::int(0)
+        );
+    }
+
+    #[test]
+    fn eval_complex_integer_power() {
+        let ctx = ctx();
+        let r = eval(Expr::pow(Expr::int(2), Expr::int(25)).as_ref(), &ctx).unwrap();
+        assert_eq!(r, Expr::int(33554432));
+    }
 }

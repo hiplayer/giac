@@ -138,4 +138,25 @@ mod tests {
             Token::Semi,
         ]));
     }
+
+    #[test]
+    fn lex_relation_and_mod_tokens() {
+        let toks = lex_all("a==b!=c mod 3");
+        assert!(toks.contains(&Token::EqEq));
+        assert!(toks.contains(&Token::Ne));
+        assert!(toks.contains(&Token::Mod));
+    }
+
+    #[test]
+    fn lex_error_on_invalid_char() {
+        let mut lexer = Lexer::new("@");
+        assert!(matches!(lexer.next_token(), Some(Err(()))));
+    }
+
+    #[test]
+    fn lexer_span_tracks_position() {
+        let mut lexer = Lexer::new("abc");
+        let _ = lexer.next_token();
+        assert!(lexer.span().end > lexer.span().start);
+    }
 }

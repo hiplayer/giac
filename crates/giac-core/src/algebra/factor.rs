@@ -139,4 +139,29 @@ mod tests {
         let s = format_expr(r.as_ref());
         assert!(s.contains("x-1") || s.contains("x+1"));
     }
+
+    #[test]
+    fn factor_irreducible_quadratic() {
+        let ctx = Context::default();
+        let e = Expr::add(vec![
+            Expr::pow(Expr::sym("x"), Expr::int(2)),
+            Expr::int(1),
+        ]);
+        let r = factor(e.as_ref(), &ctx).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "x^2+1");
+    }
+
+    #[test]
+    fn factor_perfect_power_binomial() {
+        let ctx = Context::default();
+        let e = Expr::add(vec![
+            Expr::pow(Expr::sym("x"), Expr::int(4)),
+            Expr::mul(vec![Expr::int(12), Expr::pow(Expr::sym("x"), Expr::int(3))]),
+            Expr::mul(vec![Expr::int(54), Expr::pow(Expr::sym("x"), Expr::int(2))]),
+            Expr::mul(vec![Expr::int(108), Expr::sym("x")]),
+            Expr::int(81),
+        ]);
+        let r = factor(e.as_ref(), &ctx).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "(x+3)^4");
+    }
 }

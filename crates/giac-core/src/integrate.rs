@@ -247,4 +247,94 @@ mod tests {
         assert!(s.contains("ln(abs(x-1))"));
         assert!(s.contains("atan(x)"));
     }
+
+    #[test]
+    fn integrate_constant_and_sum() {
+        let x = Ident::new("x");
+        let c = Expr::int(5);
+        let r = integrate(&c, &x).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "5*x");
+
+        let sum = Expr::add(vec![
+            Expr::pow(Expr::sym("x"), Expr::int(-1)),
+            Expr::int(1),
+        ]);
+        let r = integrate(&sum, &x).unwrap();
+        let s = format_expr(r.as_ref());
+        assert!(s.contains("ln(abs(x))"));
+        assert!(s.contains("x"));
+    }
+
+    #[test]
+    fn integrate_const_times_x() {
+        let x = Ident::new("x");
+        let e = Expr::mul(vec![Expr::int(3), Expr::sym("x")]);
+        assert!(matches!(
+            integrate(&e, &x),
+            Err(EvalError::NotImplemented(_))
+        ));
+    }
+
+    #[test]
+    fn integrate_one_over_one_plus_x_squared() {
+        let x = Ident::new("x");
+        let den = Expr::add(vec![Expr::int(1), Expr::pow(Expr::sym("x"), Expr::int(2))]);
+        let e = Expr::pow(den, Expr::int(-1));
+        let r = integrate(&e, &x).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "atan(x)");
+    }
+
+    #[test]
+    fn integrate_frac_with_constant_numerator() {
+        let x = Ident::new("x");
+        let e = Arc::new(Expr::Frac(Expr::int(2), Expr::sym("x")));
+        let r = integrate(&e, &x).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "2*ln(abs(x))");
+    }
+
+    #[test]
+    fn integrate_unsupported_returns_not_implemented() {
+        let x = Ident::new("x");
+        let e = Expr::func(FuncKind::Sin, vec![Expr::sym("x")]);
+        assert!(matches!(
+            integrate(&e, &x),
+            Err(EvalError::NotImplemented(_))
+        ));
+    }
+
+    #[test]
+    fn integrate_const_over_quadratic() {
+        let x = Ident::new("x");
+        let den = Expr::add(vec![Expr::int(4), Expr::pow(Expr::sym("x"), Expr::int(2))]);
+        let e = Expr::pow(den, Expr::int(-1));
+        let r = integrate(&e, &x).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "1/2*atan(x*1/2)");
+    }
+
+    #[test]
+    fn integrate_const_times_reciprocal() {
+        let x = Ident::new("x");
+        let e = Expr::mul(vec![Expr::int(3), Expr::pow(Expr::sym("x"), Expr::int(-1))]);
+        let r = integrate(&e, &x).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "ln(abs(x))*3");
+    }
+
+    #[test]
+    fn integrate_product_of_consts_only() {
+        let x = Ident::new("x");
+        let e = Expr::mul(vec![Expr::int(2), Expr::int(3)]);
+        let r = integrate(&e, &x).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "(2*3)*x");
+    }
+
+    #[test]
+    fn integrate_x_squared_reciprocal() {
+        let x = Ident::new("x");
+        let den = Expr::pow(Expr::sym("x"), Expr::int(2));
+        let e = Expr::pow(den, Expr::int(-1));
+        assert!(matches!(
+            integrate(&e, &x),
+            Err(EvalError::NotImplemented(_))
+        ));
+    }
 }

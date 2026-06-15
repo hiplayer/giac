@@ -143,5 +143,16 @@ mod tests {
         assert!(!Expr::int(1).is_zero());
         assert!(Expr::int(1).is_one());
         assert_eq!(Expr::add(vec![Expr::int(1)]), Expr::int(1));
+        assert_eq!(Expr::mul(vec![Expr::sym("x")]), Expr::sym("x"));
+    }
+
+    #[test]
+    fn rat_and_complex_predicates() {
+        assert!(Expr::rat(0, 1).is_zero());
+        assert!(Expr::rat(3, 2).is_one() == false);
+        assert!(Expr::rat(2, 2).is_one());
+        let zero_c = Expr::Complex(Expr::int(0), Expr::int(0));
+        assert!(zero_c.is_zero());
+        assert!(!Expr::Complex(Expr::int(1), Expr::int(0)).is_zero());
     }
 }

@@ -107,4 +107,68 @@ mod tests {
         assert!(s.contains("x^4"));
         assert!(s.contains("108"));
     }
+
+    #[test]
+    fn expand_distribute_mul_over_add() {
+        let ctx = Context::default();
+        let e = Expr::mul(vec![
+            Expr::add(vec![Expr::sym("x"), Expr::int(1)]),
+            Expr::sym("y"),
+        ]);
+        let r = expand(e.as_ref(), &ctx).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "x*y+1*y");
+    }
+
+    #[test]
+    fn expand_pow_single_base() {
+        let ctx = Context::default();
+        let e = Expr::pow(Expr::sym("x"), Expr::int(1));
+        let r = expand(e.as_ref(), &ctx).unwrap();
+        assert_eq!(r, Expr::sym("x"));
+    }
+
+    #[test]
+    fn expand_pow_cube_of_symbol() {
+        let ctx = Context::default();
+        let e = Expr::pow(Expr::sym("x"), Expr::int(3));
+        let r = expand(e.as_ref(), &ctx).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "(x*x)*x");
+    }
+
+    #[test]
+    fn expand_complex_and_non_poly_normal() {
+        let ctx = Context::default();
+        let c = Expr::Complex(Expr::sym("a"), Expr::sym("b"));
+        let r = expand(&c, &ctx).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "a+b*i");
+
+        let trig = Expr::func(crate::expr::FuncKind::Sin, vec![Expr::sym("x")]);
+        let n = normal(trig.as_ref(), &ctx).unwrap();
+        assert_eq!(format_expr(n.as_ref()), "sin(x)");
+    }
+
+    #[test]
+    fn expand_rhs_add_and_zero_power() {
+        let ctx = Context::default();
+        let e = Expr::mul(vec![
+            Expr::sym("y"),
+            Expr::add(vec![Expr::sym("x"), Expr::int(1)]),
+        ]);
+        let r = expand(e.as_ref(), &ctx).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "x*y+1*y");
+
+        let z = Expr::pow(Expr::add(vec![Expr::sym("x"), Expr::int(1)]), Expr::int(0));
+        assert_eq!(expand(z.as_ref(), &ctx).unwrap(), Expr::int(1));
+    }
+
+    #[test]
+    fn expand_binomial_fallback_for_non_poly() {
+        let ctx = Context::default();
+        let e = Expr::pow(
+            Expr::add(vec![Expr::func(crate::expr::FuncKind::Sin, vec![Expr::sym("x")]), Expr::int(1)]),
+            Expr::int(2),
+        );
+        let r = expand(e.as_ref(), &ctx).unwrap();
+        assert!(format_expr(r.as_ref()).contains("sin(x)"));
+    }
 }

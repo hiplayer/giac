@@ -345,6 +345,7 @@ pub fn inv_scalar(n: &BigInt) -> Result<ExprArc, EvalError> {
 mod tests {
     use super::*;
     use crate::eval::eval;
+    use crate::format_expr;
     use crate::Context;
 
     #[test]
@@ -379,5 +380,164 @@ mod tests {
             crate::format_expr(r.as_ref()),
             "poly1[1,-13,1,0]"
         );
+    }
+
+    #[test]
+    fn matrix_mul_incompatible_dimensions() {
+        let a = Arc::new(Expr::Matrix(vec![vec![Expr::int(1), Expr::int(2)]]));
+        let b = Arc::new(Expr::Matrix(vec![vec![Expr::int(1)]]));
+        assert!(eval_matrix_mul(&a, &b).is_err());
+    }
+
+    #[test]
+    fn det_1x1_and_3x3() {
+        let ctx = Context::default();
+        let m1 = Arc::new(Expr::Matrix(vec![vec![Expr::int(7)]]));
+        assert_eq!(
+            eval(eval_det(&m1).unwrap().as_ref(), &ctx).unwrap(),
+            Expr::int(7)
+        );
+
+        let m3 = Arc::new(Expr::Matrix(vec![
+            vec![Expr::int(1), Expr::int(0), Expr::int(0)],
+            vec![Expr::int(0), Expr::int(2), Expr::int(0)],
+            vec![Expr::int(0), Expr::int(0), Expr::int(3)],
+        ]));
+        assert_eq!(
+            eval(eval_det(&m3).unwrap().as_ref(), &ctx).unwrap(),
+            Expr::int(6)
+        );
+    }
+
+    #[test]
+    fn matrix_error_paths() {
+        let bad = Arc::new(Expr::int(1));
+        assert!(as_matrix(&bad).is_err());
+        assert!(eval_tran(&bad).is_err());
+        assert!(eval_det(&bad).is_err());
+        assert!(eval_inv(&bad).is_err());
+
+        let empty = Arc::new(Expr::Matrix(vec![]));
+        assert!(eval_tran(&empty).is_err());
+
+        let nonsquare = Arc::new(Expr::Matrix(vec![
+            vec![Expr::int(1), Expr::int(2)],
+            vec![Expr::int(3), Expr::int(4)],
+            vec![Expr::int(5), Expr::int(6)],
+        ]));
+        assert!(eval_det(&nonsquare).is_err());
+
+        let big = Arc::new(Expr::Matrix(vec![
+            vec![Expr::int(1), Expr::int(2), Expr::int(3)],
+            vec![Expr::int(4), Expr::int(5), Expr::int(6)],
+            vec![Expr::int(7), Expr::int(8), Expr::int(9)],
+            vec![Expr::int(0), Expr::int(1), Expr::int(2)],
+        ]));
+        assert!(matches!(
+            eval_inv(&big),
+            Err(EvalError::TypeError(_))
+        ));
+        assert!(matches!(
+            eval_pcar(&big),
+            Err(EvalError::NotImplemented(_))
+        ));
+    }
+
+    #[test]
+    fn inv_scalar_and_identity_check() {
+        assert!(inv_scalar(&BigInt::zero()).is_err());
+        assert_eq!(inv_scalar(&BigInt::from(5)).unwrap(), Expr::rat(1, 5));
+        let m = eval_idn(3);
+        assert!(is_identity_matrix(&m));
+        let not_id = Arc::new(Expr::Matrix(vec![vec![Expr::int(2)]]));
+        assert!(!is_identity_matrix(&not_id));
+    }
+
+    #[test]
+    fn pcar_2x2() {
+        let m = Arc::new(Expr::Matrix(vec![
+            vec![Expr::int(1), Expr::int(2)],
+            vec![Expr::int(3), Expr::int(4)],
+        ]));
+        let p = eval_pcar(&m).unwrap();
+        assert!(matches!(p.as_ref(), Expr::Func(crate::expr::FuncKind::Poly1, _)));
+    }
+
+    #[test]
+    fn ker_full_rank_and_image() {
+        let full = Arc::new(Expr::Matrix(vec![
+            vec![Expr::int(1), Expr::int(0)],
+            vec![Expr::int(0), Expr::int(1)],
+        ]));
+        let ker = eval_ker(&full).unwrap();
+        assert!(matches!(ker.as_ref(), Expr::Matrix(rows) if rows.is_empty()));
+
+        let image = eval_image(&full).unwrap();
+        match image.as_ref() {
+            Expr::Matrix(rows) => assert_eq!(rows.len(), 2),
+            _ => panic!("expected matrix image"),
+        }
+    }
+
+    #[test]
+    fn ker_nontrivial_nullspace() {
+        let m = Arc::new(Expr::Matrix(vec![
+            vec![Expr::int(1), Expr::int(2), Expr::int(3)],
+            vec![Expr::int(2), Expr::int(4), Expr::int(6)],
+        ]));
+        let ker = eval_ker(&m).unwrap();
+        match ker.as_ref() {
+            Expr::Matrix(rows) => assert!(!rows.is_empty()),
+            _ => panic!("expected kernel basis"),
+        }
+    }
+
+    #[test]
+    fn det_and_inv_sizes() {
+        let ctx = Context::default();
+        let m1 = Arc::new(Expr::Matrix(vec![vec![Expr::int(4)]]));
+        let inv1 = eval_inv(&m1).unwrap();
+        assert_eq!(format_expr(eval(inv1.as_ref(), &ctx).unwrap().as_ref()), "4^-1");
+
+        let m4 = Arc::new(Expr::Matrix(vec![
+            vec![Expr::int(1), Expr::int(0), Expr::int(0), Expr::int(0)],
+            vec![Expr::int(0), Expr::int(1), Expr::int(0), Expr::int(0)],
+            vec![Expr::int(0), Expr::int(0), Expr::int(1), Expr::int(0)],
+            vec![Expr::int(0), Expr::int(0), Expr::int(0), Expr::int(1)],
+        ]));
+        assert!(matches!(
+            eval_det(&m4),
+            Err(EvalError::NotImplemented(_))
+        ));
+        assert!(matches!(
+            eval_inv(&Arc::new(Expr::Matrix(vec![
+                vec![Expr::int(1), Expr::int(0), Expr::int(0)],
+                vec![Expr::int(0), Expr::int(1), Expr::int(0)],
+                vec![Expr::int(0), Expr::int(0), Expr::int(1)],
+            ]))),
+            Err(EvalError::NotImplemented(_))
+        ));
+    }
+
+    #[test]
+    fn image_zero_matrix() {
+        let z = Arc::new(Expr::Matrix(vec![
+            vec![Expr::int(0), Expr::int(0)],
+            vec![Expr::int(0), Expr::int(0)],
+        ]));
+        let image = eval_image(&z).unwrap();
+        match image.as_ref() {
+            Expr::Matrix(rows) => {
+                assert_eq!(rows.len(), 1);
+                assert!(rows[0].iter().all(|c| c.is_zero()));
+            }
+            _ => panic!("expected matrix"),
+        }
+    }
+
+    #[test]
+    fn identity_matrix_rat_one() {
+        let m = Arc::new(Expr::Matrix(vec![vec![Expr::rat(2, 2)]]));
+        assert!(is_identity_matrix(&m));
     }
 }

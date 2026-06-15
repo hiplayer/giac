@@ -46,6 +46,13 @@ mod tests {
     #[test]
     fn imaginary_unit_detection() {
         assert!(Ident::new("i").is_imaginary_unit());
+        assert!(Ident::new("ii").is_imaginary_unit());
         assert!(!Ident::new("x").is_imaginary_unit());
+    }
+
+    #[test]
+    fn ident_from_str() {
+        let id: Ident = "y".into();
+        assert_eq!(id.as_str(), "y");
     }
 }

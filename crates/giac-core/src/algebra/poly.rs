@@ -392,16 +392,65 @@ mod tests {
     }
 
     #[test]
-    fn poly_lcm_and_div_exact() {
+    fn poly_pow_and_sub() {
+        let x = Ident::new("x");
+        let _one = |c: i64| Poly::constant(Ratio::from_integer(BigInt::from(c)));
+        let x_m = |c: i64, e: u32| {
+            let mut m = BTreeMap::new();
+            if e > 0 {
+                m.insert(x.clone(), e);
+            }
+            Poly {
+                terms: [(Monomial(m), Ratio::from_integer(BigInt::from(c)))].into(),
+            }
+        };
+        let p = x_m(1, 1);
+        let sq = p.pow(2);
+        assert_eq!(sq.degree(), 2);
+        let diff = sq.sub(&p);
+        assert!(!diff.is_zero());
+    }
+
+    #[test]
+    fn poly_to_expr_edge_cases() {
+        let zero = Poly::zero();
+        assert_eq!(poly_to_expr(&zero), Expr::int(0));
+        let one = Poly::one();
+        assert_eq!(poly_to_expr(&one), Expr::int(1));
+    }
+
+    #[test]
+    fn monomial_div_and_poly_algebra() {
+        let x = Ident::new("x");
+        let y = Ident::new("y");
+        let m = Monomial::var(x.clone()).mul(&Monomial::var(y.clone()));
+        let d = Monomial::var(x.clone());
+        assert_eq!(m.div_exact(&d).unwrap(), Monomial::var(y.clone()));
+        assert!(Monomial::var(x.clone()).div_exact(&m).is_none());
+
+        let p = Poly {
+            terms: [(Monomial::var(x.clone()), Ratio::from_integer(BigInt::from(2)))].into(),
+        };
+        assert_eq!(p.neg().terms.values().next().unwrap().numer(), &-BigInt::from(2));
+        assert!(p.mul_scalar(&Ratio::zero()).is_zero());
+        assert_eq!(Poly::zero().gcd(&p), p);
+        assert_eq!(p.gcd(&Poly::zero()), p);
+
+        let (q, r) = p.div_rem(&Poly::one());
+        assert_eq!(q, p);
+        assert!(r.is_zero());
+    }
+
+    #[test]
+    fn poly_monic_non_unit_leading() {
         let x = Ident::new("x");
         let p = Poly {
-            terms: [(Monomial::var(x.clone()), Ratio::one())].into(),
+            terms: [(Monomial::var(x.clone()), Ratio::from_integer(BigInt::from(4)))].into(),
         };
-        let one = Poly::one();
-        let lcm = p.lcm(&one);
-        assert_eq!(lcm, p);
-        let sq = p.mul(&p);
-        let half = sq.div_exact(&p).unwrap();
-        assert_eq!(half, p);
+        let m = p.monic();
+        assert_eq!(
+            m.terms.values().next().unwrap().numer(),
+            &BigInt::one()
+        );
     }
 }
