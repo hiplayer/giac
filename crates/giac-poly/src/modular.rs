@@ -5,7 +5,7 @@ use num_traits::{One, Zero};
 
 use crate::error::{PolyError, PolyResult};
 use crate::modint::ModInt;
-use crate::monomial::{Monomial, Var};
+use crate::monomial::Monomial;
 use crate::poly::Poly;
 
 /// Polynomial over ℤ/pℤ.

@@ -59,7 +59,7 @@ fn expand_pow(base: &ExprArc, exp: &ExprArc, ctx: &Context) -> Result<ExprArc, E
             if let Expr::Int(n) = exp.as_ref() {
                 if n >= &num_bigint::BigInt::zero() && n <= &num_bigint::BigInt::from(50) {
                     let e = crate::num_util::bigint_to_nonneg_u32(n)?;
-                    let pm = modp(&p.pow(e), mod_i).map_err(mod_err)?;
+                    let pm = modp(&p.pow(u64::from(e)), mod_i).map_err(mod_err)?;
                     return Ok(poly_mod_to_expr(&pm));
                 }
             }
@@ -92,7 +92,7 @@ fn expand_binomial(terms: &[ExprArc], n: u32) -> ExprArc {
     // (a+b+...)^n — use polynomial algebra to avoid deep recursive expand
     let sum = Expr::add(terms.to_vec());
     if let Ok(p) = expr_to_poly(sum.as_ref()) {
-        return poly_to_expr(&p.pow(n));
+        return poly_to_expr(&p.pow(u64::from(n)));
     }
     Expr::pow(sum, Expr::int(n as i64))
 }

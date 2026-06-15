@@ -47,12 +47,12 @@ fn rational_parts(expr: &Expr, ctx: &Context) -> Result<(Poly, Poly), EvalError>
                 if e < &BigInt::zero() {
                     let e_u = crate::num_util::bigint_to_u32_abs(e)?;
                     let (n, d) = rational_parts(base, ctx)?;
-                    return Ok((d.pow(e_u), n.pow(e_u)));
+                    return Ok((d.pow(u64::from(e_u)), n.pow(u64::from(e_u))));
                 }
                 if e >= &BigInt::zero() {
                     let e_u = crate::num_util::bigint_to_nonneg_u32(e)?;
                     let (n, d) = rational_parts(base, ctx)?;
-                    return Ok((n.pow(e_u), d.pow(e_u)));
+                    return Ok((n.pow(u64::from(e_u)), d.pow(u64::from(e_u))));
                 }
             }
             Err(EvalError::TypeError("non-integer rational power"))

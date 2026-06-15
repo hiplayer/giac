@@ -5,7 +5,7 @@ use std::sync::Arc;
 pub type Var = Arc<str>;
 
 #[derive(Clone, Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct Monomial(BTreeMap<Var, u32>);
+pub struct Monomial(BTreeMap<Var, u64>);
 
 impl Monomial {
     pub fn one() -> Self {
@@ -18,11 +18,11 @@ impl Monomial {
         Self(m)
     }
 
-    pub fn degree(&self) -> u32 {
+    pub fn degree(&self) -> u64 {
         self.0.values().sum()
     }
 
-    pub fn exp_of(&self, var: &Var) -> u32 {
+    pub fn exp_of(&self, var: &Var) -> u64 {
         self.0.get(var).copied().unwrap_or(0)
     }
 
@@ -30,7 +30,7 @@ impl Monomial {
         self.0.is_empty()
     }
 
-    pub fn iter(&self) -> impl Iterator<Item = (&Var, u32)> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = (&Var, u64)> + '_ {
         self.0.iter().map(|(v, e)| (v, *e))
     }
 

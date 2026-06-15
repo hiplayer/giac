@@ -8,7 +8,7 @@ use giac_poly::{
 use num_bigint::BigInt;
 use num_integer::Integer;
 use num_rational::Ratio;
-use num_traits::{One, Zero};
+use num_traits::One;
 
 use crate::error::EvalError;
 use crate::expr::{Expr, ExprArc};
@@ -239,7 +239,7 @@ pub fn eval_mod_gcd(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc, 
     Ok(poly_from_polymod(&g))
 }
 
-pub fn eval_factor_mod(args: &[ExprArc], modulus: i64, ctx: &crate::Context) -> Result<ExprArc, EvalError> {
+pub fn eval_factor_mod(args: &[ExprArc], modulus: i64, _ctx: &crate::Context) -> Result<ExprArc, EvalError> {
     let p = expr_to_poly(args[0].as_ref())?;
     let factored = factor_poly_mod(&p, modulus).map_err(poly_err)?;
     let inner = poly_to_expr(&factored);

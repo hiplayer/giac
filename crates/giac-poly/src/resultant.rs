@@ -3,6 +3,7 @@ use num_rational::Ratio;
 use num_traits::{One, Zero};
 
 use crate::error::{PolyError, PolyResult};
+use crate::exp::bigint_pow;
 use crate::monomial::Var;
 use crate::poly::Poly;
 
@@ -22,7 +23,8 @@ pub fn resultant(a: &Poly, b: &Poly, var: &Var) -> PolyResult<Poly> {
         };
         let exp = if da == 0 { db } else { da };
         let other = if da == 0 { b } else { a };
-        return Ok(other.pow(exp).mul_scalar(&Ratio::from_integer(c.pow(exp as u32))));
+        let c_pow = bigint_pow(&c, exp).ok_or(PolyError::TypeError("exponent too large"))?;
+        return Ok(other.pow(exp).mul_scalar(&Ratio::from_integer(c_pow)));
     }
     if da == 1 || db == 1 {
         return Ok(sylvester_det2(a, b, var));
@@ -38,7 +40,7 @@ fn sylvester_det2(a: &Poly, b: &Poly, var: &Var) -> Poly {
     Poly::constant(a1 * b0 - a0 * b1)
 }
 
-fn coeff_at(p: &Poly, var: &Var, exp: u32) -> Ratio<BigInt> {
+fn coeff_at(p: &Poly, var: &Var, exp: u64) -> Ratio<BigInt> {
     for (m, c) in &p.terms {
         if exp == 0 && m.is_const() {
             return c.clone();
@@ -50,7 +52,7 @@ fn coeff_at(p: &Poly, var: &Var, exp: u32) -> Ratio<BigInt> {
     Ratio::zero()
 }
 
-fn univariate_degree(p: &Poly, var: &Var) -> u32 {
+fn univariate_degree(p: &Poly, var: &Var) -> u64 {
     p.terms
         .keys()
         .filter_map(|m| {
@@ -64,10 +66,8 @@ fn univariate_degree(p: &Poly, var: &Var) -> u32 {
 fn univariate_leading_coeff(p: &Poly, var: &Var) -> BigInt {
     let deg = univariate_degree(p, var);
     for (m, c) in p.terms.iter().rev() {
-        if m.exp_of(var) == deg {
-            if c.denom().is_one() {
-                return c.numer().clone();
-            }
+        if m.exp_of(var) == deg && c.denom().is_one() {
+            return c.numer().clone();
         }
     }
     BigInt::one()
@@ -105,7 +105,7 @@ pub fn roots(p: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
     }
 }
 
-fn is_xn_minus_one(p: &Poly, var: &Var, n: u32) -> bool {
+fn is_xn_minus_one(p: &Poly, var: &Var, n: u64) -> bool {
     if p.terms.len() != 2 {
         return false;
     }

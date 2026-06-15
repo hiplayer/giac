@@ -6,7 +6,7 @@ use crate::monomial::{Monomial, Var};
 use crate::poly::Poly;
 
 /// If `p` is a perfect power, return `(base, exponent)`.
-pub fn as_perfect_power(p: &Poly) -> Option<(Poly, u32)> {
+pub fn as_perfect_power(p: &Poly) -> Option<(Poly, u64)> {
     if p.degree() <= 1 {
         return None;
     }
@@ -54,7 +54,7 @@ pub fn factor_poly_mod(p: &Poly, modulus: i64) -> Result<Poly, crate::error::Pol
     Ok(p.clone())
 }
 
-fn is_xn_minus_one_poly(p: &Poly, n: u32) -> bool {
+fn is_xn_minus_one_poly(p: &Poly, n: u64) -> bool {
     if p.terms.len() != 2 {
         return false;
     }
@@ -96,7 +96,7 @@ fn factor_xn_minus_one(p: &Poly) -> Option<Poly> {
     }
 }
 
-fn try_nth_root(p: &Poly, exp: u32) -> Option<Poly> {
+fn try_nth_root(p: &Poly, exp: u64) -> Option<Poly> {
     if p.terms.len() == 1 {
         return None;
     }
@@ -117,15 +117,16 @@ fn try_nth_root(p: &Poly, exp: u32) -> Option<Poly> {
     None
 }
 
-fn integer_nth_root(n: &BigInt, exp: u32) -> Option<BigInt> {
+fn integer_nth_root(n: &BigInt, exp: u64) -> Option<BigInt> {
     if n.is_negative() && exp % 2 == 0 {
         return None;
     }
+    let exp_u32 = u32::try_from(exp).ok()?;
     let mut lo = BigInt::zero();
     let mut hi = n.abs() + BigInt::one();
     while lo < hi {
         let mid = (&lo + &hi) / BigInt::from(2);
-        let pow = mid.pow(exp);
+        let pow = mid.pow(exp_u32);
         match pow.cmp(n) {
             std::cmp::Ordering::Equal => return Some(if n.is_negative() { -mid } else { mid }),
             std::cmp::Ordering::Less => lo = mid + 1,

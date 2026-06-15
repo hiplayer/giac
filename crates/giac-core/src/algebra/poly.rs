@@ -29,7 +29,6 @@ pub fn expr_to_poly(expr: &Expr) -> Result<Poly, EvalError> {
         Expr::Pow(base, exp) => {
             let base_p = expr_to_poly(base)?;
             if let Expr::Int(e) = exp.as_ref() {
-                // Bounded via `limits::MAX_POLY_EXPONENT` (u64 check → u32 for Poly::pow).
                 let e_u = crate::num_util::bigint_to_poly_exponent(e)?;
                 return Ok(base_p.pow(e_u));
             }
@@ -43,7 +42,7 @@ pub fn poly_to_expr(poly: &Poly) -> ExprArc {
     if poly.is_zero() {
         return Expr::int(0);
     }
-    let mut terms: Vec<(u32, ExprArc)> = Vec::new();
+    let mut terms: Vec<(u64, ExprArc)> = Vec::new();
     for (m, c) in &poly.terms {
         let coeff = ratio_to_expr(c);
         let term = monomial_to_expr(m, coeff);
@@ -63,7 +62,7 @@ pub fn poly_mod_to_expr(pm: &PolyMod) -> ExprArc {
     if pm.is_zero() {
         return Arc::new(Expr::Mod(Expr::int(0), Expr::int(modulus)));
     }
-    let mut terms: Vec<(u32, ExprArc)> = Vec::new();
+    let mut terms: Vec<(u64, ExprArc)> = Vec::new();
     for (m, c) in &pm.terms {
         let rem = giac_poly::smod(
             c.val.to_string().parse().unwrap_or(0),
@@ -75,6 +74,13 @@ pub fn poly_mod_to_expr(pm: &PolyMod) -> ExprArc {
     }
     terms.sort_by(|a, b| b.0.cmp(&a.0));
     Expr::add(terms.into_iter().map(|(_, t)| t).collect())
+}
+
+pub(crate) fn u64_to_expr_int(n: u64) -> ExprArc {
+    match i64::try_from(n) {
+        Ok(v) => Expr::int(v),
+        Err(_) => Arc::new(Expr::Int(BigInt::from(n))),
+    }
 }
 
 fn ratio_to_expr(r: &Ratio<BigInt>) -> ExprArc {
@@ -104,7 +110,7 @@ fn monomial_to_expr(m: &Monomial, coeff: ExprArc) -> ExprArc {
         if e == 1 {
             factors.push(base);
         } else {
-            factors.push(Expr::pow(base, Expr::int(e as i64)));
+            factors.push(Expr::pow(base, u64_to_expr_int(e)));
         }
     }
     if factors.is_empty() {

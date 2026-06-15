@@ -72,7 +72,7 @@ impl Poly {
         }
     }
 
-    pub fn degree(&self) -> u32 {
+    pub fn degree(&self) -> u64 {
         self.terms.keys().map(Monomial::degree).max().unwrap_or(0)
     }
 
@@ -133,7 +133,7 @@ impl Poly {
         Self { terms }
     }
 
-    pub fn pow(&self, exp: u32) -> Self {
+    pub fn pow(&self, exp: u64) -> Self {
         if exp == 0 {
             return Self::one();
         }
@@ -259,7 +259,7 @@ impl Poly {
     }
 
     pub fn horner(&self, var: &Var, x: &Ratio<BigInt>) -> Ratio<BigInt> {
-        let mut coeffs: BTreeMap<u32, Ratio<BigInt>> = BTreeMap::new();
+        let mut coeffs: BTreeMap<u64, Ratio<BigInt>> = BTreeMap::new();
         for (m, c) in &self.terms {
             if m.is_const() {
                 *coeffs.entry(0).or_insert_with(Ratio::zero) += c;
@@ -345,7 +345,6 @@ pub fn abcuv(a: &Poly, b: &Poly, c: &Poly) -> PolyResult<(Poly, Poly)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use num_traits::Signed;
 
     fn x() -> Poly {
         Poly::var("x")

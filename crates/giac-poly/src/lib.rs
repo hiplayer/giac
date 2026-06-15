@@ -1,6 +1,7 @@
 #![deny(unsafe_code)]
 
 mod error;
+mod exp;
 mod monomial;
 mod poly;
 mod modint;

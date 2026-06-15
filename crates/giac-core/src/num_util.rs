@@ -24,14 +24,13 @@ pub fn bigint_to_nonneg_u64(n: &BigInt) -> Result<u64, EvalError> {
         .map_err(|_| EvalError::TypeError("integer out of u64 range"))
 }
 
-/// Polynomial power exponent for `expr_to_poly`: non-negative, `<= MAX_POLY_EXPONENT`, fits `u32`.
-pub fn bigint_to_poly_exponent(n: &BigInt) -> Result<u32, EvalError> {
+/// Polynomial power exponent for `expr_to_poly`: non-negative, `<= MAX_POLY_EXPONENT`.
+pub fn bigint_to_poly_exponent(n: &BigInt) -> Result<u64, EvalError> {
     let e = bigint_to_nonneg_u64(n)?;
     if e > MAX_POLY_EXPONENT {
         return Err(EvalError::TypeError("polynomial exponent exceeds limit"));
     }
-    // MAX_POLY_EXPONENT <= u32::MAX — cast is exact.
-    Ok(e as u32)
+    Ok(e)
 }
 
 /// Absolute value as `u32` (for negative exponents on integers).
@@ -54,7 +53,7 @@ mod tests {
     fn bigint_to_poly_exponent_at_limit() {
         assert_eq!(
             bigint_to_poly_exponent(&BigInt::from(MAX_POLY_EXPONENT)).unwrap(),
-            MAX_POLY_EXPONENT as u32
+            MAX_POLY_EXPONENT
         );
     }
 
