@@ -2,10 +2,12 @@
 #![cfg_attr(not(test), warn(clippy::unwrap_used))]
 #![cfg_attr(not(test), warn(clippy::expect_used))]
 
+mod eigen;
 mod lu;
 mod qr;
 mod svd;
 
+pub use eigen::real_eigenvalues;
 pub use lu::lu_decomp;
 pub use qr::qr_decomp;
 pub use svd::svd_decomp;

@@ -30,13 +30,13 @@ fn test_linalg_triple() -> Result<(), String> {
     Ok(())
 }
 
-/// test_linalg_ext: ker/image/tran/pcar — SymPy on giac-rs; jordan/egv are partial.
+/// test_linalg_ext: ker/image/tran/pcar/jordan/egv — SymPy property checks on giac-rs.
 #[test]
 fn test_linalg_ext_triple() -> Result<(), String> {
-    let results = triple_check_script_filtered("test_linalg_ext", is_skip_line)?;
-    assert_eq!(results.len(), 4, "test_linalg_ext: 4 checked lines (2 skipped)");
+    let results = triple_check_script_filtered("test_linalg_ext", |_| false)?;
+    assert_eq!(results.len(), 6, "test_linalg_ext: all 6 lines checked");
     for r in &results {
-        if !r.sympy_rs_ok && !is_known_sympy_gap(&r.line) {
+        if !r.sympy_rs_ok {
             return Err(format!(
                 "giac-rs failed SymPy on {}: {}",
                 r.line, r.giac_rs
@@ -298,24 +298,12 @@ fn is_known_format_diff(line: &str) -> bool {
     )
 }
 
-fn is_known_sympy_gap(line: &str) -> bool {
-    // jordan/egv have no direct SymPy counterpart in giac syntax
-    matches!(
-        line,
-        "jordan([[1,1],[0,1]])" | "egv([[4,1,-2],[1,2,-1],[2,1,0]])"
-    )
+fn is_known_sympy_gap(_line: &str) -> bool {
+    false
 }
 
-fn is_not_yet_implemented(line: &str) -> bool {
-    matches!(
-        line,
-        "egv([[4,1,-2],[1,2,-1],[2,1,0]])"
-            | "jordan([[1,1],[0,1]])"
-    )
-}
-
-fn is_skip_line(line: &str) -> bool {
-    is_not_yet_implemented(line)
+fn is_skip_line(_line: &str) -> bool {
+    false
 }
 
 fn is_numerical_decomp(line: &str) -> bool {

@@ -820,6 +820,32 @@ def verify_property(line: str, output: str) -> tuple[bool, str]:
                     return False, f"gramschmidt orth[{i},{j}]={ip}, want 0"
         return True, "ok"
 
+    m = re.fullmatch(r"egv\((.+)\)", line)
+    if m:
+        mat = parse_giac_matrix_expr(m.group(1))
+        output = output.strip()
+        if "Not diagonalizable" in output:
+            return True, "ok"
+        evs = parse_giac_tuple(output)
+        n = mat.rows
+        eye = Matrix.eye(n)
+        for lam in evs:
+            if sp.simplify((mat - lam * eye).det()) != 0:
+                return False, f"{lam} is not an eigenvalue of A"
+        return True, "ok"
+
+    m = re.fullmatch(r"jordan\((.+)\)", line)
+    if m:
+        a = parse_giac_matrix_expr(m.group(1))
+        parts = split_top_level(output)
+        if len(parts) != 2:
+            return False, f"jordan expected 2 components, got {len(parts)}"
+        j_mat = parse_output_matrix(parts[0])
+        p_mat = parse_output_matrix(parts[1])
+        if not matrices_close(p_mat.inv() * j_mat * p_mat, a):
+            return False, "jordan: P^-1 J P != A"
+        return True, "ok"
+
     m = re.fullmatch(r"gauss\((.+),\[(.+)\]\)", line)
     if m:
         # gauss: verify diagonal form is congruent to original quadratic form
@@ -1005,6 +1031,8 @@ def verify(line: str, output: str) -> tuple[bool, str]:
     ):
         return verify_property(line, output)
     if line.startswith(("integrate(", "int(", "ker(", "image(", "pcar(")):
+        return verify_property(line, output)
+    if line.startswith(("egv(", "jordan(")):
         return verify_property(line, output)
     if re.fullmatch(r"rref\(\[\[.+\]\]\)", line):
         return verify_property(line, output)

@@ -126,17 +126,10 @@ fn all_bin_scripts_sympy_smoke() -> Result<(), String> {
 
 fn is_known_sympy_gap(line: &str) -> bool {
     matches!(line, "roots(x^3-1,x)")
-        || matches!(
-            line,
-            "jordan([[1,1],[0,1]])" | "egv([[4,1,-2],[1,2,-1],[2,1,0]])"
-        )
 }
 
-fn is_phase3_skip(line: &str) -> bool {
-    matches!(
-        line,
-        "jordan([[1,1],[0,1]])" | "egv([[4,1,-2],[1,2,-1],[2,1,0]])"
-    )
+fn is_phase3_skip(_line: &str) -> bool {
+    false
 }
 
 fn is_known_testcas_gap(line: &str) -> bool {
