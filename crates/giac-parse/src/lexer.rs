@@ -25,6 +25,9 @@ pub enum Token<'a> {
     #[token("**")]
     StarStar,
 
+    #[token("'")]
+    Prime,
+
     #[token("mod", priority = 2)]
     #[token("%")]
     Mod,

@@ -193,6 +193,28 @@ fn format_func(kind: FuncKind, args: &[Arc<Expr>]) -> String {
             return format!("poly1[{}]", format_seq(coeffs));
         }
     }
+    if kind == FuncKind::RootOf {
+        if let [num, minpoly] = args {
+            let num_s = match num.as_ref() {
+                Expr::Seq(items) => format!("[{}]", format_seq(items)),
+                other => format_expr(other),
+            };
+            return format!("rootof({num_s},{})", format_expr(minpoly));
+        }
+    }
+    if kind == FuncKind::Apply {
+        if let [callee, arg] = args {
+            return format!("{}({})", format_expr(callee), format_expr(arg));
+        }
+    }
+    if kind == FuncKind::Prime {
+        if let [base, order] = args {
+            if let Expr::Int(n) = order.as_ref() {
+                let n = n.to_string().parse::<usize>().unwrap_or(1);
+                return format!("{}{}", format_expr(base), "'".repeat(n));
+            }
+        }
+    }
     let name = func_name(kind);
     let arg_s = args
         .iter()
@@ -230,7 +252,17 @@ fn func_name(kind: FuncKind) -> &'static str {
         FuncKind::Solve => "solve",
         FuncKind::Fsolve => "fsolve",
         FuncKind::Sturm => "sturm",
+        FuncKind::Sturmab => "sturmab",
         FuncKind::Realroot => "realroot",
+        FuncKind::Limit => "limit",
+        FuncKind::Series => "series",
+        FuncKind::Taylor => "taylor",
+        FuncKind::Desolve => "desolve",
+        FuncKind::Risch => "risch",
+        FuncKind::Proot => "proot",
+        FuncKind::Simplify => "simplify",
+        FuncKind::Apply => "apply",
+        FuncKind::Prime => "prime",
         FuncKind::Factor => "factor",
         FuncKind::Quo => "quo",
         FuncKind::Rem => "rem",

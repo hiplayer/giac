@@ -2,6 +2,10 @@
 
 use giac_core::{Context, EvalError, ExprArc};
 
+pub fn eval_risch(_args: &[ExprArc], _ctx: &Context) -> Result<ExprArc, EvalError> {
+    Err(EvalError::NotImplemented("risch"))
+}
+
 pub fn eval_limit(_args: &[ExprArc], _ctx: &Context) -> Result<ExprArc, EvalError> {
     Err(EvalError::NotImplemented("limit"))
 }

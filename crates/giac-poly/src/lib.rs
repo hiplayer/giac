@@ -1,5 +1,6 @@
 #![deny(unsafe_code)]
 
+mod univariate;
 mod error;
 mod exp;
 mod monomial;
@@ -17,11 +18,15 @@ pub use monomial::{Monomial, Var};
 pub use poly::{Poly, abcuv, egcd, quo, rem, simp2};
 pub use modint::{ModInt, irem, smod};
 pub use modular::{PolyMod, modp};
-pub use resultant::{resultant, roots};
+pub use resultant::{coeff_at, resultant, roots, univariate_degree};
 pub use factor::{as_perfect_power, factor_into, factor_poly, factor_poly_mod};
 pub use partfrac::partfrac_terms;
 pub use chinrem::{chinrem, chinrem_lists};
 pub use ops::{content, gauss};
+pub use univariate::{
+    eval_univariate_at, sign_variations, sturm_sequence, sturm_sign_variations_at, sturmab_count,
+    univariate_derivative,
+};
 
 #[cfg(test)]
 mod tests_phase2;

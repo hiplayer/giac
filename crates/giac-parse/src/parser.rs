@@ -136,13 +136,7 @@ impl<'a, 'ctx> Parser<'a, 'ctx> {
                     self.bump()?;
                     let args = self.parse_arg_list()?;
                     self.expect(Token::RParen)?;
-                    if let Expr::Symbol(id) = expr.as_ref() {
-                        let kind = lookup_func(id.as_str())
-                            .ok_or(ParseError::Unexpected("unknown function"))?;
-                        expr = Expr::func(kind, args);
-                    } else {
-                        return Err(ParseError::Unexpected("call on non-function"));
-                    }
+                    expr = self.finish_call(expr, args)?;
                 }
                 Some(Token::Caret | Token::StarStar) => {
                     self.bump()?;
@@ -163,6 +157,14 @@ impl<'a, 'ctx> Parser<'a, 'ctx> {
                     self.bump()?;
                     let rhs = self.parse_unary()?;
                     expr = Arc::new(Expr::Mod(expr, rhs));
+                }
+                Some(Token::Prime) => {
+                    let mut order = 0i64;
+                    while matches!(self.peek(), Some(Token::Prime)) {
+                        self.bump()?;
+                        order += 1;
+                    }
+                    expr = Expr::func(FuncKind::Prime, vec![expr, Expr::int(order)]);
                 }
                 Some(Token::Plus | Token::Minus) => {
                     return self.parse_add_from(expr);
@@ -297,19 +299,21 @@ impl<'a, 'ctx> Parser<'a, 'ctx> {
     fn parse_postfix(&mut self) -> Result<ExprArc, ParseError> {
         let mut expr = self.parse_atom()?;
         loop {
+            let mut order = 0i64;
+            while matches!(self.peek(), Some(Token::Prime)) {
+                self.bump()?;
+                order += 1;
+            }
+            if order > 0 {
+                expr = Expr::func(FuncKind::Prime, vec![expr, Expr::int(order)]);
+            }
+
             match self.peek() {
                 Some(Token::LParen) => {
                     self.bump()?;
                     let args = self.parse_arg_list()?;
                     self.expect(Token::RParen)?;
-                    if let Expr::Symbol(id) = expr.as_ref() {
-                        let kind = lookup_func(id.as_str()).ok_or(ParseError::Unexpected(
-                            "unknown function",
-                        ))?;
-                        expr = Expr::func(kind, args);
-                    } else {
-                        return Err(ParseError::Unexpected("call on non-function"));
-                    }
+                    expr = self.finish_call(expr, args)?;
                 }
                 Some(Token::LBracket) => {
                     self.bump()?;
@@ -428,6 +432,22 @@ impl<'a, 'ctx> Parser<'a, 'ctx> {
         }
         Ok(items)
     }
+
+    fn finish_call(&self, callee: ExprArc, args: Vec<ExprArc>) -> Result<ExprArc, ParseError> {
+        if let Expr::Symbol(id) = callee.as_ref() {
+            if let Some(kind) = lookup_func(id.as_str()) {
+                return Ok(Expr::func(kind, args));
+            }
+        }
+        let arg = if args.len() == 1 {
+            args.into_iter()
+                .next()
+                .ok_or(ParseError::Unexpected("empty call"))?
+        } else {
+            Arc::new(Expr::Seq(args))
+        };
+        Ok(Expr::func(FuncKind::Apply, vec![callee, arg]))
+    }
 }
 
 fn imp_mult_after(factor: &ExprArc) -> bool {
@@ -509,7 +529,15 @@ fn lookup_func(name: &str) -> Option<FuncKind> {
         "solve" => Some(FuncKind::Solve),
         "fsolve" => Some(FuncKind::Fsolve),
         "sturm" => Some(FuncKind::Sturm),
+        "sturmab" => Some(FuncKind::Sturmab),
         "realroot" => Some(FuncKind::Realroot),
+        "limit" => Some(FuncKind::Limit),
+        "series" => Some(FuncKind::Series),
+        "taylor" => Some(FuncKind::Taylor),
+        "desolve" => Some(FuncKind::Desolve),
+        "risch" => Some(FuncKind::Risch),
+        "proot" => Some(FuncKind::Proot),
+        "simplify" => Some(FuncKind::Simplify),
         "idn" => Some(FuncKind::Idn),
         "inv" => Some(FuncKind::Inv),
         "det" => Some(FuncKind::Det),
@@ -671,10 +699,23 @@ mod tests {
     }
 
     #[test]
-    fn parse_unknown_function_errors() {
+    fn parse_unknown_function_becomes_apply() {
         let ctx = Context::xcas_default();
-        assert!(parse_program("unknown(1);", &ctx).is_err());
-        assert!(parse_program("(1)(2);", &ctx).is_err());
+        let stmts = parse_program("unknown(1);", &ctx).unwrap();
+        assert!(matches!(
+            &stmts[0],
+            Stmt::ExprStmt(e) if matches!(
+                e.as_ref(),
+                Expr::Func(FuncKind::Apply, args)
+                    if args.len() == 2
+                        && matches!(args[0].as_ref(), Expr::Symbol(id) if id.as_str() == "unknown")
+            )
+        ));
+        let stmts = parse_program("(1)(2);", &ctx).unwrap();
+        assert!(matches!(
+            &stmts[0],
+            Stmt::ExprStmt(e) if matches!(e.as_ref(), Expr::Func(FuncKind::Apply, _))
+        ));
     }
 
     #[test]
@@ -796,5 +837,34 @@ mod tests {
         let ctx = Context::xcas_default();
         assert_eq!(parse_program("1+", &ctx), Err(ParseError::Eof));
         assert!(parse_program("1+);", &ctx).is_err());
+    }
+
+    #[test]
+    fn parse_phase4_infinity_and_series() {
+        let ctx = Context::xcas_default();
+        parse_program("limit((1+1/x)^x,x,+infinity);", &ctx).unwrap();
+        parse_program("series(exp(x),x,0,4);", &ctx).unwrap();
+        let stmts = parse_program("taylor(sin(x),x=0,5);", &ctx).unwrap();
+        assert!(matches!(
+            &stmts[0],
+            Stmt::ExprStmt(e) if matches!(e.as_ref(), Expr::Func(FuncKind::Taylor, _))
+        ));
+    }
+
+    #[test]
+    fn parse_phase4_desolve_and_prime() {
+        let ctx = Context::xcas_default();
+        parse_program("desolve(y''+y=0,y(x));", &ctx).unwrap();
+        parse_program("limit(sin(x)/x,x,0);", &ctx).unwrap();
+        parse_program("taylor(sin(x),x=0,5);", &ctx).unwrap();
+        let stmts = parse_program("y'+y;", &ctx).unwrap();
+        assert!(matches!(
+            &stmts[0],
+            Stmt::ExprStmt(e) if matches!(
+                e.as_ref(),
+                Expr::Add(terms) if terms.len() == 2
+                    && matches!(terms[0].as_ref(), Expr::Func(FuncKind::Prime, _))
+            )
+        ));
     }
 }

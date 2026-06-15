@@ -7,12 +7,12 @@ use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
 
 use giac_core::{assert_equiv, exec_stmt, format_expr, Stmt, StmtResult};
-use giac_calculus::xcas_default;
+use giac_ode::xcas_default;
 use giac_parse::parse_program;
 
 pub use triple_skip::{
     phase2_format_diff, phase2_giac_gap, phase2_sympy_gap, phase3_format_diff,
-    phase3_numerical_decomp, phase3_skip, phase3_sympy_gap, trig_format_diff,
+    phase3_numerical_decomp, phase3_skip, phase3_sympy_gap, phase4_skip, trig_format_diff,
 };
 
 pub fn upstream_root() -> PathBuf {
@@ -52,6 +52,23 @@ pub const PHASE3_SCRIPTS: &[&str] = &[
     "test_linalg_ext",
     "test_linalg_decomp",
     "test_gauss_ext",
+];
+
+/// Phase 4 bin scripts (solve / calculus / ODE).
+pub const PHASE4_SCRIPTS: &[&str] = &[
+    "test_solve",
+    "test_solve_ext",
+    "test_diff",
+    "test_integrate",
+    "test_integrate_ext",
+    "test_integrate_more",
+    "test_limit",
+    "test_series",
+    "test_sturm",
+    "test_sturm_ext",
+    "test_desolve",
+    "test_desolve_ext",
+    "test_partfrac_ext",
 ];
 
 /// Upstream `check/testfactor` + `check/factor.out` (giac_check_factor).

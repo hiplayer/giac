@@ -237,7 +237,12 @@ fn eval_func(kind: FuncKind, args: &[ExprArc], ctx: &Context) -> Result<ExprArc,
         FuncKind::Solve => return eval_solve(args, ctx),
         FuncKind::Fsolve => return eval_fsolve(args, ctx),
         FuncKind::Sturm => return eval_sturm(args, ctx),
+        FuncKind::Sturmab => return eval_sturmab(args, ctx),
         FuncKind::Realroot => return eval_realroot(args, ctx),
+        FuncKind::Limit => return eval_limit(args, ctx),
+        FuncKind::Series | FuncKind::Taylor => return eval_series(args, ctx),
+        FuncKind::Desolve => return eval_desolve(args, ctx),
+        FuncKind::Risch => return eval_risch(args, ctx),
         FuncKind::Lambda => return Ok(Expr::func(FuncKind::Lambda, args.to_vec())),
         FuncKind::Smod => return crate::eval_poly::eval_smod(args),
         FuncKind::Irem => return crate::eval_poly::eval_irem(args),
@@ -331,6 +336,14 @@ fn eval_func(kind: FuncKind, args: &[ExprArc], ctx: &Context) -> Result<ExprArc,
         }
         FuncKind::RootOf => Ok(Expr::func(FuncKind::RootOf, args.to_vec())),
         FuncKind::Poly1 => Ok(Expr::func(FuncKind::Poly1, args.to_vec())),
+        FuncKind::Simplify => {
+            if args.is_empty() {
+                return Err(EvalError::TooFewArgs("simplify"));
+            }
+            simplify(args[0].as_ref(), ctx)
+        }
+        FuncKind::Proot => eval_proot(&args, ctx),
+        FuncKind::Apply | FuncKind::Prime => Ok(Expr::func(kind, args.to_vec())),
         other => Err(EvalError::NotImplemented(func_name(other))),
     }
 }
@@ -727,6 +740,33 @@ fn eval_realroot(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> 
     ctx.solve()?.eval_realroot(args, ctx)
 }
 
+fn eval_sturmab(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
+    ctx.solve()?.eval_sturmab(args, ctx)
+}
+
+fn eval_limit(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
+    ctx.calculus()?.eval_limit(args, ctx)
+}
+
+fn eval_series(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
+    ctx.calculus()?.eval_series(args, ctx)
+}
+
+fn eval_risch(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
+    ctx.calculus()?.eval_risch(args, ctx)
+}
+
+fn eval_desolve(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
+    ctx.ode()?.eval_desolve(args, ctx)
+}
+
+fn eval_proot(args: &[ExprArc], _ctx: &Context) -> Result<ExprArc, EvalError> {
+    if args.len() != 1 {
+        return Err(EvalError::TooFewArgs("proot"));
+    }
+    Err(EvalError::NotImplemented("proot"))
+}
+
 fn eval_tran(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     if args.len() != 1 {
         return Err(EvalError::TooFewArgs("tran"));
@@ -931,7 +971,17 @@ fn func_name(kind: FuncKind) -> &'static str {
         FuncKind::Solve => "solve",
         FuncKind::Fsolve => "fsolve",
         FuncKind::Sturm => "sturm",
+        FuncKind::Sturmab => "sturmab",
         FuncKind::Realroot => "realroot",
+        FuncKind::Limit => "limit",
+        FuncKind::Series => "series",
+        FuncKind::Taylor => "taylor",
+        FuncKind::Desolve => "desolve",
+        FuncKind::Risch => "risch",
+        FuncKind::Proot => "proot",
+        FuncKind::Simplify => "simplify",
+        FuncKind::Apply => "apply",
+        FuncKind::Prime => "prime",
         FuncKind::Idn => "idn",
         FuncKind::Inv => "inv",
         FuncKind::Det => "det",

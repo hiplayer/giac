@@ -6,7 +6,7 @@ use giac_core::{CalculusPlugin, Context, EvalError, ExprArc};
 
 use crate::eval_diff::eval_diff;
 use crate::eval_integrate::eval_integrate;
-use crate::stubs::{eval_limit, eval_series};
+use crate::stubs::{eval_limit, eval_risch, eval_series};
 
 /// Default implementation of [`CalculusPlugin`].
 pub struct DefaultCalculusPlugin;
@@ -26,6 +26,10 @@ impl CalculusPlugin for DefaultCalculusPlugin {
 
     fn eval_series(&self, args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
         eval_series(args, ctx)
+    }
+
+    fn eval_risch(&self, args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
+        eval_risch(args, ctx)
     }
 }
 

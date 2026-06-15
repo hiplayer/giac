@@ -5,6 +5,7 @@ use crate::expr::ExprArc;
 use crate::ident::Ident;
 use crate::calculus_plugin::CalculusPlugin;
 use crate::linalg_plugin::LinalgPlugin;
+use crate::ode_plugin::OdePlugin;
 use crate::solve_plugin::SolvePlugin;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -25,6 +26,7 @@ pub struct Context {
     pub(crate) linalg_plugin: Option<Arc<dyn LinalgPlugin>>,
     pub(crate) solve_plugin: Option<Arc<dyn SolvePlugin>>,
     pub(crate) calculus_plugin: Option<Arc<dyn CalculusPlugin>>,
+    pub(crate) ode_plugin: Option<Arc<dyn OdePlugin>>,
 }
 
 impl Default for Context {
@@ -39,6 +41,7 @@ impl Default for Context {
             linalg_plugin: None,
             solve_plugin: None,
             calculus_plugin: None,
+            ode_plugin: None,
         }
     }
 }

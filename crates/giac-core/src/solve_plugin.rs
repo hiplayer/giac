@@ -16,6 +16,7 @@ pub trait SolvePlugin: Send + Sync {
     ) -> Result<ExprArc, EvalError>;
     fn eval_fsolve(&self, args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError>;
     fn eval_sturm(&self, args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError>;
+    fn eval_sturmab(&self, args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError>;
     fn eval_realroot(&self, args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError>;
 }
 

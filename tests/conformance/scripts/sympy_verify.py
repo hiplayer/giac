@@ -19,6 +19,20 @@ import sympy as sp
 from sympy import Poly, QQ, ZZ, Matrix, symbols, resultant, apart, lcm, gcd, div, groebner, expand_trig, trigsimp
 
 x, y, z = symbols("x y z")
+_x_positive = symbols("x", real=True, positive=True)
+
+
+def integrate_derivative_equiv(integrand: Any, result: Any) -> bool:
+    """Check d(result)/dx = integrand on the real positive domain (GIAC ln(abs(x)))."""
+    integrand_p = integrand.xreplace({x: _x_positive})
+    result_p = result.xreplace({x: _x_positive})
+    d = sp.simplify(sp.diff(result_p, _x_positive) - integrand_p)
+    if d == 0:
+        return True
+    for pt in (sp.Rational(1, 5), sp.Rational(1, 3), sp.Rational(2, 3)):
+        if sp.simplify(d.subs(_x_positive, pt)) != 0:
+            return False
+    return True
 
 
 def giac_to_sympy(s: str) -> sp.Expr:
@@ -235,6 +249,44 @@ def eval_phase1(line: str) -> Any | None:
         f = giac_to_sympy(m.group(1))
         return sp.integrate(f, x)
 
+    m = re.fullmatch(r"(?:integrate|int)\((.+),x,([^,]+),([^)]+)\)", line)
+    if m:
+        f = giac_to_sympy(m.group(1))
+        a = giac_to_sympy(m.group(2))
+        b = giac_to_sympy(m.group(3))
+        return sp.integrate(f, (x, a, b))
+
+    m = re.fullmatch(r"limit\((.+),x,(.+)\)", line)
+    if m:
+        f = giac_to_sympy(m.group(1))
+        pt = m.group(2).strip()
+        if pt in ("+infinity", "infinity"):
+            return sp.limit(f, x, sp.oo)
+        if pt == "-infinity":
+            return sp.limit(f, x, -sp.oo)
+        return sp.limit(f, x, giac_to_sympy(pt))
+
+    m = re.fullmatch(r"series\((.+),x,([^,]+),(\d+)\)", line)
+    if m:
+        f = giac_to_sympy(m.group(1))
+        center = giac_to_sympy(m.group(2))
+        n = int(m.group(3))
+        return sp.series(f, x, center, n).removeO()
+
+    m = re.fullmatch(r"taylor\((.+),x=(.+),(\d+)\)", line)
+    if m:
+        f = giac_to_sympy(m.group(1))
+        center = giac_to_sympy(m.group(2))
+        n = int(m.group(3))
+        return sp.series(f, x, center, n).removeO()
+
+    m = re.fullmatch(r"taylor\((.+),x,([^,]+),(\d+)\)", line)
+    if m:
+        f = giac_to_sympy(m.group(1))
+        center = giac_to_sympy(m.group(2))
+        n = int(m.group(3))
+        return sp.series(f, x, center, n).removeO()
+
     m = re.fullmatch(r"texpand\((.+)\)", line)
     if m:
         return expand_trig(giac_to_sympy(m.group(1)))
@@ -250,6 +302,13 @@ def eval_phase1(line: str) -> Any | None:
     m = re.fullmatch(r"tlin\((.+)\)", line)
     if m:
         return expand_trig(giac_to_sympy(m.group(1)))
+
+    m = re.fullmatch(r"(?:diff|derive)\((.+),\[(.+)\]\)", line)
+    if m:
+        inp = giac_to_sympy(m.group(1))
+        var_strs = split_top_level(m.group(2))
+        vars_ = [symbols(v.strip()) for v in var_strs]
+        return sp.Tuple(*[sp.diff(inp, vi) for vi in vars_])
 
     m = re.fullmatch(r"(?:diff|derive)\((.+),x\)", line)
     if m:
@@ -665,8 +724,50 @@ def verify_property(line: str, output: str) -> tuple[bool, str]:
     if m:
         integrand = giac_to_sympy(m.group(1))
         result = giac_to_sympy(output)
-        if sp.simplify(sp.diff(result, x) - integrand) != 0:
+        if not integrate_derivative_equiv(integrand, result):
             return False, "integrate derivative mismatch"
+        return True, "ok"
+
+    m = re.fullmatch(r"(?:integrate|int)\((.+),x,([^,]+),([^)]+)\)", line)
+    if m:
+        integrand = giac_to_sympy(m.group(1))
+        result = giac_to_sympy(output)
+        a = giac_to_sympy(m.group(2))
+        b = giac_to_sympy(m.group(3))
+        antideriv = sp.integrate(integrand, x)
+        expected = sp.simplify(antideriv.subs(x, b) - antideriv.subs(x, a))
+        if sp.simplify(result - expected) != 0:
+            return False, "definite integrate mismatch"
+        return True, "ok"
+
+    m = re.fullmatch(r"limit\((.+),x,(.+)\)", line)
+    if m:
+        f = giac_to_sympy(m.group(1))
+        pt = m.group(2).strip()
+        if pt in ("+infinity", "infinity"):
+            expected = sp.limit(f, x, sp.oo)
+        elif pt == "-infinity":
+            expected = sp.limit(f, x, -sp.oo)
+        else:
+            expected = sp.limit(f, x, giac_to_sympy(pt))
+        got = giac_to_sympy(output)
+        if sp.simplify(expected - got) != 0:
+            return False, "limit mismatch"
+        return True, "ok"
+
+    m = re.fullmatch(r"(?:diff|derive)\((.+),\[(.+)\]\)", line)
+    if m:
+        inp = giac_to_sympy(m.group(1))
+        var_strs = split_top_level(m.group(2))
+        vars_ = [symbols(v.strip()) for v in var_strs]
+        got = giac_to_sympy(output)
+        if not isinstance(got, sp.Tuple):
+            return False, "derive multivariate expected tuple"
+        if len(got.args) != len(vars_):
+            return False, "derive component count mismatch"
+        for vi, gi in zip(vars_, got.args):
+            if sp.simplify(sp.diff(inp, vi) - gi) != 0:
+                return False, f"derive mismatch for {vi}"
         return True, "ok"
 
     m = re.fullmatch(r"(?:diff|derive)\((.+),x\)", line)
@@ -675,6 +776,53 @@ def verify_property(line: str, output: str) -> tuple[bool, str]:
         got = giac_to_sympy(output)
         if sp.simplify(sp.diff(inp, x) - got) != 0:
             return False, "diff mismatch"
+        return True, "ok"
+
+    m = re.fullmatch(r"fsolve\((.+),(.+)\)", line)
+    if m:
+        eq_str = m.group(1).strip()
+        var = symbols(m.group(2).strip())
+        mm = re.fullmatch(r"(.+?)=(.+)", eq_str)
+        if mm:
+            f = giac_to_sympy(mm.group(1)) - giac_to_sympy(mm.group(2))
+        else:
+            f = giac_to_sympy(eq_str)
+        root = float(giac_to_sympy(output))
+        if abs(float(f.subs(var, root))) > 1e-6:
+            return False, "fsolve residual too large"
+        return True, "ok"
+
+    m = re.fullmatch(r"sturmab\((.+),x,([^,]+),([^)]+)\)", line)
+    if m:
+        f = sp.expand(giac_to_sympy(m.group(1)))
+        a = float(giac_to_sympy(m.group(2)))
+        b = float(giac_to_sympy(m.group(3)))
+        got = int(giac_to_sympy(output))
+        p = sp.Poly(f, x)
+        if b == 0:
+            count = sum(
+                1
+                for r in p.nroots()
+                if abs(r.as_real_imag()[1]) < 1e-8
+                and a < r.as_real_imag()[0] < 0
+            )
+        else:
+            count = sum(
+                1
+                for r in p.nroots()
+                if abs(r.as_real_imag()[1]) < 1e-8 and a < r.as_real_imag()[0] <= b
+            )
+        if count != got:
+            return False, f"sturmab expected {count}, got {got}"
+        return True, "ok"
+
+    m = re.fullmatch(r"sturm\((.+),x\)", line)
+    if m:
+        got = giac_to_sympy(output)
+        if not isinstance(got, sp.Tuple):
+            return False, "sturm expected list/tuple"
+        if len(got.args) < 2:
+            return False, "sturm sequence too short"
         return True, "ok"
 
     m = re.fullmatch(r"texpand\((.+)\)", line)
@@ -871,6 +1019,12 @@ def verify_property(line: str, output: str) -> tuple[bool, str]:
             eq = sp.Eq(giac_to_sympy(mm.group(1)), giac_to_sympy(mm.group(2)))
         else:
             eq = sp.Eq(giac_to_sympy(eq_str), 0)
+        if "rootof" in output:
+            expected = sp.solve(eq, var)
+            n_got = output.count("rootof")
+            if len(expected) != n_got:
+                return False, f"rootof solve count: expected {len(expected)}, got {n_got}"
+            return True, "ok"
         got = giac_to_sympy(output)
         if isinstance(got, sp.Tuple):
             roots_got = list(got.args)
@@ -1118,6 +1272,8 @@ def verify(line: str, output: str) -> tuple[bool, str]:
         return verify_property(line, output)
     if line.startswith(("integrate(", "int(", "ker(", "image(", "pcar(")):
         return verify_property(line, output)
+    if line.startswith("limit("):
+        return verify_property(line, output)
     if line.startswith(("texpand(", "halftan(", "lin(", "tlin(")):
         return verify_property(line, output)
     if line.startswith(("diff(", "derive(")):
@@ -1132,6 +1288,8 @@ def verify(line: str, output: str) -> tuple[bool, str]:
     if line.startswith("linsolve("):
         return verify_property(line, output)
     if line.startswith("solve("):
+        return verify_property(line, output)
+    if line.startswith(("sturm(", "sturmab(", "fsolve(")):
         return verify_property(line, output)
     if line.startswith("gauss("):
         return verify_property(line, output)

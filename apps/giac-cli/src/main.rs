@@ -5,7 +5,7 @@ use std::path::PathBuf;
 
 use anyhow::{Context as AnyhowCtx, Result};
 use giac_core::{exec_stmt, format_expr, StmtResult};
-use giac_calculus::xcas_default;
+use giac_ode::xcas_default;
 use giac_parse::parse_program;
 
 #[cfg(not(target_arch = "wasm32"))]

@@ -4,13 +4,14 @@ Rust reimplementation of the [Giac](https://www-fourier.univ-grenoble-alpes.fr/~
 
 ## Status
 
-**Phase 0–3** complete for the current MVP scope; **Phase 4** (solve / calculus) is next.
+**Phase 0–3** complete for the current MVP scope; **Phase 4** (solve / calculus) in progress — engineering scaffolding landed (see below).
 
 | Phase | Scope | Crates |
 |-------|--------|--------|
 | **0–1** | Expr, parse, eval, simplify, basic CAS | `giac-core`, `giac-parse`, `giac-simplify` |
 | **2** | Polynomial ring, gcd/factor, modular, Groebner `greduce` | `giac-poly`, `giac-groebner` |
 | **3** | Symbolic + numeric linear algebra | `giac-linalg` |
+| **4** (WIP) | Solve, calculus, ODE | `giac-solve`, `giac-calculus`, `giac-ode` |
 
 ### Phase 3 APIs (via `giac-cli` / eval)
 
@@ -78,6 +79,13 @@ Integration tests live in `tests/conformance/`. Run subsets with:
 cargo test -p giac-conformance --test phase3_linalg
 cargo test -p giac-conformance --test phase3_triple
 
+# Phase 4 — solve / calculus (scaffolding + integral table)
+cargo test -p giac-conformance --test phase4_parse
+cargo test -p giac-conformance --test phase4_integrate_table
+cargo test -p giac-conformance --test phase4_triple
+cargo test -p giac-conformance --test test_diff
+cargo test -p giac-conformance --test test_solve
+
 # Phase 2 — polynomials / Groebner
 cargo test -p giac-conformance --test phase2_poly
 cargo test -p giac-conformance --test phase2_triple
@@ -105,6 +113,7 @@ giac-rs/
 │   ├── giac-groebner/    # greduce
 │   ├── giac-linalg/      # symbolic + numeric linear algebra
 │   ├── giac-calculus/    # integrate, diff (CalculusPlugin)
+│   ├── giac-ode/         # desolve (OdePlugin)
 │   ├── giac-solve/       # solve, linsolve (SolvePlugin)
 │   └── giac-wasm/        # WASM eval_to_string export
 ├── apps/giac-cli/        # script runner (native only; not wasm32)
@@ -115,5 +124,5 @@ giac-rs/
 
 - [Rust migration plan](../.doc/rust-migration-plan.md) — crate graph, phases, type design
 - [Known divergences](../.doc/known-divergences.md) — Rust vs Giac golden diffs and verification strategy
-- [Phase 3 issues](../.doc/phase3-issues.md) — GIAC-101–117 backlog
+- [Phase 4 issues](../.doc/phase4-issues.md) — GIAC-201+ backlog and integral table
 - Error-handling rules: [supplement §6](../.doc/rust-migration-supplement.md#6-错误处理与-unwrap-规范)

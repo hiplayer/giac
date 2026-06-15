@@ -4,7 +4,9 @@ use giac_core::{
     eval, expr_to_poly, poly_to_expr, Context, EvalError, Expr, ExprArc, Ident, RelOp,
 };
 use giac_linalg::eval_linsolve;
-use giac_poly::{roots, Var};
+use giac_poly::{roots, PolyError, Var};
+
+use crate::rootof::quadratic_rootof_roots;
 
 /// `solve(equation, var)` or `solve([equations], [vars])`.
 pub fn eval_solve(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
@@ -16,8 +18,12 @@ pub fn eval_solve(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError>
     }
     let var = ident_from_expr(&args[1])?;
     let poly = equation_to_poly(args[0].as_ref(), ctx)?;
-    let rs = roots(&poly, &Var::from(var.as_str())).map_err(poly_err)?;
-    let items: Vec<ExprArc> = rs.into_iter().map(|p| poly_to_expr(&p)).collect();
+    let v = Var::from(var.as_str());
+    let items: Vec<ExprArc> = match roots(&poly, &v) {
+        Ok(rs) => rs.into_iter().map(|p| poly_to_expr(&p)).collect(),
+        Err(PolyError::NotImplemented(_)) => quadratic_rootof_roots(&poly, &v)?,
+        Err(e) => return Err(poly_err(e)),
+    };
     eval(Arc::new(Expr::List(items)).as_ref(), ctx)
 }
 

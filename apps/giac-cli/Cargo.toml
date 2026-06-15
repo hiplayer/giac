@@ -18,5 +18,6 @@ giac-core = { workspace = true }
 giac-linalg = { workspace = true }
 giac-solve = { workspace = true }
 giac-calculus = { workspace = true }
+giac-ode = { workspace = true }
 giac-parse = { workspace = true }
 anyhow = { workspace = true }

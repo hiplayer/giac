@@ -11,6 +11,7 @@ pub trait CalculusPlugin: Send + Sync {
     fn eval_diff(&self, args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError>;
     fn eval_limit(&self, args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError>;
     fn eval_series(&self, args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError>;
+    fn eval_risch(&self, args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError>;
 }
 
 impl Context {

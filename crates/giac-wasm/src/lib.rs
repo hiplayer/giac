@@ -2,7 +2,7 @@
 #![cfg_attr(not(test), warn(clippy::unwrap_used))]
 #![cfg_attr(not(test), warn(clippy::expect_used))]
 
-use giac_calculus::xcas_default;
+use giac_ode::xcas_default;
 use giac_core::{exec_stmt, format_expr, StmtResult};
 use giac_parse::parse_program;
 use wasm_bindgen::prelude::*;
@@ -59,5 +59,25 @@ mod tests {
     #[test]
     fn eval_parse_error() {
         assert!(eval_to_string("1+").is_err());
+    }
+
+    #[test]
+    fn eval_solve_quadratic() {
+        assert_eq!(
+            eval_to_string("solve(x^2-2*x+1=0,x)").unwrap(),
+            "[1]"
+        );
+    }
+
+    #[test]
+    fn eval_integrate_x() {
+        let out = eval_to_string("integrate(x,x)").unwrap();
+        assert!(out.contains("1/2") && out.contains("x^2"), "got {out}");
+    }
+
+    #[test]
+    fn eval_diff_x_squared() {
+        let out = eval_to_string("diff(x^2,x)").unwrap();
+        assert!(out.contains("2") && out.contains("x"), "got {out}");
     }
 }

@@ -111,7 +111,19 @@ pub enum FuncKind {
     Solve,
     Fsolve,
     Sturm,
+    Sturmab,
     Realroot,
+    Limit,
+    Series,
+    Taylor,
+    Desolve,
+    Risch,
+    Proot,
+    Simplify,
+    /// Unknown identifier applied to arguments, e.g. `y(x)` in ODEs.
+    Apply,
+    /// Prime notation: `y'`, `y''` → args `[base, order]`.
+    Prime,
 }
 
 impl Expr {

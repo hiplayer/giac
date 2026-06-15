@@ -4,9 +4,12 @@
 
 mod plugin;
 mod solve;
+mod rootof;
+mod sturm;
+mod fsolve;
 mod stubs;
 
 pub use giac_linalg::eval_linsolve;
 pub use plugin::{install_solve, xcas_default, DefaultSolvePlugin};
 pub use solve::eval_solve;
-pub use stubs::{eval_fsolve, eval_realroot, eval_sturm};
+pub use stubs::{eval_fsolve, eval_realroot, eval_sturm, eval_sturmab};

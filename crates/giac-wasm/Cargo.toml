@@ -16,4 +16,5 @@ crate-type = ["cdylib", "rlib"]
 giac-core = { workspace = true }
 giac-parse = { workspace = true }
 giac-calculus = { workspace = true }
+giac-ode = { workspace = true }
 wasm-bindgen = { workspace = true }

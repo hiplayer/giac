@@ -5,7 +5,7 @@ use std::sync::Arc;
 use giac_core::{Context, EvalError, ExprArc, SolvePlugin};
 
 use crate::solve::eval_solve;
-use crate::stubs::{eval_fsolve, eval_realroot, eval_sturm};
+use crate::stubs::{eval_fsolve, eval_realroot, eval_sturm, eval_sturmab};
 
 /// Default implementation of [`SolvePlugin`].
 pub struct DefaultSolvePlugin;
@@ -30,6 +30,10 @@ impl SolvePlugin for DefaultSolvePlugin {
 
     fn eval_sturm(&self, args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
         eval_sturm(args, ctx)
+    }
+
+    fn eval_sturmab(&self, args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
+        eval_sturmab(args, ctx)
     }
 
     fn eval_realroot(&self, args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {

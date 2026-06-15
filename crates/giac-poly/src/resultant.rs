@@ -109,7 +109,7 @@ fn sylvester_det2(a: &Poly, b: &Poly, var: &Var) -> Poly {
     Poly::constant(a1 * b0 - a0 * b1)
 }
 
-pub(crate) fn coeff_at(p: &Poly, var: &Var, exp: u64) -> Ratio<BigInt> {
+pub fn coeff_at(p: &Poly, var: &Var, exp: u64) -> Ratio<BigInt> {
     for (m, c) in &p.terms {
         if exp == 0 && m.is_const() {
             return c.clone();
@@ -121,7 +121,7 @@ pub(crate) fn coeff_at(p: &Poly, var: &Var, exp: u64) -> Ratio<BigInt> {
     Ratio::zero()
 }
 
-pub(crate) fn univariate_degree(p: &Poly, var: &Var) -> u64 {
+pub fn univariate_degree(p: &Poly, var: &Var) -> u64 {
     p.terms
         .keys()
         .filter_map(|m| {

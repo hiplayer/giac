@@ -6,6 +6,7 @@ members = [
     "crates/giac-linalg",
     "crates/giac-solve",
     "crates/giac-calculus",
+    "crates/giac-ode",
     "crates/giac-wasm",
     "crates/giac-groebner",
     "crates/giac-simplify",
@@ -33,6 +34,7 @@ giac-poly = { path = "crates/giac-poly" }
 giac-linalg = { path = "crates/giac-linalg" }
 giac-solve = { path = "crates/giac-solve" }
 giac-calculus = { path = "crates/giac-calculus" }
+giac-ode = { path = "crates/giac-ode" }
 giac-wasm = { path = "crates/giac-wasm" }
 wasm-bindgen = "=0.2.87"
 giac-groebner = { path = "crates/giac-groebner" }

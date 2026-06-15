@@ -41,7 +41,7 @@ console.log(evalToString("1+2")); // "3"
 |------|-----------|-------------|
 | `eval_to_string(input) -> Result<String, String>` | `evalToString(input) -> string` | Parse and evaluate; JS returns `"error: …"` on failure |
 
-Uses `giac_calculus::xcas_default()` (linear algebra, solve, and calculus plugins).
+Uses `giac_ode::xcas_default()` (linear algebra, solve, calculus, and ODE plugin stubs).
 
 ## Test
 

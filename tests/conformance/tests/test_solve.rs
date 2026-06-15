@@ -1,7 +1,7 @@
 //! GIAC-114: `bin/test_solve` parse + end-to-end verification.
 
 use giac_conformance::{run_line, run_lines, script_lines, sympy_verify_lines, upstream_root, verify_sympy};
-use giac_calculus::xcas_default;
+use giac_ode::xcas_default;
 use giac_parse::parse_program;
 
 #[test]
