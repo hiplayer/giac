@@ -14,8 +14,8 @@
       "id": "CK-INT-02",
       "line": "integrate((x^4+4*x^2+6*x+4)/(x+1)^2,x)",
       "kind": "integrate",
-      "enabled": false,
-      "giac_issue": "GIAC-219"
+      "enabled": true,
+      "giac_issue": "GIAC-224"
     },
     {
       "id": "CK-INT-03",
@@ -63,8 +63,8 @@
       "id": "CK-INT-09",
       "line": "integrate(x^7/((x^4-1)*(x^2+3)),x)",
       "kind": "integrate",
-      "enabled": false,
-      "giac_issue": "GIAC-219"
+      "enabled": true,
+      "giac_issue": "GIAC-224"
     },
     {
       "id": "CK-INT-10",

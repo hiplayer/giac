@@ -8,7 +8,7 @@
     { "id": "INT-A04", "line": "integrate(x/(x^2+1),x)", "enabled": true, "giac_issue": "GIAC-210", "bin_ref": null },
     { "id": "INT-A05", "line": "integrate(1/(4+x^2),x)", "enabled": true, "giac_issue": "GIAC-210", "bin_ref": null },
     { "id": "INT-A06", "line": "integrate(1/(1-x^2),x)", "enabled": true, "giac_issue": "GIAC-212", "bin_ref": null },
-    { "id": "INT-A07", "line": "integrate(1/(1+x^4),x)", "enabled": false, "giac_issue": "GIAC-212", "bin_ref": null },
+    { "id": "INT-A07", "line": "integrate(1/(1+x^4),x)", "enabled": true, "giac_issue": "GIAC-228", "bin_ref": null },
     { "id": "INT-B01", "line": "integrate(1,x)", "enabled": true, "giac_issue": null, "bin_ref": null },
     { "id": "INT-B02", "line": "integrate(x,x)", "enabled": true, "giac_issue": null, "bin_ref": null },
     { "id": "INT-B03", "line": "integrate(x^2,x)", "enabled": true, "giac_issue": null, "bin_ref": null },
