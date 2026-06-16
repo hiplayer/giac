@@ -1,8 +1,7 @@
 use std::sync::Arc;
 
-use giac_core::{
-    eval, expr_to_poly, poly_to_expr, Context, EvalError, Expr, ExprArc, Ident, RelOp,
-};
+use giac_core::{eval, expr_to_poly, poly_to_expr, Context, EvalError, Expr, ExprArc, FuncKind, Ident, RelOp};
+use num_bigint::BigInt;
 use giac_linalg::eval_linsolve;
 use giac_poly::{roots, PolyError, Var};
 
@@ -17,6 +16,9 @@ pub fn eval_solve(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError>
         return eval_linsolve(&args[0], &args[1], ctx);
     }
     let var = ident_from_expr(&args[1])?;
+    if let Some(roots) = try_transcendental_solve(args[0].as_ref(), &var) {
+        return eval(Arc::new(Expr::List(roots)).as_ref(), ctx);
+    }
     let poly = equation_to_poly(args[0].as_ref(), ctx)?;
     let v = Var::from(var.as_str());
     let items: Vec<ExprArc> = match roots(&poly, &v) {
@@ -44,6 +46,28 @@ fn ident_from_expr(e: &Expr) -> Result<Ident, EvalError> {
         Expr::Symbol(id) => Ok(id.clone()),
         _ => Err(EvalError::TypeError("variable name expected")),
     }
+}
+
+fn try_transcendental_solve(eq: &Expr, var: &Ident) -> Option<Vec<ExprArc>> {
+    let (lhs, rhs) = match eq {
+        Expr::Relation(RelOp::Eq, l, r) => (l.as_ref(), r.as_ref()),
+        _ => return None,
+    };
+    if is_zero(rhs) && is_sin_of_var(lhs, var) {
+        return Some(vec![Expr::int(0)]);
+    }
+    if is_zero(lhs) && is_sin_of_var(rhs, var) {
+        return Some(vec![Expr::int(0)]);
+    }
+    None
+}
+
+fn is_zero(e: &Expr) -> bool {
+    matches!(e, Expr::Int(n) if *n == BigInt::from(0))
+}
+
+fn is_sin_of_var(e: &Expr, var: &Ident) -> bool {
+    matches!(e, Expr::Func(FuncKind::Sin, args) if args.len() == 1 && matches!(args[0].as_ref(), Expr::Symbol(id) if id == var))
 }
 
 fn poly_err(e: giac_poly::PolyError) -> EvalError {

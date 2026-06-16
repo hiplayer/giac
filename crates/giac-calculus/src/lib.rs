@@ -6,12 +6,15 @@ mod diff;
 mod eval_diff;
 mod eval_integrate;
 mod integrate;
+mod partfrac_integrate;
 mod plugin;
 mod stubs;
+mod limit;
 
 pub use diff::diff;
 pub use eval_diff::eval_diff;
 pub use eval_integrate::eval_integrate;
 pub use integrate::integrate;
 pub use plugin::{install_calculus, xcas_default, DefaultCalculusPlugin};
-pub use stubs::{eval_limit, eval_series};
+pub use limit::eval_limit;
+pub use stubs::eval_series;

@@ -48,6 +48,9 @@ pub fn integrate(expr: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
 
 fn integrate_frac(num: &ExprArc, den: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     if is_const_wrt(num, var) {
+        if let Ok(r) = crate::partfrac_integrate::integrate_const_over_rational(num, den, var) {
+            return Ok(r);
+        }
         let inner = integrate_reciprocal(den, var)?;
         if num.is_one() {
             return Ok(inner);
@@ -83,7 +86,18 @@ fn integrate_reciprocal(den: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError
         }
     }
     if let Expr::Add(terms) = den.as_ref() {
+        if let Ok(r) = crate::partfrac_integrate::integrate_const_over_rational(
+            &Expr::int(1),
+            den,
+            var,
+        ) {
+            return Ok(r);
+        }
         return integrate_reciprocal_quadratic(terms, var);
+    }
+    if let Ok(r) = crate::partfrac_integrate::integrate_const_over_rational(&Expr::int(1), den, var)
+    {
+        return Ok(r);
     }
     Err(EvalError::NotImplemented("integrate reciprocal"))
 }
@@ -179,6 +193,55 @@ fn integrate_x_ln(var: &Ident) -> ExprArc {
     ])
 }
 
+fn try_integrate_exp_trig(a: &ExprArc, b: &ExprArc, var: &Ident) -> Option<ExprArc> {
+    if is_exp_of_var(a, var) && is_sin_of_var(b, var) {
+        return Some(integrate_exp_sin(var));
+    }
+    if is_exp_of_var(b, var) && is_sin_of_var(a, var) {
+        return Some(integrate_exp_sin(var));
+    }
+    if is_exp_of_var(a, var) && is_cos_of_var(b, var) {
+        return Some(integrate_exp_cos(var));
+    }
+    if is_exp_of_var(b, var) && is_cos_of_var(a, var) {
+        return Some(integrate_exp_cos(var));
+    }
+    None
+}
+
+fn integrate_exp_sin(var: &Ident) -> ExprArc {
+    let x = var_to_expr(var);
+    let exp_x = Expr::func(FuncKind::Exp, vec![x.clone()]);
+    Expr::mul(vec![
+        Expr::rat(1, 2),
+        exp_x,
+        Expr::add(vec![
+            Expr::func(FuncKind::Sin, vec![x.clone()]),
+            Expr::mul(vec![
+                Expr::int(-1),
+                Expr::func(FuncKind::Cos, vec![x]),
+            ]),
+        ]),
+    ])
+}
+
+fn integrate_exp_cos(var: &Ident) -> ExprArc {
+    let x = var_to_expr(var);
+    let exp_x = Expr::func(FuncKind::Exp, vec![x.clone()]);
+    Expr::mul(vec![
+        Expr::rat(1, 2),
+        exp_x,
+        Expr::add(vec![
+            Expr::func(FuncKind::Sin, vec![x.clone()]),
+            Expr::func(FuncKind::Cos, vec![x]),
+        ]),
+    ])
+}
+
+fn is_exp_of_var(e: &ExprArc, var: &Ident) -> bool {
+    matches!(e.as_ref(), Expr::Func(FuncKind::Exp, args) if args.len() == 1 && is_var(&args[0], var))
+}
+
 fn integrate_mul(factors: &[ExprArc], var: &Ident) -> Result<ExprArc, EvalError> {
     if factors.len() == 1 {
         return integrate(&factors[0], var);
@@ -196,6 +259,9 @@ fn integrate_mul(factors: &[ExprArc], var: &Ident) -> Result<ExprArc, EvalError>
             || (is_var(&factors[1], var) && is_ln_of_var(&factors[0], var))
         {
             return Ok(integrate_x_ln(var));
+        }
+        if let Some(r) = try_integrate_exp_trig(&factors[0], &factors[1], var) {
+            return Ok(r);
         }
     }
     let const_part: Vec<ExprArc> = factors
@@ -282,9 +348,6 @@ fn count_var_factors(e: &Expr, var: &Ident) -> usize {
 
 fn integrate_pow(base: &ExprArc, exp: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     if matches!(exp.as_ref(), Expr::Int(n) if n == &-BigInt::from(1)) {
-        if let Expr::Add(terms) = base.as_ref() {
-            return integrate_reciprocal_quadratic(terms, var);
-        }
         return integrate_reciprocal(base, var);
     }
     if let Expr::Func(FuncKind::Sin, args) = base.as_ref() {
@@ -441,11 +504,11 @@ fn ln_abs(var: &Ident) -> ExprArc {
     ln_abs_expr(var_to_expr(var))
 }
 
-fn ln_abs_expr(arg: ExprArc) -> ExprArc {
+pub(crate) fn ln_abs_expr(arg: ExprArc) -> ExprArc {
     Expr::func(FuncKind::Ln, vec![Expr::func(FuncKind::Abs, vec![arg])])
 }
 
-fn var_to_expr(var: &Ident) -> ExprArc {
+pub(crate) fn var_to_expr(var: &Ident) -> ExprArc {
     Expr::sym(var.as_str())
 }
 

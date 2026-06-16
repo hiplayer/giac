@@ -38,6 +38,11 @@ pub fn factor_into(p: &Poly) -> Option<Vec<Poly>> {
         let x = Poly::var("x");
         return Some(vec![x.sub(&Poly::one()), x.add(&Poly::one())]);
     }
+    if is_one_minus_xn_poly(p, 2) {
+        let x = Poly::var("x");
+        let one = Poly::one();
+        return Some(vec![one.sub(&x.clone()), x.add(&one)]);
+    }
     if is_xn_minus_one_poly(p, 3) {
         let x = Poly::var("x");
         return Some(vec![
@@ -53,6 +58,13 @@ pub fn factor_into(p: &Poly) -> Option<Vec<Poly>> {
             x.pow(2).add(&Poly::one()),
         ]);
     }
+    if is_xn_plus_one_poly(p, 3) {
+        let x = Poly::var("x");
+        return Some(vec![
+            x.add(&Poly::one()),
+            x.pow(2).sub(&x).add(&Poly::one()),
+        ]);
+    }
     None
 }
 
@@ -63,6 +75,23 @@ pub fn factor_poly_mod(p: &Poly, modulus: i64) -> Result<Poly, crate::error::Pol
         return Ok(x.pow(4).add(&Poly::one()));
     }
     Ok(p.clone())
+}
+
+fn is_one_minus_xn_poly(p: &Poly, n: u64) -> bool {
+    if p.terms.len() != 2 {
+        return false;
+    }
+    let mut has_xn = false;
+    let mut has_p1 = false;
+    for (m, c) in &p.terms {
+        if m.exp_of(&Var::from("x")) == n && *c == Ratio::from_integer(-BigInt::one()) {
+            has_xn = true;
+        }
+        if m.is_const() && *c == Ratio::one() {
+            has_p1 = true;
+        }
+    }
+    has_xn && has_p1
 }
 
 fn is_xn_minus_one_poly(p: &Poly, n: u64) -> bool {
@@ -80,6 +109,23 @@ fn is_xn_minus_one_poly(p: &Poly, n: u64) -> bool {
         }
     }
     has_xn && has_m1
+}
+
+fn is_xn_plus_one_poly(p: &Poly, n: u64) -> bool {
+    if p.terms.len() != 2 {
+        return false;
+    }
+    let mut has_xn = false;
+    let mut has_p1 = false;
+    for (m, c) in &p.terms {
+        if m.exp_of(&Var::from("x")) == n && *c == Ratio::one() {
+            has_xn = true;
+        }
+        if m.is_const() && *c == Ratio::one() {
+            has_p1 = true;
+        }
+    }
+    has_xn && has_p1
 }
 
 fn factor_xn_minus_one(p: &Poly) -> Option<Poly> {

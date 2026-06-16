@@ -6,7 +6,8 @@ use giac_core::{CalculusPlugin, Context, EvalError, ExprArc};
 
 use crate::eval_diff::eval_diff;
 use crate::eval_integrate::eval_integrate;
-use crate::stubs::{eval_limit, eval_risch, eval_series};
+use crate::limit::eval_limit;
+use crate::stubs::{eval_risch, eval_series};
 
 /// Default implementation of [`CalculusPlugin`].
 pub struct DefaultCalculusPlugin;

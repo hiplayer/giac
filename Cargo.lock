@@ -58,8 +58,11 @@ name = "giac-calculus"
 version = "0.1.0"
 dependencies = [
  "giac-core",
+ "giac-poly",
  "giac-solve",
  "num-bigint",
+ "num-rational",
+ "num-traits",
 ]
 
 [[package]]
@@ -170,6 +173,7 @@ dependencies = [
  "giac-poly",
  "num-bigint",
  "num-rational",
+ "num-traits",
 ]
 
 [[package]]

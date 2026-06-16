@@ -256,15 +256,16 @@ def eval_phase1(line: str) -> Any | None:
         b = giac_to_sympy(m.group(3))
         return sp.integrate(f, (x, a, b))
 
-    m = re.fullmatch(r"limit\((.+),x,(.+)\)", line)
+    m = re.fullmatch(r"limit\((.+),([^,]+),(.+)\)", line)
     if m:
         f = giac_to_sympy(m.group(1))
-        pt = m.group(2).strip()
+        var = symbols(m.group(2).strip())
+        pt = m.group(3).strip()
         if pt in ("+infinity", "infinity"):
-            return sp.limit(f, x, sp.oo)
+            return sp.limit(f, var, sp.oo)
         if pt == "-infinity":
-            return sp.limit(f, x, -sp.oo)
-        return sp.limit(f, x, giac_to_sympy(pt))
+            return sp.limit(f, var, -sp.oo)
+        return sp.limit(f, var, giac_to_sympy(pt))
 
     m = re.fullmatch(r"series\((.+),x,([^,]+),(\d+)\)", line)
     if m:
@@ -740,16 +741,17 @@ def verify_property(line: str, output: str) -> tuple[bool, str]:
             return False, "definite integrate mismatch"
         return True, "ok"
 
-    m = re.fullmatch(r"limit\((.+),x,(.+)\)", line)
+    m = re.fullmatch(r"limit\((.+),([^,]+),(.+)\)", line)
     if m:
         f = giac_to_sympy(m.group(1))
-        pt = m.group(2).strip()
+        var = symbols(m.group(2).strip())
+        pt = m.group(3).strip()
         if pt in ("+infinity", "infinity"):
-            expected = sp.limit(f, x, sp.oo)
+            expected = sp.limit(f, var, sp.oo)
         elif pt == "-infinity":
-            expected = sp.limit(f, x, -sp.oo)
+            expected = sp.limit(f, var, -sp.oo)
         else:
-            expected = sp.limit(f, x, giac_to_sympy(pt))
+            expected = sp.limit(f, var, giac_to_sympy(pt))
         got = giac_to_sympy(output)
         if sp.simplify(expected - got) != 0:
             return False, "limit mismatch"
@@ -817,6 +819,15 @@ def verify_property(line: str, output: str) -> tuple[bool, str]:
         return True, "ok"
 
     m = re.fullmatch(r"sturm\((.+),x\)", line)
+    if m:
+        got = giac_to_sympy(output)
+        if not isinstance(got, sp.Tuple):
+            return False, "sturm expected list/tuple"
+        if len(got.args) < 2:
+            return False, "sturm sequence too short"
+        return True, "ok"
+
+    m = re.fullmatch(r"sturm\((.+)\)", line)
     if m:
         got = giac_to_sympy(output)
         if not isinstance(got, sp.Tuple):

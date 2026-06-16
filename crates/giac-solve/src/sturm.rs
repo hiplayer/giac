@@ -11,7 +11,8 @@ use num_rational::Ratio;
 
 pub fn eval_sturm(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     let (poly, var) = poly_and_var(args, ctx)?;
-    let seq = sturm_sequence(&poly, &var).map_err(sturm_err)?;
+    let q = giac_poly::odd_multiplicity_part(&poly, &var).map_err(sturm_err)?;
+    let seq = sturm_sequence(&q, &var).map_err(sturm_err)?;
     let items: Vec<ExprArc> = seq.into_iter().map(|p| poly_to_expr(&p)).collect();
     Ok(Arc::new(Expr::List(items)))
 }

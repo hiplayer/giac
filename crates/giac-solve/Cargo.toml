@@ -15,3 +15,4 @@ giac-poly = { workspace = true }
 giac-linalg = { workspace = true }
 num-bigint = { workspace = true }
 num-rational = { workspace = true }
+num-traits = { workspace = true }
