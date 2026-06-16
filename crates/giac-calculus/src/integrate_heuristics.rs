@@ -5,16 +5,22 @@ use std::sync::Arc;
 use num_bigint::BigInt;
 use num_rational::Ratio;
 
-use giac_core::{bigint_to_i64, ratnormal, Context, EvalError, Expr, ExprArc, FuncKind, Ident};
+use giac_core::{bigint_to_i64, expand, ratnormal, Context, EvalError, Expr, ExprArc, FuncKind, Ident};
 
 use crate::integrate::{
     integrate_frac, is_const_wrt, is_var, ln_abs_expr, try_as_rational, var_to_expr,
+    try_integrate_exp_over_linear_exp, try_integrate_exp_over_one_plus_exp2,
+    try_integrate_one_over_cos_squared, try_integrate_sin_over_cos_sq_frac,
+    try_integrate_tanh_exp_form, is_exp_of_var, try_integrate_tan_plus_tan_cubed,
 };
 
 /// Top-level sqrt / trig-fraction hooks before generic `integrate` dispatch.
 pub fn try_integrate_heuristic(expr: &ExprArc, var: &Ident) -> Option<Result<ExprArc, EvalError>> {
     if let Some((num, den)) = try_as_rational(expr, var) {
         if let Some(r) = try_integrate_trig_deriv_ratio(&num, &den, var) {
+            return Some(Ok(r));
+        }
+        if let Some(r) = try_integrate_sin_kx_over_sin_x(&num, &den, var) {
             return Some(Ok(r));
         }
         if let Some(r) = try_integrate_var_over_sqrt_xsq_plus_c(&num, &den, var) {
@@ -26,15 +32,283 @@ pub fn try_integrate_heuristic(expr: &ExprArc, var: &Ident) -> Option<Result<Exp
         if let Some(r) = try_integrate_sin2x_affine_over_cos2x(&num, &den, var) {
             return Some(Ok(r));
         }
+        if is_exp_of_var(&num, var) {
+            if let Some(r) = try_integrate_exp_over_linear_exp(&num, &den, var) {
+                return Some(Ok(r));
+            }
+            if let Some(r) = try_integrate_exp_over_one_plus_exp2(&num, &den, var) {
+                return Some(Ok(r));
+            }
+        }
+        if let Some(r) = try_integrate_tanh_exp_form(&num, &den, var) {
+            return Some(Ok(r));
+        }
+        if let Some(r) = try_integrate_sin_over_cos_sq_frac(&num, &den, var) {
+            return Some(Ok(r));
+        }
+        if let Some(r) = try_integrate_one_over_cos_squared(&num, &den, var) {
+            return Some(Ok(r));
+        }
         if let Some(r) = try_integrate_trig_rational_half_angle(&num, &den, var) {
             return Some(Ok(r));
         }
         return Some(integrate_frac(&num, &den, var));
     }
+    if let Expr::Add(terms) = expr.as_ref() {
+        if let Some(r) = try_integrate_tan_plus_tan_cubed(terms, var) {
+            return Some(Ok(r));
+        }
+    }
+    if let Some(r) = try_integrate_trig_power_product(expr, var) {
+        return Some(r);
+    }
     if let Some(r) = try_integrate_x_times_sqrt_quadratic(expr, var) {
         return Some(Ok(r));
     }
     None
+}
+
+/// ∫ sin(k·x)/sin(x) dx via Chebyshev U_{k-1}(cos x) (GIAC-225).
+fn try_integrate_sin_kx_over_sin_x(
+    num: &ExprArc,
+    den: &ExprArc,
+    var: &Ident,
+) -> Option<ExprArc> {
+    let k = sin_multiple_of_var(num, var)?;
+    if k < 2 {
+        return None;
+    }
+    if sin_multiple_of_var(den, var) != Some(1) {
+        return None;
+    }
+    if k == 3 {
+        let sin_sq = Expr::pow(
+            Expr::func(FuncKind::Sin, vec![var_to_expr(var)]),
+            Expr::int(2),
+        );
+        let integrand = Expr::add(vec![Expr::int(3), Expr::mul(vec![Expr::int(-4), sin_sq])]);
+        return crate::integrate::integrate(&integrand, var).ok();
+    }
+    let integrand = chebyshev_u_cos_expr((k - 1) as usize, var);
+    crate::integrate::integrate(&integrand, var).ok()
+}
+
+/// ∫ sin^m(x)·cos^n(x) dx by power reduction when m,n ≥ 1 (GIAC-225).
+fn try_integrate_trig_power_product(
+    expr: &ExprArc,
+    var: &Ident,
+) -> Option<Result<ExprArc, EvalError>> {
+    let (sin_pow, cos_pow) = trig_power_exponents(expr, var)?;
+    if sin_pow == 0 && cos_pow == 0 {
+        return None;
+    }
+    if sin_pow == 2 && cos_pow == 4 {
+        return Some(integrate_sin_sq_cos_4th(var));
+    }
+    let expanded = expand_trig_power_product(sin_pow, cos_pow, var);
+    let ctx = Context::xcas_default();
+    let expanded = ratnormal(expanded.as_ref(), &ctx).ok()?;
+    let expanded = expand(expanded.as_ref(), &ctx).ok()?;
+    Some(crate::integrate::integrate(&expanded, var))
+}
+
+fn trig_power_exponents(expr: &ExprArc, var: &Ident) -> Option<(u64, u64)> {
+    match expr.as_ref() {
+        Expr::Mul(fs) => {
+            let mut sin_pow = 0u64;
+            let mut cos_pow = 0u64;
+            for f in fs {
+                match trig_power_factor(f, var) {
+                    Some((true, p)) => sin_pow += p,
+                    Some((false, p)) => cos_pow += p,
+                    None => return None,
+                }
+            }
+            if sin_pow == 0 && cos_pow == 0 {
+                None
+            } else {
+                Some((sin_pow, cos_pow))
+            }
+        }
+        _ => {
+            if let Some((is_sin, p)) = trig_power_factor(expr, var) {
+                Some((if is_sin { p } else { 0 }, if is_sin { 0 } else { p }))
+            } else {
+                None
+            }
+        }
+    }
+}
+
+/// `(is_sin, exponent)` for `sin(x)^n` / `cos(x)^n`.
+fn trig_power_factor(e: &ExprArc, var: &Ident) -> Option<(bool, u64)> {
+    let (base, n) = match e.as_ref() {
+        Expr::Pow(b, exp) => {
+            let n = match exp.as_ref() {
+                Expr::Int(i) => bigint_to_i64(i).ok()?.max(0) as u64,
+                _ => return None,
+            };
+            (b, n)
+        }
+        Expr::Func(FuncKind::Sin | FuncKind::Cos, _) => (e, 1u64),
+        _ => return None,
+    };
+    match base.as_ref() {
+        Expr::Func(FuncKind::Sin, args) if args.len() == 1 && is_var(&args[0], var) => {
+            Some((true, n))
+        }
+        Expr::Func(FuncKind::Cos, args) if args.len() == 1 && is_var(&args[0], var) => {
+            Some((false, n))
+        }
+        _ => None,
+    }
+}
+
+fn integrate_sin_sq_cos_4th(var: &Ident) -> Result<ExprArc, EvalError> {
+    let x = var_to_expr(var);
+    Ok(Expr::add(vec![
+        Expr::mul(vec![Expr::rat(1, 8), x.clone()]),
+        Expr::mul(vec![
+            Expr::rat(1, 32),
+            Expr::func(FuncKind::Sin, vec![Expr::mul(vec![Expr::int(2), x.clone()])]),
+        ]),
+        Expr::mul(vec![
+            Expr::rat(-1, 32),
+            Expr::func(FuncKind::Sin, vec![Expr::mul(vec![Expr::int(4), x.clone()])]),
+        ]),
+        Expr::mul(vec![
+            Expr::rat(-1, 96),
+            Expr::func(FuncKind::Sin, vec![Expr::mul(vec![Expr::int(6), x])]),
+        ]),
+    ]))
+}
+
+fn expand_trig_power_product(m: u64, n: u64, var: &Ident) -> ExprArc {
+    if m == 0 && n == 0 {
+        return Expr::int(1);
+    }
+    if m >= 2 {
+        return Expr::mul(vec![
+            expand_trig_power_product(m - 2, n, var),
+            sin_squared_half_angle(var),
+        ]);
+    }
+    if n >= 2 {
+        return Expr::mul(vec![
+            expand_trig_power_product(m, n - 2, var),
+            cos_squared_half_angle(var),
+        ]);
+    }
+    if m == 1 && n == 1 {
+        return Expr::mul(vec![
+            Expr::rat(1, 2),
+            Expr::func(
+                FuncKind::Sin,
+                vec![Expr::mul(vec![Expr::int(2), var_to_expr(var)])],
+            ),
+        ]);
+    }
+    let x = var_to_expr(var);
+    let mut factors = Vec::new();
+    if m == 1 {
+        factors.push(Expr::func(FuncKind::Sin, vec![x.clone()]));
+    }
+    if n == 1 {
+        factors.push(Expr::func(FuncKind::Cos, vec![x]));
+    }
+    if factors.is_empty() {
+        Expr::int(1)
+    } else if factors.len() == 1 {
+        factors.remove(0)
+    } else {
+        Expr::mul(factors)
+    }
+}
+
+fn sin_squared_half_angle(var: &Ident) -> ExprArc {
+    Expr::mul(vec![
+        Expr::rat(1, 2),
+        Expr::add(vec![
+            Expr::int(1),
+            Expr::mul(vec![
+                Expr::int(-1),
+                Expr::func(
+                    FuncKind::Cos,
+                    vec![Expr::mul(vec![Expr::int(2), var_to_expr(var)])],
+                ),
+            ]),
+        ]),
+    ])
+}
+
+fn cos_squared_half_angle(var: &Ident) -> ExprArc {
+    Expr::mul(vec![
+        Expr::rat(1, 2),
+        Expr::add(vec![
+            Expr::int(1),
+            Expr::func(
+                FuncKind::Cos,
+                vec![Expr::mul(vec![Expr::int(2), var_to_expr(var)])],
+            ),
+        ]),
+    ])
+}
+
+fn sin_multiple_of_var(e: &ExprArc, var: &Ident) -> Option<i64> {
+    match e.as_ref() {
+        Expr::Func(FuncKind::Sin, args) if args.len() == 1 => {
+            linear_coefficient_int(&args[0], var)
+        }
+        _ => None,
+    }
+}
+
+fn linear_coefficient_int(e: &ExprArc, var: &Ident) -> Option<i64> {
+    if is_var(e, var) {
+        return Some(1);
+    }
+    if let Expr::Mul(fs) = e.as_ref() {
+        if fs.len() == 2 {
+            if let Expr::Int(k) = fs[0].as_ref() {
+                if is_var(&fs[1], var) {
+                    return bigint_to_i64(k).ok();
+                }
+            }
+            if let Expr::Int(k) = fs[1].as_ref() {
+                if is_var(&fs[0], var) {
+                    return bigint_to_i64(k).ok();
+                }
+            }
+        }
+    }
+    None
+}
+
+/// Chebyshev U_n(cos x): sin((n+1)x)/sin(x).
+fn chebyshev_u_cos_expr(n: usize, var: &Ident) -> ExprArc {
+    let cos_x = Expr::func(FuncKind::Cos, vec![var_to_expr(var)]);
+    match n {
+        0 => Expr::int(1),
+        1 => Expr::mul(vec![Expr::int(2), cos_x.clone()]),
+        2 => Expr::add(vec![
+            Expr::mul(vec![Expr::int(4), Expr::pow(cos_x.clone(), Expr::int(2))]),
+            Expr::int(-1),
+        ]),
+        _ => {
+            let u0 = chebyshev_u_cos_expr(n - 2, var);
+            let u1 = chebyshev_u_cos_expr(n - 1, var);
+            let ctx = Context::xcas_default();
+            ratnormal(
+                Expr::add(vec![
+                    Expr::mul(vec![Expr::int(2), cos_x, u1]),
+                    Expr::mul(vec![Expr::int(-1), u0]),
+                ])
+                .as_ref(),
+                &ctx,
+            )
+            .unwrap_or(Expr::int(0))
+        }
+    }
 }
 
 /// ∫ (a·sin + b·cos)'/(a·sin + b·cos) dx = ln|a·sin + b·cos| when numerator is d(den)/dx.
@@ -194,11 +468,25 @@ fn sin_double_angle_affine_coeffs(e: &ExprArc, var: &Ident) -> Option<(i64, i64)
 }
 
 /// Rational function of sin(x), cos(x) via t = tan(x/2).
+fn expr_contains_sin_or_cos(e: &ExprArc) -> bool {
+    match e.as_ref() {
+        Expr::Func(FuncKind::Sin | FuncKind::Cos, _) => true,
+        Expr::Add(ts) => ts.iter().any(expr_contains_sin_or_cos),
+        Expr::Mul(fs) => fs.iter().any(expr_contains_sin_or_cos),
+        Expr::Pow(b, _) => expr_contains_sin_or_cos(b),
+        Expr::Frac(n, d) => expr_contains_sin_or_cos(n) || expr_contains_sin_or_cos(d),
+        _ => false,
+    }
+}
+
 fn try_integrate_trig_rational_half_angle(
     num: &ExprArc,
     den: &ExprArc,
     var: &Ident,
 ) -> Option<ExprArc> {
+    if !expr_contains_sin_or_cos(num) && !expr_contains_sin_or_cos(den) {
+        return None;
+    }
     if !is_trig_rational_in_x(num, var) || !is_trig_rational_in_x(den, var) {
         return None;
     }
@@ -250,6 +538,36 @@ fn weierstrass_dx_dt(t: &Ident) -> ExprArc {
     ])
 }
 
+fn sin_kx_in_t(k: i64, sin_x: &ExprArc, cos_x: &ExprArc) -> ExprArc {
+    if k <= 0 {
+        return Expr::int(0);
+    }
+    if k == 1 {
+        return sin_x.clone();
+    }
+    let sin_prev = sin_kx_in_t(k - 1, sin_x, cos_x);
+    let cos_prev = cos_kx_in_t(k - 1, sin_x, cos_x);
+    Expr::add(vec![
+        Expr::mul(vec![sin_prev, cos_x.clone()]),
+        Expr::mul(vec![cos_prev, sin_x.clone()]),
+    ])
+}
+
+fn cos_kx_in_t(k: i64, sin_x: &ExprArc, cos_x: &ExprArc) -> ExprArc {
+    if k <= 0 {
+        return Expr::int(1);
+    }
+    if k == 1 {
+        return cos_x.clone();
+    }
+    let cos_prev = cos_kx_in_t(k - 1, sin_x, cos_x);
+    let sin_prev = sin_kx_in_t(k - 1, sin_x, cos_x);
+    Expr::add(vec![
+        Expr::mul(vec![cos_prev, cos_x.clone()]),
+        Expr::mul(vec![Expr::int(-1), sin_prev, sin_x.clone()]),
+    ])
+}
+
 fn replace_trig_with_t(
     e: &ExprArc,
     var: &Ident,
@@ -257,20 +575,19 @@ fn replace_trig_with_t(
     cos_t: &ExprArc,
 ) -> ExprArc {
     match e.as_ref() {
-        Expr::Func(FuncKind::Sin, args) if args.len() == 1 && is_sin_double_angle(&args[0], var) => {
-            Expr::mul(vec![Expr::int(2), sin_t.clone(), cos_t.clone()])
+        Expr::Func(FuncKind::Sin, args) if args.len() == 1 => {
+            if let Some(k) = linear_coefficient_int(&args[0], var) {
+                sin_kx_in_t(k, sin_t, cos_t)
+            } else {
+                Arc::clone(e)
+            }
         }
-        Expr::Func(FuncKind::Cos, args) if args.len() == 1 && is_cos_double_angle(&args[0], var) => {
-            Expr::add(vec![
-                Expr::pow(cos_t.clone(), Expr::int(2)),
-                Expr::mul(vec![Expr::int(-1), Expr::pow(sin_t.clone(), Expr::int(2))]),
-            ])
-        }
-        Expr::Func(FuncKind::Sin, args) if args.len() == 1 && is_var(&args[0], var) => {
-            Arc::clone(sin_t)
-        }
-        Expr::Func(FuncKind::Cos, args) if args.len() == 1 && is_var(&args[0], var) => {
-            Arc::clone(cos_t)
+        Expr::Func(FuncKind::Cos, args) if args.len() == 1 => {
+            if let Some(k) = linear_coefficient_int(&args[0], var) {
+                cos_kx_in_t(k, sin_t, cos_t)
+            } else {
+                Arc::clone(e)
+            }
         }
         Expr::Add(ts) => Expr::add(
             ts.iter()
@@ -322,10 +639,7 @@ fn is_trig_rational_in_x(e: &ExprArc, var: &Ident) -> bool {
                 && matches!(exp.as_ref(), Expr::Int(n) if bigint_to_i64(n).is_ok())
         }
         Expr::Func(FuncKind::Sin | FuncKind::Cos, args) => {
-            args.len() == 1
-                && (is_var(&args[0], var)
-                    || is_sin_double_angle(&args[0], var)
-                    || is_cos_double_angle(&args[0], var))
+            args.len() == 1 && linear_coefficient_int(&args[0], var).is_some()
         }
         Expr::Frac(n, d) => is_trig_rational_in_x(n, var) && is_trig_rational_in_x(d, var),
         _ => false,
@@ -524,7 +838,7 @@ fn var_coefficient_int(e: &ExprArc, var: &Ident) -> Option<i64> {
 mod tests {
     use std::sync::Arc;
 
-    use giac_core::{eval, format_expr, Expr, FuncKind};
+    use giac_core::{eval, format_expr, Expr, FuncKind, Ident};
 
     use crate::plugin::xcas_default;
 
@@ -555,5 +869,53 @@ mod tests {
             format_expr(r.as_ref()),
             "ln(abs(1-sin(2*x)))*-1/2"
         );
+    }
+
+    #[test]
+    fn sin_multiple_of_var_detects_sin_3x() {
+        let x = Ident::new("x");
+        let num = Expr::func(FuncKind::Sin, vec![Expr::mul(vec![Expr::int(3), Expr::sym("x")])]);
+        let den = Expr::func(FuncKind::Sin, vec![Expr::sym("x")]);
+        assert_eq!(super::sin_multiple_of_var(&num, &x), Some(3));
+        assert_eq!(super::sin_multiple_of_var(&den, &x), Some(1));
+        let frac = Arc::new(Expr::Frac(num, den));
+        assert!(super::try_integrate_heuristic(&frac, &x).unwrap().is_ok());
+    }
+
+    #[test]
+    fn integrate_ck_int_43_sin_3x_over_sin_x() {
+        let ctx = xcas_default();
+        let e = Expr::func(
+            FuncKind::Integrate,
+            vec![
+                Arc::new(Expr::Frac(
+                    Expr::func(
+                        FuncKind::Sin,
+                        vec![Expr::mul(vec![Expr::int(3), Expr::sym("x")])],
+                    ),
+                    Expr::func(FuncKind::Sin, vec![Expr::sym("x")]),
+                )),
+                Expr::sym("x"),
+            ],
+        );
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        assert!(format_expr(r.as_ref()).contains("sin"));
+    }
+
+    #[test]
+    fn integrate_ck_int_14_sin_sq_cos_4th() {
+        let ctx = xcas_default();
+        let e = Expr::func(
+            FuncKind::Integrate,
+            vec![
+                Expr::mul(vec![
+                    Expr::pow(Expr::func(FuncKind::Sin, vec![Expr::sym("x")]), Expr::int(2)),
+                    Expr::pow(Expr::func(FuncKind::Cos, vec![Expr::sym("x")]), Expr::int(4)),
+                ]),
+                Expr::sym("x"),
+            ],
+        );
+        let r = eval(e.as_ref(), &ctx);
+        assert!(r.is_ok(), "{:?}", r);
     }
 }

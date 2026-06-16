@@ -22,8 +22,24 @@ pub fn upstream_root() -> PathBuf {
         .expect("upstream giac root")
 }
 
+/// Upstream source tree for `check/` golden scripts (aligned with CMake `GIAC_VERSION_DIR`).
+pub const GIAC_VERSION_DIR: &str = "giac-2.0.0";
+
+/// `giac/<GIAC_VERSION_DIR>/check`
+pub fn giac_check_dir() -> PathBuf {
+    upstream_root().join("giac").join(GIAC_VERSION_DIR).join("check")
+}
+
 pub fn giac_binary() -> PathBuf {
-    upstream_root().join("build/bin/giac")
+    if let Ok(path) = std::env::var("GIAC_BINARY") {
+        return PathBuf::from(path);
+    }
+    let root = upstream_root();
+    let build_20 = root.join("build-2.0/bin/giac");
+    if build_20.is_file() {
+        return build_20;
+    }
+    root.join("build/bin/giac")
 }
 
 pub fn sympy_script() -> PathBuf {
@@ -73,18 +89,18 @@ pub const PHASE4_SCRIPTS: &[&str] = &[
 
 /// Upstream `check/testfactor` + `check/factor.out` (giac_check_factor).
 pub fn factor_check_paths() -> (PathBuf, PathBuf) {
-    let root = upstream_root().join("giac/giac-1.5.0/check");
+    let root = giac_check_dir();
     (root.join("testfactor"), root.join("factor.out"))
 }
 
 /// Upstream `check/testintegrate` (GIAC-219).
 pub fn integrate_check_path() -> PathBuf {
-    upstream_root().join("giac/giac-1.5.0/check/testintegrate")
+    giac_check_dir().join("testintegrate")
 }
 
 /// Upstream `check/testlimit` (GIAC-219).
 pub fn limit_check_path() -> PathBuf {
-    upstream_root().join("giac/giac-1.5.0/check/testlimit")
+    giac_check_dir().join("testlimit")
 }
 
 /// Kind of line in upstream check golden scripts.
@@ -484,9 +500,9 @@ pub struct SympyResult {
 }
 
 pub fn load_testcas_lines(n: usize) -> Result<(Vec<String>, Vec<String>), String> {
-    let root = upstream_root();
-    let inputs = script_lines(&root.join("giac/giac-1.5.0/check/testcas"))?;
-    let expected_text = fs::read_to_string(root.join("giac/giac-1.5.0/check/cas.out.norm"))
+    let check = giac_check_dir();
+    let inputs = script_lines(&check.join("testcas"))?;
+    let expected_text = fs::read_to_string(check.join("cas.out.norm"))
         .map_err(|e| format!("read cas.out.norm: {e}"))?;
     let expected: Vec<String> = expected_text
         .lines()

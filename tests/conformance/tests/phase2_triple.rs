@@ -3,7 +3,7 @@
 use giac_conformance::{
     phase2_format_diff, phase2_giac_gap, phase2_sympy_gap, run_giac, run_line, sympy_equiv,
     triple_assert_sympy_rs, triple_check_script_filtered, triple_note_format_diffs,
-    upstream_root, verify_sympy,
+    giac_binary, verify_sympy,
 };
 
 /// Lines from bin/test_poly — giac-rs must pass SymPy; cross-check Giac.
@@ -110,7 +110,7 @@ fn gcd_mod_13_triple() -> Result<(), String> {
 
 #[test]
 fn giac_binary_available() {
-    let giac = upstream_root().join("build/bin/giac");
+    let giac = giac_binary();
     assert!(
         giac.exists(),
         "Giac reference binary required at {} for triple tests",

@@ -1,7 +1,7 @@
 {
   "version": 1,
   "verify": "eval",
-  "source": "giac/giac-1.5.0/check/testintegrate",
+  "source": "giac/giac-2.0.0/check/testintegrate",
   "entries": [
     {
       "id": "CK-INT-01",
@@ -98,8 +98,8 @@
       "id": "CK-INT-14",
       "line": "integrate(sin(x)^2*cos(x)^4,x)",
       "kind": "integrate",
-      "enabled": false,
-      "giac_issue": "GIAC-219"
+      "enabled": true,
+      "giac_issue": "GIAC-225"
     },
     {
       "id": "CK-INT-15",
@@ -301,8 +301,8 @@
       "id": "CK-INT-43",
       "line": "integrate(sin(3*x)/sin(x),x)",
       "kind": "integrate",
-      "enabled": false,
-      "giac_issue": "GIAC-219"
+      "enabled": true,
+      "giac_issue": "GIAC-225"
     },
     {
       "id": "CK-INT-44",

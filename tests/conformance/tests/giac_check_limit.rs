@@ -1,10 +1,10 @@
 //! Phase 4: check golden pilot for `check/testlimit` (GIAC-219).
 
-use giac_conformance::{load_limit_check_lines, run_line, sympy_verify_lines, upstream_root};
+use giac_conformance::{giac_check_dir, load_limit_check_lines, run_line, sympy_verify_lines};
 
 #[test]
 fn giac_check_limit_files_exist() {
-    assert!(upstream_root().join("giac/giac-1.5.0/check/testlimit").exists());
+    assert!(giac_check_dir().join("testlimit").exists());
 }
 
 /// Full `testlimit` inventory report (no assertion). Slow — run with `cargo test -- --ignored`.

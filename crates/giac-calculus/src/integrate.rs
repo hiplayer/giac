@@ -119,9 +119,6 @@ pub(crate) fn try_as_rational(expr: &ExprArc, var: &Ident) -> Option<(ExprArc, E
 }
 
 pub(crate) fn integrate_frac(num: &ExprArc, den: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
-    if let Ok(r) = crate::partfrac_integrate::integrate_const_over_rational(num, den, var) {
-        return Ok(r);
-    }
     if is_exp_of_var(num, var) {
         if let Some(r) = try_integrate_exp_over_linear_exp(num, den, var) {
             return Ok(r);
@@ -137,11 +134,15 @@ pub(crate) fn integrate_frac(num: &ExprArc, den: &ExprArc, var: &Ident) -> Resul
         return Ok(r);
     }
     if is_const_wrt(num, var) {
-        let inner = integrate_reciprocal(den, var)?;
-        if num.is_one() {
-            return Ok(inner);
+        if let Ok(inner) = integrate_reciprocal(den, var) {
+            if num.is_one() {
+                return Ok(inner);
+            }
+            return Ok(Expr::mul(vec![Arc::clone(num), inner]));
         }
-        return Ok(Expr::mul(vec![Arc::clone(num), inner]));
+    }
+    if let Ok(r) = crate::partfrac_integrate::integrate_const_over_rational(num, den, var) {
+        return Ok(r);
     }
     if let Some(k) = var_coefficient(num, var) {
         if is_x_squared_plus_const(den, var) {
@@ -172,6 +173,9 @@ fn integrate_reciprocal(den: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError
         }
     }
     if let Expr::Add(terms) = den.as_ref() {
+        if let Ok(r) = integrate_reciprocal_quadratic(terms, var) {
+            return Ok(r);
+        }
         if let Ok(r) = crate::partfrac_integrate::integrate_const_over_rational(
             &Expr::int(1),
             den,
@@ -179,7 +183,7 @@ fn integrate_reciprocal(den: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError
         ) {
             return Ok(r);
         }
-        return integrate_reciprocal_quadratic(terms, var);
+        return Err(EvalError::NotImplemented("integrate reciprocal"));
     }
     if let Ok(r) = crate::partfrac_integrate::integrate_const_over_rational(&Expr::int(1), den, var)
     {
@@ -296,7 +300,7 @@ fn is_tan_of_var(e: &ExprArc, var: &Ident) -> bool {
     )
 }
 
-fn try_integrate_tan_plus_tan_cubed(terms: &[ExprArc], var: &Ident) -> Option<ExprArc> {
+pub(crate) fn try_integrate_tan_plus_tan_cubed(terms: &[ExprArc], var: &Ident) -> Option<ExprArc> {
     if terms.len() != 2 {
         return None;
     }
@@ -324,7 +328,7 @@ fn try_integrate_tan_plus_tan_cubed(terms: &[ExprArc], var: &Ident) -> Option<Ex
     ]))
 }
 
-fn try_integrate_exp_over_linear_exp(a: &ExprArc, b: &ExprArc, var: &Ident) -> Option<ExprArc> {
+pub(crate) fn try_integrate_exp_over_linear_exp(a: &ExprArc, b: &ExprArc, var: &Ident) -> Option<ExprArc> {
     let (exp_x, den) = if is_exp_of_var(a, var) {
         (a, b)
     } else if is_exp_of_var(b, var) {
@@ -339,7 +343,7 @@ fn try_integrate_exp_over_linear_exp(a: &ExprArc, b: &ExprArc, var: &Ident) -> O
     ]))
 }
 
-fn try_integrate_exp_over_one_plus_exp2(
+pub(crate) fn try_integrate_exp_over_one_plus_exp2(
     exp_x: &ExprArc,
     den: &ExprArc,
     var: &Ident,
@@ -386,7 +390,33 @@ fn is_exp_x_squared(exp_x: &ExprArc, e: &ExprArc) -> bool {
     )
 }
 
-fn try_integrate_sin_over_cos_sq_frac(
+/// ∫ 1/cos(x)² dx = tan(x).
+pub(crate) fn try_integrate_one_over_cos_squared(
+    num: &ExprArc,
+    den: &ExprArc,
+    var: &Ident,
+) -> Option<ExprArc> {
+    if !is_one(num) {
+        return None;
+    }
+    let cosx = match den.as_ref() {
+        Expr::Pow(base, exp) if matches!(exp.as_ref(), Expr::Int(n) if n == &BigInt::from(2)) => {
+            if is_cos_of_var(base, var) {
+                base
+            } else {
+                return None;
+            }
+        }
+        _ => return None,
+    };
+    let arg = match cosx.as_ref() {
+        Expr::Func(FuncKind::Cos, args) if args.len() == 1 => Arc::clone(&args[0]),
+        _ => return None,
+    };
+    Some(Expr::func(FuncKind::Tan, vec![arg]))
+}
+
+pub(crate) fn try_integrate_sin_over_cos_sq_frac(
     num: &ExprArc,
     den: &ExprArc,
     var: &Ident,
@@ -560,7 +590,7 @@ fn try_integrate_sin_over_cos_squared(a: &ExprArc, b: &ExprArc, var: &Ident) -> 
     ]))
 }
 
-fn try_integrate_tanh_exp_form(a: &ExprArc, b: &ExprArc, var: &Ident) -> Option<ExprArc> {
+pub(crate) fn try_integrate_tanh_exp_form(a: &ExprArc, b: &ExprArc, var: &Ident) -> Option<ExprArc> {
     if !is_exp_minus_exp_neg(a, var) || !is_exp_plus_exp_neg(b, var) {
         return None;
     }
@@ -735,7 +765,7 @@ fn integrate_exp_cos(var: &Ident) -> ExprArc {
     ])
 }
 
-fn is_exp_of_var(e: &ExprArc, var: &Ident) -> bool {
+pub(crate) fn is_exp_of_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Func(FuncKind::Exp, args) if args.len() == 1 && is_var(&args[0], var))
 }
 
@@ -1319,9 +1349,14 @@ mod tests {
             Expr::add(vec![Expr::pow(Expr::sym("x"), Expr::int(2)), Expr::int(2)]),
             Expr::int(-1),
         );
+        assert!(integrate(&e, &x).is_ok());
+        let e = Expr::pow(
+            Expr::add(vec![Expr::pow(Expr::sym("x"), Expr::int(3)), Expr::int(2)]),
+            Expr::int(-1),
+        );
         assert!(matches!(
             integrate(&e, &x),
-            Err(EvalError::NotImplemented("integrate quadratic"))
+            Err(EvalError::NotImplemented(_))
         ));
     }
 }

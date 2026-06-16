@@ -5,7 +5,7 @@
 
 use giac_conformance::{
     factor_check_paths, load_factor_check_lines, outputs_assert_equiv, run_lines, sympy_equiv,
-    sympy_verify_lines, upstream_root, verify_sympy,
+    giac_check_dir, sympy_verify_lines, verify_sympy,
 };
 
 #[test]
@@ -79,10 +79,10 @@ fn giac_check_factor_golden_report() -> Result<(), String> {
 
 #[test]
 fn giac_check_factor_upstream_root() {
-    let root = upstream_root();
+    let chk = giac_check_dir().join("chk_factor");
     assert!(
-        root.join("giac/giac-1.5.0/check/chk_factor").exists(),
+        chk.exists(),
         "chk_factor wrapper expected under {}",
-        root.display()
+        chk.display()
     );
 }

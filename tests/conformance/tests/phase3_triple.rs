@@ -2,7 +2,7 @@
 
 use giac_conformance::{
     phase3_format_diff, phase3_numerical_decomp, phase3_skip, phase3_sympy_gap, run_giac,
-    run_line, script_lines, sympy_equiv, triple_assert_sympy_rs, triple_check_script_filtered, triple_note_format_diffs, upstream_root, verify_sympy,
+    run_line, script_lines, sympy_equiv, triple_assert_sympy_rs, triple_check_script_filtered, triple_note_format_diffs, giac_binary, verify_sympy,
 };
 
 // ── Script-level triple checks ────────────────────────────────────────
@@ -249,7 +249,7 @@ fn pcar_3x3_triple() -> Result<(), String> {
 /// Giac binary must exist for triple tests.
 #[test]
 fn giac_binary_available() {
-    let giac = upstream_root().join("build/bin/giac");
+    let giac = giac_binary();
     assert!(
         giac.exists(),
         "Giac reference binary required at {} for triple tests",

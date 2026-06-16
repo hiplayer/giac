@@ -1,18 +1,16 @@
 //! Golden regression: `check/testcas` first 50 lines vs `cas.out.norm`.
 
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-use giac_conformance::{check_output_equiv, CheckOutcome};
+use giac_conformance::{check_output_equiv, giac_check_dir, CheckOutcome};
 use giac_core::{exec_stmt, format_expr, StmtResult};
 use giac_calculus::xcas_default;
 use giac_parse::parse_program;
 
-fn upstream_root() -> PathBuf {
-    Path::new(env!("CARGO_MANIFEST_DIR"))
-        .join("../../..")
-        .canonicalize()
-        .expect("upstream giac root")
+fn cas_check_paths() -> (std::path::PathBuf, std::path::PathBuf) {
+    let check = giac_check_dir();
+    (check.join("testcas"), check.join("cas.out.norm"))
 }
 
 fn load_lines(path: &Path) -> Vec<String> {
@@ -71,9 +69,9 @@ fn cas_tst_first_20_sympy() -> Result<(), String> {
 
 #[test]
 fn cas_tst_first_25_batch() -> Result<(), String> {
-    let root = upstream_root();
-    let inputs = load_lines(&root.join("giac/giac-1.5.0/check/testcas"));
-    let expected = load_lines(&root.join("giac/giac-1.5.0/check/cas.out.norm"));
+    let (testcas, golden) = cas_check_paths();
+    let inputs = load_lines(&testcas);
+    let expected = load_lines(&golden);
     let n = 25;
     let input_slice: Vec<&str> = inputs.iter().take(n).map(String::as_str).collect();
     let got = run_script_lines(&input_slice)?;
@@ -90,9 +88,9 @@ fn cas_tst_first_25_batch() -> Result<(), String> {
 
 #[test]
 fn cas_tst_first_30_batch() -> Result<(), String> {
-    let root = upstream_root();
-    let inputs = load_lines(&root.join("giac/giac-1.5.0/check/testcas"));
-    let expected = load_lines(&root.join("giac/giac-1.5.0/check/cas.out.norm"));
+    let (testcas, golden) = cas_check_paths();
+    let inputs = load_lines(&testcas);
+    let expected = load_lines(&golden);
     let n = 30;
     let input_slice: Vec<&str> = inputs.iter().take(n).map(String::as_str).collect();
     let got = run_script_lines(&input_slice)?;
@@ -109,9 +107,9 @@ fn cas_tst_first_30_batch() -> Result<(), String> {
 
 #[test]
 fn cas_tst_first_50_lines() -> Result<(), String> {
-    let root = upstream_root();
-    let inputs = load_lines(&root.join("giac/giac-1.5.0/check/testcas"));
-    let expected = load_lines(&root.join("giac/giac-1.5.0/check/cas.out.norm"));
+    let (testcas, golden) = cas_check_paths();
+    let inputs = load_lines(&testcas);
+    let expected = load_lines(&golden);
     let n = 50.min(inputs.len()).min(expected.len());
     let input_slice: Vec<&str> = inputs.iter().take(n).map(String::as_str).collect();
     let got = run_script_lines(&input_slice)?;
@@ -128,9 +126,9 @@ fn cas_tst_first_50_lines() -> Result<(), String> {
 
 #[test]
 fn cas_tst_first_20_lines_progress() -> Result<(), String> {
-    let root = upstream_root();
-    let inputs = load_lines(&root.join("giac/giac-1.5.0/check/testcas"));
-    let expected = load_lines(&root.join("giac/giac-1.5.0/check/cas.out.norm"));
+    let (testcas, golden) = cas_check_paths();
+    let inputs = load_lines(&testcas);
+    let expected = load_lines(&golden);
     let n = 20.min(inputs.len()).min(expected.len());
     let input_slice: Vec<&str> = inputs.iter().take(n).map(String::as_str).collect();
     let got = run_script_lines(&input_slice)?;

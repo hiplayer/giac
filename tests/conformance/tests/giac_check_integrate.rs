@@ -5,14 +5,13 @@ use std::path::Path;
 
 use giac_conformance::{
     classify_check_line, load_integrate_check_lines, run_line, run_lines, run_risch_line,
-    sympy_equiv, sympy_verify_lines, upstream_root, CheckLineKind,
+    sympy_equiv, sympy_verify_lines, giac_check_dir, CheckLineKind,
 };
 use serde::Deserialize;
 
 #[test]
 fn giac_check_integrate_files_exist() {
-    let root = upstream_root();
-    assert!(root.join("giac/giac-1.5.0/check/testintegrate").exists());
+    assert!(giac_check_dir().join("testintegrate").exists());
 }
 
 #[derive(Debug, Deserialize)]

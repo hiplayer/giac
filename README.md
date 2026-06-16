@@ -68,7 +68,7 @@ cargo tarpaulin -p giac-core --out Stdout    # target ≥70%
 cargo tarpaulin -p giac-linalg --out Stdout  # Phase 3 linalg
 ```
 
-Triple validation (giac-rs + upstream Giac + SymPy) needs the reference binary at `../build/bin/giac`.
+Triple validation (giac-rs + upstream Giac + SymPy) needs a **2.0** reference binary. By default conformance uses `../build-2.0/bin/giac` when present, else `../build/bin/giac`. Override with `GIAC_BINARY`. Golden scripts come from `giac/giac-2.0.0/check/` (`GIAC_VERSION_DIR` in `tests/conformance/src/lib.rs`).
 
 ## Conformance tests
 
