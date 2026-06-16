@@ -25,8 +25,9 @@ pub use partfrac::{partfrac_rational_terms, partfrac_terms};
 pub use chinrem::{chinrem, chinrem_lists};
 pub use ops::{content, gauss};
 pub use tresultant::{
-    biquartic_conjugate_pairs, eval_param_poly, num_minus_t_derivative, rational_roots_in_t,
-    tresultant_eliminate_x, AlgebraicRt, ConjugatePair,
+    biquadratic_res_conjugate_pairs, biquartic_conjugate_pairs, eval_param_poly,
+    num_minus_t_derivative, rational_roots_in_t, tresultant_eliminate_x, AlgebraicRt,
+    ConjugatePair,
 };
 pub use univariate::{
     eval_univariate_at, odd_multiplicity_part, sign_variations, square_free_factorization,

@@ -6,8 +6,7 @@ use giac_poly::{
 };
 
 use crate::risch::{
-    hermite_reduce, is_monic_x4_plus_one, rothstein_trager_integrate, try_integrate_x4_plus_one,
-    integrate_monic_x4_plus_one, HermiteTerm,
+    hermite_reduce, rothstein_trager_integrate, try_algebraic_rt_even_quartic, HermiteTerm,
 };
 use num_bigint::BigInt;
 use num_rational::Ratio;
@@ -31,7 +30,7 @@ pub fn integrate_const_over_rational(
             return integrate_with_hermite(&num_p, &base, exp as usize, &v, var);
         }
     }
-    if let Some(r) = try_integrate_x4_plus_one(&num_p, &den_p, &v, var) {
+    if let Some(r) = try_algebraic_rt_even_quartic(&num_p, &den_p, &v, var) {
         return Ok(r);
     }
     let (poly_part, terms) = partfrac_rational_terms(&num_p, &den_p, &v).map_err(poly_err)?;
@@ -55,21 +54,6 @@ fn integrate_with_hermite(
     var: &Var,
     x: &Ident,
 ) -> Result<ExprArc, EvalError> {
-    if exp == 2 && num.is_one() && is_monic_x4_plus_one(base, var) {
-        let (terms, rem, mult) = hermite_reduce(num, base, exp, var).map_err(poly_err)?;
-        let mut parts = Vec::new();
-        for t in terms {
-            parts.push(integrate_hermite_term(&t, var, x)?);
-        }
-        if mult == 1 && !rem.is_zero() {
-            // Hermite leaves numer `1`; true log remainder is `(3/4)/(x^4+1)`.
-            parts.push(integrate_monic_x4_plus_one(
-                &Ratio::new(3.into(), 4.into()),
-                x,
-            ));
-        }
-        return Ok(Expr::add(parts));
-    }
     let (terms, rem, mult) = hermite_reduce(num, base, exp, var).map_err(poly_err)?;
     let mut parts = Vec::new();
     for t in terms {

@@ -212,7 +212,7 @@ pub fn univariate_derivative(p: &Poly, var: &Var) -> Poly {
         }
         let coef = c * Ratio::from_integer(BigInt::from(e));
         let term = if e == 1 {
-            Poly::constant(coef).mul(&Poly::var(var.clone()))
+            Poly::constant(coef)
         } else {
             Poly::constant(coef).mul(&Poly::var(var.clone()).pow(e - 1))
         };

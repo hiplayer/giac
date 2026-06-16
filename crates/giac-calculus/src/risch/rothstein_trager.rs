@@ -13,9 +13,25 @@ use num_traits::{One, Zero};
 
 use crate::integrate::ln_abs_expr;
 
-use super::algebraic_rt::{integrate_monic_x4_plus_one, try_algebraic_rt_log_part};
+use super::algebraic_rt::{is_monic_even_quartic, try_algebraic_rt_log_part};
 
 const RT_PARAM: &str = "__rt";
+
+/// Algebraic RT for monic even quartics with constant numerator.
+pub fn try_algebraic_rt_even_quartic(
+    numer: &Poly,
+    factor: &Poly,
+    var: &Var,
+    x: &Ident,
+) -> Option<ExprArc> {
+    if !is_monic_even_quartic(factor, var) || univariate_degree(numer, var) > 0 {
+        return None;
+    }
+    let t = Var::from(RT_PARAM);
+    let p1 = num_minus_t_derivative(numer, factor, var, &t);
+    let res_t = tresultant_eliminate_x(&p1, factor, var, &t).ok()?;
+    try_algebraic_rt_log_part(numer, factor, var, x, &res_t, &t)
+}
 
 /// `∫ k/(x^4+1) dx` via algebraic RT conjugate pairing.
 pub fn try_integrate_x4_plus_one(
@@ -24,20 +40,7 @@ pub fn try_integrate_x4_plus_one(
     var: &Var,
     x: &Ident,
 ) -> Option<ExprArc> {
-    if univariate_degree(numer, var) > 0 {
-        return None;
-    }
-    let k = coeff_at(numer, var, 0);
-    let t = Var::from(RT_PARAM);
-    let p1 = num_minus_t_derivative(numer, factor, var, &t);
-    let res_t = tresultant_eliminate_x(&p1, factor, var, &t).ok()?;
-    try_algebraic_rt_log_part(numer, factor, var, x, &res_t, &t).or_else(|| {
-        if k.is_zero() {
-            Some(Expr::int(0))
-        } else {
-            Some(integrate_monic_x4_plus_one(&k, x))
-        }
-    })
+    try_algebraic_rt_even_quartic(numer, factor, var, x)
 }
 
 /// Integrate `numer / factor` when `factor` is square-free and partfrac failed.
@@ -47,7 +50,7 @@ pub fn rothstein_trager_integrate(
     var: &Var,
     x: &Ident,
 ) -> Result<ExprArc, EvalError> {
-    if let Some(r) = try_integrate_x4_plus_one(numer, factor, var, x) {
+    if let Some(r) = try_algebraic_rt_even_quartic(numer, factor, var, x) {
         return Ok(r);
     }
     let t = Var::from(RT_PARAM);

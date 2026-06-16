@@ -5,6 +5,7 @@ use giac_poly::{
 };
 use num_bigint::BigInt;
 use num_rational::Ratio;
+use num_traits::One;
 
 /// Extracted rational term `-v / factor^power` (integrates to part of the input).
 #[derive(Debug, Clone, PartialEq)]
@@ -45,7 +46,10 @@ pub fn hermite_reduce(
             factor: g.clone(),
             power: n - 1,
         });
-        a = u;
+        // ∫ P/Q^n = -V/((n-1)Q^{n-1}) + ∫ (U + V'/((n-1)))/Q^{n-1}
+        let vp = univariate_derivative(&v, var);
+        let scale = Ratio::from_integer(BigInt::from((n - 1) as i64));
+        a = u.add(&vp.mul_scalar(&(Ratio::one() / scale)));
         n -= 1;
     }
 
@@ -94,7 +98,7 @@ mod tests {
         let var = x_var();
         let g = x().pow(4).add(&Poly::one());
         let (_, rem, _) = hermite_reduce(&Poly::one(), &g, 2, &var).unwrap();
-        assert_eq!(coeff_at(&rem, &var, 0), Ratio::one());
+        assert_eq!(coeff_at(&rem, &var, 0), Ratio::new(3.into(), 4.into()));
     }
 
     #[test]
@@ -109,13 +113,19 @@ mod tests {
     }
 
     #[test]
-    fn hermite_one_over_x_fourth_plus_one_squared() {
+    fn hermite_one_over_x_fourth_plus_one_squared_v_numer() {
         let var = x_var();
         let g = x().pow(4).add(&Poly::one());
-        let (terms, rem, mult) = hermite_reduce(&Poly::one(), &g, 2, &var).unwrap();
-        assert_eq!(mult, 1);
-        assert_eq!(terms.len(), 1);
-        let _ = (rem, terms);
+        let (terms, _, _) = hermite_reduce(&Poly::one(), &g, 2, &var).unwrap();
+        assert_eq!(coeff_at(&terms[0].numer, &var, 1), Ratio::new((-1).into(), 4.into()));
+    }
+
+    #[test]
+    fn hermite_one_over_x_squared_plus_one_squared_rem_half() {
+        let var = x_var();
+        let g = x().pow(2).add(&Poly::one());
+        let (_, rem, _) = hermite_reduce(&Poly::one(), &g, 2, &var).unwrap();
+        assert_eq!(coeff_at(&rem, &var, 0), Ratio::new(1.into(), 2.into()));
     }
 
     #[test]

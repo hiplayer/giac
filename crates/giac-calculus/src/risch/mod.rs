@@ -8,9 +8,12 @@ pub use tower::{depends_on_var, risch_tower, rlvarx, RischTowerError};
 pub use pow2expln::pow2expln;
 pub use hermite::{hermite_reduce, HermiteTerm};
 pub use algebraic_rt::{
-    integrate_monic_x4_plus_one, is_monic_x4_plus_one, try_algebraic_rt_log_part,
+    integrate_monic_x4_plus_one, is_monic_even_quartic, is_monic_x4_plus_one,
+    try_algebraic_rt_log_part,
 };
-pub use rothstein_trager::{rothstein_trager_integrate, try_integrate_x4_plus_one};
+pub use rothstein_trager::{
+    rothstein_trager_integrate, try_algebraic_rt_even_quartic, try_integrate_x4_plus_one,
+};
 
 use giac_core::{Context, EvalError, ExprArc};
 

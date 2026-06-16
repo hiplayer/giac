@@ -14,6 +14,16 @@ fn probe_integrate_x_over_x_squared_plus_one_squared() {
 }
 
 #[test]
+fn probe_integrate_one_over_x_fourth_plus_four() {
+    assert_sympy("integrate(1/(x^4+4),x)");
+}
+
+#[test]
+fn probe_integrate_one_over_x_fourth_plus_x_squared_plus_one() {
+    assert_sympy("integrate(1/(x^4+x^2+1),x)");
+}
+
+#[test]
 fn probe_integrate_one_over_x_fourth_plus_one_squared() {
     assert_sympy("integrate(1/(x^4+1)^2,x)");
 }

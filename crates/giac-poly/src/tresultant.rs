@@ -189,41 +189,126 @@ fn push_divisors(n: &BigInt, out: &mut Vec<BigInt>) {
     }
 }
 
-/// Root `α = (re + im·i)·√ext` with rational `re`, `im` and integer `ext`.
+/// Element `(re + re_b·√rad) + (im_a + im_b·√rad)·i` with rational coefficients.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct AlgebraicRt {
     pub re: Ratio<BigInt>,
-    pub im: Ratio<BigInt>,
-    pub ext: u64,
+    pub im_a: Ratio<BigInt>,
+    pub re_b: Ratio<BigInt>,
+    pub im_b: Ratio<BigInt>,
+    pub rad: u64,
 }
 
-/// Conjugate pair with `im(α) > 0`.
+/// Conjugate pair with `im(α) > 0` (in the `im_a + im_b·√rad` sense).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ConjugatePair {
     pub alpha: AlgebraicRt,
 }
 
-/// Conjugate-root pairs of `a·t⁴ + c` when `c/a` is not a fourth power in Q.
-pub fn biquartic_conjugate_pairs(p: &Poly, t: &Var) -> PolyResult<Vec<ConjugatePair>> {
-    let deg = univariate_degree(p, t);
-    if deg != 4 {
+/// Conjugate-root pairs for even `Res_t` of degree 4 with no rational roots.
+pub fn biquadratic_res_conjugate_pairs(p: &Poly, t: &Var) -> PolyResult<Vec<ConjugatePair>> {
+    if univariate_degree(p, t) != 4 {
         return Ok(vec![]);
     }
-    if !coeff_at(p, t, 3).is_zero()
-        || !coeff_at(p, t, 2).is_zero()
-        || !coeff_at(p, t, 1).is_zero()
-    {
-        return Ok(vec![]);
-    }
-    let a = coeff_at(p, t, 4);
-    let c = coeff_at(p, t, 0);
-    if a.is_zero() || c.is_zero() {
+    if !coeff_at(p, t, 3).is_zero() || !coeff_at(p, t, 1).is_zero() {
         return Ok(vec![]);
     }
     if !rational_roots_in_t(p, t)?.is_empty() {
         return Ok(vec![]);
     }
-    // a·t⁴ + c = 0  =>  t⁴ = -c/a
+    let a4 = coeff_at(p, t, 4);
+    let a2 = coeff_at(p, t, 2);
+    let a0 = coeff_at(p, t, 0);
+    if a4.is_zero() || a0.is_zero() {
+        return Ok(vec![]);
+    }
+    if a0 == Ratio::one() {
+        if let Some(k) = ratio_perfect_sqrt(&a4) {
+            let m_sq = Ratio::from_integer(BigInt::from(2)) * k.clone() - a2.clone();
+            if let Some(m) = ratio_perfect_sqrt(&m_sq) {
+                return Ok(pairs_from_symmetric_res_factors(&k, &m));
+            }
+        }
+    }
+    if a2.is_zero() {
+        return pure_biquartic_res_pairs(&a4, &a0);
+    }
+    Ok(vec![])
+}
+
+/// Legacy alias for pure `a·t⁴ + c` resultants.
+pub fn biquartic_conjugate_pairs(p: &Poly, t: &Var) -> PolyResult<Vec<ConjugatePair>> {
+    biquadratic_res_conjugate_pairs(p, t)
+}
+
+fn pairs_from_symmetric_res_factors(k: &Ratio<BigInt>, m: &Ratio<BigInt>) -> Vec<ConjugatePair> {
+    let disc = m.clone() * m.clone() - Ratio::from_integer(BigInt::from(4)) * k.clone();
+    if disc >= Ratio::zero() {
+        return vec![];
+    }
+    let neg_disc = -disc;
+    let two_k = Ratio::from_integer(BigInt::from(2)) * k.clone();
+    let re_pos = m.clone() / two_k.clone();
+    let (sqrt_c, rad) = sqrt_rational_coeff_radicand(&neg_disc);
+    let imag = sqrt_c / two_k;
+    let mk = |re: Ratio<BigInt>| {
+        let (im_a, im_b, rad) = if rad == 1 {
+            (imag.clone(), Ratio::zero(), 1)
+        } else {
+            (Ratio::zero(), imag.clone(), rad)
+        };
+        ConjugatePair {
+            alpha: AlgebraicRt {
+                re,
+                im_a,
+                re_b: Ratio::zero(),
+                im_b,
+                rad,
+            },
+        }
+    };
+    vec![mk(re_pos.clone()), mk(-re_pos)]
+}
+
+/// Write `√r = coeff · √rad` with squarefree `rad`.
+fn sqrt_rational_coeff_radicand(r: &Ratio<BigInt>) -> (Ratio<BigInt>, u64) {
+    if let Some(s) = ratio_perfect_sqrt(r) {
+        return (s, 1);
+    }
+    let num = r.numer().abs();
+    let den = r.denom().abs();
+    let (out_num, sf_num) = extract_sqrt_factor(&num);
+    let (out_den, sf_den) = extract_sqrt_factor(&den);
+    let coeff = Ratio::new(out_num, out_den);
+    let rad_int = sf_num * sf_den;
+    let rad = rad_int.to_string().parse().unwrap_or(1);
+    (coeff, rad)
+}
+
+fn extract_sqrt_factor(n: &BigInt) -> (BigInt, BigInt) {
+    let mut outer = BigInt::one();
+    let mut inner = n.abs();
+    let mut p = BigInt::from(2);
+    while &p * &p <= inner {
+        if (&inner % &p).is_zero() {
+            let mut count = 0u32;
+            while (&inner % &p).is_zero() {
+                inner /= &p;
+                count += 1;
+            }
+            if count % 2 == 1 {
+                inner *= &p;
+            }
+            if count >= 2 {
+                outer *= p.pow(count / 2);
+            }
+        }
+        p += BigInt::one();
+    }
+    (outer, inner)
+}
+
+fn pure_biquartic_res_pairs(a: &Ratio<BigInt>, c: &Ratio<BigInt>) -> PolyResult<Vec<ConjugatePair>> {
     let t4 = -c.clone() / a.clone();
     if t4 >= Ratio::zero() {
         return Ok(vec![]);
@@ -232,22 +317,23 @@ pub fn biquartic_conjugate_pairs(p: &Poly, t: &Var) -> PolyResult<Vec<ConjugateP
     let mag = ratio_perfect_sqrt(&rad).ok_or(PolyError::NotImplemented(
         "biquartic algebraic roots",
     ))?;
-    // t² = ± i·mag  =>  t = ± (1±i)/√2 · mag/2 ;  Re(t)=Im(t)=±√(mag²/4)=±mag/2 when mag/4 square
     let quarter_mag = mag.clone() / Ratio::from_integer(BigInt::from(4));
     let re_im = ratio_perfect_sqrt(&quarter_mag).ok_or(PolyError::NotImplemented(
         "biquartic algebraic roots",
     ))?;
     let mut pairs = Vec::new();
     for re_sign in [1i64, -1i64] {
-        let re = re_im.clone() * Ratio::from_integer(BigInt::from(re_sign));
-        if re.is_zero() {
+        let re_b = re_im.clone() * Ratio::from_integer(BigInt::from(re_sign));
+        if re_b.is_zero() {
             continue;
         }
         pairs.push(ConjugatePair {
             alpha: AlgebraicRt {
-                re,
-                im: re_im.clone(),
-                ext: 2,
+                re: Ratio::zero(),
+                im_a: Ratio::zero(),
+                re_b: re_b.clone(),
+                im_b: re_im.clone(),
+                rad: 2,
             },
         });
     }
@@ -299,13 +385,44 @@ mod tests {
     #[test]
     fn biquartic_pairs_one_over_x_fourth_plus_one() {
         let tv = t();
-        let r = Poly::var("__rt").pow(4).mul_scalar(&Ratio::from_integer(256.into()))
+        let r = Poly::var("__rt")
+            .pow(4)
+            .mul_scalar(&Ratio::from_integer(256.into()))
             .add(&Poly::one());
         let pairs = biquartic_conjugate_pairs(&r, &tv).unwrap();
         assert_eq!(pairs.len(), 2);
-        assert_eq!(pairs[0].alpha.re, Ratio::new(1.into(), 8.into()));
-        assert_eq!(pairs[0].alpha.im, Ratio::new(1.into(), 8.into()));
-        assert_eq!(pairs[1].alpha.re, Ratio::new((-1).into(), 8.into()));
+        assert_eq!(pairs[0].alpha.re_b, Ratio::new(1.into(), 8.into()));
+        assert_eq!(pairs[0].alpha.im_b, Ratio::new(1.into(), 8.into()));
+        assert_eq!(pairs[0].alpha.rad, 2);
+        assert_eq!(pairs[1].alpha.re_b, Ratio::new((-1).into(), 8.into()));
+    }
+
+    #[test]
+    fn biquadratic_pairs_x_fourth_plus_four_res() {
+        let tv = t();
+        let r = Poly::var("__rt")
+            .pow(4)
+            .mul_scalar(&Ratio::from_integer(16384.into()))
+            .add(&Poly::one());
+        let pairs = biquadratic_res_conjugate_pairs(&r, &tv).unwrap();
+        assert_eq!(pairs.len(), 2);
+        assert_eq!(pairs[0].alpha.re, Ratio::new(1.into(), 16.into()));
+        assert_eq!(pairs[0].alpha.im_a, Ratio::new(1.into(), 16.into()));
+    }
+
+    #[test]
+    fn biquadratic_pairs_x_fourth_plus_x_squared_plus_one_res() {
+        let tv = t();
+        let r = Poly::var("__rt")
+            .pow(4)
+            .mul_scalar(&Ratio::from_integer(144.into()))
+            .add(&Poly::var("__rt").pow(2).mul_scalar(&Ratio::from_integer((-12).into())))
+            .add(&Poly::one());
+        let pairs = biquadratic_res_conjugate_pairs(&r, &tv).unwrap();
+        assert_eq!(pairs.len(), 2);
+        assert_eq!(pairs[0].alpha.re, Ratio::new(1.into(), 4.into()));
+        assert_eq!(pairs[0].alpha.im_b, Ratio::new(1.into(), 12.into()));
+        assert_eq!(pairs[0].alpha.rad, 3);
     }
 
     #[test]
