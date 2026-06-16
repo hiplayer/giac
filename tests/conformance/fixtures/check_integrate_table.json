@@ -84,8 +84,8 @@
       "id": "CK-INT-12",
       "line": "integrate((2*sin(x)+1)/(2*sin(x)-1),x)",
       "kind": "integrate",
-      "enabled": false,
-      "giac_issue": "GIAC-219"
+      "enabled": true,
+      "giac_issue": "GIAC-225"
     },
     {
       "id": "CK-INT-13",

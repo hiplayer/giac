@@ -1,5 +1,6 @@
 use num_bigint::BigInt;
 use num_rational::Ratio;
+use num_traits::Signed;
 use num_traits::{One, Zero};
 
 use crate::error::{PolyError, PolyResult};
@@ -116,6 +117,14 @@ fn partfrac_by_square_free(
         }
     }
 
+    if sqff.iter().all(|(_, m)| *m == 1)
+        && sqff
+            .iter()
+            .any(|(g, _)| univariate_degree(g, var) == 2)
+    {
+        return partfrac_square_free_affine_numerators(num, den, var, &sqff);
+    }
+
     let n_unknowns = denom_powers.len();
     let nden = univariate_degree(den, var) as usize;
     let mut matrix = vec![vec![Ratio::zero(); n_unknowns]; nden];
@@ -157,9 +166,19 @@ fn factor_by_rational_roots(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)
     let mut rest = p.clone();
     let mut factors = Vec::new();
     while univariate_degree(&rest, var) > 0 {
-        let root = find_rational_root(&rest, var).ok_or(PolyError::NotImplemented(
-            "partfrac factor",
-        ))?;
+        let root = match find_rational_root(&rest, var) {
+            Some(r) => r,
+            None => {
+                if univariate_degree(&rest, var) == 4 {
+                    if let Some(mut biq) = try_factor_biquadratic(&rest, var) {
+                        factors.append(&mut biq);
+                        rest = Poly::one();
+                        break;
+                    }
+                }
+                return Err(PolyError::NotImplemented("partfrac factor"));
+            }
+        };
         let lin = linear_poly(var, &root);
         let mut mult = 0usize;
         loop {
@@ -216,8 +235,6 @@ fn find_rational_root(p: &Poly, var: &Var) -> Option<Ratio<BigInt>> {
 }
 
 fn integer_divisors(n: &BigInt) -> Vec<BigInt> {
-    use num_traits::Signed;
-
     if n.is_zero() {
         return vec![BigInt::zero()];
     }
@@ -234,6 +251,161 @@ fn integer_divisors(n: &BigInt) -> Vec<BigInt> {
     divs.sort();
     divs.dedup();
     divs
+}
+
+fn partfrac_square_free_affine_numerators(
+    num: &Poly,
+    den: &Poly,
+    var: &Var,
+    sqff: &[(Poly, usize)],
+) -> PolyResult<Vec<(Poly, Poly)>> {
+    let mut term_specs = Vec::new();
+    for (g, mult) in sqff {
+        if *mult != 1 || univariate_degree(g, var) > 2 {
+            return Err(PolyError::NotImplemented("partfrac nonlinear factor"));
+        }
+        term_specs.push((g.clone(), univariate_degree(g, var)));
+    }
+    let n_unknowns: usize = term_specs
+        .iter()
+        .map(|(_, d)| *d as usize)
+        .sum();
+    let nden = univariate_degree(den, var) as usize;
+    let mut matrix = vec![vec![Ratio::zero(); n_unknowns]; nden];
+    let mut rhs = vec![Ratio::zero(); nden];
+    let mut col = 0usize;
+    for (g, g_deg) in &term_specs {
+        let d_k = g.clone();
+        let cofactor = den.div_rem(&d_k).0;
+        for j in 0..*g_deg {
+            let t_pow = if j == 0 {
+                Poly::one()
+            } else {
+                Poly::var(var.clone()).pow(j)
+            };
+            let scaled = cofactor.mul(&t_pow);
+            for i in 0..nden {
+                matrix[i][col] = coeff_at(&scaled, var, i as u64);
+            }
+            col += 1;
+        }
+    }
+    for i in 0..nden {
+        rhs[i] = coeff_at(num, var, i as u64);
+    }
+    let coeffs = solve_linear_system(&matrix, &rhs)
+        .ok_or(PolyError::NotImplemented("partfrac linear system"))?;
+    let mut col = 0usize;
+    let mut out = Vec::new();
+    for (g, g_deg) in term_specs {
+        let mut numer = Poly::zero();
+        for j in 0..g_deg {
+            numer = numer.add(&Poly::var(var.clone()).pow(j).mul_scalar(&coeffs[col]));
+            col += 1;
+        }
+        out.push((numer, g));
+    }
+    Ok(out)
+}
+
+fn try_factor_biquadratic(p: &Poly, var: &Var) -> Option<Vec<(Poly, usize)>> {
+    if univariate_degree(p, var) != 4 {
+        return None;
+    }
+    let lc = coeff_at(p, var, 4);
+    if lc.is_zero() {
+        return None;
+    }
+    let scale = Ratio::one() / lc.clone();
+    let a3 = coeff_at(p, var, 3) * scale.clone();
+    let a2 = coeff_at(p, var, 2) * scale.clone();
+    let a1 = coeff_at(p, var, 1) * scale.clone();
+    let a0 = coeff_at(p, var, 0) * scale;
+    for (q, s) in rational_factor_pairs(&a0) {
+        let sum_pr = a2.clone() - q.clone() - s.clone();
+        let disc = a3.clone() * a3.clone()
+            - Ratio::from_integer(BigInt::from(4)) * sum_pr.clone();
+        if disc < Ratio::zero() {
+            continue;
+        }
+        let sqrt_d = ratio_perfect_sqrt(&disc)?;
+        let two = Ratio::from_integer(BigInt::from(2));
+        let p_coef = (a3.clone() + sqrt_d.clone()) / two.clone();
+        let r_coef = (a3.clone() - sqrt_d) / two;
+        if p_coef.clone() * s.clone() + q.clone() * r_coef.clone() != a1 {
+            continue;
+        }
+        let f1 = monic_quadratic_poly(var, p_coef, q);
+        let f2 = monic_quadratic_poly(var, r_coef, s);
+        let prod = f1.clone().mul(&f2);
+        if prod == *p {
+            return Some(vec![(f1, 1), (f2, 1)]);
+        }
+        if prod.neg() == *p {
+            return Some(vec![(f1.neg(), 1), (f2, 1)]);
+        }
+    }
+    None
+}
+
+fn rational_factor_pairs(a0: &Ratio<BigInt>) -> Vec<(Ratio<BigInt>, Ratio<BigInt>)> {
+    if a0.is_zero() {
+        return vec![(Ratio::zero(), Ratio::one())];
+    }
+    let mut pairs = Vec::new();
+    for p in integer_divisors(a0.numer()) {
+        for q in integer_divisors(a0.denom()) {
+            if q.is_zero() {
+                continue;
+            }
+            let qq = Ratio::new(p.clone(), q.clone());
+            let ss = a0 / qq.clone();
+            pairs.push((qq.clone(), ss.clone()));
+            if qq != ss {
+                pairs.push((ss, qq));
+            }
+        }
+    }
+    pairs.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)));
+    pairs.dedup();
+    pairs
+}
+
+fn ratio_perfect_sqrt(r: &Ratio<BigInt>) -> Option<Ratio<BigInt>> {
+    if r.is_zero() {
+        return Some(Ratio::zero());
+    }
+    let sn = integer_perfect_sqrt(r.numer())?;
+    let sd = integer_perfect_sqrt(r.denom())?;
+    Some(Ratio::new(sn, sd))
+}
+
+fn integer_perfect_sqrt(n: &BigInt) -> Option<BigInt> {
+    if n.is_negative() {
+        return None;
+    }
+    if n.is_zero() {
+        return Some(BigInt::zero());
+    }
+    let mut lo = BigInt::zero();
+    let mut hi = n.clone() + BigInt::one();
+    while lo < hi {
+        let mid = (&lo + &hi) / BigInt::from(2);
+        let sq = &mid * &mid;
+        match sq.cmp(n) {
+            std::cmp::Ordering::Equal => return Some(mid),
+            std::cmp::Ordering::Less => lo = mid + 1,
+            std::cmp::Ordering::Greater => hi = mid,
+        }
+    }
+    None
+}
+
+fn monic_quadratic_poly(var: &Var, u: Ratio<BigInt>, v: Ratio<BigInt>) -> Poly {
+    Poly::var(var.clone())
+        .pow(2)
+        .add(&Poly::var(var.clone()).mul_scalar(&u))
+        .add(&Poly::constant(v))
 }
 
 fn partfrac_one_quadratic(num: &Poly, quad: &Poly, var: &Var) -> PolyResult<Vec<(Poly, Poly)>> {
@@ -397,5 +569,28 @@ mod tests {
         let den = x().pow(2).sub(&Poly::one()).pow(2);
         let (_, terms) = partfrac_rational_terms(&num, &den, &Var::from("x")).unwrap();
         assert_eq!(terms.len(), 4);
+    }
+
+    #[test]
+    fn partfrac_biquadratic_half_angle_denominator() {
+        let t = Poly::var("t");
+        let den = t
+            .pow(4)
+            .mul_scalar(&Ratio::from_integer((-1).into()))
+            .add(&t.pow(3).mul_scalar(&Ratio::from_integer(4.into())))
+            .add(&t.pow(2).mul_scalar(&Ratio::from_integer((-2).into())))
+            .add(&t.mul_scalar(&Ratio::from_integer(4.into())))
+            .add(&Poly::constant(Ratio::from_integer((-1).into())));
+        let num = t
+            .pow(2)
+            .mul_scalar(&Ratio::from_integer(2.into()))
+            .add(&t.mul_scalar(&Ratio::from_integer(8.into())))
+            .add(&Poly::constant(Ratio::from_integer(2.into())));
+        let (_, terms) = partfrac_rational_terms(&num, &den, &Var::from("t")).unwrap();
+        assert_eq!(terms.len(), 2);
+        let recomposed = terms.iter().fold(Poly::zero(), |acc, (n, d)| {
+            acc.add(&n.mul(&den.div_rem(d).0))
+        });
+        assert_eq!(recomposed, num);
     }
 }

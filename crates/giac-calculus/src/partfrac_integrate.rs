@@ -115,6 +115,12 @@ fn integrate_over_quadratic(
     if a.is_zero() {
         return Err(EvalError::TypeError("not quadratic"));
     }
+    let disc = b.clone() * b.clone() - Ratio::from_integer(BigInt::from(4)) * a.clone() * c.clone();
+    if disc > Ratio::zero() {
+        return integrate_over_quadratic_real_roots(
+            &b_lin, &c_lin, &a, &b, x, &disc,
+        );
+    }
     let factor_expr = poly_to_expr(factor);
     let two_a = Ratio::from_integer(BigInt::from(2)) * a.clone();
     let mut parts = Vec::new();
@@ -126,10 +132,6 @@ fn integrate_over_quadratic(
     }
     let c_eff = c_lin - b_lin * b.clone() / two_a.clone();
     if !c_eff.is_zero() {
-        let disc = b.clone() * b.clone() - Ratio::from_integer(BigInt::from(4)) * a.clone() * c.clone();
-        if disc > Ratio::zero() {
-            return Err(EvalError::NotImplemented("integrate partfrac"));
-        }
         if disc == Ratio::zero() {
             return Err(EvalError::NotImplemented("integrate partfrac"));
         }
@@ -157,6 +159,47 @@ fn integrate_over_quadratic(
         return Ok(Expr::int(0));
     }
     Ok(Expr::add(parts))
+}
+
+/// ∫ (B·t+C)/(a·t²+b·t+c) dt when the quadratic has real roots (disc > 0).
+fn integrate_over_quadratic_real_roots(
+    b_lin: &Ratio<BigInt>,
+    c_lin: &Ratio<BigInt>,
+    a: &Ratio<BigInt>,
+    b: &Ratio<BigInt>,
+    x: &Ident,
+    disc: &Ratio<BigInt>,
+) -> Result<ExprArc, EvalError> {
+    let sqrt_disc = sqrt_ratio_expr(disc)?;
+    let t = var_to_expr(x);
+    let root_sum = Expr::add(vec![ratio_to_expr(&(-b.clone())), sqrt_disc.clone()]);
+    let root_diff = Expr::add(vec![
+        ratio_to_expr(&(-b.clone())),
+        Expr::mul(vec![Expr::int(-1), sqrt_disc.clone()]),
+    ]);
+    let two_a = Ratio::from_integer(BigInt::from(2)) * a.clone();
+    let inv_two_a = ratio_to_expr(&(Ratio::one() / two_a.clone()));
+    let r1 = Expr::mul(vec![inv_two_a.clone(), root_sum.clone()]);
+    let r2 = Expr::mul(vec![inv_two_a, root_diff.clone()]);
+    let two_a_c = c_lin.clone() * two_a;
+    let nr1 = Expr::add(vec![
+        Expr::mul(vec![ratio_to_expr(b_lin), root_sum]),
+        ratio_to_expr(&two_a_c.clone()),
+    ]);
+    let nr2 = Expr::add(vec![
+        Expr::mul(vec![ratio_to_expr(b_lin), root_diff]),
+        ratio_to_expr(&two_a_c),
+    ]);
+    let inv_sqrt = Expr::pow(sqrt_disc, Expr::int(-1));
+    let half = ratio_to_expr(&Ratio::new(1.into(), 2.into()));
+    let alpha = Expr::mul(vec![half.clone(), nr1, inv_sqrt.clone()]);
+    let beta = Expr::mul(vec![half, nr2, Expr::int(-1), inv_sqrt]);
+    let ln1 = ln_abs_expr(Expr::add(vec![t.clone(), Expr::mul(vec![Expr::int(-1), r1])]));
+    let ln2 = ln_abs_expr(Expr::add(vec![t.clone(), Expr::mul(vec![Expr::int(-1), r2])]));
+    Ok(Expr::add(vec![
+        Expr::mul(vec![alpha, ln1]),
+        Expr::mul(vec![beta, ln2]),
+    ]))
 }
 
 fn ratio_sqrt(r: &Ratio<BigInt>) -> Result<Ratio<BigInt>, EvalError> {
@@ -239,6 +282,7 @@ fn poly_err(e: PolyError) -> EvalError {
 #[cfg(test)]
 mod tests {
     use giac_core::{format_expr, Context};
+    use num_rational::Ratio;
 
     use super::*;
     use crate::plugin::xcas_default;
@@ -255,13 +299,23 @@ mod tests {
     }
 
     #[test]
-    fn partfrac_integrate_one_over_x_cubed_plus_one() {
-        let x = Ident::new("x");
-        let den = Expr::add(vec![
-            Expr::pow(Expr::sym("x"), Expr::int(3)),
-            Expr::int(1),
-        ]);
-        let r = integrate_const_over_rational(&Expr::int(1), &den, &x);
+    fn partfrac_integrate_half_angle_rational_in_t() {
+        use giac_poly::Poly;
+        let t = Ident::new("__t");
+        let tv = Poly::var("__t");
+        let den = tv
+            .pow(4)
+            .mul_scalar(&Ratio::from_integer((-1).into()))
+            .add(&tv.pow(3).mul_scalar(&Ratio::from_integer(4.into())))
+            .add(&tv.pow(2).mul_scalar(&Ratio::from_integer((-2).into())))
+            .add(&tv.mul_scalar(&Ratio::from_integer(4.into())))
+            .add(&Poly::constant(Ratio::from_integer((-1).into())));
+        let num = tv
+            .pow(2)
+            .mul_scalar(&Ratio::from_integer(2.into()))
+            .add(&tv.mul_scalar(&Ratio::from_integer(8.into())))
+            .add(&Poly::constant(Ratio::from_integer(2.into())));
+        let r = integrate_const_over_rational(&poly_to_expr(&num), &poly_to_expr(&den), &t);
         assert!(r.is_ok(), "{:?}", r);
     }
 }
