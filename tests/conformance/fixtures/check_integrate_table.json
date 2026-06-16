@@ -28,8 +28,8 @@
       "id": "CK-INT-04",
       "line": "integrate(x/((x+1)*(x^4-1)),x)",
       "kind": "integrate",
-      "enabled": false,
-      "giac_issue": "GIAC-219"
+      "enabled": true,
+      "giac_issue": "GIAC-224"
     },
     {
       "id": "CK-INT-05",
@@ -42,8 +42,8 @@
       "id": "CK-INT-06",
       "line": "integrate(1/(x^4-1)^2,x)",
       "kind": "integrate",
-      "enabled": false,
-      "giac_issue": "GIAC-219"
+      "enabled": true,
+      "giac_issue": "GIAC-227"
     },
     {
       "id": "CK-INT-07",
@@ -56,8 +56,8 @@
       "id": "CK-INT-08",
       "line": "integrate(1/(x^4+1)^4,x)",
       "kind": "integrate",
-      "enabled": false,
-      "giac_issue": "GIAC-219"
+      "enabled": true,
+      "giac_issue": "GIAC-228"
     },
     {
       "id": "CK-INT-09",

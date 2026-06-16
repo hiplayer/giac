@@ -19,9 +19,15 @@ pub fn integrate_const_over_rational(
     den: &ExprArc,
     var: &Ident,
 ) -> Result<ExprArc, EvalError> {
-    let num_p = expr_to_poly(num)?;
-    let den_p = expr_to_poly(den)?;
     let v = Var::from(var.as_str());
+    let num_p = expr_to_poly(num)?;
+    if let Some((base, exp)) = den_perfect_power_expr(den) {
+        let base_p = expr_to_poly(&base)?;
+        if exp >= 2 && univariate_degree(&base_p, &v) >= 2 {
+            return integrate_with_hermite(&num_p, &base_p, exp, &v, var);
+        }
+    }
+    let den_p = expr_to_poly(den)?;
     if den_p.is_zero() {
         return Err(EvalError::TypeError("division by zero"));
     }
@@ -47,6 +53,31 @@ pub fn integrate_const_over_rational(
     Ok(Expr::add(parts))
 }
 
+fn den_perfect_power_expr(den: &ExprArc) -> Option<(ExprArc, usize)> {
+    match den.as_ref() {
+        Expr::Pow(base, exp) => {
+            let n = match exp.as_ref() {
+                Expr::Int(i) => bigint_to_i64(i).ok()?,
+                _ => return None,
+            };
+            if n >= 2 {
+                Some((Arc::clone(base), n as usize))
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+fn hermite_factor_sign(factor: &Poly, var: &Var) -> Ratio<BigInt> {
+    if coeff_at(factor, var, 0) < Ratio::zero() {
+        Ratio::from_integer((-1).into())
+    } else {
+        Ratio::one()
+    }
+}
+
 fn integrate_with_hermite(
     num: &Poly,
     base: &Poly,
@@ -60,8 +91,12 @@ fn integrate_with_hermite(
         parts.push(integrate_hermite_term(&t, var, x)?);
     }
     if mult == 1 && !rem.is_zero() {
+        let mut rem_num = rem.clone();
+        if hermite_factor_sign(base, var) < Ratio::zero() {
+            rem_num = rem_num.mul_scalar(&Ratio::from_integer((-1).into()));
+        }
         parts.push(integrate_const_over_rational(
-            &poly_to_expr(&rem),
+            &poly_to_expr(&rem_num),
             &poly_to_expr(base),
             x,
         )?);
@@ -73,9 +108,9 @@ fn integrate_with_hermite(
 }
 
 fn integrate_hermite_term(t: &HermiteTerm, var: &Var, x: &Ident) -> Result<ExprArc, EvalError> {
-    let _ = var;
     let scale = Ratio::from_integer(BigInt::from(t.power as i64));
-    let num = t.numer.mul_scalar(&Ratio::from_integer((-1).into()));
+    let sign = hermite_factor_sign(&t.factor, var);
+    let num = t.numer.mul_scalar(&(-sign));
     let g = poly_to_expr(&t.factor);
     if t.power == 1 {
         return Ok(Arc::new(Expr::Frac(
@@ -397,6 +432,42 @@ mod tests {
         let g = Poly::var("x").pow(2).add(&Poly::one());
         let r = integrate_with_hermite(&Poly::var("x"), &g, 2, &v, &x);
         assert!(r.is_ok(), "{:?}", r);
+    }
+
+    #[test]
+    fn integrate_one_over_x_fourth_minus_one_squared() {
+        let x = Ident::new("x");
+        let den = Expr::pow(
+            Expr::add(vec![Expr::pow(Expr::sym("x"), Expr::int(4)), Expr::int(-1)]),
+            Expr::int(2),
+        );
+        let r = integrate_const_over_rational(&Expr::int(1), &den, &x);
+        assert!(r.is_ok(), "{:?}", r);
+        eprintln!("{}", format_expr(r.unwrap().as_ref()));
+    }
+
+    #[test]
+    fn integrate_x_over_x_plus_one_times_x_fourth_minus_one() {
+        let x = Ident::new("x");
+        let den = Expr::mul(vec![
+            Expr::add(vec![Expr::sym("x"), Expr::int(1)]),
+            Expr::add(vec![Expr::pow(Expr::sym("x"), Expr::int(4)), Expr::int(-1)]),
+        ]);
+        let r = integrate_const_over_rational(&Expr::sym("x"), &den, &x);
+        assert!(r.is_ok(), "{:?}", r);
+        eprintln!("{}", format_expr(r.unwrap().as_ref()));
+    }
+
+    #[test]
+    fn integrate_one_over_x_fourth_plus_one_fourth_power() {
+        let x = Ident::new("x");
+        let den = Expr::pow(
+            Expr::add(vec![Expr::pow(Expr::sym("x"), Expr::int(4)), Expr::int(1)]),
+            Expr::int(4),
+        );
+        let r = integrate_const_over_rational(&Expr::int(1), &den, &x);
+        assert!(r.is_ok(), "{:?}", r);
+        eprintln!("{}", format_expr(r.unwrap().as_ref()));
     }
 
     #[test]

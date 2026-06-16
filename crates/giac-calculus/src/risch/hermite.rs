@@ -139,6 +139,31 @@ mod tests {
     }
 
     #[test]
+    fn hermite_one_over_x_fourth_minus_one_squared_v_numer() {
+        let var = x_var();
+        let g = x().pow(4).sub(&Poly::one());
+        let (terms, _, _) = hermite_reduce(&Poly::one(), &g, 2, &var).unwrap();
+        assert_eq!(coeff_at(&terms[0].numer, &var, 1), Ratio::new((-1).into(), 4.into()));
+    }
+
+    #[test]
+    fn hermite_one_over_x_fourth_minus_one_squared_rem() {
+        let var = x_var();
+        let g = x().pow(4).sub(&Poly::one());
+        let (_, rem, _) = hermite_reduce(&Poly::one(), &g, 2, &var).unwrap();
+        assert_eq!(coeff_at(&rem, &var, 0), Ratio::new(3.into(), 4.into()));
+    }
+
+    #[test]
+    fn hermite_one_over_x_fourth_plus_one_fourth_power_rem() {
+        let var = x_var();
+        let g = x().pow(4).add(&Poly::one());
+        let (_, rem, mult) = hermite_reduce(&Poly::one(), &g, 4, &var).unwrap();
+        assert_eq!(mult, 1);
+        assert!(!rem.is_zero());
+    }
+
+    #[test]
     fn hermite_two_step_cubic_power() {
         let var = x_var();
         let g = x().pow(2).sub(&Poly::one());

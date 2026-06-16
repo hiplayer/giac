@@ -86,7 +86,7 @@ fn partfrac_by_square_free(
     den: &Poly,
     var: &Var,
 ) -> PolyResult<Vec<(Poly, Poly)>> {
-    let sqff = denominator_power_factors(den, var)?;
+    let sqff = expand_sqff_factors(&denominator_power_factors(den, var)?, var)?;
     if sqff.is_empty() {
         return Err(PolyError::TypeError("empty denominator"));
     }
@@ -125,24 +125,61 @@ fn partfrac_by_square_free(
         return partfrac_square_free_affine_numerators(num, den, var, &sqff);
     }
 
-    let n_unknowns = denom_powers.len();
+    partfrac_affine_power_system(num, den, var, &sqff)
+}
+
+/// Partial fractions with numerators up to `deg(g)-1` for each `g^j` term.
+fn partfrac_affine_power_system(
+    num: &Poly,
+    den: &Poly,
+    var: &Var,
+    sqff: &[(Poly, usize)],
+) -> PolyResult<Vec<(Poly, Poly)>> {
+    let mut term_specs = Vec::new();
+    for (g, mult) in sqff {
+        let gdeg = univariate_degree(g, var) as usize;
+        if gdeg == 0 || gdeg > 2 {
+            return Err(PolyError::NotImplemented("partfrac nonlinear factor"));
+        }
+        for j in 1..=*mult {
+            term_specs.push((g.pow(j as u64), gdeg - 1));
+        }
+    }
+    let n_unknowns: usize = term_specs.iter().map(|(_, d)| d + 1).sum();
     let nden = univariate_degree(den, var) as usize;
     let mut matrix = vec![vec![Ratio::zero(); n_unknowns]; nden];
     let mut rhs = vec![Ratio::zero(); nden];
+    let mut col = 0usize;
+    for (d_k, max_pow) in &term_specs {
+        let cofactor = den.div_rem(d_k).0;
+        for k in 0..=*max_pow {
+            let scaled = cofactor.mul(&Poly::var(var.clone()).pow(k as u64));
+            for i in 0..nden {
+                matrix[i][col] = coeff_at(&scaled, var, i as u64);
+            }
+            col += 1;
+        }
+    }
     for i in 0..nden {
         rhs[i] = coeff_at(num, var, i as u64);
-        for (k, d_k) in denom_powers.iter().enumerate() {
-            let cofactor = den.div_rem(d_k).0;
-            matrix[i][k] = coeff_at(&cofactor, var, i as u64);
-        }
     }
     let coeffs = solve_linear_system(&matrix, &rhs)
         .ok_or(PolyError::NotImplemented("partfrac linear system"))?;
-    Ok(coeffs
-        .into_iter()
-        .zip(denom_powers)
-        .map(|(c, d)| (Poly::constant(c), d))
-        .collect())
+    let mut col = 0usize;
+    let mut out = Vec::new();
+    for (d_k, max_pow) in term_specs {
+        let mut numer = Poly::zero();
+        for k in 0..=max_pow {
+            numer = numer.add(
+                &Poly::var(var.clone())
+                    .pow(k as u64)
+                    .mul_scalar(&coeffs[col]),
+            );
+            col += 1;
+        }
+        out.push((numer, d_k));
+    }
+    Ok(out)
 }
 
 /// Square-free factors with multiplicity; rational roots when Yun sqff stalls.
@@ -162,6 +199,31 @@ fn denominator_power_factors(den: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usi
     factor_by_rational_roots(den, var)
 }
 
+/// Split square-free factors of degree > 2 into linear/quadratic pieces.
+fn expand_sqff_factors(
+    sqff: &[(Poly, usize)],
+    var: &Var,
+) -> PolyResult<Vec<(Poly, usize)>> {
+    let mut out = Vec::new();
+    for (g, mult) in sqff {
+        if univariate_degree(g, var) <= 2 {
+            out.push((g.clone(), *mult));
+            continue;
+        }
+        if let Some(factors) = factor_into(g) {
+            for f in factors {
+                out.push((f, *mult));
+            }
+            continue;
+        }
+        let sub = factor_by_rational_roots(g, var)?;
+        for (f, m) in sub {
+            out.push((f, *mult * m));
+        }
+    }
+    Ok(out)
+}
+
 fn factor_by_rational_roots(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>> {
     let mut rest = p.clone();
     let mut factors = Vec::new();
@@ -175,6 +237,9 @@ fn factor_by_rational_roots(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)
                         rest = Poly::one();
                         break;
                     }
+                }
+                if univariate_degree(&rest, var) <= 2 {
+                    break;
                 }
                 return Err(PolyError::NotImplemented("partfrac factor"));
             }
@@ -541,6 +606,63 @@ mod tests {
 
     fn x() -> Poly {
         Poly::var("x")
+    }
+
+    #[test]
+    fn find_rational_root_on_x_plus_one_times_x_fourth_minus_one() {
+        let den = x().add(&Poly::one()).mul(&x().pow(4).sub(&Poly::one()));
+        let r = find_rational_root(&den, &Var::from("x"));
+        assert!(r.is_some());
+    }
+
+    #[test]
+    fn find_rational_root_on_x_plus_one_sq_times_x_sq_plus_one() {
+        let den = x()
+            .add(&Poly::one())
+            .pow(2)
+            .mul(&x().pow(2).add(&Poly::one()));
+        let r = find_rational_root(&den, &Var::from("x"));
+        assert_eq!(r, Some(Ratio::from_integer((-1).into())));
+    }
+
+    #[test]
+    fn factor_by_roots_x_plus_one_times_x_fourth_minus_one() {
+        let den = x().add(&Poly::one()).mul(&x().pow(4).sub(&Poly::one()));
+        let factors = factor_by_rational_roots(&den, &Var::from("x")).unwrap();
+        assert!(factors.len() >= 3);
+    }
+
+    #[test]
+    fn denominator_factors_x_plus_one_times_x_fourth_minus_one() {
+        let den = x().add(&Poly::one()).mul(&x().pow(4).sub(&Poly::one()));
+        let factors = denominator_power_factors(&den, &Var::from("x")).unwrap();
+        assert!(factors.len() >= 2);
+        let expanded = expand_sqff_factors(&factors, &Var::from("x")).unwrap();
+        assert!(expanded.iter().all(|(g, _)| univariate_degree(g, &Var::from("x")) <= 2));
+    }
+
+    #[test]
+    fn partfrac_three_quarters_over_x_fourth_minus_one() {
+        let num = Poly::constant(Ratio::new(3.into(), 4.into()));
+        let den = x().pow(4).sub(&Poly::one());
+        let (_, terms) = partfrac_rational_terms(&num, &den, &Var::from("x")).unwrap();
+        assert_eq!(terms.len(), 3);
+    }
+
+    #[test]
+    fn partfrac_by_sqff_x_over_x_plus_one_times_x_fourth_minus_one() {
+        let num = x();
+        let den = x().add(&Poly::one()).mul(&x().pow(4).sub(&Poly::one()));
+        let terms = partfrac_by_square_free(&num, &den, &Var::from("x")).unwrap();
+        assert!(terms.len() >= 3);
+    }
+
+    #[test]
+    fn partfrac_x_over_x_plus_one_times_x_fourth_minus_one() {
+        let num = x();
+        let den = x().add(&Poly::one()).mul(&x().pow(4).sub(&Poly::one()));
+        let (_, terms) = partfrac_rational_terms(&num, &den, &Var::from("x")).unwrap();
+        assert!(terms.len() >= 3);
     }
 
     #[test]

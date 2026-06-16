@@ -259,6 +259,13 @@ mod tests {
     }
 
     #[test]
+    fn factor_x_fourth_minus_one() {
+        let p = Poly::var("x").pow(4).sub(&Poly::one());
+        let f = factor_into(&p).expect("factor x^4-1");
+        assert_eq!(f.len(), 3);
+    }
+
+    #[test]
     fn factor_x_plus_3_power_4() {
         let x = Poly::var("x");
         let p = x

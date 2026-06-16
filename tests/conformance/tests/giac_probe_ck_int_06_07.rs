@@ -22,3 +22,8 @@ fn probe_ck_int_06() {
 fn probe_ck_int_07() {
     assert_sympy("integrate(1/(x^4+1)^2,x)");
 }
+
+#[test]
+fn probe_ck_int_08() {
+    assert_sympy("integrate(1/(x^4+1)^4,x)");
+}
