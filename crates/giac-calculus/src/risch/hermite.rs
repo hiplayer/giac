@@ -90,6 +90,14 @@ mod tests {
     }
 
     #[test]
+    fn hermite_one_over_x_fourth_plus_one_squared_rem() {
+        let var = x_var();
+        let g = x().pow(4).add(&Poly::one());
+        let (_, rem, _) = hermite_reduce(&Poly::one(), &g, 2, &var).unwrap();
+        assert_eq!(coeff_at(&rem, &var, 0), Ratio::one());
+    }
+
+    #[test]
     fn hermite_one_over_x_fourth_plus_one_squared_terms() {
         let var = x_var();
         let g = x().pow(4).add(&Poly::one());

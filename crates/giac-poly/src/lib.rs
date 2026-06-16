@@ -1,5 +1,6 @@
 #![deny(unsafe_code)]
 
+mod tresultant;
 mod univariate;
 mod error;
 mod exp;
@@ -23,6 +24,9 @@ pub use factor::{as_perfect_power, factor_into, factor_poly, factor_poly_mod};
 pub use partfrac::{partfrac_rational_terms, partfrac_terms};
 pub use chinrem::{chinrem, chinrem_lists};
 pub use ops::{content, gauss};
+pub use tresultant::{
+    eval_param_poly, num_minus_t_derivative, rational_roots_in_t, tresultant_eliminate_x,
+};
 pub use univariate::{
     eval_univariate_at, odd_multiplicity_part, sign_variations, square_free_factorization,
     sturm_sequence, sturm_sign_variations_at, sturmab_count, univariate_derivative,

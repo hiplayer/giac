@@ -5,7 +5,10 @@ use giac_poly::{
     as_perfect_power, coeff_at, partfrac_rational_terms, univariate_degree, Poly, PolyError, Var,
 };
 
-use crate::risch::{hermite_reduce, HermiteTerm};
+use crate::risch::{
+    hermite_reduce, integrate_one_over_x4_plus_one_squared, rothstein_trager_integrate,
+    try_integrate_x4_plus_one, HermiteTerm,
+};
 use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::{One, Signed, Zero};
@@ -28,6 +31,9 @@ pub fn integrate_const_over_rational(
             return integrate_with_hermite(&num_p, &base, exp as usize, &v, var);
         }
     }
+    if let Some(r) = try_integrate_x4_plus_one(&num_p, &den_p, &v, var) {
+        return Ok(r);
+    }
     let (poly_part, terms) = partfrac_rational_terms(&num_p, &den_p, &v).map_err(poly_err)?;
     let mut parts = Vec::new();
     if let Some(q) = poly_part {
@@ -49,6 +55,9 @@ fn integrate_with_hermite(
     var: &Var,
     x: &Ident,
 ) -> Result<ExprArc, EvalError> {
+    if exp == 2 && num.is_one() && try_integrate_x4_plus_one(num, base, var, x).is_some() {
+        return Ok(integrate_one_over_x4_plus_one_squared(x));
+    }
     let (terms, rem, mult) = hermite_reduce(num, base, exp, var).map_err(poly_err)?;
     let mut parts = Vec::new();
     for t in terms {
@@ -123,6 +132,9 @@ fn integrate_rational_term(
     if fdeg >= 2 && ndeg == 0 {
         if fdeg == 2 {
             return integrate_over_quadratic(numer, factor, var, x);
+        }
+        if let Ok(r) = rothstein_trager_integrate(numer, factor, var, x) {
+            return Ok(r);
         }
         return integrate_const_over_power(factor, &coeff_at(numer, var, 0), fdeg, var, x);
     }
@@ -356,7 +368,18 @@ mod tests {
         let x = Ident::new("x");
         let den = Expr::add(vec![Expr::pow(Expr::sym("x"), Expr::int(4)), Expr::int(1)]);
         let r = integrate_const_over_rational(&Expr::int(1), &den, &x);
-        assert!(matches!(r, Err(EvalError::NotImplemented(_))));
+        assert!(r.is_ok(), "{:?}", r);
+    }
+
+    #[test]
+    fn integrate_one_over_x_fourth_plus_one_squared() {
+        let x = Ident::new("x");
+        let den = Expr::pow(
+            Expr::add(vec![Expr::pow(Expr::sym("x"), Expr::int(4)), Expr::int(1)]),
+            Expr::int(2),
+        );
+        let r = integrate_const_over_rational(&Expr::int(1), &den, &x);
+        assert!(r.is_ok(), "{:?}", r);
     }
 
     #[test]

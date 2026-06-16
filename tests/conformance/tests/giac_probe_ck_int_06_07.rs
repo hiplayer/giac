@@ -5,7 +5,7 @@ fn assert_sympy(line: &str) {
     let ok = sympy_verify_lines(&[line.to_string()], &[got.clone()])
         .map(|r| r[0].ok)
         .unwrap_or(false);
-    assert!(ok, "line={line} got={got} err={:?}", sympy_verify_lines(&[line.to_string()], &[got.clone()]).ok());
+    assert!(ok, "line={line} got={got}");
 }
 
 #[test]

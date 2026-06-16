@@ -21,4 +21,4 @@ pub use integrate::integrate;
 pub use plugin::{install_calculus, xcas_default, DefaultCalculusPlugin};
 pub use limit::eval_limit;
 pub use series::eval_series;
-pub use risch::{eval_risch, hermite_reduce, pow2expln, risch_tower, rlvarx, HermiteTerm, RischTowerError};
+pub use risch::{eval_risch, hermite_reduce, pow2expln, risch_tower, rlvarx, rothstein_trager_integrate, HermiteTerm, RischTowerError};
