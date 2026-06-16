@@ -2,7 +2,7 @@ use std::sync::Arc;
 
 use giac_core::{bigint_to_i64, expr_to_poly, poly_to_expr, EvalError, Expr, ExprArc, FuncKind, Ident};
 use giac_poly::{
-    coeff_at, partfrac_rational_terms, univariate_degree, Poly, PolyError, Var,
+    as_perfect_power, coeff_at, partfrac_rational_terms, univariate_degree, Poly, PolyError, Var,
 };
 use num_bigint::BigInt;
 use num_rational::Ratio;
@@ -43,6 +43,19 @@ fn integrate_rational_term(
 ) -> Result<ExprArc, EvalError> {
     let fdeg = univariate_degree(factor, var);
     let ndeg = univariate_degree(numer, var);
+    if ndeg == 0 {
+        if let Some((base, exp)) = as_perfect_power(factor) {
+            if univariate_degree(&base, var) == 1 && exp >= 2 {
+                return integrate_const_over_power(
+                    &base,
+                    &coeff_at(numer, var, 0),
+                    exp,
+                    var,
+                    x,
+                );
+            }
+        }
+    }
     if fdeg == 1 && ndeg == 0 {
         let coeff = coeff_at(numer, var, 0);
         let a = coeff_at(factor, var, 1);
@@ -53,10 +66,39 @@ fn integrate_rational_term(
         let scaled = coeff / a;
         return Ok(Expr::mul(vec![ratio_to_expr(&scaled), ln_abs_expr(factor_expr)]));
     }
+    if fdeg >= 2 && ndeg == 0 {
+        if fdeg == 2 {
+            return integrate_over_quadratic(numer, factor, var, x);
+        }
+        return integrate_const_over_power(factor, &coeff_at(numer, var, 0), fdeg, var, x);
+    }
     if fdeg == 2 && ndeg <= 1 {
         return integrate_over_quadratic(numer, factor, var, x);
     }
     Err(EvalError::NotImplemented("integrate partfrac"))
+}
+
+/// ∫ c / g^n dx for linear `g` and n >= 2.
+fn integrate_const_over_power(
+    factor: &Poly,
+    coeff: &Ratio<BigInt>,
+    power: u64,
+    var: &Var,
+    _x: &Ident,
+) -> Result<ExprArc, EvalError> {
+    if power < 2 {
+        return Err(EvalError::TypeError("power must be >= 2"));
+    }
+    let a = coeff_at(factor, var, 1);
+    if a.is_zero() || univariate_degree(factor, var) != 1 {
+        return Err(EvalError::TypeError("not linear factor"));
+    }
+    let g_expr = poly_to_expr(factor);
+    let n = power as i64;
+    let denom = Ratio::from_integer(BigInt::from(n - 1)) * a.clone();
+    let scaled = -coeff.clone() / denom;
+    let integrand = Expr::pow(g_expr, Expr::int(-(n - 1)));
+    Ok(Expr::mul(vec![ratio_to_expr(&scaled), integrand]))
 }
 
 fn integrate_over_quadratic(
@@ -200,6 +242,17 @@ mod tests {
 
     use super::*;
     use crate::plugin::xcas_default;
+
+    #[test]
+    fn partfrac_integrate_x_over_repeated_linear() {
+        let x = Ident::new("x");
+        let den = Expr::mul(vec![
+            Expr::add(vec![Expr::sym("x"), Expr::int(-1)]),
+            Expr::pow(Expr::add(vec![Expr::sym("x"), Expr::int(1)]), Expr::int(2)),
+        ]);
+        let r = integrate_const_over_rational(&Expr::sym("x"), &den, &x);
+        assert!(r.is_ok(), "{:?}", r);
+    }
 
     #[test]
     fn partfrac_integrate_one_over_x_cubed_plus_one() {

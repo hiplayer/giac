@@ -58,10 +58,14 @@ fn univariate_div_rem(
     let mut q = vec![Ratio::zero(); r.len().saturating_sub(db).max(1)];
     while r.len() > db {
         let da = r.len() - 1;
-        let coeff = r[da].clone() / b[db].clone();
-        if coeff.is_zero() {
-            break;
+        if r[da].is_zero() {
+            r.pop();
+            if r.is_empty() {
+                r = vec![Ratio::zero()];
+            }
+            continue;
         }
+        let coeff = r[da].clone() / b[db].clone();
         let shift = da - db;
         if shift >= q.len() {
             q.resize(shift + 1, Ratio::zero());
@@ -326,11 +330,9 @@ fn univariate_div_exact(p: &Poly, d: &Poly, var: &Var) -> Option<Poly> {
 fn gcd_reduce(w: &mut Poly, y: &mut Poly, var: &Var) -> Poly {
     let g = univariate_gcd(w, y, var);
     if !g.is_one() {
-        let (wq, wr) = univariate_div_rem(&univariate_coeffs(w, var), &univariate_coeffs(&g, var));
-        let (yq, yr) = univariate_div_rem(&univariate_coeffs(y, var), &univariate_coeffs(&g, var));
-        if wr.len() == 1 && wr[0].is_zero() && yr.len() == 1 && yr[0].is_zero() {
-            *w = poly_from_coeffs(var, &wq);
-            *y = poly_from_coeffs(var, &yq);
+        if let (Some(wq), Some(yq)) = (w.div_exact(&g), y.div_exact(&g)) {
+            *w = wq;
+            *y = yq;
         }
     }
     g

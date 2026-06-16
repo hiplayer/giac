@@ -24,8 +24,8 @@ pub use partfrac::{partfrac_rational_terms, partfrac_terms};
 pub use chinrem::{chinrem, chinrem_lists};
 pub use ops::{content, gauss};
 pub use univariate::{
-    eval_univariate_at, odd_multiplicity_part, sign_variations, sturm_sequence,
-    sturm_sign_variations_at, sturmab_count, univariate_derivative,
+    eval_univariate_at, odd_multiplicity_part, sign_variations, square_free_factorization,
+    sturm_sequence, sturm_sign_variations_at, sturmab_count, univariate_derivative,
 };
 
 #[cfg(test)]

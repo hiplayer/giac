@@ -58,6 +58,7 @@ name = "giac-calculus"
 version = "0.1.0"
 dependencies = [
  "giac-core",
+ "giac-parse",
  "giac-poly",
  "giac-solve",
  "num-bigint",

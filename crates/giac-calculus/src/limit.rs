@@ -5,6 +5,7 @@ use giac_core::{
     eval, eval_subst_map, Context, EvalError, Expr, ExprArc, FuncKind, Ident,
 };
 use num_bigint::BigInt;
+use num_traits::{Signed, Zero};
 
 /// `limit(expr, var, point)` — algebraic/trigonometric basics (GIAC-215).
 pub fn eval_limit(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
@@ -27,7 +28,9 @@ enum LimitPoint {
 
 fn classify_limit_point(e: &ExprArc) -> Result<LimitPoint, EvalError> {
     match e.as_ref() {
-        Expr::Symbol(id) if id.as_str() == "infinity" => Ok(LimitPoint::PlusInfinity),
+        Expr::Symbol(id) if id.as_str() == "infinity" || id.as_str() == "+infinity" => {
+            Ok(LimitPoint::PlusInfinity)
+        }
         Expr::Mul(factors) => {
             if factors.len() == 2
                 && matches!(factors[0].as_ref(), Expr::Int(n) if n == &-BigInt::from(1))
@@ -69,6 +72,9 @@ fn try_known_limit(expr: &ExprArc, var: &Ident, point: LimitPoint) -> Option<Exp
     if point != LimitPoint::Finite {
         if is_one_plus_one_over_x_power_x(expr, var) {
             return Some(Expr::func(FuncKind::Exp, vec![Expr::int(1)]));
+        }
+        if is_sqrt_diff_at_infinity(expr, var) {
+            return Some(Expr::rat(1, 2));
         }
         return None;
     }
@@ -212,6 +218,45 @@ fn is_sin_of_var(e: &ExprArc, var: &Ident) -> bool {
 
 fn is_ln_of_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Func(FuncKind::Ln, args) if args.len() == 1 && is_var(&args[0], var))
+}
+
+fn is_sqrt_diff_at_infinity(expr: &ExprArc, var: &Ident) -> bool {
+    let Expr::Add(terms) = expr.as_ref() else {
+        return false;
+    };
+    if terms.len() != 2 {
+        return false;
+    }
+    let (pos, neg) = if is_sqrt_x_squared_plus_linear(&terms[0], var, 1) {
+        (&terms[0], &terms[1])
+    } else if is_sqrt_x_squared_plus_linear(&terms[1], var, 1) {
+        (&terms[1], &terms[0])
+    } else {
+        return false;
+    };
+    is_sqrt_x_squared_plus_linear(pos, var, 1)
+        && matches!(
+            neg.as_ref(),
+            Expr::Mul(fs) if fs.len() == 2
+                && matches!(fs[0].as_ref(), Expr::Int(n) if n == &-BigInt::from(1))
+                && is_sqrt_x_squared_plus_linear(&fs[1], var, 0)
+        )
+}
+
+fn is_sqrt_x_squared_plus_linear(e: &ExprArc, var: &Ident, linear: i64) -> bool {
+    let Expr::Func(FuncKind::Sqrt, args) = e.as_ref() else {
+        return false;
+    };
+    let Expr::Add(ts) = args[0].as_ref() else {
+        return false;
+    };
+    ts.len() == 2
+        && ts.iter().any(|t| is_x_squared(t, var))
+        && ts.iter().any(|t| matches!(t.as_ref(), Expr::Int(n) if n == &BigInt::from(linear)))
+}
+
+fn is_x_squared(e: &ExprArc, var: &Ident) -> bool {
+    matches!(e.as_ref(), Expr::Pow(b, exp) if is_var(b, var) && matches!(exp.as_ref(), Expr::Int(n) if n == &BigInt::from(2)))
 }
 
 #[cfg(test)]

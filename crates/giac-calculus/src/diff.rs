@@ -19,6 +19,7 @@ pub fn diff(expr: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
         Expr::Func(FuncKind::Ln, args) => diff_ln(&args[0], var),
         Expr::Func(FuncKind::Exp, args) => diff_exp(&args[0], var),
         Expr::Func(FuncKind::Tan, args) => diff_tan(&args[0], var),
+        Expr::Func(FuncKind::Atan, args) => diff_atan(&args[0], var),
         Expr::Symbol(id) if id == var => Ok(Expr::int(1)),
         _ if is_const_wrt(expr, var) => Ok(Expr::int(0)),
         _ => Err(EvalError::NotImplemented("diff")),
@@ -123,6 +124,16 @@ fn diff_exp(arg: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     ]))
 }
 
+fn diff_atan(arg: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
+    Ok(Expr::mul(vec![
+        diff(arg, var)?,
+        Expr::pow(
+            Expr::add(vec![Expr::int(1), Expr::pow(Arc::clone(arg), Expr::int(2))]),
+            Expr::int(-1),
+        ),
+    ]))
+}
+
 fn diff_tan(arg: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     let cos = Expr::func(FuncKind::Cos, vec![Arc::clone(arg)]);
     Ok(Expr::mul(vec![
@@ -141,7 +152,8 @@ fn is_const_wrt(e: &ExprArc, var: &Ident) -> bool {
         Expr::Int(_) | Expr::Rat(_) => true,
         Expr::Add(ts) => ts.iter().all(|t| is_const_wrt(t, var)),
         Expr::Mul(fs) => fs.iter().all(|f| is_const_wrt(f, var)),
-        Expr::Pow(b, _) => is_const_wrt(b, var),
+        Expr::Pow(b, exp) => is_const_wrt(b, var) && is_const_wrt(exp, var),
+        Expr::Func(_, args) => args.iter().all(|a| is_const_wrt(a, var)),
         _ => false,
     }
 }
@@ -197,8 +209,9 @@ mod tests {
     }
 
     #[test]
-    fn diff_unsupported() {
+    fn diff_atan_x() {
         let e = Expr::func(FuncKind::Atan, vec![Expr::sym("x")]);
-        assert!(matches!(diff(&e, &x()), Err(EvalError::NotImplemented(_))));
+        let r = diff(&e, &x());
+        assert!(r.is_ok(), "{:?}", r);
     }
 }

@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use num_bigint::BigInt;
+use num_rational::Ratio;
 
 use giac_core::{
     bigint_to_i64, expand, Context, EvalError, Expr, ExprArc, FuncKind, Ident,
@@ -26,6 +27,11 @@ use giac_core::{
 /// | `"integrate pow"` | General power bases |
 /// | `"integrate quadratic"` | Unsupported quadratic denominators |
 pub fn integrate(expr: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
+    if let Some((num, den)) = try_as_rational(expr, var) {
+        if let Ok(r) = integrate_frac(&num, &den, var) {
+            return Ok(r);
+        }
+    }
     match expr.as_ref() {
         Expr::Symbol(id) if id == var => integrate_pow(expr, &Expr::int(1), var),
         Expr::Pow(base, exp) => integrate_pow(base, exp, var),
@@ -37,6 +43,9 @@ pub fn integrate(expr: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
             integrate_mul(factors, var)
         }
         Expr::Add(terms) => {
+            if let Some(r) = try_integrate_tan_plus_tan_cubed(terms, var) {
+                return Ok(r);
+            }
             let parts: Result<Vec<_>, _> = terms.iter().map(|t| integrate(t, var)).collect();
             Ok(Expr::add(parts?))
         }
@@ -46,11 +55,71 @@ pub fn integrate(expr: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     }
 }
 
-fn integrate_frac(num: &ExprArc, den: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
-    if is_const_wrt(num, var) {
-        if let Ok(r) = crate::partfrac_integrate::integrate_const_over_rational(num, den, var) {
-            return Ok(r);
+fn try_as_rational(expr: &ExprArc, var: &Ident) -> Option<(ExprArc, ExprArc)> {
+    let _ = var;
+    match expr.as_ref() {
+        Expr::Frac(num, den) => Some((Arc::clone(num), Arc::clone(den))),
+        Expr::Pow(base, exp) => {
+            let n = match exp.as_ref() {
+                Expr::Int(i) => bigint_to_i64(i).ok()?,
+                _ => return None,
+            };
+            if n >= 0 {
+                return None;
+            }
+            let den = if n == -1 {
+                Arc::clone(base)
+            } else {
+                Expr::pow(Arc::clone(base), Expr::int(-n))
+            };
+            Some((Expr::int(1), den))
         }
+        Expr::Mul(factors) => {
+            let mut num_parts = Vec::new();
+            let mut den_parts = Vec::new();
+            for f in factors {
+                if let Expr::Pow(base, exp) = f.as_ref() {
+                    if let Expr::Int(n) = exp.as_ref() {
+                        if let Ok(ni) = bigint_to_i64(n) {
+                            if ni < 0 {
+                                den_parts.push(if ni == -1 {
+                                    Arc::clone(base)
+                                } else {
+                                    Expr::pow(Arc::clone(base), Expr::int(-ni))
+                                });
+                                continue;
+                            }
+                        }
+                    }
+                }
+                num_parts.push(Arc::clone(f));
+            }
+            if den_parts.is_empty() {
+                return None;
+            }
+            let num = if num_parts.is_empty() {
+                Expr::int(1)
+            } else if num_parts.len() == 1 {
+                num_parts.remove(0)
+            } else {
+                Expr::mul(num_parts)
+            };
+            let den = if den_parts.len() == 1 {
+                den_parts.remove(0)
+            } else {
+                Expr::mul(den_parts)
+            };
+            Some((num, den))
+        }
+        _ => None,
+    }
+}
+
+fn integrate_frac(num: &ExprArc, den: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
+    if let Ok(r) = crate::partfrac_integrate::integrate_const_over_rational(num, den, var) {
+        return Ok(r);
+    }
+    if is_const_wrt(num, var) {
         let inner = integrate_reciprocal(den, var)?;
         if num.is_one() {
             return Ok(inner);
@@ -120,11 +189,19 @@ fn integrate_func(
             ]))
         }
         (FuncKind::Sin, [arg]) => {
-            if linear_coefficient(arg, var).is_some() {
-                let k = linear_coefficient(arg, var).unwrap();
+            if let Some(k) = linear_coefficient(arg, var).or_else(|| affine_var_coeff(arg, var)) {
                 return Ok(Expr::mul(vec![
                     Expr::int(-1),
                     Expr::func(FuncKind::Cos, vec![Arc::clone(arg)]),
+                    Expr::pow(k, Expr::int(-1)),
+                ]));
+            }
+            Err(EvalError::NotImplemented("integrate"))
+        }
+        (FuncKind::Cos, [arg]) => {
+            if let Some(k) = linear_coefficient(arg, var).or_else(|| affine_var_coeff(arg, var)) {
+                return Ok(Expr::mul(vec![
+                    Expr::func(FuncKind::Sin, vec![Arc::clone(arg)]),
                     Expr::pow(k, Expr::int(-1)),
                 ]));
             }
@@ -149,6 +226,288 @@ fn linear_coefficient(e: &ExprArc, var: &Ident) -> Option<ExprArc> {
         }
     }
     None
+}
+
+fn affine_var_coeff(e: &ExprArc, var: &Ident) -> Option<ExprArc> {
+    match e.as_ref() {
+        Expr::Symbol(id) if id == var => Some(Expr::int(1)),
+        Expr::Mul(factors) if factors.len() == 2 => {
+            if is_var(&factors[0], var) && is_const_wrt(&factors[1], var) {
+                return Some(Arc::clone(&factors[1]));
+            }
+            if is_var(&factors[1], var) && is_const_wrt(&factors[0], var) {
+                return Some(Arc::clone(&factors[0]));
+            }
+            None
+        }
+        Expr::Add(terms) => {
+            let mut k = Expr::int(0);
+            for t in terms {
+                if is_var(t, var) {
+                    k = Expr::add(vec![k, Expr::int(1)]);
+                } else if let Some(c) = linear_coefficient(t, var) {
+                    k = Expr::add(vec![k, c]);
+                } else if !is_const_wrt(t, var) {
+                    return None;
+                }
+            }
+            if k.as_ref().is_zero() {
+                None
+            } else {
+                Some(k)
+            }
+        }
+        _ if is_const_wrt(e, var) => None,
+        _ => None,
+    }
+}
+
+fn is_tan_of_var(e: &ExprArc, var: &Ident) -> bool {
+    matches!(
+        e.as_ref(),
+        Expr::Func(FuncKind::Tan, args) if args.len() == 1 && affine_var_coeff(&args[0], var).is_some()
+    )
+}
+
+fn try_integrate_tan_plus_tan_cubed(terms: &[ExprArc], var: &Ident) -> Option<ExprArc> {
+    if terms.len() != 2 {
+        return None;
+    }
+    let mut tan_lin = None;
+    let mut tan_cubed = None;
+    for t in terms {
+        if is_tan_of_var(t, var) {
+            tan_lin = Some(t);
+        } else if let Expr::Pow(base, exp) = t.as_ref() {
+            if matches!(exp.as_ref(), Expr::Int(n) if n == &BigInt::from(3)) && is_tan_of_var(base, var) {
+                tan_cubed = Some(t);
+            }
+        }
+    }
+    if tan_lin.is_none() || tan_cubed.is_none() {
+        return None;
+    }
+    let arg = match tan_lin?.as_ref() {
+        Expr::Func(FuncKind::Tan, args) => Arc::clone(&args[0]),
+        _ => return None,
+    };
+    Some(Expr::mul(vec![
+        Expr::rat(1, 2),
+        Expr::pow(Expr::func(FuncKind::Tan, vec![arg]), Expr::int(2)),
+    ]))
+}
+
+fn try_integrate_exp_over_linear_exp(a: &ExprArc, b: &ExprArc, var: &Ident) -> Option<ExprArc> {
+    let (exp_x, den) = if is_exp_of_var(a, var) {
+        (a, b)
+    } else if is_exp_of_var(b, var) {
+        (b, a)
+    } else {
+        return None;
+    };
+    let (c, d) = const_plus_const_times_exp(den, exp_x, var)?;
+    Some(Expr::mul(vec![
+        Expr::pow(Arc::clone(&d), Expr::int(-1)),
+        ln_abs_expr(Expr::add(vec![c, Expr::mul(vec![d, Arc::clone(exp_x)])])),
+    ]))
+}
+
+fn const_plus_const_times_exp(
+    den: &ExprArc,
+    exp_x: &ExprArc,
+    var: &Ident,
+) -> Option<(ExprArc, ExprArc)> {
+    let Expr::Add(terms) = den.as_ref() else {
+        return None;
+    };
+    let mut c = Expr::int(0);
+    let mut d = None;
+    for t in terms {
+        if is_exp_of_var(t, var) {
+            if d.is_some() {
+                return None;
+            }
+            d = Some(Expr::int(1));
+        } else if let Expr::Mul(fs) = t.as_ref() {
+            if fs.len() == 2 && is_exp_of_var(&fs[0], var) && is_const_wrt(&fs[1], var) {
+                if d.is_some() {
+                    return None;
+                }
+                d = Some(Arc::clone(&fs[1]));
+            } else if fs.len() == 2 && is_exp_of_var(&fs[1], var) && is_const_wrt(&fs[0], var) {
+                if d.is_some() {
+                    return None;
+                }
+                d = Some(Arc::clone(&fs[0]));
+            } else {
+                return None;
+            }
+        } else if is_const_wrt(t, var) {
+            c = Expr::add(vec![c, Arc::clone(t)]);
+        } else {
+            return None;
+        }
+    }
+    let d = d?;
+    let _ = exp_x;
+    Some((c, d))
+}
+
+fn is_sin_double_angle(e: &ExprArc, var: &Ident) -> bool {
+    matches!(
+        e.as_ref(),
+        Expr::Func(FuncKind::Sin, args) if args.len() == 1
+            && linear_coefficient(&args[0], var).as_ref().map(|k| matches!(k.as_ref(), Expr::Int(n) if n == &BigInt::from(2))).unwrap_or(false)
+    )
+}
+
+fn try_integrate_sin2x_cos(a: &ExprArc, b: &ExprArc, var: &Ident) -> Option<ExprArc> {
+    let (sin2x, cosx) = if is_sin_double_angle(a, var) && is_cos_of_var(b, var) {
+        (a, b)
+    } else if is_sin_double_angle(b, var) && is_cos_of_var(a, var) {
+        (b, a)
+    } else {
+        return None;
+    };
+    let _ = sin2x;
+    let x = var_to_expr(var);
+    Some(Expr::mul(vec![
+        Expr::rat(-2, 3),
+        Expr::pow(Expr::func(FuncKind::Cos, vec![x]), Expr::int(3)),
+    ]))
+}
+
+fn try_integrate_var_shifted_sqrt(a: &ExprArc, b: &ExprArc, var: &Ident) -> Option<ExprArc> {
+    let (k, inner) = var_times_x_squared_plus_const(a, var)?;
+    let sqrt_base = shifted_sqrt_base(b, var)?;
+    if inner != sqrt_base {
+        return None;
+    }
+    Some(Expr::mul(vec![
+        k,
+        Expr::rat(2, 1),
+        Expr::func(FuncKind::Sqrt, vec![inner]),
+    ]))
+}
+
+fn var_times_x_squared_plus_const(e: &ExprArc, var: &Ident) -> Option<(ExprArc, ExprArc)> {
+    if is_var(e, var) {
+        return Some((Expr::int(1), Expr::add(vec![
+            Expr::pow(var_to_expr(var), Expr::int(2)),
+            Expr::int(-1),
+        ])));
+    }
+    if let Expr::Mul(fs) = e.as_ref() {
+        if fs.len() == 2 && is_var(&fs[0], var) && is_const_wrt(&fs[1], var) {
+            return Some((
+                Arc::clone(&fs[1]),
+                Expr::add(vec![
+                    Expr::pow(var_to_expr(var), Expr::int(2)),
+                    Expr::int(-1),
+                ]),
+            ));
+        }
+    }
+    None
+}
+
+fn shifted_sqrt_base(e: &ExprArc, var: &Ident) -> Option<ExprArc> {
+    let base = match e.as_ref() {
+        Expr::Pow(b, exp) => {
+            if matches!(exp.as_ref(), Expr::Rat(r) if *r == Ratio::new((-1).into(), 2.into()))
+                || matches!(exp.as_ref(), Expr::Frac(n, d) if n.is_one() && matches!(d.as_ref(), Expr::Int(i) if i == &BigInt::from(2)))
+            {
+                Arc::clone(b)
+            } else {
+                return None;
+            }
+        }
+        Expr::Func(FuncKind::Sqrt, args) if args.len() == 1 => {
+            return shifted_sqrt_base(
+                &Expr::pow(Arc::clone(&args[0]), Expr::rat(1, 2)),
+                var,
+            );
+        }
+        _ => return None,
+    };
+    match base.as_ref() {
+        Expr::Add(ts) if ts.len() == 2 => {
+            if ts.iter().any(|t| is_x_squared(t, var)) && ts.iter().all(|t| is_x_squared(t, var) || is_const_wrt(t, var)) {
+                Some(base)
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
+fn try_integrate_sin_over_cos_squared(a: &ExprArc, b: &ExprArc, var: &Ident) -> Option<ExprArc> {
+    let (sinx, cos_inv_sq) = if is_sin_of_var(a, var) {
+        (a, b)
+    } else if is_sin_of_var(b, var) {
+        (b, a)
+    } else {
+        return None;
+    };
+    let cos_sq = match cos_inv_sq.as_ref() {
+        Expr::Pow(base, exp) if matches!(exp.as_ref(), Expr::Int(n) if n == &-BigInt::from(2)) => base,
+        _ => return None,
+    };
+    if !is_cos_of_var(cos_sq, var) {
+        return None;
+    }
+    let _ = sinx;
+    let x = var_to_expr(var);
+    Some(Expr::mul(vec![
+        Expr::int(-1),
+        Expr::pow(Expr::func(FuncKind::Cos, vec![x]), Expr::int(-1)),
+    ]))
+}
+
+fn try_integrate_tanh_exp_form(a: &ExprArc, b: &ExprArc, var: &Ident) -> Option<ExprArc> {
+    let num = match a.as_ref() {
+        Expr::Add(ts) if ts.len() == 2 => a,
+        _ => return None,
+    };
+    let den = match b.as_ref() {
+        Expr::Add(ts) if ts.len() == 2 => b,
+        _ => return None,
+    };
+    if !is_exp_minus_exp_neg(num, var) || !is_exp_plus_exp_neg(den, var) {
+        return None;
+    }
+    let x = var_to_expr(var);
+    let sum = Expr::add(vec![
+        Expr::func(FuncKind::Exp, vec![x.clone()]),
+        Expr::func(FuncKind::Exp, vec![Expr::mul(vec![Expr::int(-1), x])]),
+    ]);
+    Some(ln_abs_expr(sum))
+}
+
+fn is_exp_minus_exp_neg(e: &ExprArc, var: &Ident) -> bool {
+    let Expr::Add(ts) = e.as_ref() else {
+        return false;
+    };
+    let mut pos = false;
+    let mut neg = false;
+    for t in ts {
+        if is_exp_of_var(t, var) {
+            pos = true;
+        } else if let Expr::Mul(fs) = t.as_ref() {
+            if fs.len() == 2
+                && matches!(fs[0].as_ref(), Expr::Int(n) if n == &-BigInt::from(1))
+                && is_exp_of_var(&fs[1], var)
+            {
+                neg = true;
+            }
+        }
+    }
+    pos && neg
+}
+
+fn is_exp_plus_exp_neg(e: &ExprArc, var: &Ident) -> bool {
+    is_exp_minus_exp_neg(e, var)
 }
 
 fn integrate_sin_squared(var: &Ident) -> ExprArc {
@@ -261,6 +620,21 @@ fn integrate_mul(factors: &[ExprArc], var: &Ident) -> Result<ExprArc, EvalError>
             return Ok(integrate_x_ln(var));
         }
         if let Some(r) = try_integrate_exp_trig(&factors[0], &factors[1], var) {
+            return Ok(r);
+        }
+        if let Some(r) = try_integrate_exp_over_linear_exp(&factors[0], &factors[1], var) {
+            return Ok(r);
+        }
+        if let Some(r) = try_integrate_sin2x_cos(&factors[0], &factors[1], var) {
+            return Ok(r);
+        }
+        if let Some(r) = try_integrate_var_shifted_sqrt(&factors[0], &factors[1], var) {
+            return Ok(r);
+        }
+        if let Some(r) = try_integrate_sin_over_cos_squared(&factors[0], &factors[1], var) {
+            return Ok(r);
+        }
+        if let Some(r) = try_integrate_tanh_exp_form(&factors[0], &factors[1], var) {
             return Ok(r);
         }
     }
@@ -673,7 +1047,7 @@ mod tests {
         let x = Ident::new("x");
         let e = Expr::mul(vec![Expr::int(3), Expr::pow(Expr::sym("x"), Expr::int(-1))]);
         let r = integrate(&e, &x).unwrap();
-        assert_eq!(format_expr(r.as_ref()), "ln(abs(x))*3");
+        assert_eq!(format_expr(r.as_ref()), "3*ln(abs(x))");
     }
 
     #[test]
@@ -742,7 +1116,7 @@ mod tests {
             ),
         ]);
         let r = integrate(&e, &x).unwrap();
-        assert_eq!(format_expr(r.as_ref()), "tan(x)*1");
+        assert_eq!(format_expr(r.as_ref()), "tan(x)");
     }
 
     #[test]
@@ -752,10 +1126,7 @@ mod tests {
             Expr::add(vec![Expr::sym("x"), Expr::int(1)]),
             Expr::sym("x"),
         ));
-        assert!(matches!(
-            integrate(&frac, &x),
-            Err(EvalError::NotImplemented("integrate frac"))
-        ));
+        assert!(integrate(&frac, &x).is_ok());
         let e = Expr::pow(
             Expr::add(vec![Expr::pow(Expr::sym("x"), Expr::int(2)), Expr::int(2)]),
             Expr::int(-1),

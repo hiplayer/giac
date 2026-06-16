@@ -77,6 +77,83 @@ pub fn factor_check_paths() -> (PathBuf, PathBuf) {
     (root.join("testfactor"), root.join("factor.out"))
 }
 
+/// Upstream `check/testintegrate` (GIAC-219).
+pub fn integrate_check_path() -> PathBuf {
+    upstream_root().join("giac/giac-1.5.0/check/testintegrate")
+}
+
+/// Upstream `check/testlimit` (GIAC-219).
+pub fn limit_check_path() -> PathBuf {
+    upstream_root().join("giac/giac-1.5.0/check/testlimit")
+}
+
+/// Kind of line in upstream check golden scripts.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum CheckLineKind {
+    Integrate,
+    Limit,
+    Series,
+    Compound,
+    Other,
+}
+
+/// Normalize a raw upstream check line (`**` → `^`, trim `;`).
+pub fn normalize_check_line(raw: &str) -> String {
+    raw.trim()
+        .replace("**", "^")
+        .trim_end_matches(';')
+        .to_string()
+}
+
+/// Classify a normalized check line.
+pub fn classify_check_line(line: &str) -> CheckLineKind {
+    if line.contains(',') && (line.starts_with("assume(") || line.contains("purge(")) {
+        return CheckLineKind::Compound;
+    }
+    if line.starts_with("integrate(") || line.starts_with("int(") {
+        return CheckLineKind::Integrate;
+    }
+    if line.starts_with("limit(") {
+        return CheckLineKind::Limit;
+    }
+    if line.starts_with("series(") || line.starts_with("taylor(") {
+        return CheckLineKind::Series;
+    }
+    CheckLineKind::Other
+}
+
+/// Load all executable lines from `check/testintegrate` (skips `cas_setup`).
+pub fn load_integrate_check_lines() -> Result<Vec<String>, String> {
+    let path = integrate_check_path();
+    let inputs = script_lines(&path)?;
+    Ok(inputs
+        .into_iter()
+        .filter(|l| !l.starts_with("cas_setup"))
+        .map(|l| normalize_check_line(&l))
+        .collect())
+}
+
+/// Load all executable lines from `check/testlimit` (skips numeric-only setup lines).
+pub fn load_limit_check_lines() -> Result<Vec<String>, String> {
+    let path = limit_check_path();
+    let inputs = script_lines(&path)?;
+    Ok(inputs
+        .into_iter()
+        .filter(|l| l.starts_with("limit("))
+        .map(|l| normalize_check_line(&l))
+        .collect())
+}
+
+/// Run `risch(f,x)` for the same integrand as `integrate(f,x)`.
+pub fn run_risch_line(integrate_line: &str) -> Result<String, String> {
+    let inner = integrate_line
+        .strip_prefix("integrate(")
+        .or_else(|| integrate_line.strip_prefix("int("))
+        .and_then(|s| s.strip_suffix(')'))
+        .ok_or_else(|| format!("not an integrate line: {integrate_line}"))?;
+    run_line(&format!("risch({inner})"))
+}
+
 /// Load factor regression inputs and golden outputs (skips `cas_setup` line).
 pub fn load_factor_check_lines() -> Result<(Vec<String>, Vec<String>), String> {
     let (input_path, golden_path) = factor_check_paths();

@@ -1,0 +1,469 @@
+{
+  "version": 1,
+  "verify": "sympy",
+  "source": "giac/giac-1.5.0/check/testintegrate",
+  "entries": [
+    {
+      "id": "CK-INT-01",
+      "line": "integrate(1/(x^4-1)^10,x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-02",
+      "line": "integrate((x^4+4*x^2+6*x+4)/(x+1)^2,x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-03",
+      "line": "integrate(x/((x-1)*(x+1)^2),x)",
+      "kind": "integrate",
+      "enabled": true,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-04",
+      "line": "integrate(x/((x+1)*(x^4-1)),x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-05",
+      "line": "integrate(1/(3*x*(x^2+x+1)*(x-1)^3),x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-06",
+      "line": "integrate(1/(x^4-1)^2,x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-07",
+      "line": "integrate(1/(x^4+1)^2,x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-08",
+      "line": "integrate(1/(x^4+1)^4,x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-09",
+      "line": "integrate(x^7/((x^4-1)*(x^2+3)),x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-10",
+      "line": "integrate(((1+x)/(1-x))^(1/3),x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-11",
+      "line": "integrate((sin(2*x)+1)/(cos(2*x)),x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-12",
+      "line": "integrate((2*sin(x)+1)/(2*sin(x)-1),x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-13",
+      "line": "integrate(exp(x)/(3+2*exp(x)),x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-14",
+      "line": "integrate(sin(x)^2*cos(x)^4,x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-15",
+      "line": "integrate(sin(x)/(sin(x)^3+cos(x)^3),x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-16",
+      "line": "integrate(1/sqrt(2*x*t)*exp(-t^2/2),x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-17",
+      "line": "integrate(sin(3*x)^4/exp((3*x+1)/cos(t)),x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-18",
+      "line": "integrate(2*x/sqrt(x^2-1),x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-19",
+      "line": "integrate((sin(x)+cos(x))/(sin(x)-cos(x)),x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-20",
+      "line": "integrate(sin(pi/2-2*x),x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-21",
+      "line": "integrate(tan(x)+tan(x)^3,x)",
+      "kind": "integrate",
+      "enabled": true,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-22",
+      "line": "integrate((exp(x)-exp(-x))/(exp(x)+exp(-x)),x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-23",
+      "line": "integrate(1/cos(x)^25,x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-24",
+      "line": "integrate(1/(sin(x)-1)^3,x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-25",
+      "line": "integrate(1/(sin(x)+1)^3,x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-26",
+      "line": "integrate(ln(x+sqrt(1+x^2)),x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-27",
+      "line": "integrate(atan(2*x/(1+x^2)),x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-28",
+      "line": "integrate(x*sqrt(1+x^2),x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-29",
+      "line": "integrate(sin(x)/cos(x)^2,x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-30",
+      "line": "integrate(exp(x)/(1+exp(2*x)),x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-31",
+      "line": "integrate(cos(x/2)^2/(x+sin(x)),x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-32",
+      "line": "integrate(x/sqrt(x+1),x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-33",
+      "line": "integrate(exp(x)/((3+exp(x))*sqrt(exp(x)-1)),x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-34",
+      "line": "ratnormal(integrate(sqrt(x)/sqrt(a^3-x^3),x)/sign(a))",
+      "kind": "other",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-35",
+      "line": "integrate(sqrt(a-x)/sqrt(x),x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-36",
+      "line": "integrate(sqrt(x^2+a^2),x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-37",
+      "line": "integrate(sin(2*x)*cos(x),x)",
+      "kind": "integrate",
+      "enabled": true,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-38",
+      "line": "integrate(x*atan(x),x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-39",
+      "line": "integrate(sinh(x)*cos(x),x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-40",
+      "line": "integrate(atan(x)/x,x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-41",
+      "line": "integrate(1/(sin(x)-2)^3,x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-42",
+      "line": "integrate((2*x^2+1)*exp(x^2),x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-43",
+      "line": "integrate(sin(3*x)/sin(x),x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-44",
+      "line": "integrate(1/(t*ln(t)^2),t,2,x)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-45",
+      "line": "integrate(ln(1+2/(n*(n+3))),n,1,+infinity)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-46",
+      "line": "integrate((pi*t-t^2)*sin(n*t),t,0,pi)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-47",
+      "line": "integrate(exp(t)*cos(n*t),t,-pi,pi)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-48",
+      "line": "integrate(cos(x)/exp(x),x,0,+infinity)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-49",
+      "line": "integrate((t^4+t+1)/(t^6+t^3+2),t,1,+infinity)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-50",
+      "line": "assume(t>2),integrate(x*exp(1/2*abs(ln(x^2))),x,2,t),purge(t)",
+      "kind": "compound",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-51",
+      "line": "integrate(1/sqrt(2*x*t)*exp(-t^2/2),x,a,b)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-52",
+      "line": "integrate((x^2*(1-x))^(1/3),x,0,1)",
+      "kind": "integrate",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-53",
+      "line": "normal(integrate(atan(sqrt(1-x^2)),x,0,1))",
+      "kind": "other",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-54",
+      "line": "assume(x>0),integrate(ln(x^2+t^2)/(1+t^2),t,0,+infinity),purge(x)",
+      "kind": "compound",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-55",
+      "line": "limit((1-cos(x))*sin(x)^2/(x^3*ln(x+1)),x,0)",
+      "kind": "limit",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-56",
+      "line": "limit(sqrt(x^2+x+1)-sqrt(x^2+1),x,+infinity)",
+      "kind": "limit",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-57",
+      "line": "limit((x^n-y^n)/(x-y),x,t)",
+      "kind": "limit",
+      "enabled": true,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-58",
+      "line": "limit((x+1)/sqrt((x+1)/(x-1)),x,+infinity)",
+      "kind": "limit",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-59",
+      "line": "limit((1-2*x)/(x^2+x-2),x,1)",
+      "kind": "limit",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-60",
+      "line": "limit(exp(x*exp(-x)/(exp(-x)+exp(-2*x^2/(x+1))))/x,x,+infinity)",
+      "kind": "limit",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-61",
+      "line": "limit((exp(x*exp(-x)/(exp(-x)+exp(-2*x^2/(x+1))))-exp(x))/x,x,+infinity)",
+      "kind": "limit",
+      "enabled": false,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-62",
+      "line": "series(cos(x)/exp(x),x,0,4)",
+      "kind": "series",
+      "enabled": true,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-63",
+      "line": "series(ln(cos(x)),x,0,4)",
+      "kind": "series",
+      "enabled": true,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-64",
+      "line": "series(atan(x*y)+1-exp(x+y),x,1/2,2)",
+      "kind": "series",
+      "enabled": true,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-65",
+      "line": "series(cos(x)*exp(2*x+1),x,0,4)",
+      "kind": "series",
+      "enabled": true,
+      "giac_issue": "GIAC-219"
+    },
+    {
+      "id": "CK-INT-66",
+      "line": "series(sin(sin(x)),x,0,7)",
+      "kind": "series",
+      "enabled": true,
+      "giac_issue": "GIAC-219"
+    }
+  ]
+}
