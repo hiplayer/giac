@@ -1,4 +1,4 @@
-use std::collections::BTreeSet;
+use std::collections::{BTreeMap, BTreeSet};
 
 use num_bigint::BigInt;
 use num_rational::Ratio;
@@ -33,6 +33,47 @@ pub fn main_var(p: &Poly, vars: &[Var]) -> Var {
         .min_by_key(|v| univariate_degree(p, v))
         .cloned()
         .unwrap_or_else(|| vars[0].clone())
+}
+
+/// Minimum exponent of each variable across all terms (missing var counts as 0).
+pub fn min_var_exponents(p: &Poly) -> BTreeMap<Var, u64> {
+    let all_vars = vars_in(p);
+    let mut out = BTreeMap::new();
+    for v in all_vars {
+        let min_e = p
+            .terms
+            .keys()
+            .map(|m| m.exp_of(&v))
+            .min()
+            .unwrap_or(0);
+        if min_e > 0 {
+            out.insert(v, min_e);
+        }
+    }
+    out
+}
+
+/// Split `p = (∏ v^{e_v}) * rest` where `e_v` is the minimum exponent of `v` in `p`.
+pub fn extract_var_power_factors(p: &Poly) -> (Poly, Vec<Poly>) {
+    let powers = min_var_exponents(p);
+    if powers.is_empty() {
+        return (p.clone(), Vec::new());
+    }
+    let mut divisor = Poly::one();
+    for (v, e) in &powers {
+        divisor = divisor.mul(&Poly::var(v.clone()).pow(*e));
+    }
+    let (rest, rem) = p.div_rem(&divisor);
+    if !rem.is_zero() {
+        return (p.clone(), Vec::new());
+    }
+    let mut factors = Vec::new();
+    for (v, e) in powers {
+        for _ in 0..e {
+            factors.push(Poly::var(v.clone()));
+        }
+    }
+    (rest, factors)
 }
 
 /// Integer gcd of rational coefficients.

@@ -208,6 +208,20 @@ fn expand_sqff_factors(
 ) -> PolyResult<Vec<(Poly, usize)>> {
     let mut out = Vec::new();
     for (g, mult) in sqff {
+        if univariate_degree(g, var) <= 1 {
+            out.push((g.clone(), *mult));
+            continue;
+        }
+        if let Some(factors) = factor_into(g) {
+            if factors.len() > 1
+                || univariate_degree(&factors[0], var) < univariate_degree(g, var)
+            {
+                for f in factors {
+                    out.push((f, *mult));
+                }
+                continue;
+            }
+        }
         if univariate_degree(g, var) <= 2 {
             out.push((g.clone(), *mult));
             continue;

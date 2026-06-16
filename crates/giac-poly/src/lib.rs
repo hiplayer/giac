@@ -1,5 +1,6 @@
 #![deny(unsafe_code)]
 
+mod subresultant;
 mod tresultant;
 mod univariate;
 mod error;

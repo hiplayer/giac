@@ -223,28 +223,7 @@ impl Poly {
     }
 
     pub fn gcd(&self, other: &Self) -> Self {
-        if self.is_zero() {
-            return other.clone();
-        }
-        if other.is_zero() {
-            return self.clone();
-        }
-        let mut a = self.primitive_part();
-        let mut b = other.primitive_part();
-        let mut steps = 0usize;
-        const MAX_GCD_STEPS: usize = 512;
-        loop {
-            if b.is_zero() {
-                return a.monic();
-            }
-            if steps >= MAX_GCD_STEPS {
-                return a.monic();
-            }
-            steps += 1;
-            let (_, r) = a.div_rem(&b);
-            a = b;
-            b = r;
-        }
+        crate::subresultant::subresultant_gcd(self, other)
     }
 
     pub fn lcm(&self, other: &Self) -> Self {
@@ -287,7 +266,7 @@ impl Poly {
     }
 }
 
-fn integer_content_gcd(a: &Ratio<BigInt>, b: &Ratio<BigInt>) -> Ratio<BigInt> {
+pub(crate) fn integer_content_gcd(a: &Ratio<BigInt>, b: &Ratio<BigInt>) -> Ratio<BigInt> {
     let na = a.numer().abs();
     let da = a.denom().abs();
     let nb = b.numer().abs();

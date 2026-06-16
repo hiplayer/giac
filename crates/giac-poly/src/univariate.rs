@@ -293,6 +293,11 @@ fn odd_part_core(p: &Poly, var: &Var) -> PolyResult<Poly> {
     Ok(odd)
 }
 
+/// Subresultant gcd for univariate polynomials in `var`.
+pub fn gcd_univariate(p: &Poly, q: &Poly, var: &Var) -> Poly {
+    univariate_gcd(p, q, var)
+}
+
 fn univariate_gcd(p: &Poly, q: &Poly, var: &Var) -> Poly {
     let mut a = coeffs_to_integer_primitive(&univariate_coeffs(p, var));
     let mut b = coeffs_to_integer_primitive(&univariate_coeffs(q, var));
@@ -308,10 +313,7 @@ fn univariate_gcd(p: &Poly, q: &Poly, var: &Var) -> Poly {
         }
         let r = pseudo_remainder(&a, &b);
         if is_zero_int(&r) {
-            return poly_from_int_coeffs(var, &a);
-        }
-        if r.len() >= b.len() {
-            return poly_from_int_coeffs(var, &a);
+            return poly_from_int_coeffs(var, &b);
         }
         a = b;
         b = r;

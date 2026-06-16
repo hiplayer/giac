@@ -19,20 +19,7 @@ pub fn coeff_wrt_poly(p: &Poly, var: &Var, exp: u64) -> Poly {
 
 /// Content of `p` w.r.t. `var`: gcd of all x-coefficients in ℚ[others].
 pub fn content_wrt(p: &Poly, var: &Var) -> Poly {
-    let d = univariate_degree(p, var);
-    let mut g = Poly::zero();
-    for e in 0..=d {
-        let c = coeff_wrt_poly(p, var, e);
-        if c.is_zero() {
-            continue;
-        }
-        g = if g.is_zero() { c } else { g.gcd(&c) };
-    }
-    if g.is_zero() {
-        Poly::one()
-    } else {
-        g.monic()
-    }
+    crate::subresultant::content_wrt_impl(p, var)
 }
 
 fn poly_div_exact(num: &Poly, den: &Poly) -> PolyResult<Poly> {
@@ -344,5 +331,38 @@ impl PolyConstant for Poly {
         } else {
             None
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use num_rational::Ratio;
+    use num_traits::One;
+
+    #[test]
+    fn content_wrt_xy_plus_y_squared() {
+        let x = Poly::var("x");
+        let y = Poly::var("y");
+        // xy + y² = y(x + y): content w.r.t. x is y, primitive part is x + y.
+        let p = x.mul(&y).add(&y.pow(2));
+        assert_eq!(content_wrt(&p, &Var::from("x")), y);
+        let pp = primitive_part_wrt(&p, &Var::from("x")).unwrap();
+        assert_eq!(pp, x.add(&y));
+    }
+
+    #[test]
+    fn rational_content_vs_wrt_content() {
+        let x = Poly::var("x");
+        let y = Poly::var("y");
+        let p = Poly::constant(Ratio::from_integer(6.into()))
+            .mul(&x.mul(&y).add(&y.pow(2)));
+        assert_eq!(p.content(), Ratio::from_integer(6.into()));
+        assert_eq!(content_wrt(&p, &Var::from("x")), y);
+        let pp = primitive_part_wrt(&p, &Var::from("x")).unwrap();
+        assert_eq!(
+            pp,
+            x.add(&y).mul_scalar(&Ratio::from_integer(6.into()))
+        );
     }
 }

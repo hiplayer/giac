@@ -7,7 +7,7 @@ use super::poly_uni::{
     content_wrt, factor_sqff_over_coeff_ring, primitive_part_wrt, square_free_wrt,
 };
 use super::univariate::factor_univariate_flat;
-use super::util::{is_univariate_in, main_var, vars_in};
+use super::util::{extract_var_power_factors, is_univariate_in, main_var, vars_in};
 
 pub fn factor_into_poly(p: &Poly) -> Option<Vec<Poly>> {
     factor_multivariate(p).ok()
@@ -28,15 +28,22 @@ pub(crate) fn factor_multivariate_rec(p: &Poly, vars: &[Var]) -> PolyResult<Vec<
     if let Some(f) = try_factor_patterns(p) {
         return Ok(f);
     }
-    match vars.len() {
-        0 => Ok(vec![p.clone()]),
-        1 => factor_univariate_flat(p, &vars[0]),
-        _ => {
-            let x = main_var(p, vars);
-            let others: Vec<Var> = vars.iter().filter(|v| *v != &x).cloned().collect();
-            factor_wrt_main_var(p, &x, &others)
-        }
+    let (p, mut factors) = extract_var_power_factors(p);
+    if p.is_one() {
+        return Ok(factors);
     }
+    let vars = if vars.is_empty() { vars_in(&p) } else { vars.to_vec() };
+    let rest = match vars.len() {
+        0 => vec![p],
+        1 => factor_univariate_flat(&p, &vars[0])?,
+        _ => {
+            let x = main_var(&p, &vars);
+            let others: Vec<Var> = vars.iter().filter(|v| *v != &x).cloned().collect();
+            factor_wrt_main_var(&p, &x, &others)?
+        }
+    };
+    factors.extend(rest);
+    Ok(factors)
 }
 
 fn factor_wrt_main_var(p: &Poly, var: &Var, others: &[Var]) -> PolyResult<Vec<Poly>> {
@@ -81,7 +88,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "expanded bivariate gcd is too slow without Wang–Trager"]
     fn factor_bivariate_mixed() {
         let x = Poly::var("x");
         let y = Poly::var("y");
@@ -97,5 +103,34 @@ mod tests {
             let prod = f.iter().fold(Poly::one(), |acc, q| acc.mul(q));
             assert_eq!(prod, p);
         }
+    }
+
+    #[test]
+    fn factor_var_power_times_linear() {
+        let x = Poly::var("x");
+        let y = Poly::var("y");
+        let p = x.pow(2).mul(&y.pow(2)).mul(&x.sub(&Poly::one()));
+        let f = factor_multivariate(&p).unwrap();
+        assert_eq!(f.len(), 5);
+        let prod = f.iter().fold(Poly::one(), |acc, q| acc.mul(q));
+        assert_eq!(prod, p);
+        assert_eq!(
+            f.iter().filter(|q| **q == x).count(),
+            2
+        );
+        assert_eq!(
+            f.iter().filter(|q| **q == y).count(),
+            2
+        );
+    }
+
+    #[test]
+    fn factor_repeated_linear_pairs() {
+        let x = Poly::var("x");
+        let p = x.sub(&Poly::one()).pow(2).mul(&x.add(&Poly::constant(Ratio::from_integer(2.into()))).pow(2));
+        let f = factor_multivariate(&p).unwrap();
+        assert_eq!(f.len(), 4);
+        let prod = f.iter().fold(Poly::one(), |acc, q| acc.mul(q));
+        assert_eq!(prod, p);
     }
 }
