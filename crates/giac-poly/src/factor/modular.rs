@@ -1,13 +1,12 @@
 use num_bigint::BigInt;
-use num_traits::One;
 
-use crate::error::{PolyError, PolyResult};
-use crate::modint::ModInt;
+use crate::error::PolyError;
 use crate::modular::{modp, PolyMod};
 use crate::monomial::Var;
 use crate::poly::Poly;
 
 use super::cyclotomic::is_xn_minus_one_poly;
+use super::fpx::factor_fpx;
 
 /// Factor over ℤ/pℤ then lift display (giac `mod_factor` subset).
 pub fn factor_poly_mod(p: &Poly, modulus: i64) -> Result<Poly, PolyError> {
@@ -16,127 +15,18 @@ pub fn factor_poly_mod(p: &Poly, modulus: i64) -> Result<Poly, PolyError> {
         return Ok(x.pow(4).add(&Poly::one()));
     }
     let pm = modp(p, modulus).map_err(|_| PolyError::TypeError("modp failed"))?;
-    let factors = factor_mod_univariate(&pm)?;
+    let factors = factor_fpx(&pm)?;
     if factors.len() <= 1 {
         return Ok(p.clone());
     }
-    let mut out = Poly::one();
-    for f in factors {
-        out = out.mul(&modpoly_to_poly(&f, modulus));
+    let mut out = PolyMod::one(pm.modulus.clone());
+    for f in &factors {
+        out = out.mul(f).map_err(|_| PolyError::TypeError("mod mul failed"))?;
     }
-    Ok(out)
+    Ok(modpoly_to_poly(&out, modulus))
 }
 
-fn factor_mod_univariate(p: &PolyMod) -> PolyResult<Vec<PolyMod>> {
-    if p.is_zero() {
-        return Err(PolyError::TypeError("zero"));
-    }
-    let var = Var::from("x");
-    let mut rest = p.clone();
-    let mut out = Vec::new();
-    while !rest.is_zero() {
-        let deg = mod_degree(&rest, &var);
-        if deg == 0 {
-            break;
-        }
-        let root = find_mod_root(&rest, &var).ok_or(PolyError::NotImplemented("factor mod"))?;
-        let lin = mod_linear(&var, root, &rest.modulus);
-        let mut mult = 0usize;
-        loop {
-            let (_, r) = rest.div_rem(&lin)?;
-            if !r.is_zero() {
-                break;
-            }
-            mult += 1;
-            rest = rest.div_rem(&lin)?.0;
-        }
-        if mult == 0 {
-            return Err(PolyError::NotImplemented("factor mod"));
-        }
-        for _ in 0..mult {
-            out.push(lin.clone());
-        }
-    }
-    if !rest.is_zero() && !mod_is_one(&rest) {
-        out.push(rest);
-    }
-    Ok(out)
-}
-
-fn mod_is_one(p: &PolyMod) -> bool {
-    p.terms.len() == 1
-        && p
-            .terms
-            .get(&crate::monomial::Monomial::one())
-            .is_some_and(|c| c.is_one())
-}
-
-fn mod_degree(p: &PolyMod, var: &Var) -> u64 {
-    p.terms
-        .keys()
-        .filter_map(|m| {
-            let e = m.exp_of(var);
-            if e > 0 {
-                Some(e)
-            } else {
-                None
-            }
-        })
-        .max()
-        .unwrap_or(0)
-}
-
-fn find_mod_root(p: &PolyMod, var: &Var) -> Option<BigInt> {
-    let m = p.modulus.to_string().parse::<i64>().unwrap_or(0);
-    for i in 0..m {
-        if mod_eval(p, var, i).is_zero() {
-            return Some(BigInt::from(i));
-        }
-    }
-    None
-}
-
-fn mod_eval(p: &PolyMod, var: &Var, x: i64) -> ModInt {
-    let m = p.modulus.clone();
-    let mut acc = ModInt::new(BigInt::from(0), m.clone()).unwrap();
-    let deg = mod_degree(p, var);
-    for e in 0..=deg {
-        let c = mod_coeff(p, var, e);
-        let mut pow = ModInt::new(BigInt::one(), m.clone()).unwrap();
-        for _ in 0..e {
-            pow = pow.mul(&ModInt::new(BigInt::from(x), m.clone()).unwrap()).unwrap();
-        }
-        acc = acc.add(&c.mul(&pow).unwrap()).unwrap();
-    }
-    acc
-}
-
-fn mod_coeff(p: &PolyMod, var: &Var, exp: u64) -> ModInt {
-    for (m, c) in &p.terms {
-        if m.exp_of(var) == exp && m.iter().all(|(v, _)| v == var) {
-            return c.clone();
-        }
-    }
-    ModInt::new(BigInt::from(0), p.modulus.clone()).unwrap()
-}
-
-fn mod_linear(var: &Var, root: BigInt, modulus: &BigInt) -> PolyMod {
-    let mut terms = std::collections::BTreeMap::new();
-    terms.insert(
-        crate::monomial::Monomial::one(),
-        ModInt::new(-root, modulus.clone()).unwrap(),
-    );
-    terms.insert(
-        crate::monomial::Monomial::var(var.clone()),
-        ModInt::new(BigInt::one(), modulus.clone()).unwrap(),
-    );
-    PolyMod {
-        terms,
-        modulus: modulus.clone(),
-    }
-}
-
-fn modpoly_to_poly(p: &PolyMod, modulus: i64) -> Poly {
+pub(crate) fn modpoly_to_poly(p: &PolyMod, modulus: i64) -> Poly {
     let mut terms = std::collections::BTreeMap::new();
     for (m, c) in &p.terms {
         let v = c.val.to_string().parse::<i64>().unwrap_or(0) % modulus;
@@ -147,4 +37,54 @@ fn modpoly_to_poly(p: &PolyMod, modulus: i64) -> Poly {
         );
     }
     Poly { terms }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn x() -> Poly {
+        Poly::var("x")
+    }
+
+    #[test]
+    fn factor_x4_plus_1_mod_5() {
+        let p = x().pow(4).add(&Poly::one());
+        let f = factor_poly_mod(&p, 5).unwrap();
+        assert_eq!(modp(&f, 5).unwrap(), modp(&p, 5).unwrap());
+    }
+
+    #[test]
+    fn factor_x6_minus_1_mod_7() {
+        let p = x().pow(6).sub(&Poly::one());
+        let f = factor_poly_mod(&p, 7).unwrap();
+        assert_eq!(modp(&f, 7).unwrap(), modp(&p, 7).unwrap());
+    }
+
+    #[test]
+    fn factor_x2_plus_1_mod_5() {
+        let p = x().pow(2).add(&Poly::one());
+        let f = factor_poly_mod(&p, 5).unwrap();
+        assert_eq!(modp(&f, 5).unwrap(), modp(&p, 5).unwrap());
+    }
+
+    #[test]
+    fn factor_x4_minus_1_mod_2() {
+        let p = x().pow(4).sub(&Poly::one());
+        let f = factor_poly_mod(&p, 2).unwrap();
+        assert_eq!(f, x().pow(4).add(&Poly::one()));
+    }
+
+    #[test]
+    fn factor_has_correct_product_mod_11() {
+        let p = x().pow(4)
+            .add(&x().pow(3))
+            .add(&x().pow(2))
+            .add(&x())
+            .add(&Poly::one());
+        let f = factor_poly_mod(&p, 11).unwrap();
+        let pm = modp(&p, 11).unwrap();
+        let pmf = modp(&f, 11).unwrap();
+        assert_eq!(pm, pmf);
+    }
 }

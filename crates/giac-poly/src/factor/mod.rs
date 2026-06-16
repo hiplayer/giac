@@ -1,6 +1,7 @@
 //! Polynomial factorization over ℚ (and ℤ/pℤ for `factor_poly_mod`).
 
 mod cyclotomic;
+mod fpx;
 mod hensel;
 mod modular;
 mod multivariate;
@@ -59,6 +60,12 @@ pub fn factor_into_by_rational_roots(p: &Poly, var: &crate::monomial::Var) -> cr
 
 pub fn factor_poly_mod(p: &Poly, modulus: i64) -> Result<Poly, crate::error::PolyError> {
     modular::factor_poly_mod(p, modulus)
+}
+
+/// Irreducible factors over F_p (monic, with repetition).
+pub fn factor_mod_irreducibles(p: &Poly, modulus: i64) -> crate::error::PolyResult<Vec<crate::modular::PolyMod>> {
+    let pm = crate::modp(p, modulus)?;
+    fpx::factor_fpx(&pm)
 }
 
 #[cfg(test)]
