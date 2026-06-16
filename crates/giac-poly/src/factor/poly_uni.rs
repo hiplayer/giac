@@ -1,0 +1,348 @@
+//! Univariate polynomials over ℚ[vars] (coefficients are multivariate polys).
+
+use num_bigint::BigInt;
+use num_rational::Ratio;
+use num_traits::{One, Zero};
+
+use crate::error::{PolyError, PolyResult};
+use crate::monomial::Var;
+use crate::poly::Poly;
+use crate::resultant::univariate_degree;
+
+use super::univariate::factor_univariate_flat;
+use super::util::{coeff_wrt, is_univariate_in};
+
+/// Coefficient of `var^exp` as a polynomial in the remaining variables.
+pub fn coeff_wrt_poly(p: &Poly, var: &Var, exp: u64) -> Poly {
+    coeff_wrt(p, var, exp)
+}
+
+/// Content of `p` w.r.t. `var`: gcd of all x-coefficients in ℚ[others].
+pub fn content_wrt(p: &Poly, var: &Var) -> Poly {
+    let d = univariate_degree(p, var);
+    let mut g = Poly::zero();
+    for e in 0..=d {
+        let c = coeff_wrt_poly(p, var, e);
+        if c.is_zero() {
+            continue;
+        }
+        g = if g.is_zero() { c } else { g.gcd(&c) };
+    }
+    if g.is_zero() {
+        Poly::one()
+    } else {
+        g.monic()
+    }
+}
+
+fn poly_div_exact(num: &Poly, den: &Poly) -> PolyResult<Poly> {
+    let (q, r) = num.div_rem(den);
+    if !r.is_zero() {
+        return Err(PolyError::NotImplemented("poly division"));
+    }
+    Ok(q)
+}
+
+/// `p / content_wrt(p, var)` in ℚ[others][var].
+pub fn primitive_part_wrt(p: &Poly, var: &Var) -> PolyResult<Poly> {
+    let content = content_wrt(p, var);
+    if content.is_one() {
+        return Ok(p.clone());
+    }
+    let d = univariate_degree(p, var);
+    let mut pp = Poly::zero();
+    for e in 0..=d {
+        let c = coeff_wrt_poly(p, var, e);
+        if c.is_zero() {
+            continue;
+        }
+        let q = poly_div_exact(&c, &content)?;
+        pp = pp.add(&term_with_var(&q, var, e));
+    }
+    Ok(pp)
+}
+
+pub fn term_with_var(coeff: &Poly, var: &Var, exp: u64) -> Poly {
+    if exp == 0 {
+        return coeff.clone();
+    }
+    coeff.mul(&Poly::var(var.clone()).pow(exp))
+}
+
+/// ∂p/∂var treating coefficients in ℚ[others].
+pub fn derivative_wrt(p: &Poly, var: &Var) -> Poly {
+    let d = univariate_degree(p, var);
+    let mut out = Poly::zero();
+    for e in 1..=d {
+        let c = coeff_wrt_poly(p, var, e);
+        if c.is_zero() {
+            continue;
+        }
+        let scaled = c.mul_scalar(&Ratio::from_integer(BigInt::from(e)));
+        out = out.add(&term_with_var(&scaled, var, e - 1));
+    }
+    out
+}
+
+/// Square-free factorization w.r.t. `var` over ℚ[others] (Yun-style via gcd).
+pub fn square_free_wrt(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>> {
+    if p.is_zero() {
+        return Err(PolyError::TypeError("zero polynomial"));
+    }
+    let mut w = p.clone();
+    let mut y = derivative_wrt(&w, var);
+    let g0 = w.gcd(&y);
+    if !g0.is_one() {
+        w = poly_div_exact(&w, &g0)?;
+        y = poly_div_exact(&y, &g0)?;
+    }
+    y = y.sub(&derivative_wrt(&w, var));
+
+    let mut factors = Vec::new();
+    let mut k = 1usize;
+    let max_k = univariate_degree(p, var) as usize + 2;
+    while !y.is_zero() && k <= max_k {
+        let g = w.gcd(&y);
+        if !g.is_one() {
+            factors.push((g.clone(), k));
+            w = poly_div_exact(&w, &g)?;
+        }
+        y = y.sub(&derivative_wrt(&w, var));
+        k += 1;
+    }
+    if !w.is_one() {
+        factors.push((w, k));
+    }
+    Ok(factors)
+}
+
+/// Substitute `sub_var -> sub_poly` in `p`.
+pub fn substitute_poly(p: &Poly, sub_var: &Var, sub_poly: &Poly) -> Poly {
+    let d = univariate_degree(p, sub_var);
+    let mut out = Poly::zero();
+    for e in 0..=d {
+        let c = coeff_wrt_poly(p, sub_var, e);
+        if c.is_zero() {
+            continue;
+        }
+        out = out.add(&c.mul(&sub_poly.pow(e)));
+    }
+    out
+}
+
+type FactorRecFn = fn(&Poly, &[Var]) -> PolyResult<Vec<Poly>>;
+
+/// Factor square-free `g` in ℚ[others][var] recursively.
+pub fn factor_sqff_over_coeff_ring(
+    g: &Poly,
+    var: &Var,
+    others: &[Var],
+    factor_rec: FactorRecFn,
+) -> PolyResult<Vec<Poly>> {
+    let dx = univariate_degree(g, var);
+    if dx == 0 {
+        return factor_rec(g, others);
+    }
+    if dx == 1 {
+        return Ok(vec![g.clone()]);
+    }
+    if others.is_empty() {
+        return factor_univariate_flat(g, var);
+    }
+    let dy = univariate_degree(g, &others[0]);
+    if let Some(f) = try_factor_bivariate_eval(g, var, &others[0], others) {
+        return Ok(f);
+    }
+    if dx + dy > 8 {
+        if let Some(f) = try_kronecker_bivariate(g, var, &others[0]) {
+            return Ok(f);
+        }
+    }
+    Ok(vec![g.clone()])
+}
+
+fn try_factor_bivariate_eval(
+    p: &Poly,
+    main: &Var,
+    other: &Var,
+    all_others: &[Var],
+) -> Option<Vec<Poly>> {
+    if all_others.len() != 1 {
+        return None;
+    }
+    let mut nf: Option<usize> = None;
+    for k in 0i64..=3 {
+        let sub = Poly::constant(Ratio::from_integer(BigInt::from(k)));
+        let ev = substitute_poly(p, other, &sub);
+        let facs = factor_univariate_flat(&ev, main).ok()?;
+        if facs.len() <= 1 {
+            return None;
+        }
+        nf = Some(match nf {
+            None => facs.len(),
+            Some(n) if n == facs.len() => n,
+            _ => return None,
+        });
+    }
+    let _ = nf?;
+    try_lift_bivariate_from_eval(p, main, other)
+}
+
+fn try_lift_bivariate_from_eval(p: &Poly, main: &Var, other: &Var) -> Option<Vec<Poly>> {
+    let mut candidates = Vec::new();
+    for k in 0i64..=2 {
+        let sub = Poly::constant(Ratio::from_integer(BigInt::from(k)));
+        let ev = substitute_poly(p, other, &sub);
+        let facs = factor_univariate_flat(&ev, main).ok()?;
+        for f in facs {
+            if f.is_one() {
+                continue;
+            }
+            if let Some(lifted) = lift_univariate_factor(&f, main, other, p) {
+                if !candidates.iter().any(|c: &Poly| c == &lifted) {
+                    candidates.push(lifted);
+                }
+            }
+        }
+    }
+    if candidates.is_empty() {
+        return None;
+    }
+    let mut rest = p.clone();
+    let mut out = Vec::new();
+    for c in &candidates {
+        let (_, r) = rest.div_rem(c);
+        if r.is_zero() {
+            out.push(c.clone());
+            rest = rest.div_rem(c).0;
+        }
+    }
+    if rest.is_one() || rest.is_zero() {
+        Some(out)
+    } else {
+        None
+    }
+}
+
+fn lift_univariate_factor(f: &Poly, main: &Var, other: &Var, p: &Poly) -> Option<Poly> {
+    let deg = univariate_degree(f, main);
+    if deg == 1 {
+        let c1 = coeff_wrt_poly(f, main, 1);
+        let c0 = coeff_wrt_poly(f, main, 0);
+        if c1.is_one() {
+            let lin = term_with_var(&Poly::one(), main, 1).add(&c0);
+            let (_, r) = p.div_rem(&lin);
+            if r.is_zero() {
+                return Some(lin);
+            }
+        }
+        if let Some(r) = c0.as_constant() {
+            if c1.is_one() && deg == 1 {
+                let lin = term_with_var(&Poly::one(), main, 1).sub(&Poly::constant(r));
+                let (_, r2) = p.div_rem(&lin);
+                if r2.is_zero() {
+                    return Some(lin);
+                }
+            }
+        }
+    }
+    for e in 0..=deg {
+        let c = coeff_wrt_poly(f, main, e);
+        if c.is_zero() {
+            continue;
+        }
+        if c.is_one() {
+            let trial = term_with_var(&Poly::one(), main, e);
+            let (_, r) = p.div_rem(&trial);
+            if r.is_zero() {
+                return Some(trial);
+            }
+        }
+        let trial = term_with_var(&Poly::var(other.clone()), main, e);
+        let (_, r) = p.div_rem(&trial);
+        if r.is_zero() {
+            return Some(trial);
+        }
+        let trial = term_with_var(&Poly::var(other.clone()).sub(&Poly::one()), main, e);
+        let (_, r) = p.div_rem(&trial);
+        if r.is_zero() {
+            return Some(trial);
+        }
+    }
+    let (_, r) = p.div_rem(f);
+    if r.is_zero() && !f.is_one() {
+        Some(f.clone())
+    } else {
+        None
+    }
+}
+
+fn try_kronecker_bivariate(p: &Poly, x: &Var, y: &Var) -> Option<Vec<Poly>> {
+    let dx = univariate_degree(p, x);
+    let dy = univariate_degree(p, y);
+    if dx == 0 || dy == 0 {
+        return None;
+    }
+    let n = dx + dy + 1;
+    let sub = Poly::var(x.clone()).pow(n);
+    let un = substitute_poly(p, y, &sub);
+    if !is_univariate_in(&un, x) {
+        return None;
+    }
+    let facs = factor_univariate_flat(&un, x).ok()?;
+    if facs.len() <= 1 {
+        return None;
+    }
+    let mut out = Vec::new();
+    let mut rest = p.clone();
+    for f in facs {
+        if let Some(lifted) = kronecker_lift(&f, x, y, n) {
+            let (_, r) = rest.div_rem(&lifted);
+            if r.is_zero() {
+                out.push(lifted.clone());
+                rest = rest.div_rem(&lifted).0;
+            }
+        }
+    }
+    if rest.is_one() && !out.is_empty() {
+        Some(out)
+    } else {
+        None
+    }
+}
+
+fn kronecker_lift(f: &Poly, x: &Var, y: &Var, n: u64) -> Option<Poly> {
+    let d = univariate_degree(f, x);
+    let mut out = Poly::zero();
+    for e in 0..=d {
+        let c = coeff_wrt_poly(f, x, e);
+        if c.is_zero() {
+            continue;
+        }
+        let exp_y = e / n;
+        let exp_x = e % n;
+        let term = c
+            .mul(&Poly::var(y.clone()).pow(exp_y))
+            .mul(&Poly::var(x.clone()).pow(exp_x));
+        out = out.add(&term);
+    }
+    if out.is_one() {
+        None
+    } else {
+        Some(out)
+    }
+}
+
+trait PolyConstant {
+    fn as_constant(&self) -> Option<Ratio<BigInt>>;
+}
+
+impl PolyConstant for Poly {
+    fn as_constant(&self) -> Option<Ratio<BigInt>> {
+        if self.terms.len() == 1 {
+            self.terms.values().next().cloned()
+        } else {
+            None
+        }
+    }
+}

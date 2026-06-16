@@ -7,7 +7,7 @@ use crate::modular::{modp, PolyMod};
 use crate::monomial::Var;
 use crate::poly::Poly;
 
-use super::patterns::is_xn_minus_one_poly;
+use super::cyclotomic::is_xn_minus_one_poly;
 
 /// Factor over ℤ/pℤ then lift display (giac `mod_factor` subset).
 pub fn factor_poly_mod(p: &Poly, modulus: i64) -> Result<Poly, PolyError> {

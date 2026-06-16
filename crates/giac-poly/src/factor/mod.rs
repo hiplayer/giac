@@ -1,8 +1,10 @@
 //! Polynomial factorization over ℚ (and ℤ/pℤ for `factor_poly_mod`).
 
+mod cyclotomic;
 mod modular;
 mod multivariate;
 mod patterns;
+mod poly_uni;
 mod power;
 mod univariate;
 mod util;
@@ -79,7 +81,10 @@ mod tests {
         let x = Poly::var("x");
         let y = Poly::var("y");
         let p = x.mul(&y);
-        assert!(factor_into(&p).is_none());
+        let f = factor_into(&p).expect("factor x*y");
+        assert_eq!(f.len(), 2);
+        let prod = f.iter().fold(Poly::one(), |acc, q| acc.mul(q));
+        assert_eq!(prod, p);
     }
 
     #[test]
@@ -116,11 +121,10 @@ mod tests {
     fn factor_x100_plus_x50_plus_1() {
         let x = Poly::var("x");
         let p = x.pow(100).add(&x.pow(50)).add(&Poly::one());
-        // Full cyclotomic split not yet complete; identity or partial factor is ok.
-        if let Some(f) = factor_into(&p) {
-            let prod = f.iter().fold(Poly::one(), |acc, q| acc.mul(q));
-            assert!(prod == p || prod.neg() == p);
-        }
+        let f = factor_into(&p).expect("factor x^100+x^50+1");
+        assert_eq!(f.len(), 6);
+        let prod = f.iter().fold(Poly::one(), |acc, q| acc.mul(q));
+        assert_eq!(prod, p);
     }
 
     #[test]

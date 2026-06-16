@@ -5,8 +5,11 @@ mod triple_skip;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
+use std::sync::mpsc;
+use std::thread;
+use std::time::{Duration, Instant};
 
-use giac_core::{assert_equiv, exec_stmt, format_expr, Stmt, StmtResult};
+use giac_core::{assert_equiv, exec_stmt, format_expr, Context, Stmt, StmtResult};
 use giac_ode::xcas_default;
 use giac_parse::parse_program;
 
@@ -14,6 +17,84 @@ pub use triple_skip::{
     phase2_format_diff, phase2_giac_gap, phase2_sympy_gap, phase3_format_diff,
     phase3_numerical_decomp, phase3_skip, phase3_sympy_gap, phase4_skip, trig_format_diff,
 };
+
+/// Per-line eval/SymPy timeout for conformance tests (override with `GIAC_CHECK_TIMEOUT_SECS`).
+pub const DEFAULT_CHECK_TIMEOUT_SECS: u64 = 10;
+
+/// Wall-clock limit for a single check line (eval or SymPy verify).
+pub fn check_timeout() -> Duration {
+    std::env::var("GIAC_CHECK_TIMEOUT_SECS")
+        .ok()
+        .and_then(|s| s.parse().ok())
+        .map(Duration::from_secs)
+        .unwrap_or_else(|| Duration::from_secs(DEFAULT_CHECK_TIMEOUT_SECS))
+}
+
+fn with_timeout<T: Send + 'static>(
+    timeout: Duration,
+    label: &str,
+    f: impl FnOnce() -> Result<T, String> + Send + 'static,
+) -> Result<T, String> {
+    let label = label.to_string();
+    let (tx, rx) = mpsc::channel();
+    thread::spawn(move || {
+        let _ = tx.send(f());
+    });
+    match rx.recv_timeout(timeout) {
+        Ok(r) => r,
+        Err(mpsc::RecvTimeoutError::Timeout) => Err(format!("timeout ({timeout:?}) on {label}")),
+        Err(mpsc::RecvTimeoutError::Disconnected) => {
+            Err(format!("worker disconnected on {label}"))
+        }
+    }
+}
+
+fn command_with_timeout(
+    mut cmd: Command,
+    timeout: Duration,
+    label: &str,
+) -> Result<Output, String> {
+    let mut child = cmd
+        .stdout(Stdio::piped())
+        .stderr(Stdio::piped())
+        .spawn()
+        .map_err(|e| format!("spawn {label}: {e}"))?;
+    let deadline = Instant::now() + timeout;
+    loop {
+        match child.try_wait() {
+            Ok(Some(_)) => {
+                return child
+                    .wait_with_output()
+                    .map_err(|e| format!("wait {label}: {e}"));
+            }
+            Ok(None) => {
+                if Instant::now() >= deadline {
+                    let _ = child.kill();
+                    let _ = child.wait();
+                    return Err(format!("timeout ({timeout:?}) on {label}"));
+                }
+                thread::sleep(Duration::from_millis(50));
+            }
+            Err(e) => return Err(format!("try_wait {label}: {e}")),
+        }
+    }
+}
+
+struct EvalLineResult {
+    output: String,
+    ctx: Context,
+}
+
+fn eval_line_in_ctx(line: &str, mut ctx: Context) -> Result<EvalLineResult, String> {
+    let stmts = parse_program(&format!("{line};"), &ctx)
+        .map_err(|e| format!("parse `{line}`: {e}"))?;
+    let stmt = stmts.first().ok_or_else(|| format!("empty `{line}`"))?;
+    let output = match exec_stmt(stmt, &mut ctx).map_err(|e| format!("eval `{line}`: {e}"))? {
+        StmtResult::Value(v) | StmtResult::Assign { value: v, .. } => format_expr(v.as_ref()),
+        StmtResult::NoValue => String::new(),
+    };
+    Ok(EvalLineResult { output, ctx })
+}
 
 pub fn upstream_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
@@ -227,15 +308,42 @@ pub fn run_script(path: &Path) -> Result<Vec<String>, String> {
 }
 
 pub fn run_line(line: &str) -> Result<String, String> {
-    let mut ctx = xcas_default();
-    let stmts = parse_program(&format!("{line};"), &ctx)
-        .map_err(|e| format!("parse {line}: {e}"))?;
-    let stmt = stmts.first().ok_or_else(|| format!("empty {line}"))?;
-    match exec_stmt(stmt, &mut ctx).map_err(|e| format!("eval {line}: {e}"))? {
-        StmtResult::Value(v) | StmtResult::Assign { value: v, .. } => {
-            Ok(format_expr(v.as_ref()))
-        }
-        StmtResult::NoValue => Ok(String::new()),
+    let line = line.to_string();
+    let timeout = check_timeout();
+    let label = format!("eval `{line}`");
+    with_timeout(timeout, &label, move || {
+        eval_line_in_ctx(&line, xcas_default()).map(|r| r.output)
+    })
+}
+
+pub fn run_line_with_timeout(line: &str, timeout: Duration) -> Result<String, String> {
+    let line = line.to_string();
+    let label = format!("eval `{line}`");
+    with_timeout(timeout, &label, move || {
+        eval_line_in_ctx(&line, xcas_default()).map(|r| r.output)
+    })
+}
+
+pub fn verify_sympy_with_timeout(
+    line: &str,
+    output: &str,
+    timeout: Duration,
+) -> Result<(), String> {
+    let script = sympy_script();
+    if !script.exists() {
+        return Err(format!("sympy script not found at {}", script.display()));
+    }
+    let label = format!("SymPy verify `{line}`");
+    let mut cmd = Command::new("python3");
+    cmd.arg(&script).arg("verify").arg(line).arg(output);
+    let finished = command_with_timeout(cmd, timeout, &label)?;
+    if finished.status.success() {
+        Ok(())
+    } else {
+        let stderr = String::from_utf8_lossy(&finished.stderr);
+        Err(format!(
+            "SymPy verify failed for `{line}` output `{output}`: {stderr}"
+        ))
     }
 }
 
@@ -284,23 +392,7 @@ fn parse_giac_output(output: &Output) -> Result<String, String> {
 }
 
 pub fn verify_sympy(line: &str, output: &str) -> Result<(), String> {
-    let script = sympy_script();
-    if !script.exists() {
-        return Err(format!("sympy script not found at {}", script.display()));
-    }
-    let finished = Command::new("python3")
-        .arg(&script)
-        .arg("verify")
-        .arg(line)
-        .arg(output)
-        .output()
-        .map_err(|e| format!("spawn python3: {e}"))?;
-    if finished.status.success() {
-        Ok(())
-    } else {
-        let stderr = String::from_utf8_lossy(&finished.stderr);
-        Err(format!("SymPy verify failed for `{line}` output `{output}`: {stderr}"))
-    }
+    verify_sympy_with_timeout(line, output, check_timeout())
 }
 
 pub fn sympy_equiv(a: &str, b: &str) -> Result<(), String> {
@@ -308,13 +400,10 @@ pub fn sympy_equiv(a: &str, b: &str) -> Result<(), String> {
         return Ok(());
     }
     let script = sympy_script();
-    let finished = Command::new("python3")
-        .arg(&script)
-        .arg("equiv")
-        .arg(a)
-        .arg(b)
-        .output()
-        .map_err(|e| format!("spawn python3: {e}"))?;
+    let timeout = check_timeout();
+    let mut cmd = Command::new("python3");
+    cmd.arg(&script).arg("equiv").arg(a).arg(b);
+    let finished = command_with_timeout(cmd, timeout, "SymPy equiv")?;
     if finished.status.success() {
         Ok(())
     } else {
@@ -469,15 +558,31 @@ pub fn sympy_verify_script(name: &str) -> Result<Vec<SympyResult>, String> {
 
 /// SymPy-verify giac-rs output for a single input line.
 pub fn sympy_verify_line(line: &str, output: &str) -> Result<SympyResult, String> {
+    sympy_verify_line_with_timeout(line, output, check_timeout())
+}
+
+pub fn sympy_verify_line_with_timeout(
+    line: &str,
+    output: &str,
+    timeout: Duration,
+) -> Result<SympyResult, String> {
     Ok(SympyResult {
         line: line.to_string(),
         output: output.to_string(),
-        ok: verify_sympy(line, output).is_ok(),
+        ok: verify_sympy_with_timeout(line, output, timeout).is_ok(),
     })
 }
 
 /// SymPy-verify a batch of input lines (e.g. testcas subset).
 pub fn sympy_verify_lines(lines: &[String], outputs: &[String]) -> Result<Vec<SympyResult>, String> {
+    sympy_verify_lines_with_timeout(lines, outputs, check_timeout())
+}
+
+pub fn sympy_verify_lines_with_timeout(
+    lines: &[String],
+    outputs: &[String],
+    timeout: Duration,
+) -> Result<Vec<SympyResult>, String> {
     if lines.len() != outputs.len() {
         return Err(format!(
             "sympy_verify_lines: {} inputs vs {} outputs",
@@ -488,7 +593,7 @@ pub fn sympy_verify_lines(lines: &[String], outputs: &[String]) -> Result<Vec<Sy
     lines
         .iter()
         .zip(outputs.iter())
-        .map(|(l, o)| sympy_verify_line(l, o))
+        .map(|(l, o)| sympy_verify_line_with_timeout(l, o, timeout))
         .collect()
 }
 
@@ -518,18 +623,43 @@ pub fn load_testcas_lines(n: usize) -> Result<(Vec<String>, Vec<String>), String
 }
 
 pub fn run_lines(lines: &[String]) -> Result<Vec<String>, String> {
+    run_lines_with_timeout(lines, check_timeout())
+}
+
+pub fn run_lines_with_timeout(
+    lines: &[String],
+    timeout: Duration,
+) -> Result<Vec<String>, String> {
     let mut ctx = xcas_default();
     let mut out = Vec::new();
     for (idx, line) in lines.iter().enumerate() {
-        let stmts = parse_program(&format!("{line};"), &ctx)
-            .map_err(|e| format!("parse line {idx} `{line}`: {e}"))?;
-        let stmt = stmts.first().ok_or_else(|| format!("empty line {idx}"))?;
-        match exec_stmt(stmt, &mut ctx).map_err(|e| format!("eval line {idx} `{line}`: {e}"))? {
-            StmtResult::Value(v) | StmtResult::Assign { value: v, .. } => {
-                out.push(format_expr(v.as_ref()));
-            }
-            StmtResult::NoValue => out.push(String::new()),
-        }
+        let line = line.clone();
+        let ctx_in = ctx.clone();
+        let label = format!("eval line {idx} `{line}`");
+        let result = with_timeout(timeout, &label, move || eval_line_in_ctx(&line, ctx_in))?;
+        out.push(result.output);
+        ctx = result.ctx;
     }
     Ok(out)
+}
+
+#[cfg(test)]
+mod timeout_tests {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    fn with_timeout_fires_on_slow_work() {
+        let err = with_timeout(Duration::from_millis(100), "sleep", || {
+            thread::sleep(Duration::from_secs(2));
+            Ok::<(), String>(())
+        })
+        .unwrap_err();
+        assert!(err.contains("timeout"), "{err}");
+    }
+
+    #[test]
+    fn check_timeout_default_is_ten_seconds() {
+        assert_eq!(check_timeout(), Duration::from_secs(10));
+    }
 }

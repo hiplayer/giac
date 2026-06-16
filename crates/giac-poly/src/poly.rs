@@ -231,10 +231,16 @@ impl Poly {
         }
         let mut a = self.primitive_part();
         let mut b = other.primitive_part();
+        let mut steps = 0usize;
+        const MAX_GCD_STEPS: usize = 512;
         loop {
             if b.is_zero() {
                 return a.monic();
             }
+            if steps >= MAX_GCD_STEPS {
+                return a.monic();
+            }
+            steps += 1;
             let (_, r) = a.div_rem(&b);
             a = b;
             b = r;

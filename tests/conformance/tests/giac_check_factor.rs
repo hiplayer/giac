@@ -2,11 +2,19 @@
 //!
 //! MVP: SymPy verifies `expand(factor(p)) == expand(p)` (identity factorization allowed).
 //! Golden literal match is reported but not required until general factor is implemented.
+//!
+//! Each line is bounded by a wall-clock timeout (default 10s via `GIAC_CHECK_TIMEOUT_SECS`);
+//! factor lines use a higher limit because debug builds can exceed 10s on bivariate gcd.
+
+use std::time::Duration;
 
 use giac_conformance::{
-    factor_check_paths, load_factor_check_lines, outputs_assert_equiv, run_lines, sympy_equiv,
-    giac_check_dir, sympy_verify_lines, verify_sympy,
+    factor_check_paths, load_factor_check_lines, outputs_assert_equiv, run_lines_with_timeout,
+    sympy_equiv, giac_check_dir, sympy_verify_lines_with_timeout, verify_sympy_with_timeout,
 };
+
+/// Factor regression lines can exceed the default 10s in debug (bivariate gcd).
+const FACTOR_LINE_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[test]
 fn factor_check_files_exist() {
@@ -26,8 +34,8 @@ fn factor_check_files_exist() {
 #[test]
 fn giac_check_factor_sympy() -> Result<(), String> {
     let (inputs, _) = load_factor_check_lines()?;
-    let outputs = run_lines(&inputs)?;
-    let results = sympy_verify_lines(&inputs, &outputs)?;
+    let outputs = run_lines_with_timeout(&inputs, FACTOR_LINE_TIMEOUT)?;
+    let results = sympy_verify_lines_with_timeout(&inputs, &outputs, FACTOR_LINE_TIMEOUT)?;
     for r in &results {
         assert!(
             r.ok,
@@ -42,9 +50,9 @@ fn giac_check_factor_sympy() -> Result<(), String> {
 #[test]
 fn giac_check_factor_each_line() -> Result<(), String> {
     let (inputs, _) = load_factor_check_lines()?;
-    let outputs = run_lines(&inputs)?;
+    let outputs = run_lines_with_timeout(&inputs, FACTOR_LINE_TIMEOUT)?;
     for (line, out) in inputs.iter().zip(outputs.iter()) {
-        verify_sympy(line, out)?;
+        verify_sympy_with_timeout(line, out, FACTOR_LINE_TIMEOUT)?;
     }
     Ok(())
 }
@@ -52,7 +60,7 @@ fn giac_check_factor_each_line() -> Result<(), String> {
 #[test]
 fn giac_check_factor_golden_report() -> Result<(), String> {
     let (inputs, golden) = load_factor_check_lines()?;
-    let outputs = run_lines(&inputs)?;
+    let outputs = run_lines_with_timeout(&inputs, FACTOR_LINE_TIMEOUT)?;
     let mut exact = 0usize;
     let mut equiv = 0usize;
     for ((line, out), want) in inputs.iter().zip(outputs.iter()).zip(golden.iter()) {
