@@ -3,6 +3,7 @@
 mod cyclotomic;
 mod fpx;
 mod hensel;
+mod zassenhaus;
 mod modular;
 mod multivariate;
 mod patterns;
