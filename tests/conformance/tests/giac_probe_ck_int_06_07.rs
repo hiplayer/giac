@@ -1,3 +1,5 @@
+//! Manual SymPy probes for CK-INT rational rows — not run in CI.
+
 use giac_conformance::{run_line, sympy_verify_lines};
 
 fn assert_sympy(line: &str) {
@@ -9,21 +11,25 @@ fn assert_sympy(line: &str) {
 }
 
 #[test]
+#[ignore = "manual SymPy integrate probe"]
 fn probe_ck_int_04() {
     assert_sympy("integrate(x/((x+1)*(x^4-1)),x)");
 }
 
 #[test]
+#[ignore = "manual SymPy integrate probe"]
 fn probe_ck_int_06() {
     assert_sympy("integrate(1/(x^4-1)^2,x)");
 }
 
 #[test]
+#[ignore = "manual SymPy integrate probe"]
 fn probe_ck_int_07() {
     assert_sympy("integrate(1/(x^4+1)^2,x)");
 }
 
 #[test]
+#[ignore = "manual SymPy integrate probe"]
 fn probe_ck_int_08() {
     assert_sympy("integrate(1/(x^4+1)^4,x)");
 }

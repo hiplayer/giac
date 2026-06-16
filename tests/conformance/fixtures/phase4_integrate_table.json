@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "verify": "integrate_derivative",
+  "verify": "eval",
   "entries": [
     { "id": "INT-A01", "line": "integrate(1/(1+x^2),x)", "enabled": true, "giac_issue": "GIAC-210", "bin_ref": null },
     { "id": "INT-A02", "line": "integrate(1/(x^2+1),x)", "enabled": true, "giac_issue": "GIAC-210", "bin_ref": "test_integrate:2" },

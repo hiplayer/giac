@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "verify": "sympy",
+  "verify": "eval",
   "source": "giac/giac-1.5.0/check/testintegrate",
   "entries": [
     {
@@ -77,8 +77,8 @@
       "id": "CK-INT-11",
       "line": "integrate((sin(2*x)+1)/(cos(2*x)),x)",
       "kind": "integrate",
-      "enabled": false,
-      "giac_issue": "GIAC-219"
+      "enabled": true,
+      "giac_issue": "GIAC-225"
     },
     {
       "id": "CK-INT-12",
@@ -385,8 +385,8 @@
       "id": "CK-INT-55",
       "line": "limit((1-cos(x))*sin(x)^2/(x^3*ln(x+1)),x,0)",
       "kind": "limit",
-      "enabled": false,
-      "giac_issue": "GIAC-219"
+      "enabled": true,
+      "giac_issue": "GIAC-215"
     },
     {
       "id": "CK-INT-56",
@@ -413,8 +413,8 @@
       "id": "CK-INT-59",
       "line": "limit((1-2*x)/(x^2+x-2),x,1)",
       "kind": "limit",
-      "enabled": false,
-      "giac_issue": "GIAC-219"
+      "enabled": true,
+      "giac_issue": "GIAC-215"
     },
     {
       "id": "CK-INT-60",

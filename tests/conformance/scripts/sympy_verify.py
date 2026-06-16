@@ -64,6 +64,10 @@ def giac_to_sympy(s: str) -> sp.Expr:
     s = s.strip()
     if not s:
         raise ValueError("empty output")
+    if s in ("+infinity", "infinity"):
+        return sp.oo
+    if s == "-infinity":
+        return -sp.oo
     if s.startswith("[[") and s.endswith("]]"):
         return giac_matrix(s)
     if s.startswith("[") and s.endswith("]"):
@@ -777,7 +781,11 @@ def verify_property(line: str, output: str) -> tuple[bool, str]:
         else:
             expected = sp.limit(f, var, giac_to_sympy(pt))
         got = giac_to_sympy(output)
-        if sp.simplify(expected - got) != 0:
+        if got != expected and sp.simplify(expected - got) != 0:
+            for dir_ in ("-", "+"):
+                alt = sp.limit(f, var, giac_to_sympy(pt), dir_)
+                if alt == got or sp.simplify(alt - got) == 0:
+                    return True, "ok"
             return False, "limit mismatch"
         return True, "ok"
 

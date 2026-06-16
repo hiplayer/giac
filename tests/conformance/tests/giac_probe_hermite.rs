@@ -1,3 +1,5 @@
+//! Manual SymPy probes for Hermite / RT — not run in CI (`integrate` SymPy can hang).
+
 use giac_conformance::{run_line, sympy_verify_lines};
 
 fn assert_sympy(line: &str) {
@@ -9,26 +11,31 @@ fn assert_sympy(line: &str) {
 }
 
 #[test]
+#[ignore = "manual SymPy integrate probe"]
 fn probe_integrate_x_over_x_squared_plus_one_squared() {
     assert_sympy("integrate(x/(x^2+1)^2,x)");
 }
 
 #[test]
+#[ignore = "manual SymPy integrate probe"]
 fn probe_integrate_one_over_x_fourth_plus_four() {
     assert_sympy("integrate(1/(x^4+4),x)");
 }
 
 #[test]
+#[ignore = "manual SymPy integrate probe"]
 fn probe_integrate_one_over_x_fourth_plus_x_squared_plus_one() {
     assert_sympy("integrate(1/(x^4+x^2+1),x)");
 }
 
 #[test]
+#[ignore = "manual SymPy integrate probe"]
 fn probe_integrate_one_over_x_fourth_plus_one_squared() {
     assert_sympy("integrate(1/(x^4+1)^2,x)");
 }
 
 #[test]
+#[ignore = "manual SymPy integrate probe"]
 fn probe_integrate_one_over_x_fourth_plus_one() {
     assert_sympy("integrate(1/(x^4+1),x)");
 }

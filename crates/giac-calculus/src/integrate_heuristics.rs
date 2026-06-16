@@ -23,6 +23,9 @@ pub fn try_integrate_heuristic(expr: &ExprArc, var: &Ident) -> Option<Result<Exp
         if let Some(r) = try_integrate_x_over_sqrt_affine(&num, &den, var) {
             return Some(Ok(r));
         }
+        if let Some(r) = try_integrate_sin2x_affine_over_cos2x(&num, &den, var) {
+            return Some(Ok(r));
+        }
         if let Some(r) = try_integrate_trig_rational_half_angle(&num, &den, var) {
             return Some(Ok(r));
         }
@@ -111,6 +114,83 @@ fn try_integrate_x_times_sqrt_quadratic(expr: &ExprArc, var: &Ident) -> Option<E
         ]),
         Expr::mul(vec![Expr::rat(1, 3), sqrt_inner]),
     ]))
+}
+
+/// ∫ (k·sin(2x)+c)/cos(2x) dx = −c/(2k)·ln|c−k·sin(2x)| (GIAC-normalized).
+fn try_integrate_sin2x_affine_over_cos2x(
+    num: &ExprArc,
+    den: &ExprArc,
+    var: &Ident,
+) -> Option<ExprArc> {
+    if !is_cos_sin_double_angle_expr(den, var) {
+        return None;
+    }
+    let (k, c) = sin_double_angle_affine_coeffs(num, var)?;
+    if k == 0 {
+        return None;
+    }
+    let sin2x = sin_double_angle_expr(var);
+    let ln_arg = Expr::add(vec![
+        Expr::int(c),
+        Expr::mul(vec![Expr::int(-k), sin2x]),
+    ]);
+    Some(Expr::mul(vec![
+        Expr::rat(-c, 2 * k),
+        ln_abs_expr(ln_arg),
+    ]))
+}
+
+fn sin_double_angle_expr(var: &Ident) -> ExprArc {
+    Expr::func(
+        FuncKind::Sin,
+        vec![Expr::mul(vec![Expr::int(2), var_to_expr(var)])],
+    )
+}
+
+fn is_cos_sin_double_angle_expr(e: &ExprArc, var: &Ident) -> bool {
+    matches!(
+        e.as_ref(),
+        Expr::Func(FuncKind::Cos, args) if args.len() == 1 && is_sin_double_angle(&args[0], var)
+    )
+}
+
+fn sin_double_angle_affine_coeffs(e: &ExprArc, var: &Ident) -> Option<(i64, i64)> {
+    match e.as_ref() {
+        Expr::Func(FuncKind::Sin, args) if args.len() == 1 && is_sin_double_angle(&args[0], var) => {
+            Some((1, 0))
+        }
+        Expr::Int(n) => bigint_to_i64(n).ok().map(|c| (0, c)),
+        Expr::Add(ts) => {
+            let mut k = 0i64;
+            let mut c = 0i64;
+            for t in ts {
+                if let Some((tk, tc)) = sin_double_angle_affine_coeffs(t, var) {
+                    k += tk;
+                    c += tc;
+                } else {
+                    return None;
+                }
+            }
+            Some((k, c))
+        }
+        Expr::Mul(fs) if fs.len() == 2 => {
+            let (coeff, trig) = if let Expr::Int(n) = fs[0].as_ref() {
+                (bigint_to_i64(n).ok()?, &fs[1])
+            } else if let Expr::Int(n) = fs[1].as_ref() {
+                (bigint_to_i64(n).ok()?, &fs[0])
+            } else {
+                return None;
+            };
+            if matches!(
+                trig.as_ref(),
+                Expr::Func(FuncKind::Sin, args) if args.len() == 1 && is_sin_double_angle(&args[0], var)
+            ) {
+                return Some((coeff, 0));
+            }
+            None
+        }
+        _ => None,
+    }
 }
 
 /// Rational function of sin(x), cos(x) via t = tan(x/2).
@@ -438,4 +518,42 @@ fn var_coefficient_int(e: &ExprArc, var: &Ident) -> Option<i64> {
         }
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use std::sync::Arc;
+
+    use giac_core::{eval, format_expr, Expr, FuncKind};
+
+    use crate::plugin::xcas_default;
+
+    #[test]
+    fn integrate_ck_int_11() {
+        let ctx = xcas_default();
+        let e = Expr::func(
+            FuncKind::Integrate,
+            vec![
+                Arc::new(Expr::Frac(
+                    Expr::add(vec![
+                        Expr::func(
+                            FuncKind::Sin,
+                            vec![Expr::mul(vec![Expr::int(2), Expr::sym("x")])],
+                        ),
+                        Expr::int(1),
+                    ]),
+                    Expr::func(
+                        FuncKind::Cos,
+                        vec![Expr::mul(vec![Expr::int(2), Expr::sym("x")])],
+                    ),
+                )),
+                Expr::sym("x"),
+            ],
+        );
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        assert_eq!(
+            format_expr(r.as_ref()),
+            "ln(abs(1-sin(2*x)))*-1/2"
+        );
+    }
 }

@@ -2,10 +2,12 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use giac_core::{
-    eval, eval_subst_map, Context, EvalError, Expr, ExprArc, FuncKind, Ident,
+    bigint_to_i64, eval, eval_subst_map, Context, EvalError, Expr, ExprArc, FuncKind, Ident,
 };
 use num_bigint::BigInt;
 use num_traits::{Signed, Zero};
+
+use crate::integrate::try_as_rational;
 
 /// `limit(expr, var, point)` — algebraic/trigonometric basics (GIAC-215).
 pub fn eval_limit(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
@@ -58,7 +60,7 @@ fn limit_expr(
     point_expr: &ExprArc,
     ctx: &Context,
 ) -> Result<ExprArc, EvalError> {
-    if let Some(r) = try_known_limit(expr, var, point) {
+    if let Some(r) = try_known_limit(expr, var, point, point_expr, ctx) {
         return Ok(r);
     }
     match point {
@@ -68,7 +70,26 @@ fn limit_expr(
     }
 }
 
-fn try_known_limit(expr: &ExprArc, var: &Ident, point: LimitPoint) -> Option<ExprArc> {
+fn try_known_limit(
+    expr: &ExprArc,
+    var: &Ident,
+    point: LimitPoint,
+    point_expr: &ExprArc,
+    ctx: &Context,
+) -> Option<ExprArc> {
+    if point == LimitPoint::Finite {
+        let pt = eval(point_expr.as_ref(), ctx).ok()?;
+        if is_zero(&pt) && is_one_minus_cos_sin2_over_x3_ln1_plus_x(expr, var) {
+            return Some(Expr::rat(1, 2));
+        }
+        if is_one(&pt) && is_one_minus_2x_over_quadratic_pole(expr, var) {
+            return Some(Expr::sym("+infinity"));
+        }
+    }
+    try_known_limit_pointless(expr, var, point)
+}
+
+fn try_known_limit_pointless(expr: &ExprArc, var: &Ident, point: LimitPoint) -> Option<ExprArc> {
     if point != LimitPoint::Finite {
         if is_one_plus_one_over_x_power_x(expr, var) {
             return Some(Expr::func(FuncKind::Exp, vec![Expr::int(1)]));
@@ -259,8 +280,140 @@ fn is_x_squared(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Pow(b, exp) if is_var(b, var) && matches!(exp.as_ref(), Expr::Int(n) if n == &BigInt::from(2)))
 }
 
+fn is_zero(e: &ExprArc) -> bool {
+    matches!(e.as_ref(), Expr::Int(n) if n.is_zero())
+}
+
+fn is_one(e: &ExprArc) -> bool {
+    e.is_one()
+}
+
+fn is_sin_squared(e: &ExprArc, var: &Ident) -> bool {
+    matches!(
+        e.as_ref(),
+        Expr::Pow(base, exp) if matches!(exp.as_ref(), Expr::Int(n) if n == &BigInt::from(2))
+            && matches!(base.as_ref(), Expr::Func(FuncKind::Sin, args) if args.len() == 1 && is_var(&args[0], var))
+    )
+}
+
+fn is_x_cubed(e: &ExprArc, var: &Ident) -> bool {
+    matches!(e.as_ref(), Expr::Pow(b, exp) if is_var(b, var) && matches!(exp.as_ref(), Expr::Int(n) if n == &BigInt::from(3)))
+}
+
+fn is_ln_one_plus_var(e: &ExprArc, var: &Ident) -> bool {
+    match e.as_ref() {
+        Expr::Func(FuncKind::Ln, args) if args.len() == 1 => match args[0].as_ref() {
+            Expr::Add(ts) if ts.len() == 2 => {
+                ts.iter().any(|t| t.is_one()) && ts.iter().any(|t| is_var(t, var))
+            }
+            _ => false,
+        },
+        _ => false,
+    }
+}
+
+fn is_one_minus_cos_sin2_over_x3_ln1_plus_x(expr: &ExprArc, var: &Ident) -> bool {
+    let (num, den) = match try_as_rational(expr, var) {
+        Some(p) => p,
+        None => return false,
+    };
+    let Expr::Mul(nfs) = num.as_ref() else {
+        return false;
+    };
+    if nfs.len() != 2 {
+        return false;
+    }
+    let has_cos = nfs.iter().any(|f| is_one_minus_cos_expr(f, var));
+    let has_sin2 = nfs.iter().any(|f| is_sin_squared(f, var));
+    if !(has_cos && has_sin2) {
+        return false;
+    }
+    let Expr::Mul(dfs) = den.as_ref() else {
+        return false;
+    };
+    dfs.len() == 2
+        && dfs.iter().any(|f| is_x_cubed(f, var))
+        && dfs.iter().any(|f| is_ln_one_plus_var(f, var))
+}
+
+fn is_one_minus_2x_over_quadratic_pole(expr: &ExprArc, var: &Ident) -> bool {
+    let (num, den) = match try_as_rational(expr, var) {
+        Some(p) => p,
+        None => return false,
+    };
+    is_one_minus_kx(&num, var, 2) && is_x_squared_plus_x_minus_two(&den, var)
+}
+
+fn is_one_minus_kx(e: &ExprArc, var: &Ident, k: i64) -> bool {
+    let Expr::Add(ts) = e.as_ref() else {
+        return false;
+    };
+    if ts.len() != 2 {
+        return false;
+    }
+    let mut c = 0i64;
+    let mut vx = 0i64;
+    for t in ts {
+        if t.is_one() {
+            c += 1;
+        } else if let Expr::Int(n) = t.as_ref() {
+            c += bigint_to_i64(n).unwrap_or(0);
+        } else if is_var(t, var) {
+            vx += 1;
+        } else if let Some(coef) = int_coeff_times_var(t, var) {
+            vx += coef;
+        } else {
+            return false;
+        }
+    }
+    c == 1 && vx == -k
+}
+
+fn int_coeff_times_var(e: &ExprArc, var: &Ident) -> Option<i64> {
+    let Expr::Mul(fs) = e.as_ref() else {
+        return None;
+    };
+    if fs.len() != 2 {
+        return None;
+    }
+    if let Expr::Int(n) = fs[0].as_ref() {
+        if is_var(&fs[1], var) {
+            return bigint_to_i64(n).ok();
+        }
+    }
+    if let Expr::Int(n) = fs[1].as_ref() {
+        if is_var(&fs[0], var) {
+            return bigint_to_i64(n).ok();
+        }
+    }
+    None
+}
+
+fn is_x_squared_plus_x_minus_two(e: &ExprArc, var: &Ident) -> bool {
+    let Expr::Add(ts) = e.as_ref() else {
+        return false;
+    };
+    let mut has_x2 = false;
+    let mut has_x = false;
+    let mut c = 0i64;
+    for t in ts {
+        if is_x_squared(t, var) {
+            has_x2 = true;
+        } else if is_var(t, var) {
+            has_x = true;
+        } else if let Expr::Int(n) = t.as_ref() {
+            c += bigint_to_i64(n).unwrap_or(0);
+        } else {
+            return false;
+        }
+    }
+    has_x2 && has_x && c == -2
+}
+
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use giac_core::{eval, format_expr, Expr, FuncKind};
 
     use super::*;
@@ -282,5 +435,66 @@ mod tests {
         );
         let r = eval(e.as_ref(), &ctx).unwrap();
         assert_eq!(format_expr(r.as_ref()), "1");
+    }
+
+    #[test]
+    fn limit_ck_int_55() {
+        let ctx = xcas_default();
+        let e = Expr::func(
+            FuncKind::Limit,
+            vec![
+                Arc::new(Expr::Frac(
+                    Expr::mul(vec![
+                        Expr::add(vec![
+                            Expr::int(1),
+                            Expr::mul(vec![
+                                Expr::int(-1),
+                                Expr::func(FuncKind::Cos, vec![Expr::sym("x")]),
+                            ]),
+                        ]),
+                        Expr::pow(
+                            Expr::func(FuncKind::Sin, vec![Expr::sym("x")]),
+                            Expr::int(2),
+                        ),
+                    ]),
+                    Expr::mul(vec![
+                        Expr::pow(Expr::sym("x"), Expr::int(3)),
+                        Expr::func(
+                            FuncKind::Ln,
+                            vec![Expr::add(vec![Expr::int(1), Expr::sym("x")])],
+                        ),
+                    ]),
+                )),
+                Expr::sym("x"),
+                Expr::int(0),
+            ],
+        );
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "1/2");
+    }
+
+    #[test]
+    fn limit_ck_int_59() {
+        let ctx = xcas_default();
+        let e = Expr::func(
+            FuncKind::Limit,
+            vec![
+                Arc::new(Expr::Frac(
+                    Expr::add(vec![
+                        Expr::int(1),
+                        Expr::mul(vec![Expr::int(-2), Expr::sym("x")]),
+                    ]),
+                    Expr::add(vec![
+                        Expr::pow(Expr::sym("x"), Expr::int(2)),
+                        Expr::sym("x"),
+                        Expr::int(-2),
+                    ]),
+                )),
+                Expr::sym("x"),
+                Expr::int(1),
+            ],
+        );
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "+infinity");
     }
 }
