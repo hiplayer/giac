@@ -189,6 +189,101 @@ fn push_divisors(n: &BigInt, out: &mut Vec<BigInt>) {
     }
 }
 
+/// Root `α = (re + im·i)·√ext` with rational `re`, `im` and integer `ext`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct AlgebraicRt {
+    pub re: Ratio<BigInt>,
+    pub im: Ratio<BigInt>,
+    pub ext: u64,
+}
+
+/// Conjugate pair with `im(α) > 0`.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ConjugatePair {
+    pub alpha: AlgebraicRt,
+}
+
+/// Conjugate-root pairs of `a·t⁴ + c` when `c/a` is not a fourth power in Q.
+pub fn biquartic_conjugate_pairs(p: &Poly, t: &Var) -> PolyResult<Vec<ConjugatePair>> {
+    let deg = univariate_degree(p, t);
+    if deg != 4 {
+        return Ok(vec![]);
+    }
+    if !coeff_at(p, t, 3).is_zero()
+        || !coeff_at(p, t, 2).is_zero()
+        || !coeff_at(p, t, 1).is_zero()
+    {
+        return Ok(vec![]);
+    }
+    let a = coeff_at(p, t, 4);
+    let c = coeff_at(p, t, 0);
+    if a.is_zero() || c.is_zero() {
+        return Ok(vec![]);
+    }
+    if !rational_roots_in_t(p, t)?.is_empty() {
+        return Ok(vec![]);
+    }
+    // a·t⁴ + c = 0  =>  t⁴ = -c/a
+    let t4 = -c.clone() / a.clone();
+    if t4 >= Ratio::zero() {
+        return Ok(vec![]);
+    }
+    let rad = t4.abs();
+    let mag = ratio_perfect_sqrt(&rad).ok_or(PolyError::NotImplemented(
+        "biquartic algebraic roots",
+    ))?;
+    // t² = ± i·mag  =>  t = ± (1±i)/√2 · mag/2 ;  Re(t)=Im(t)=±√(mag²/4)=±mag/2 when mag/4 square
+    let quarter_mag = mag.clone() / Ratio::from_integer(BigInt::from(4));
+    let re_im = ratio_perfect_sqrt(&quarter_mag).ok_or(PolyError::NotImplemented(
+        "biquartic algebraic roots",
+    ))?;
+    let mut pairs = Vec::new();
+    for re_sign in [1i64, -1i64] {
+        let re = re_im.clone() * Ratio::from_integer(BigInt::from(re_sign));
+        if re.is_zero() {
+            continue;
+        }
+        pairs.push(ConjugatePair {
+            alpha: AlgebraicRt {
+                re,
+                im: re_im.clone(),
+                ext: 2,
+            },
+        });
+    }
+    Ok(pairs)
+}
+
+fn ratio_perfect_sqrt(r: &Ratio<BigInt>) -> Option<Ratio<BigInt>> {
+    if r.is_zero() {
+        return Some(Ratio::zero());
+    }
+    let sn = integer_perfect_sqrt(r.numer())?;
+    let sd = integer_perfect_sqrt(r.denom())?;
+    Some(Ratio::new(sn, sd))
+}
+
+fn integer_perfect_sqrt(n: &BigInt) -> Option<BigInt> {
+    if n.is_negative() {
+        return None;
+    }
+    if n.is_zero() {
+        return Some(BigInt::zero());
+    }
+    let mut lo = BigInt::zero();
+    let mut hi = n.clone() + BigInt::one();
+    while lo < hi {
+        let mid = (&lo + &hi) / BigInt::from(2);
+        let sq = &mid * &mid;
+        match sq.cmp(n) {
+            std::cmp::Ordering::Equal => return Some(mid),
+            std::cmp::Ordering::Less => lo = mid + 1,
+            std::cmp::Ordering::Greater => hi = mid,
+        }
+    }
+    None
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -199,6 +294,18 @@ mod tests {
 
     fn t() -> Var {
         Var::from("__rt")
+    }
+
+    #[test]
+    fn biquartic_pairs_one_over_x_fourth_plus_one() {
+        let tv = t();
+        let r = Poly::var("__rt").pow(4).mul_scalar(&Ratio::from_integer(256.into()))
+            .add(&Poly::one());
+        let pairs = biquartic_conjugate_pairs(&r, &tv).unwrap();
+        assert_eq!(pairs.len(), 2);
+        assert_eq!(pairs[0].alpha.re, Ratio::new(1.into(), 8.into()));
+        assert_eq!(pairs[0].alpha.im, Ratio::new(1.into(), 8.into()));
+        assert_eq!(pairs[1].alpha.re, Ratio::new((-1).into(), 8.into()));
     }
 
     #[test]

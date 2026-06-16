@@ -47,7 +47,7 @@ fn format_frac(num: &Arc<Expr>, den: &Arc<Expr>) -> String {
     }
     if matches!(num.as_ref(), Expr::Mul(_)) {
         let den_s = match den.as_ref() {
-            Expr::Add(_) => format!("({})", format_expr(den)),
+            Expr::Add(_) | Expr::Mul(_) => format!("({})", format_expr(den)),
             _ => format_expr(den),
         };
         return format!("{}/{}", format_expr(num), den_s);

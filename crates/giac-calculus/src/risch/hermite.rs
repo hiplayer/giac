@@ -55,7 +55,7 @@ pub fn hermite_reduce(
 #[cfg(test)]
 mod tests {
     use giac_poly::coeff_at;
-    use num_traits::Zero;
+    use num_traits::{One, Zero};
 
     use super::*;
 

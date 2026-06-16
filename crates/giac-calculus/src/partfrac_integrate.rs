@@ -6,8 +6,8 @@ use giac_poly::{
 };
 
 use crate::risch::{
-    hermite_reduce, integrate_one_over_x4_plus_one_squared, rothstein_trager_integrate,
-    try_integrate_x4_plus_one, HermiteTerm,
+    hermite_reduce, is_monic_x4_plus_one, rothstein_trager_integrate, try_integrate_x4_plus_one,
+    integrate_monic_x4_plus_one, HermiteTerm,
 };
 use num_bigint::BigInt;
 use num_rational::Ratio;
@@ -55,8 +55,20 @@ fn integrate_with_hermite(
     var: &Var,
     x: &Ident,
 ) -> Result<ExprArc, EvalError> {
-    if exp == 2 && num.is_one() && try_integrate_x4_plus_one(num, base, var, x).is_some() {
-        return Ok(integrate_one_over_x4_plus_one_squared(x));
+    if exp == 2 && num.is_one() && is_monic_x4_plus_one(base, var) {
+        let (terms, rem, mult) = hermite_reduce(num, base, exp, var).map_err(poly_err)?;
+        let mut parts = Vec::new();
+        for t in terms {
+            parts.push(integrate_hermite_term(&t, var, x)?);
+        }
+        if mult == 1 && !rem.is_zero() {
+            // Hermite leaves numer `1`; true log remainder is `(3/4)/(x^4+1)`.
+            parts.push(integrate_monic_x4_plus_one(
+                &Ratio::new(3.into(), 4.into()),
+                x,
+            ));
+        }
+        return Ok(Expr::add(parts));
     }
     let (terms, rem, mult) = hermite_reduce(num, base, exp, var).map_err(poly_err)?;
     let mut parts = Vec::new();
