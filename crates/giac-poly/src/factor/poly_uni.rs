@@ -137,6 +137,11 @@ pub fn factor_sqff_over_coeff_ring(
         return factor_univariate_flat(g, var);
     }
     let dy = univariate_degree(g, &others[0]);
+    if others.len() == 1 && univariate_degree(g, &others[0]) > 0 {
+        if let Some(f) = super::hensel::try_hensel_lift_bivariate(g, var, &others[0]) {
+            return Ok(f);
+        }
+    }
     if let Some(f) = try_factor_bivariate_eval(g, var, &others[0], others) {
         return Ok(f);
     }

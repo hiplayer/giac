@@ -106,6 +106,21 @@ mod tests {
     }
 
     #[test]
+    fn factor_three_shifted_linears() {
+        let x = Poly::var("x");
+        let y = Poly::var("y");
+        let p = x
+            .sub(&y)
+            .add(&Poly::one())
+            .mul(&x.sub(&y))
+            .mul(&x.sub(&y).sub(&Poly::one()));
+        let f = factor_multivariate(&p).unwrap();
+        assert!(f.len() >= 3);
+        let prod = f.iter().fold(Poly::one(), |acc, q| acc.mul(q));
+        assert_eq!(prod, p);
+    }
+
+    #[test]
     fn factor_var_power_times_linear() {
         let x = Poly::var("x");
         let y = Poly::var("y");

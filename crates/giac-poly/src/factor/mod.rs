@@ -1,6 +1,7 @@
 //! Polynomial factorization over ℚ (and ℤ/pℤ for `factor_poly_mod`).
 
 mod cyclotomic;
+mod hensel;
 mod modular;
 mod multivariate;
 mod patterns;
