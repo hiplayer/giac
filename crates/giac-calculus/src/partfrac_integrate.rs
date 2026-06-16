@@ -4,6 +4,8 @@ use giac_core::{bigint_to_i64, expr_to_poly, poly_to_expr, EvalError, Expr, Expr
 use giac_poly::{
     as_perfect_power, coeff_at, partfrac_rational_terms, univariate_degree, Poly, PolyError, Var,
 };
+
+use crate::risch::{hermite_reduce, HermiteTerm};
 use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::{One, Signed, Zero};
@@ -21,6 +23,11 @@ pub fn integrate_const_over_rational(
     if den_p.is_zero() {
         return Err(EvalError::TypeError("division by zero"));
     }
+    if let Some((base, exp)) = as_perfect_power(&den_p) {
+        if exp >= 2 && univariate_degree(&base, &v) >= 2 {
+            return integrate_with_hermite(&num_p, &base, exp as usize, &v, var);
+        }
+    }
     let (poly_part, terms) = partfrac_rational_terms(&num_p, &den_p, &v).map_err(poly_err)?;
     let mut parts = Vec::new();
     if let Some(q) = poly_part {
@@ -35,6 +42,48 @@ pub fn integrate_const_over_rational(
     Ok(Expr::add(parts))
 }
 
+fn integrate_with_hermite(
+    num: &Poly,
+    base: &Poly,
+    exp: usize,
+    var: &Var,
+    x: &Ident,
+) -> Result<ExprArc, EvalError> {
+    let (terms, rem, mult) = hermite_reduce(num, base, exp, var).map_err(poly_err)?;
+    let mut parts = Vec::new();
+    for t in terms {
+        parts.push(integrate_hermite_term(&t, var, x)?);
+    }
+    if mult == 1 && !rem.is_zero() {
+        parts.push(integrate_const_over_rational(
+            &poly_to_expr(&rem),
+            &poly_to_expr(base),
+            x,
+        )?);
+    }
+    if parts.is_empty() {
+        return Err(EvalError::NotImplemented("integrate hermite"));
+    }
+    Ok(Expr::add(parts))
+}
+
+fn integrate_hermite_term(t: &HermiteTerm, var: &Var, x: &Ident) -> Result<ExprArc, EvalError> {
+    let _ = var;
+    let scale = Ratio::from_integer(BigInt::from(t.power as i64));
+    let num = t.numer.mul_scalar(&Ratio::from_integer((-1).into()));
+    let g = poly_to_expr(&t.factor);
+    if t.power == 1 {
+        return Ok(Arc::new(Expr::Frac(
+            poly_to_expr(&num),
+            Expr::mul(vec![ratio_to_expr(&scale), g]),
+        )));
+    }
+    Ok(Arc::new(Expr::Frac(
+        poly_to_expr(&num),
+        Expr::mul(vec![ratio_to_expr(&scale), Expr::pow(g, Expr::int(t.power as i64))]),
+    )))
+}
+
 fn integrate_rational_term(
     numer: &Poly,
     factor: &Poly,
@@ -43,6 +92,11 @@ fn integrate_rational_term(
 ) -> Result<ExprArc, EvalError> {
     let fdeg = univariate_degree(factor, var);
     let ndeg = univariate_degree(numer, var);
+    if let Some((base, exp)) = as_perfect_power(factor) {
+        if exp >= 2 && univariate_degree(&base, var) >= 2 {
+            return integrate_with_hermite(numer, &base, exp as usize, var, x);
+        }
+    }
     if ndeg == 0 {
         if let Some((base, exp)) = as_perfect_power(factor) {
             if univariate_degree(&base, var) == 1 && exp >= 2 {
@@ -281,11 +335,10 @@ fn poly_err(e: PolyError) -> EvalError {
 
 #[cfg(test)]
 mod tests {
-    use giac_core::{format_expr, Context};
+    use giac_core::format_expr;
     use num_rational::Ratio;
 
     use super::*;
-    use crate::plugin::xcas_default;
 
     #[test]
     fn partfrac_integrate_x_over_repeated_linear() {
@@ -295,6 +348,35 @@ mod tests {
             Expr::pow(Expr::add(vec![Expr::sym("x"), Expr::int(1)]), Expr::int(2)),
         ]);
         let r = integrate_const_over_rational(&Expr::sym("x"), &den, &x);
+        assert!(r.is_ok(), "{:?}", r);
+    }
+
+    #[test]
+    fn integrate_one_over_x_fourth_plus_one() {
+        let x = Ident::new("x");
+        let den = Expr::add(vec![Expr::pow(Expr::sym("x"), Expr::int(4)), Expr::int(1)]);
+        let r = integrate_const_over_rational(&Expr::int(1), &den, &x);
+        assert!(matches!(r, Err(EvalError::NotImplemented(_))));
+    }
+
+    #[test]
+    fn integrate_x_over_x_squared_plus_one_squared_expr() {
+        let x = Ident::new("x");
+        let den = Expr::pow(
+            Expr::add(vec![Expr::pow(Expr::sym("x"), Expr::int(2)), Expr::int(1)]),
+            Expr::int(2),
+        );
+        let r = integrate_const_over_rational(&Expr::sym("x"), &den, &x);
+        assert!(r.is_ok(), "{:?}", r);
+    }
+
+    #[test]
+    fn hermite_integrate_x_over_x_squared_plus_one_squared() {
+        use giac_poly::Poly;
+        let x = Ident::new("x");
+        let v = Var::from("x");
+        let g = Poly::var("x").pow(2).add(&Poly::one());
+        let r = integrate_with_hermite(&Poly::var("x"), &g, 2, &v, &x);
         assert!(r.is_ok(), "{:?}", r);
     }
 

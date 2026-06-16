@@ -1,6 +1,10 @@
 mod tower;
+mod pow2expln;
+mod hermite;
 
-pub use tower::{risch_tower, rlvarx, RischTowerError};
+pub use tower::{depends_on_var, risch_tower, rlvarx, RischTowerError};
+pub use pow2expln::pow2expln;
+pub use hermite::{hermite_reduce, HermiteTerm};
 
 use giac_core::{Context, EvalError, ExprArc};
 

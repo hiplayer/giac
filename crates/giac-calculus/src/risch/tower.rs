@@ -4,6 +4,8 @@ use std::sync::Arc;
 
 use giac_core::{Expr, ExprArc, FuncKind, Ident};
 
+use super::pow2expln::pow2expln;
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RischTowerError {
     NotElementary,
@@ -20,10 +22,11 @@ pub fn rlvarx(expr: &ExprArc, var: &Ident) -> Vec<ExprArc> {
 
 /// Returns the tower (most complex extension first) when `expr` is elementary over `var`.
 pub fn risch_tower(expr: &ExprArc, var: &Ident) -> Result<Vec<ExprArc>, RischTowerError> {
-    if contains_non_elementary_transcendental(expr, var) {
+    let normalized = pow2expln(expr, var);
+    if contains_non_elementary_transcendental(&normalized, var) {
         return Err(RischTowerError::NotElementary);
     }
-    let mut tower = rlvarx(expr, var);
+    let mut tower = rlvarx(&normalized, var);
     tower.retain(|e| !is_var(e, var));
     for ext in &tower {
         if !is_exp_or_ln(ext) {
@@ -35,7 +38,7 @@ pub fn risch_tower(expr: &ExprArc, var: &Ident) -> Result<Vec<ExprArc>, RischTow
 }
 
 fn collect_rlvarx(expr: &ExprArc, var: &Ident, out: &mut Vec<ExprArc>) {
-    if !depends_on(expr, var) {
+    if !depends_on_var(expr, var) {
         return;
     }
     match expr.as_ref() {
@@ -48,7 +51,7 @@ fn collect_rlvarx(expr: &ExprArc, var: &Ident, out: &mut Vec<ExprArc>) {
             }
         }
         Expr::Pow(base, exp) => {
-            if depends_on(exp, var) {
+            if depends_on_var(exp, var) {
                 let ln_base = Expr::func(FuncKind::Ln, vec![Arc::clone(base)]);
                 push_unique(out, ln_base);
             }
@@ -82,7 +85,7 @@ fn is_exp_or_ln(e: &ExprArc) -> bool {
 }
 
 fn contains_non_elementary_transcendental(e: &ExprArc, var: &Ident) -> bool {
-    if !depends_on(e, var) {
+    if !depends_on_var(e, var) {
         return false;
     }
     match e.as_ref() {
@@ -107,14 +110,19 @@ fn contains_non_elementary_transcendental(e: &ExprArc, var: &Ident) -> bool {
     }
 }
 
-fn depends_on(e: &ExprArc, var: &Ident) -> bool {
+fn is_const_wrt(e: &ExprArc, var: &Ident) -> bool {
+    !depends_on_var(e, var)
+}
+
+/// Whether `e` syntactically depends on integration variable `var`.
+pub fn depends_on_var(e: &ExprArc, var: &Ident) -> bool {
     match e.as_ref() {
         Expr::Symbol(id) => id == var,
         Expr::Int(_) | Expr::Rat(_) => false,
-        Expr::Add(ts) | Expr::Mul(ts) => ts.iter().any(|t| depends_on(t, var)),
-        Expr::Pow(b, exp) => depends_on(b, var) || depends_on(exp, var),
-        Expr::Frac(n, d) => depends_on(n, var) || depends_on(d, var),
-        Expr::Func(_, args) => args.iter().any(|a| depends_on(a, var)),
+        Expr::Add(ts) | Expr::Mul(ts) => ts.iter().any(|t| depends_on_var(t, var)),
+        Expr::Pow(b, exp) => depends_on_var(b, var) || depends_on_var(exp, var),
+        Expr::Frac(n, d) => depends_on_var(n, var) || depends_on_var(d, var),
+        Expr::Func(_, args) => args.iter().any(|a| depends_on_var(a, var)),
         _ => false,
     }
 }
@@ -175,5 +183,37 @@ mod tests {
         let e = Expr::pow(x(), Expr::int(2));
         let tower = risch_tower(&e, &var).unwrap();
         assert!(tower.is_empty());
+    }
+
+    #[test]
+    fn rlvarx_nested_exp() {
+        let var = Ident::new("x");
+        let e = Expr::func(FuncKind::Exp, vec![Expr::func(FuncKind::Exp, vec![x()])]);
+        let v = rlvarx(&e, &var);
+        assert!(!v.is_empty());
+        assert!(risch_tower(&e, &var).is_ok());
+    }
+
+    #[test]
+    fn risch_tower_pow2expln_exp_x() {
+        let var = Ident::new("x");
+        let e = Expr::pow(Expr::int(2), x());
+        let tower = risch_tower(&e, &var).unwrap();
+        assert_eq!(tower.len(), 1);
+        assert!(matches!(tower[0].as_ref(), Expr::Func(FuncKind::Exp, _)));
+    }
+
+    #[test]
+    fn risch_tower_rejects_nested_trig() {
+        let var = Ident::new("x");
+        let e = Expr::func(FuncKind::Sin, vec![Expr::func(FuncKind::Cos, vec![x()])]);
+        assert_eq!(risch_tower(&e, &var), Err(RischTowerError::NotElementary));
+    }
+
+    #[test]
+    fn rlvarx_independent_of_var() {
+        let var = Ident::new("x");
+        let e = Expr::func(FuncKind::Exp, vec![Expr::sym("y")]);
+        assert!(rlvarx(&e, &var).is_empty());
     }
 }

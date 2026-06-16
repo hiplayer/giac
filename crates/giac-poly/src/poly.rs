@@ -365,4 +365,13 @@ mod tests {
         assert_eq!(quo(&p, &d).unwrap(), x().pow(2).add(&x()).add(&Poly::one()));
         assert!(rem(&p, &d).unwrap().is_zero());
     }
+
+    #[test]
+    fn abcuv_linear_one() {
+        let g = x().sub(&Poly::one());
+        let gp = Poly::one();
+        let a = Poly::one();
+        let (u, v) = abcuv(&g, &gp, &a).unwrap();
+        assert_eq!(u.mul(&g).add(&v.mul(&gp)), a);
+    }
 }

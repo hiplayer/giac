@@ -1251,14 +1251,35 @@ mod tests {
     }
 
     #[test]
+    fn integrate_x_over_x_squared_plus_one_squared() {
+        let x = Ident::new("x");
+        let e = Arc::new(Expr::Frac(
+            Expr::sym("x"),
+            Expr::pow(
+                Expr::add(vec![Expr::pow(Expr::sym("x"), Expr::int(2)), Expr::int(1)]),
+                Expr::int(2),
+            ),
+        ));
+        let r = integrate(&e, &x).expect("integrate");
+        let s = format_expr(r.as_ref());
+        assert!(s.contains("x^2+1") || s.contains("x^2 + 1"), "got {s}");
+    }
+
+    #[test]
     fn integrate_x_squared_reciprocal() {
         let x = Ident::new("x");
         let den = Expr::pow(Expr::sym("x"), Expr::int(2));
         let e = Expr::pow(den, Expr::int(-1));
-        assert!(matches!(
-            integrate(&e, &x),
-            Err(EvalError::NotImplemented(_))
-        ));
+        match integrate(&e, &x) {
+            Ok(r) => {
+                let s = format_expr(r.as_ref());
+                assert!(
+                    s.contains("x^(-1)") || s.contains("x^-1") || s.contains("1/x"),
+                    "got {s}"
+                );
+            }
+            Err(e) => panic!("integrate 1/x^2 failed: {e:?}"),
+        }
     }
 
     #[test]

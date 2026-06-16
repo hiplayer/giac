@@ -26,6 +26,7 @@ pub fn try_integrate_heuristic(expr: &ExprArc, var: &Ident) -> Option<Result<Exp
         if let Some(r) = try_integrate_trig_rational_half_angle(&num, &den, var) {
             return Some(Ok(r));
         }
+        return Some(integrate_frac(&num, &den, var));
     }
     if let Some(r) = try_integrate_x_times_sqrt_quadratic(expr, var) {
         return Some(Ok(r));
@@ -176,6 +177,15 @@ fn replace_trig_with_t(
     cos_t: &ExprArc,
 ) -> ExprArc {
     match e.as_ref() {
+        Expr::Func(FuncKind::Sin, args) if args.len() == 1 && is_sin_double_angle(&args[0], var) => {
+            Expr::mul(vec![Expr::int(2), sin_t.clone(), cos_t.clone()])
+        }
+        Expr::Func(FuncKind::Cos, args) if args.len() == 1 && is_cos_double_angle(&args[0], var) => {
+            Expr::add(vec![
+                Expr::pow(cos_t.clone(), Expr::int(2)),
+                Expr::mul(vec![Expr::int(-1), Expr::pow(sin_t.clone(), Expr::int(2))]),
+            ])
+        }
         Expr::Func(FuncKind::Sin, args) if args.len() == 1 && is_var(&args[0], var) => {
             Arc::clone(sin_t)
         }
@@ -232,7 +242,10 @@ fn is_trig_rational_in_x(e: &ExprArc, var: &Ident) -> bool {
                 && matches!(exp.as_ref(), Expr::Int(n) if bigint_to_i64(n).is_ok())
         }
         Expr::Func(FuncKind::Sin | FuncKind::Cos, args) => {
-            args.len() == 1 && is_var(&args[0], var)
+            args.len() == 1
+                && (is_var(&args[0], var)
+                    || is_sin_double_angle(&args[0], var)
+                    || is_cos_double_angle(&args[0], var))
         }
         Expr::Frac(n, d) => is_trig_rational_in_x(n, var) && is_trig_rational_in_x(d, var),
         _ => false,
@@ -308,7 +321,6 @@ fn sqrt_radicand(e: &ExprArc) -> Option<ExprArc> {
             if matches!(exp.as_ref(), Expr::Rat(r) if *r == Ratio::new((-1).into(), 2.into()))
                 || matches!(exp.as_ref(), Expr::Frac(n, d)
                     if n.is_one() && matches!(d.as_ref(), Expr::Int(i) if i == &BigInt::from(2)))
-                || matches!(exp.as_ref(), Expr::Int(n) if n == &BigInt::from(-1))
             {
                 return Some(Arc::clone(base));
             }
@@ -389,6 +401,22 @@ fn is_x_squared(e: &ExprArc, var: &Ident) -> bool {
         e.as_ref(),
         Expr::Pow(b, exp) if is_var(b, var) && matches!(exp.as_ref(), Expr::Int(n) if n == &BigInt::from(2))
     )
+}
+
+fn is_sin_double_angle(inner: &ExprArc, var: &Ident) -> bool {
+    match inner.as_ref() {
+        Expr::Mul(fs) if fs.len() == 2 => {
+            (matches!(fs[0].as_ref(), Expr::Int(n) if bigint_to_i64(n).ok() == Some(2))
+                && is_var(&fs[1], var))
+                || (matches!(fs[1].as_ref(), Expr::Int(n) if bigint_to_i64(n).ok() == Some(2))
+                    && is_var(&fs[0], var))
+        }
+        _ => false,
+    }
+}
+
+fn is_cos_double_angle(inner: &ExprArc, var: &Ident) -> bool {
+    is_sin_double_angle(inner, var)
 }
 
 fn var_coefficient_int(e: &ExprArc, var: &Ident) -> Option<i64> {

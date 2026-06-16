@@ -4,6 +4,7 @@ use num_traits::{One, Signed, Zero};
 
 use crate::monomial::{Monomial, Var};
 use crate::poly::Poly;
+use crate::resultant::coeff_at;
 
 /// If `p` is a perfect power, return `(base, exponent)`.
 pub fn as_perfect_power(p: &Poly) -> Option<(Poly, u64)> {
@@ -16,6 +17,11 @@ pub fn as_perfect_power(p: &Poly) -> Option<(Poly, u64)> {
         }
         if let Some(base) = try_nth_root(p, exp) {
             return Some((base, exp));
+        }
+        if exp == 2 {
+            if let Some(base) = try_binomial_square(p) {
+                return Some((base, 2));
+            }
         }
     }
     None
@@ -153,6 +159,42 @@ fn factor_xn_minus_one(p: &Poly) -> Option<Poly> {
     }
 }
 
+/// Detect `(x^k + c)^2` for monic `p` (covers `(x^2+1)^2`, `(x^4+1)^2`, …).
+fn try_binomial_square(p: &Poly) -> Option<Poly> {
+    let d = p.degree();
+    if d % 2 != 0 {
+        return None;
+    }
+    let k = d / 2;
+    let var = Var::from("x");
+    for deg in 1..d {
+        if deg != k && !coeff_at(p, &var, deg).is_zero() {
+            return None;
+        }
+    }
+    if coeff_at(p, &var, d) != Ratio::one() {
+        return None;
+    }
+    let c2 = coeff_at(p, &var, 0);
+    let c = rational_nth_root(&c2, 2)?;
+    let mid = coeff_at(p, &var, k);
+    if mid != Ratio::from_integer(2.into()) * c.clone() {
+        return None;
+    }
+    let base = Poly::var("x").pow(k).add(&Poly::constant(c));
+    if base.pow(2) == *p {
+        Some(base)
+    } else {
+        None
+    }
+}
+
+fn rational_nth_root(r: &Ratio<BigInt>, exp: u64) -> Option<Ratio<BigInt>> {
+    let num = integer_nth_root(r.numer(), exp)?;
+    let den = integer_nth_root(r.denom(), exp)?;
+    Some(Ratio::new(num, den))
+}
+
 fn try_nth_root(p: &Poly, exp: u64) -> Option<Poly> {
     if p.terms.len() == 1 {
         return None;
@@ -197,6 +239,24 @@ fn integer_nth_root(n: &BigInt, exp: u64) -> Option<BigInt> {
 mod tests {
     use super::*;
     use num_bigint::BigInt;
+
+    #[test]
+    fn as_perfect_power_quadratic_squared() {
+        let x = Poly::var("x");
+        let p = x.pow(2).add(&Poly::one()).pow(2);
+        let (base, exp) = as_perfect_power(&p).unwrap();
+        assert_eq!(exp, 2);
+        assert_eq!(base.pow(2), p);
+    }
+
+    #[test]
+    fn as_perfect_power_quartic_squared() {
+        let x = Poly::var("x");
+        let p = x.pow(4).add(&Poly::one()).pow(2);
+        let (base, exp) = as_perfect_power(&p).unwrap();
+        assert_eq!(exp, 2);
+        assert_eq!(base, x.pow(4).add(&Poly::one()));
+    }
 
     #[test]
     fn factor_x_plus_3_power_4() {
