@@ -91,7 +91,7 @@
       "id": "CK-INT-13",
       "line": "integrate(exp(x)/(3+2*exp(x)),x)",
       "kind": "integrate",
-      "enabled": false,
+      "enabled": true,
       "giac_issue": "GIAC-219"
     },
     {
@@ -140,7 +140,7 @@
       "id": "CK-INT-20",
       "line": "integrate(sin(pi/2-2*x),x)",
       "kind": "integrate",
-      "enabled": false,
+      "enabled": true,
       "giac_issue": "GIAC-219"
     },
     {
@@ -154,7 +154,7 @@
       "id": "CK-INT-22",
       "line": "integrate((exp(x)-exp(-x))/(exp(x)+exp(-x)),x)",
       "kind": "integrate",
-      "enabled": false,
+      "enabled": true,
       "giac_issue": "GIAC-219"
     },
     {
@@ -203,14 +203,14 @@
       "id": "CK-INT-29",
       "line": "integrate(sin(x)/cos(x)^2,x)",
       "kind": "integrate",
-      "enabled": false,
+      "enabled": true,
       "giac_issue": "GIAC-219"
     },
     {
       "id": "CK-INT-30",
       "line": "integrate(exp(x)/(1+exp(2*x)),x)",
       "kind": "integrate",
-      "enabled": false,
+      "enabled": true,
       "giac_issue": "GIAC-219"
     },
     {
