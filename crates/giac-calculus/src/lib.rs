@@ -6,6 +6,7 @@ mod diff;
 mod eval_diff;
 mod eval_integrate;
 mod integrate;
+mod integrate_heuristics;
 mod partfrac_integrate;
 mod plugin;
 mod stubs;

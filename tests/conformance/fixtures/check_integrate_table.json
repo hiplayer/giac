@@ -126,15 +126,15 @@
       "id": "CK-INT-18",
       "line": "integrate(2*x/sqrt(x^2-1),x)",
       "kind": "integrate",
-      "enabled": false,
-      "giac_issue": "GIAC-219"
+      "enabled": true,
+      "giac_issue": "GIAC-225"
     },
     {
       "id": "CK-INT-19",
       "line": "integrate((sin(x)+cos(x))/(sin(x)-cos(x)),x)",
       "kind": "integrate",
-      "enabled": false,
-      "giac_issue": "GIAC-219"
+      "enabled": true,
+      "giac_issue": "GIAC-225"
     },
     {
       "id": "CK-INT-20",
@@ -196,8 +196,8 @@
       "id": "CK-INT-28",
       "line": "integrate(x*sqrt(1+x^2),x)",
       "kind": "integrate",
-      "enabled": false,
-      "giac_issue": "GIAC-219"
+      "enabled": true,
+      "giac_issue": "GIAC-225"
     },
     {
       "id": "CK-INT-29",
@@ -224,8 +224,8 @@
       "id": "CK-INT-32",
       "line": "integrate(x/sqrt(x+1),x)",
       "kind": "integrate",
-      "enabled": false,
-      "giac_issue": "GIAC-219"
+      "enabled": true,
+      "giac_issue": "GIAC-225"
     },
     {
       "id": "CK-INT-33",

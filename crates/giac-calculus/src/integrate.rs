@@ -27,6 +27,9 @@ use giac_core::{
 /// | `"integrate pow"` | General power bases |
 /// | `"integrate quadratic"` | Unsupported quadratic denominators |
 pub fn integrate(expr: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
+    if let Some(r) = crate::integrate_heuristics::try_integrate_heuristic(expr, var) {
+        return r;
+    }
     if let Some((num, den)) = try_as_rational(expr, var) {
         if let Ok(r) = integrate_frac(&num, &den, var) {
             return Ok(r);
@@ -55,7 +58,7 @@ pub fn integrate(expr: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     }
 }
 
-fn try_as_rational(expr: &ExprArc, var: &Ident) -> Option<(ExprArc, ExprArc)> {
+pub(crate) fn try_as_rational(expr: &ExprArc, var: &Ident) -> Option<(ExprArc, ExprArc)> {
     let _ = var;
     match expr.as_ref() {
         Expr::Frac(num, den) => Some((Arc::clone(num), Arc::clone(den))),
@@ -115,7 +118,7 @@ fn try_as_rational(expr: &ExprArc, var: &Ident) -> Option<(ExprArc, ExprArc)> {
     }
 }
 
-fn integrate_frac(num: &ExprArc, den: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
+pub(crate) fn integrate_frac(num: &ExprArc, den: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     if let Ok(r) = crate::partfrac_integrate::integrate_const_over_rational(num, den, var) {
         return Ok(r);
     }
@@ -1033,7 +1036,7 @@ fn is_ln_of_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Func(FuncKind::Ln, args) if args.len() == 1 && is_var(&args[0], var))
 }
 
-fn is_var(e: &ExprArc, var: &Ident) -> bool {
+pub(crate) fn is_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Symbol(id) if id == var)
 }
 
@@ -1041,7 +1044,7 @@ fn is_one(e: &ExprArc) -> bool {
     e.is_one()
 }
 
-fn is_const_wrt(e: &ExprArc, var: &Ident) -> bool {
+pub(crate) fn is_const_wrt(e: &ExprArc, var: &Ident) -> bool {
     match e.as_ref() {
         Expr::Symbol(id) => id != var,
         Expr::Int(_) | Expr::Rat(_) => true,
