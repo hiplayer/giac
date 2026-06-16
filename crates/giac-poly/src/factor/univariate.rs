@@ -93,10 +93,12 @@ fn factor_square_free(g: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
             return Ok(out);
         }
     }
-    if d == 6 {
+    if d >= 3 {
         if let Some(facs) = super::zassenhaus::try_zassenhaus_factor(g, var) {
             return Ok(facs);
         }
+    }
+    if d == 6 {
         if let Some(facs) = try_factor_two_cubics(g, var) {
             return Ok(facs);
         }
