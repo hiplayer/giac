@@ -1,0 +1,159 @@
+use std::collections::BTreeSet;
+
+use num_bigint::BigInt;
+use num_rational::Ratio;
+use num_traits::{One, Signed, Zero};
+
+use crate::monomial::{Monomial, Var};
+use crate::poly::Poly;
+use crate::resultant::{coeff_at, univariate_degree};
+
+/// All variables appearing in `p`, lexicographically sorted.
+pub fn vars_in(p: &Poly) -> Vec<Var> {
+    let mut set = BTreeSet::new();
+    for m in p.terms.keys() {
+        for (v, e) in m.iter() {
+            if e > 0 {
+                set.insert(v.clone());
+            }
+        }
+    }
+    set.into_iter().collect()
+}
+
+pub fn is_univariate_in(p: &Poly, var: &Var) -> bool {
+    p.terms
+        .keys()
+        .all(|m| m.iter().all(|(v, _)| v == var))
+}
+
+/// Variable of minimum degree (giac `factor_multivar` main var heuristic).
+pub fn main_var(p: &Poly, vars: &[Var]) -> Var {
+    vars.iter()
+        .min_by_key(|v| univariate_degree(p, v))
+        .cloned()
+        .unwrap_or_else(|| vars[0].clone())
+}
+
+/// Integer gcd of rational coefficients.
+pub fn coeff_gcd(p: &Poly) -> Ratio<BigInt> {
+    p.content()
+}
+
+pub fn primitive_part(p: &Poly) -> Poly {
+    p.primitive_part()
+}
+
+pub fn linear_poly(var: &Var, root: &Ratio<BigInt>) -> Poly {
+    Poly::var(var.clone()).sub(&Poly::constant(root.clone()))
+}
+
+pub fn monic_quadratic_poly(var: &Var, u: Ratio<BigInt>, v: Ratio<BigInt>) -> Poly {
+    Poly::var(var.clone())
+        .pow(2)
+        .add(&Poly::var(var.clone()).mul_scalar(&u))
+        .add(&Poly::constant(v))
+}
+
+pub fn integer_divisors(n: &BigInt) -> Vec<BigInt> {
+    if n.is_zero() {
+        return vec![BigInt::zero()];
+    }
+    let a = n.abs();
+    let mut divs = Vec::new();
+    let mut i = BigInt::one();
+    while &i * &i <= a {
+        if (&a % &i).is_zero() {
+            divs.push(i.clone());
+            divs.push(&a / &i);
+        }
+        i += BigInt::one();
+    }
+    divs.sort();
+    divs.dedup();
+    divs
+}
+
+pub fn integer_nth_root(n: &BigInt, exp: u64) -> Option<BigInt> {
+    if n.is_negative() && exp % 2 == 0 {
+        return None;
+    }
+    let exp_u32 = u32::try_from(exp).ok()?;
+    let mut lo = BigInt::zero();
+    let mut hi = n.abs() + BigInt::one();
+    while lo < hi {
+        let mid = (&lo + &hi) / BigInt::from(2);
+        let pow = mid.pow(exp_u32);
+        match pow.cmp(n) {
+            std::cmp::Ordering::Equal => return Some(if n.is_negative() { -mid } else { mid }),
+            std::cmp::Ordering::Less => lo = mid + 1,
+            std::cmp::Ordering::Greater => hi = mid,
+        }
+    }
+    None
+}
+
+pub fn rational_nth_root(r: &Ratio<BigInt>, exp: u64) -> Option<Ratio<BigInt>> {
+    let num = integer_nth_root(r.numer(), exp)?;
+    let den = integer_nth_root(r.denom(), exp)?;
+    Some(Ratio::new(num, den))
+}
+
+pub fn ratio_perfect_sqrt(r: &Ratio<BigInt>) -> Option<Ratio<BigInt>> {
+    if r.is_zero() {
+        return Some(Ratio::zero());
+    }
+    let sn = integer_nth_root(r.numer(), 2)?;
+    let sd = integer_nth_root(r.denom(), 2)?;
+    Some(Ratio::new(sn, sd))
+}
+
+pub fn rational_factor_pairs(a0: &Ratio<BigInt>) -> Vec<(Ratio<BigInt>, Ratio<BigInt>)> {
+    if a0.is_zero() {
+        return vec![(Ratio::zero(), Ratio::one())];
+    }
+    let mut pairs = Vec::new();
+    for p in integer_divisors(a0.numer()) {
+        for q in integer_divisors(a0.denom()) {
+            if q.is_zero() {
+                continue;
+            }
+            let qq = Ratio::new(p.clone(), q.clone());
+            let ss = a0 / qq.clone();
+            pairs.push((qq.clone(), ss.clone()));
+            if qq != ss {
+                pairs.push((ss, qq));
+            }
+        }
+    }
+    pairs.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)));
+    pairs.dedup();
+    pairs
+}
+
+/// Coefficient of `var^exp` (quotient by `var^exp` on each matching term).
+pub fn coeff_wrt(p: &Poly, var: &Var, exp: u64) -> Poly {
+    let mut out = Poly::zero();
+    let div = monomial_pow(var, exp);
+    for (m, c) in &p.terms {
+        if m.exp_of(var) == exp {
+            if let Some(rest_m) = m.div_exact(&div) {
+                out = out.add(&Poly::term(rest_m, c.clone()));
+            }
+        }
+    }
+    out
+}
+
+fn monomial_pow(var: &Var, exp: u64) -> Monomial {
+    let mut m = Monomial::one();
+    for _ in 0..exp {
+        m = m.mul(&Monomial::var(var.clone()));
+    }
+    m
+}
+
+pub fn is_monic_univariate(p: &Poly, var: &Var) -> bool {
+    let d = univariate_degree(p, var);
+    coeff_at(p, var, d) == Ratio::one()
+}
