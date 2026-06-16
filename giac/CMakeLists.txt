@@ -1,6 +1,8 @@
-set(GIAC_VERSION_DIR giac-1.5.0)
+set(GIAC_VERSION_DIR giac-2.0.0)
 set(GIAC_SRC_DIR "${CMAKE_CURRENT_SOURCE_DIR}/${GIAC_VERSION_DIR}/src")
 
+# Regenerate giac/config.h (+ copies under giac-2.0.0/) via giac/build-icas-2.0.sh
+# after upstream or configure.ac changes.
 set(GIAC_SOURCES
   input_lexer.cc
   sym2poly.cc
@@ -38,9 +40,11 @@ set(GIAC_SOURCES
   gauss.cc
   isom.cc
   plot.cc
+  plot3d.cc
   rpn.cc
   prog.cc
   pari.cc
+  cocoa.cc
   unary.cc
   usual.cc
   identificateur.cc
@@ -69,14 +73,12 @@ set(GIAC_SOURCES
   Flv_List.cc
   Flv_Table.cc
   gl2ps.c
+  Python.cc
   icas.cc
   Xcas1.cc
-  cas_excluded_stubs.cc
 )
 
 list(TRANSFORM GIAC_SOURCES PREPEND "${GIAC_SRC_DIR}/")
-list(REMOVE_ITEM GIAC_SOURCES "${GIAC_SRC_DIR}/cas_excluded_stubs.cc")
-list(APPEND GIAC_SOURCES "${CMAKE_CURRENT_SOURCE_DIR}/cas_excluded_stubs.cc")
 
 add_executable(giac ${GIAC_SOURCES})
 
@@ -90,21 +92,26 @@ target_compile_definitions(giac PRIVATE
   HAVE_CONFIG_H
   IN_GIAC
   GIAC_GENERIC_CONSTANTS
+  USE_OBJET_BIDON
+  TIMEOUT
 )
 
-target_compile_options(giac PRIVATE -fno-strict-aliasing)
+target_compile_options(giac PRIVATE
+  -fno-strict-aliasing
+  -U_GLIBCXX_ASSERTIONS
+)
 
 target_include_directories(giac PRIVATE
+  "${CMAKE_CURRENT_SOURCE_DIR}"
   "${GIAC_SRC_DIR}"
   "${CMAKE_CURRENT_SOURCE_DIR}/${GIAC_VERSION_DIR}"
-  "${CMAKE_CURRENT_SOURCE_DIR}"
   "${CMAKE_SOURCE_DIR}/libtommath/libtommath-0.39"
 )
 
 target_link_libraries(giac PRIVATE giac::tommath)
 
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-  target_link_libraries(giac PRIVATE rt)
+  target_link_libraries(giac PRIVATE rt pthread dl)
 endif()
 
 if(GIAC_BUILD_GUI)

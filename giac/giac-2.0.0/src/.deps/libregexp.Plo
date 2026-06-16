@@ -1,0 +1,2 @@
+libregexp.lo: libregexp.c /usr/include/stdc-predef.h
+/usr/include/stdc-predef.h:

@@ -1,0 +1,22 @@
+# giac 2.0.0 — tommath CAS-minimal build patches
+#
+## Source edits (applied in-tree)
+# - global.h / global.cc: SHA256 helpers when USE_GMP_REPLACEMENTS
+# - prog.cc: skip sha256.h include under USE_GMP_REPLACEMENTS
+# - desolve.h / desolve.cc: idnteval, radsimp, is_constant_wrt_vars always declared;
+#   kovacic block kept GMP-only
+# - src/Makefile.am: drop QuickJS, optimization, signalprocessing, graphe, markup, …
+#
+## Autotools recipe (verified)
+#   giac/build-icas-2.0.sh
+#
+## Flags captured for CMake
+#   CPPFLAGS: -I$libtommath/libtommath-0.39
+#   CXXFLAGS: -g -O2 -U_GLIBCXX_ASSERTIONS -DUSE_OBJET_BIDON
+#             -fno-strict-aliasing -DGIAC_GENERIC_CONSTANTS -DTIMEOUT
+#   configure: --enable-tommath --disable-shared --enable-static
+#              --disable-fltk --disable-pari --disable-cocoa --disable-quickjs …
+#
+## config.h
+#   Copy from autotools output to giac/config.h AND giac-2.0.0/{,src/}config.h
+#   (global.h re-includes config.h from src/ during compile).
