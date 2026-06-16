@@ -82,7 +82,7 @@ fn rational_primitive(p: &Poly) -> Poly {
 }
 
 /// Exact division `a / b` in the coefficient ring when `b | a`.
-fn div_exact_coeff(a: &Poly, b: &Poly) -> Option<Poly> {
+pub(crate) fn div_exact_coeff(a: &Poly, b: &Poly) -> Option<Poly> {
     let (q, r) = a.div_rem(b);
     if r.is_zero() {
         Some(q)
@@ -92,7 +92,7 @@ fn div_exact_coeff(a: &Poly, b: &Poly) -> Option<Poly> {
 }
 
 /// Division in ℚ[others][var]: divide `a` by `b` treating them as univariate in `var`.
-fn univariate_div_rem_wrt(a: &Poly, b: &Poly, var: &Var) -> (Poly, Poly) {
+pub(crate) fn univariate_div_rem_wrt(a: &Poly, b: &Poly, var: &Var) -> (Poly, Poly) {
     let mut remainder = a.clone();
     let mut quotient = Poly::zero();
     let db = univariate_degree(b, var);

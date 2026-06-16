@@ -93,6 +93,11 @@ fn factor_square_free(g: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
             return Ok(out);
         }
     }
+    if d == 6 {
+        if let Some(facs) = try_factor_two_cubics(g, var) {
+            return Ok(facs);
+        }
+    }
     if let Some((base, exp)) = as_perfect_power(g) {
         if crate::resultant::univariate_degree(&base, var) <= 2 {
             let inner = factor_square_free(&base, var)?;
@@ -286,4 +291,68 @@ fn try_factor_biquadratic(p: &Poly, var: &Var) -> Option<Vec<(Poly, usize)>> {
         }
     }
     None
+}
+
+fn monic_cubic_poly(var: &Var, a2: i64, a1: i64, a0: i64) -> Poly {
+    let x = Poly::var(var.clone());
+    let mut out = x.pow(3);
+    if a2 != 0 {
+        out = out.add(&x.pow(2).mul_scalar(&Ratio::from_integer(BigInt::from(a2))));
+    }
+    if a1 != 0 {
+        out = out.add(&x.mul_scalar(&Ratio::from_integer(BigInt::from(a1))));
+    }
+    if a0 != 0 {
+        out = out.add(&Poly::constant(Ratio::from_integer(BigInt::from(a0))));
+    }
+    out
+}
+
+/// Split a degree-6 square-free polynomial into two monic cubics (Issue 3.1 MVP).
+fn try_factor_two_cubics(p: &Poly, var: &Var) -> Option<Vec<Poly>> {
+    if univariate_degree(p, var) != 6 {
+        return None;
+    }
+    let lc = coeff_at(p, var, 6);
+    if lc.is_zero() {
+        return None;
+    }
+    let scale = Ratio::one() / lc.clone();
+    let mut p_m = Poly::zero();
+    for e in 0..=6 {
+        let c = coeff_at(p, var, e) * scale.clone();
+        if !c.is_zero() {
+            p_m = p_m.add(&term_with_var(&Poly::constant(c), var, e));
+        }
+    }
+
+    let bound = 8i64;
+    for a2 in -bound..=bound {
+        for a1 in -bound..=bound {
+            for a0 in -bound..=bound {
+                let f = monic_cubic_poly(var, a2, a1, a0);
+                let (_, r) = p_m.div_rem(&f);
+                if !r.is_zero() {
+                    continue;
+                }
+                let g = p_m.div_rem(&f).0;
+                if univariate_degree(&g, var) != 3 {
+                    continue;
+                }
+                let f = f.mul_scalar(&lc.clone());
+                let g = g.mul_scalar(&lc);
+                if f.mul(&g) == *p {
+                    return Some(vec![f, g]);
+                }
+            }
+        }
+    }
+    None
+}
+
+fn term_with_var(coeff: &Poly, var: &Var, exp: u64) -> Poly {
+    if exp == 0 {
+        return coeff.clone();
+    }
+    coeff.mul(&Poly::var(var.clone()).pow(exp))
 }

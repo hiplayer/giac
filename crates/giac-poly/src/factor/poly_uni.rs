@@ -23,11 +23,19 @@ pub fn content_wrt(p: &Poly, var: &Var) -> Poly {
 }
 
 fn poly_div_exact(num: &Poly, den: &Poly) -> PolyResult<Poly> {
-    let (q, r) = num.div_rem(den);
-    if !r.is_zero() {
-        return Err(PolyError::NotImplemented("poly division"));
+    if let Some(q) = crate::subresultant::div_exact_coeff(num, den) {
+        return Ok(q);
     }
-    Ok(q)
+    Err(PolyError::NotImplemented("poly division"))
+}
+
+fn poly_div_exact_wrt(num: &Poly, den: &Poly, var: &Var) -> PolyResult<Poly> {
+    let (q, r) = crate::subresultant::univariate_div_rem_wrt(num, den, var);
+    if r.is_zero() {
+        Ok(q)
+    } else {
+        Err(PolyError::NotImplemented("poly division"))
+    }
 }
 
 /// `p / content_wrt(p, var)` in ℚ[others][var].
@@ -73,6 +81,14 @@ pub fn derivative_wrt(p: &Poly, var: &Var) -> Poly {
 
 /// Square-free factorization w.r.t. `var` over ℚ[others] (Yun-style via gcd).
 pub fn square_free_wrt(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>> {
+    match square_free_wrt_impl(p, var) {
+        Ok(f) => Ok(f),
+        Err(crate::error::PolyError::NotImplemented("poly division")) => Ok(vec![(p.clone(), 1)]),
+        Err(e) => Err(e),
+    }
+}
+
+fn square_free_wrt_impl(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>> {
     if p.is_zero() {
         return Err(PolyError::TypeError("zero polynomial"));
     }
@@ -80,8 +96,8 @@ pub fn square_free_wrt(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>> {
     let mut y = derivative_wrt(&w, var);
     let g0 = w.gcd(&y);
     if !g0.is_one() {
-        w = poly_div_exact(&w, &g0)?;
-        y = poly_div_exact(&y, &g0)?;
+        w = poly_div_exact_wrt(&w, &g0, var)?;
+        y = poly_div_exact_wrt(&y, &g0, var)?;
     }
     y = y.sub(&derivative_wrt(&w, var));
 
@@ -92,7 +108,7 @@ pub fn square_free_wrt(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>> {
         let g = w.gcd(&y);
         if !g.is_one() {
             factors.push((g.clone(), k));
-            w = poly_div_exact(&w, &g)?;
+            w = poly_div_exact_wrt(&w, &g, var)?;
         }
         y = y.sub(&derivative_wrt(&w, var));
         k += 1;
@@ -140,6 +156,13 @@ pub fn factor_sqff_over_coeff_ring(
     if others.len() == 1 && univariate_degree(g, &others[0]) > 0 {
         if let Some(f) = super::hensel::try_hensel_lift_bivariate(g, var, &others[0]) {
             return Ok(f);
+        }
+    }
+    if others.len() >= 2 {
+        for av in others {
+            if let Some(f) = super::hensel::try_lift_factors_in_aux_var(g, var, av, others) {
+                return Ok(f);
+            }
         }
     }
     if let Some(f) = try_factor_bivariate_eval(g, var, &others[0], others) {

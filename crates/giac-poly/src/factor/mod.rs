@@ -7,6 +7,8 @@ mod multivariate;
 mod patterns;
 mod poly_uni;
 mod power;
+#[cfg(test)]
+mod tracer;
 mod univariate;
 mod util;
 
