@@ -10,6 +10,8 @@ mod partfrac_integrate;
 mod plugin;
 mod stubs;
 mod limit;
+mod series;
+mod risch;
 
 pub use diff::diff;
 pub use eval_diff::eval_diff;
@@ -17,4 +19,5 @@ pub use eval_integrate::eval_integrate;
 pub use integrate::integrate;
 pub use plugin::{install_calculus, xcas_default, DefaultCalculusPlugin};
 pub use limit::eval_limit;
-pub use stubs::eval_series;
+pub use series::eval_series;
+pub use risch::eval_risch;

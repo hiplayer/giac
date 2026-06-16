@@ -22,6 +22,30 @@ x, y, z = symbols("x y z")
 _x_positive = symbols("x", real=True, positive=True)
 
 
+def giac_ode_eq_to_sympy(eq_s: str) -> sp.Eq:
+  """Parse giac-style ODE equation text into a SymPy Eq."""
+  y = sp.Function("y")
+  x = sp.Symbol("x")
+  lhs_s, rhs_s = [p.strip() for p in eq_s.split("=", 1)]
+  local = {
+      "x": x,
+      "y": y(x),
+      "DY2": y(x).diff(x, 2),
+      "DY1": y(x).diff(x),
+      "sin": sp.sin,
+      "cos": sp.cos,
+      "exp": sp.exp,
+  }
+
+  def conv(side: str) -> Any:
+      side = re.sub(r"y''", "DY2", side)
+      side = re.sub(r"y'", "DY1", side)
+      side = re.sub(r"\by\b", "y", side)
+      return sp.sympify(side, locals=local)
+
+  return sp.Eq(conv(lhs_s), conv(rhs_s))
+
+
 def integrate_derivative_equiv(integrand: Any, result: Any) -> bool:
     """Check d(result)/dx = integrand on the real positive domain (GIAC ln(abs(x)))."""
     integrand_p = integrand.xreplace({x: _x_positive})
@@ -772,6 +796,78 @@ def verify_property(line: str, output: str) -> tuple[bool, str]:
                 return False, f"derive mismatch for {vi}"
         return True, "ok"
 
+    m = re.fullmatch(r"series\((.+),x,([^,]+),(\d+)\)", line)
+    if m:
+        f = giac_to_sympy(m.group(1))
+        center = giac_to_sympy(m.group(2))
+        n = int(m.group(3))
+        expected = sp.series(f, x, center, n).removeO()
+        got = giac_to_sympy(output)
+        if sp.simplify(expected - got) != 0:
+            return False, "series mismatch"
+        return True, "ok"
+
+    m = re.fullmatch(r"series\((.+),x=(.+),(\d+)\)", line)
+    if m:
+        f = giac_to_sympy(m.group(1))
+        center = giac_to_sympy(m.group(2))
+        n = int(m.group(3))
+        expected = sp.series(f, x, center, n).removeO()
+        got = giac_to_sympy(output)
+        if sp.simplify(expected - got) != 0:
+            return False, "series mismatch"
+        return True, "ok"
+
+    m = re.fullmatch(r"taylor\((.+),x=(.+),(\d+)\)", line)
+    if m:
+        f = giac_to_sympy(m.group(1))
+        center = giac_to_sympy(m.group(2))
+        n = int(m.group(3))
+        expected = sp.series(f, x, center, n).removeO()
+        got = giac_to_sympy(output)
+        if sp.simplify(expected - got) != 0:
+            return False, "taylor mismatch"
+        return True, "ok"
+
+    m = re.fullmatch(r"taylor\((.+),x,([^,]+),(\d+)\)", line)
+    if m:
+        f = giac_to_sympy(m.group(1))
+        center = giac_to_sympy(m.group(2))
+        n = int(m.group(3))
+        expected = sp.series(f, x, center, n).removeO()
+        got = giac_to_sympy(output)
+        if sp.simplify(expected - got) != 0:
+            return False, "taylor mismatch"
+        return True, "ok"
+
+    m = re.fullmatch(r"risch\((.+),x\)", line)
+    if m:
+        integrand = giac_to_sympy(m.group(1))
+        result = giac_to_sympy(output)
+        if not integrate_derivative_equiv(integrand, result):
+            return False, "risch derivative mismatch"
+        return True, "ok"
+
+    m = re.fullmatch(r"simplify\((?:integrate|int)\((.+),x\)\)", line)
+    if m:
+        integrand = giac_to_sympy(m.group(1))
+        result = giac_to_sympy(output)
+        if not integrate_derivative_equiv(integrand, result):
+            return False, "integrate derivative mismatch"
+        return True, "ok"
+
+    m = re.fullmatch(r"desolve\((.+),y\(x\)\)", line)
+    if m:
+        eq = giac_ode_eq_to_sympy(m.group(1))
+        y = sp.Function("y")
+        got = output.strip()
+        if "=" in got:
+            got = got.split("=", 1)[1].strip()
+        sol = giac_to_sympy(got)
+        if sp.checkodesol(eq, sol)[0] is not True:
+            return False, "desolve checkodesol failed"
+        return True, "ok"
+
     m = re.fullmatch(r"(?:diff|derive)\((.+),x\)", line)
     if m:
         inp = giac_to_sympy(m.group(1))
@@ -1280,6 +1376,14 @@ def verify(line: str, output: str) -> tuple[bool, str]:
     if line.startswith(
         ("egcd(", "abcuv(", "roots(", "chinrem(", "greduce(", "factor(")
     ):
+        return verify_property(line, output)
+    if line.startswith(("series(", "taylor(")):
+        return verify_property(line, output)
+    if line.startswith("desolve("):
+        return verify_property(line, output)
+    if line.startswith("risch("):
+        return verify_property(line, output)
+    if line.startswith("simplify("):
         return verify_property(line, output)
     if line.startswith(("integrate(", "int(", "ker(", "image(", "pcar(")):
         return verify_property(line, output)

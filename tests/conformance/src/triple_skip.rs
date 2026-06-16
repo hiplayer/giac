@@ -51,24 +51,10 @@ pub fn phase3_numerical_decomp(line: &str) -> bool {
     line.starts_with("lu(") || line.starts_with("qr(") || line.starts_with("svd(")
 }
 
-/// Phase 4: skip lines whose eval is not implemented yet (parse-only or partial).
+/// Phase 4: skip lines whose eval is not implemented yet (parse-only or hard gaps).
 pub fn phase4_skip(line: &str) -> bool {
     let line = line.trim().trim_end_matches(';');
-    line.starts_with("limit(")
-        || line.starts_with("series(")
-        || line.starts_with("taylor(")
-        || line.starts_with("desolve(")
-        || line.starts_with("realroot(")
-        || line.starts_with("risch(")
-        || line.starts_with("proot(")
-        || line.starts_with("solve(sin(")
-        || matches!(
-            line,
-            "integrate(exp(x)*sin(x),x)"
-                | "proot(x^3-2)"
-                | "integrate(exp(x)*cos(x),x)"
-                | "integrate(1/(x^3+1),x)"
-                | "risch(exp(x)*cos(x),x)"
-        )
+    line.starts_with("proot(")
+        || matches!(line, "proot(x^3-2)")
         || line.starts_with("partfrac(")
 }

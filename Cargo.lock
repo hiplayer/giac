@@ -135,6 +135,9 @@ version = "0.1.0"
 dependencies = [
  "giac-calculus",
  "giac-core",
+ "num-bigint",
+ "num-rational",
+ "num-traits",
 ]
 
 [[package]]

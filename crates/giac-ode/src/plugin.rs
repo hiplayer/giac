@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use giac_core::{Context, EvalError, ExprArc, OdePlugin};
 
-use crate::stubs::eval_desolve;
+use crate::desolve::eval_desolve;
 
 /// Default implementation of [`OdePlugin`].
 pub struct DefaultOdePlugin;
@@ -29,17 +29,28 @@ pub fn xcas_default() -> Context {
 
 #[cfg(test)]
 mod tests {
-    use giac_core::{eval, Expr, FuncKind};
+    use std::sync::Arc;
+
+    use giac_core::{eval, format_expr, Expr, FuncKind, RelOp};
 
     use super::xcas_default;
 
     #[test]
-    fn desolve_stub_returns_not_implemented() {
+    fn desolve_via_plugin() {
         let ctx = xcas_default();
+        let eq = Arc::new(Expr::Relation(
+            RelOp::Eq,
+            Expr::func(FuncKind::Prime, vec![Expr::sym("y"), Expr::int(1)]),
+            Expr::mul(vec![Expr::sym("x"), Expr::sym("y")]),
+        ));
         let e = Expr::func(
             FuncKind::Desolve,
-            vec![Expr::sym("y"), Expr::sym("x")],
+            vec![
+                eq,
+                Expr::func(FuncKind::Apply, vec![Expr::sym("y"), Expr::sym("x")]),
+            ],
         );
-        assert!(eval(e.as_ref(), &ctx).is_err());
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        assert!(format_expr(r.as_ref()).contains("c0"));
     }
 }
