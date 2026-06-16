@@ -35,8 +35,8 @@
       "id": "CK-INT-05",
       "line": "integrate(1/(3*x*(x^2+x+1)*(x-1)^3),x)",
       "kind": "integrate",
-      "enabled": false,
-      "giac_issue": "GIAC-219"
+      "enabled": true,
+      "giac_issue": "GIAC-212"
     },
     {
       "id": "CK-INT-06",

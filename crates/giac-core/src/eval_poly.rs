@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use giac_groebner::greduce;
 use giac_poly::{
-    abcuv, chinrem_lists, content, egcd, factor_poly_mod, gauss, modp, partfrac_terms, quo, rem,
+    abcuv, chinrem_lists, content, egcd, factor_poly_mod, gauss, modp, partfrac_rational_terms, quo,
+    rem,
     resultant, roots, simp2, smod, irem, Poly, Var,
 };
 use num_bigint::BigInt;
@@ -195,14 +196,17 @@ pub fn eval_partfrac(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc,
     let var = ident_from_expr(args[1].as_ref())?;
     let var_poly = Var::from(var.as_str());
     let (num, den) = rational_num_den(args[0].as_ref())?;
-    let (poly_part, terms) = partfrac_terms(&num, &den, &var_poly).map_err(poly_err)?;
+    let (poly_part, terms) = partfrac_rational_terms(&num, &den, &var_poly).map_err(poly_err)?;
     let mut out = Vec::new();
     if let Some(q) = poly_part {
         out.push(poly_to_expr(&q));
     }
-    for (c, f) in terms {
+    for (numer, f) in terms {
+        if numer.is_zero() {
+            continue;
+        }
         out.push(Expr::mul(vec![
-            ratio_to_expr(&c),
+            poly_to_expr(&numer),
             Expr::pow(poly_to_expr(&f), Expr::int(-1)),
         ]));
     }

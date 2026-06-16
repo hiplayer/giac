@@ -4,12 +4,14 @@ use num_traits::Signed;
 use num_traits::{One, Zero};
 
 use crate::error::{PolyError, PolyResult};
-use crate::factor::{as_perfect_power, factor_into};
+use crate::factor::{
+    as_perfect_power, factor_into, factor_into_by_rational_roots, factor_power_pairs,
+    find_rational_root,
+};
 use crate::monomial::Var;
 use crate::poly::Poly;
 use crate::resultant::{coeff_at, univariate_degree};
-use crate::univariate::{eval_univariate_at, square_free_factorization};
-
+use crate::univariate::square_free_factorization;
 /// Partial fraction terms `(coeff, denominator factor)` for `num/den` in `var`.
 pub fn partfrac_terms(
     num: &Poly,
@@ -76,7 +78,7 @@ pub fn partfrac_rational_terms(
         }
         return Ok((poly_part, terms));
     }
-    let terms = partfrac_mixed_constant(&factors, var)?;
+    let terms = partfrac_mixed_affine(&rem, &factors, var)?;
     Ok((poly_part, terms))
 }
 
@@ -196,7 +198,7 @@ fn denominator_power_factors(den: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usi
             return Ok(factors);
         }
     }
-    factor_by_rational_roots(den, var)
+    factor_power_pairs(den, var)
 }
 
 /// Split square-free factors of degree > 2 into linear/quadratic pieces.
@@ -216,106 +218,12 @@ fn expand_sqff_factors(
             }
             continue;
         }
-        let sub = factor_by_rational_roots(g, var)?;
+        let sub = factor_power_pairs(g, var)?;
         for (f, m) in sub {
             out.push((f, *mult * m));
         }
     }
     Ok(out)
-}
-
-fn factor_by_rational_roots(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>> {
-    let mut rest = p.clone();
-    let mut factors = Vec::new();
-    while univariate_degree(&rest, var) > 0 {
-        let root = match find_rational_root(&rest, var) {
-            Some(r) => r,
-            None => {
-                if univariate_degree(&rest, var) == 4 {
-                    if let Some(mut biq) = try_factor_biquadratic(&rest, var) {
-                        factors.append(&mut biq);
-                        rest = Poly::one();
-                        break;
-                    }
-                }
-                if univariate_degree(&rest, var) <= 2 {
-                    break;
-                }
-                return Err(PolyError::NotImplemented("partfrac factor"));
-            }
-        };
-        let lin = linear_poly(var, &root);
-        let mut mult = 0usize;
-        loop {
-            let (_, r) = rest.div_rem(&lin);
-            if !r.is_zero() {
-                break;
-            }
-            mult += 1;
-            rest = rest.div_rem(&lin).0;
-        }
-        factors.push((lin, mult));
-    }
-    if rest.is_one() || rest.is_zero() {
-        return Ok(factors);
-    }
-    if let Some((base, exp)) = as_perfect_power(&rest) {
-        if univariate_degree(&base, var) <= 2 {
-            factors.push((base, exp as usize));
-            return Ok(factors);
-        }
-    }
-    if univariate_degree(&rest, var) <= 2 {
-        factors.push((rest, 1));
-        return Ok(factors);
-    }
-    Err(PolyError::NotImplemented("partfrac factor"))
-}
-
-fn linear_poly(var: &Var, root: &Ratio<BigInt>) -> Poly {
-    Poly::var(var.clone()).sub(&Poly::constant(root.clone()))
-}
-
-fn find_rational_root(p: &Poly, var: &Var) -> Option<Ratio<BigInt>> {
-    let deg = univariate_degree(p, var);
-    if deg == 0 {
-        return None;
-    }
-    let a0 = coeff_at(p, var, 0);
-    let an = coeff_at(p, var, deg);
-    for p_cand in integer_divisors(a0.numer()) {
-        for q_cand in integer_divisors(an.numer()) {
-            if q_cand.is_zero() {
-                continue;
-            }
-            for &(pn, qn) in &[(1, 1), (1, -1), (-1, 1), (-1, -1)] {
-                let r = Ratio::new(&p_cand * pn, &q_cand * qn);
-                if eval_univariate_at(p, var, &r).is_zero() {
-                    return Some(r);
-                }
-            }
-        }
-    }
-    None
-}
-
-fn integer_divisors(n: &BigInt) -> Vec<BigInt> {
-    if n.is_zero() {
-        return vec![BigInt::zero()];
-    }
-    let a = n.abs();
-    let mut divs = Vec::new();
-    let mut i = BigInt::one();
-    while &i * &i <= a {
-        if (&a % &i).is_zero() {
-            divs.push(i.clone());
-            divs.push(&a / &i);
-        }
-        i += BigInt::one();
-    }
-    divs.sort();
-    divs.dedup();
-    divs
 }
 
 fn partfrac_square_free_affine_numerators(
@@ -373,106 +281,6 @@ fn partfrac_square_free_affine_numerators(
     Ok(out)
 }
 
-fn try_factor_biquadratic(p: &Poly, var: &Var) -> Option<Vec<(Poly, usize)>> {
-    if univariate_degree(p, var) != 4 {
-        return None;
-    }
-    let lc = coeff_at(p, var, 4);
-    if lc.is_zero() {
-        return None;
-    }
-    let scale = Ratio::one() / lc.clone();
-    let a3 = coeff_at(p, var, 3) * scale.clone();
-    let a2 = coeff_at(p, var, 2) * scale.clone();
-    let a1 = coeff_at(p, var, 1) * scale.clone();
-    let a0 = coeff_at(p, var, 0) * scale;
-    for (q, s) in rational_factor_pairs(&a0) {
-        let sum_pr = a2.clone() - q.clone() - s.clone();
-        let disc = a3.clone() * a3.clone()
-            - Ratio::from_integer(BigInt::from(4)) * sum_pr.clone();
-        if disc < Ratio::zero() {
-            continue;
-        }
-        let sqrt_d = ratio_perfect_sqrt(&disc)?;
-        let two = Ratio::from_integer(BigInt::from(2));
-        let p_coef = (a3.clone() + sqrt_d.clone()) / two.clone();
-        let r_coef = (a3.clone() - sqrt_d) / two;
-        if p_coef.clone() * s.clone() + q.clone() * r_coef.clone() != a1 {
-            continue;
-        }
-        let f1 = monic_quadratic_poly(var, p_coef, q);
-        let f2 = monic_quadratic_poly(var, r_coef, s);
-        let prod = f1.clone().mul(&f2);
-        if prod == *p {
-            return Some(vec![(f1, 1), (f2, 1)]);
-        }
-        if prod.neg() == *p {
-            return Some(vec![(f1.neg(), 1), (f2, 1)]);
-        }
-    }
-    None
-}
-
-fn rational_factor_pairs(a0: &Ratio<BigInt>) -> Vec<(Ratio<BigInt>, Ratio<BigInt>)> {
-    if a0.is_zero() {
-        return vec![(Ratio::zero(), Ratio::one())];
-    }
-    let mut pairs = Vec::new();
-    for p in integer_divisors(a0.numer()) {
-        for q in integer_divisors(a0.denom()) {
-            if q.is_zero() {
-                continue;
-            }
-            let qq = Ratio::new(p.clone(), q.clone());
-            let ss = a0 / qq.clone();
-            pairs.push((qq.clone(), ss.clone()));
-            if qq != ss {
-                pairs.push((ss, qq));
-            }
-        }
-    }
-    pairs.sort_by(|a, b| a.0.cmp(&b.0).then(a.1.cmp(&b.1)));
-    pairs.dedup();
-    pairs
-}
-
-fn ratio_perfect_sqrt(r: &Ratio<BigInt>) -> Option<Ratio<BigInt>> {
-    if r.is_zero() {
-        return Some(Ratio::zero());
-    }
-    let sn = integer_perfect_sqrt(r.numer())?;
-    let sd = integer_perfect_sqrt(r.denom())?;
-    Some(Ratio::new(sn, sd))
-}
-
-fn integer_perfect_sqrt(n: &BigInt) -> Option<BigInt> {
-    if n.is_negative() {
-        return None;
-    }
-    if n.is_zero() {
-        return Some(BigInt::zero());
-    }
-    let mut lo = BigInt::zero();
-    let mut hi = n.clone() + BigInt::one();
-    while lo < hi {
-        let mid = (&lo + &hi) / BigInt::from(2);
-        let sq = &mid * &mid;
-        match sq.cmp(n) {
-            std::cmp::Ordering::Equal => return Some(mid),
-            std::cmp::Ordering::Less => lo = mid + 1,
-            std::cmp::Ordering::Greater => hi = mid,
-        }
-    }
-    None
-}
-
-fn monic_quadratic_poly(var: &Var, u: Ratio<BigInt>, v: Ratio<BigInt>) -> Poly {
-    Poly::var(var.clone())
-        .pow(2)
-        .add(&Poly::var(var.clone()).mul_scalar(&u))
-        .add(&Poly::constant(v))
-}
-
 fn partfrac_one_quadratic(num: &Poly, quad: &Poly, var: &Var) -> PolyResult<Vec<(Poly, Poly)>> {
     let c = coeff_at(num, var, 0);
     let a = coeff_at(quad, var, 2);
@@ -488,7 +296,7 @@ fn partfrac_one_quadratic(num: &Poly, quad: &Poly, var: &Var) -> PolyResult<Vec<
     if disc == Ratio::zero() {
         return Err(PolyError::NotImplemented("partfrac repeated quadratic"));
     }
-    let quad_numer = affine_poly(var, Ratio::zero(), c / a);
+    let quad_numer = Poly::constant(c / a);
     Ok(vec![(quad_numer, quad.clone())])
 }
 
@@ -536,60 +344,14 @@ fn solve_linear_system(
     Some(b)
 }
 
-fn partfrac_mixed_constant(factors: &[Poly], var: &Var) -> PolyResult<Vec<(Poly, Poly)>> {
-    let lin: Vec<_> = factors
-        .iter()
-        .filter(|f| univariate_degree(f, var) == 1)
-        .cloned()
-        .collect();
-    let quad: Vec<_> = factors
-        .iter()
-        .filter(|f| univariate_degree(f, var) == 2)
-        .cloned()
-        .collect();
-    if quad.len() == 1 && lin.len() == 1 {
-        return partfrac_one_linear_one_quadratic(&lin[0], &quad[0], var);
-    }
-    if quad.len() == 1 && lin.len() == 2 {
-        return partfrac_two_linear_one_quadratic(&lin[0], &lin[1], &quad[0], var);
-    }
-    Err(PolyError::NotImplemented("partfrac nonlinear factor"))
-}
-
-fn partfrac_one_linear_one_quadratic(
-    lin: &Poly,
-    quad: &Poly,
+fn partfrac_mixed_affine(
+    num: &Poly,
+    factors: &[Poly],
     var: &Var,
 ) -> PolyResult<Vec<(Poly, Poly)>> {
-    let a = Ratio::new(BigInt::from(1), BigInt::from(3));
-    let b = Ratio::new(BigInt::from(-1), BigInt::from(3));
-    let c = Ratio::new(BigInt::from(2), BigInt::from(3));
-    let quad_numer = affine_poly(var, b, c);
-    Ok(vec![
-        (Poly::constant(a), lin.clone()),
-        (quad_numer, quad.clone()),
-    ])
-}
-
-fn partfrac_two_linear_one_quadratic(
-    lin1: &Poly,
-    lin2: &Poly,
-    quad: &Poly,
-    var: &Var,
-) -> PolyResult<Vec<(Poly, Poly)>> {
-    let a = Ratio::new(BigInt::from(1), BigInt::from(4));
-    let b = Ratio::new(BigInt::from(-1), BigInt::from(4));
-    let d = Ratio::new(BigInt::from(-1), BigInt::from(2));
-    let quad_numer = affine_poly(var, Ratio::zero(), d);
-    Ok(vec![
-        (Poly::constant(a), lin1.clone()),
-        (Poly::constant(b), lin2.clone()),
-        (quad_numer, quad.clone()),
-    ])
-}
-
-fn affine_poly(var: &Var, b: Ratio<BigInt>, c: Ratio<BigInt>) -> Poly {
-    Poly::constant(c).add(&Poly::var(var.clone()).mul_scalar(&b))
+    let den = factors.iter().fold(Poly::one(), |acc, f| acc.mul(f));
+    let sqff: Vec<(Poly, usize)> = factors.iter().map(|f| (f.clone(), 1)).collect();
+    partfrac_square_free_affine_numerators(num, &den, var, &sqff)
 }
 
 fn linear_root(f: &Poly, var: &Var) -> PolyResult<Ratio<BigInt>> {
@@ -628,7 +390,7 @@ mod tests {
     #[test]
     fn factor_by_roots_x_plus_one_times_x_fourth_minus_one() {
         let den = x().add(&Poly::one()).mul(&x().pow(4).sub(&Poly::one()));
-        let factors = factor_by_rational_roots(&den, &Var::from("x")).unwrap();
+        let factors = factor_into_by_rational_roots(&den, &Var::from("x")).unwrap();
         assert!(factors.len() >= 3);
     }
 
@@ -710,6 +472,29 @@ mod tests {
             .add(&Poly::constant(Ratio::from_integer(2.into())));
         let (_, terms) = partfrac_rational_terms(&num, &den, &Var::from("t")).unwrap();
         assert_eq!(terms.len(), 2);
+        let recomposed = terms.iter().fold(Poly::zero(), |acc, (n, d)| {
+            acc.add(&n.mul(&den.div_rem(d).0))
+        });
+        assert_eq!(recomposed, num);
+    }
+
+    #[test]
+    fn partfrac_one_over_x_times_x_squared_plus_one() {
+        let num = Poly::one();
+        let den = x().mul(&x().pow(2).add(&Poly::one()));
+        let (_, terms) = partfrac_rational_terms(&num, &den, &Var::from("x")).unwrap();
+        assert_eq!(terms.len(), 2);
+        let recomposed = terms.iter().fold(Poly::zero(), |acc, (n, d)| {
+            acc.add(&n.mul(&den.div_rem(d).0))
+        });
+        assert_eq!(recomposed, num);
+    }
+
+    #[test]
+    fn partfrac_xplus1_over_x_squared_minus_one() {
+        let num = x().add(&Poly::one());
+        let den = x().pow(2).sub(&Poly::one());
+        let (_, terms) = partfrac_rational_terms(&num, &den, &Var::from("x")).unwrap();
         let recomposed = terms.iter().fold(Poly::zero(), |acc, (n, d)| {
             acc.add(&n.mul(&den.div_rem(d).0))
         });

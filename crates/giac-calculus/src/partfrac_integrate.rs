@@ -2,7 +2,8 @@ use std::sync::Arc;
 
 use giac_core::{bigint_to_i64, expr_to_poly, poly_to_expr, EvalError, Expr, ExprArc, FuncKind, Ident};
 use giac_poly::{
-    as_perfect_power, coeff_at, partfrac_rational_terms, univariate_degree, Poly, PolyError, Var,
+    as_perfect_power, coeff_at, partfrac_rational_terms, try_linear_power, univariate_degree, Poly,
+    PolyError, Var,
 };
 
 use crate::risch::{
@@ -138,6 +139,17 @@ fn integrate_rational_term(
         }
     }
     if ndeg == 0 {
+        if let Some((base, exp)) = try_linear_power(factor, var) {
+            if univariate_degree(&base, var) == 1 && exp >= 2 {
+                return integrate_const_over_power(
+                    &base,
+                    &coeff_at(numer, var, 0),
+                    exp,
+                    var,
+                    x,
+                );
+            }
+        }
         if let Some((base, exp)) = as_perfect_power(factor) {
             if univariate_degree(&base, var) == 1 && exp >= 2 {
                 return integrate_const_over_power(
@@ -488,6 +500,23 @@ mod tests {
             .add(&tv.mul_scalar(&Ratio::from_integer(8.into())))
             .add(&Poly::constant(Ratio::from_integer(2.into())));
         let r = integrate_const_over_rational(&poly_to_expr(&num), &poly_to_expr(&den), &t);
+        assert!(r.is_ok(), "{:?}", r);
+    }
+
+    #[test]
+    fn integrate_ck_int_05_reciprocal() {
+        let x = Ident::new("x");
+        let den = Expr::mul(vec![
+            Expr::int(3),
+            Expr::sym("x"),
+            Expr::add(vec![
+                Expr::pow(Expr::sym("x"), Expr::int(2)),
+                Expr::sym("x"),
+                Expr::int(1),
+            ]),
+            Expr::pow(Expr::add(vec![Expr::sym("x"), Expr::int(-1)]), Expr::int(3)),
+        ]);
+        let r = integrate_const_over_rational(&Expr::int(1), &den, &x);
         assert!(r.is_ok(), "{:?}", r);
     }
 }

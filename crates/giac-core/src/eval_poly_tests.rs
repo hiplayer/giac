@@ -313,16 +313,31 @@ fn eval_roots_linear() {
 }
 
 #[test]
-fn eval_partfrac_not_implemented() {
+fn eval_partfrac_mixed_linear_quadratic() {
+    let ctx = Context::xcas_default();
+    let den = Expr::mul(vec![
+        Expr::sym("x"),
+        Expr::add(vec![Expr::pow(Expr::sym("x"), Expr::int(2)), Expr::int(1)]),
+    ]);
+    let e = Expr::func(
+        FuncKind::Partfrac,
+        vec![Expr::pow(den, Expr::int(-1)), Expr::sym("x")],
+    );
+    let r = eval(e.as_ref(), &ctx).unwrap();
+    let s = format_expr(r.as_ref());
+    assert!(s.contains("x^2+1") || s.contains("1+x^2"));
+}
+
+#[test]
+fn eval_partfrac_reciprocal_of_var() {
     let ctx = Context::xcas_default();
     let e = Expr::func(
         FuncKind::Partfrac,
         vec![Expr::pow(Expr::sym("x"), Expr::int(-1)), Expr::sym("x")],
     );
-    assert!(matches!(
-        eval(e.as_ref(), &ctx),
-        Err(EvalError::NotImplemented(_))
-    ));
+    let r = eval(e.as_ref(), &ctx).unwrap();
+    let s = format_expr(r.as_ref());
+    assert!(s == "1/x" || s == "x^-1");
 }
 
 #[test]
