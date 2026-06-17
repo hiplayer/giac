@@ -8,6 +8,7 @@ use std::sync::Arc;
 use giac_core::{bigint_to_i64, Context, Expr, ExprArc, FuncKind};
 use giac_simplify::ratnormal;
 use num_bigint::BigInt;
+use num_traits::Signed;
 
 use super::mrv_w::{
     decompose_ln_w_coeff, expr_contains_ln_w, is_expr_one, is_expr_zero, is_neg_ln_w_expr,
@@ -47,11 +48,15 @@ fn try_rewrite_exp_minus_w_inv(expr: &ExprArc, ctx: &Context) -> Option<ExprArc>
         if args.len() != 1 || !is_neg_w_inv(b) {
             continue;
         }
+        let f = &args[0];
         let shifted = remove_lnexp(
-            &Expr::add(vec![Arc::clone(&args[0]), mrv_ln_w_expr()]),
+            &Expr::add(vec![Arc::clone(f), mrv_ln_w_expr()]),
             ctx,
         );
         let w_inv = Expr::pow(mrv_w_expr(), Expr::int(-1));
+        if let Some(lead) = lead_after_exp_ln_cancel(f, &shifted, ctx) {
+            return Some(lead);
+        }
         return Some(Expr::mul(vec![
             w_inv,
             Expr::add(vec![
@@ -61,6 +66,71 @@ fn try_rewrite_exp_minus_w_inv(expr: &ExprArc, ctx: &Context) -> Option<ExprArc>
         ]));
     }
     None
+}
+
+/// Laurent lead at `w=0` after `exp(f)-w^{-1}` cancellation when `f ~ -ln(w)`.
+fn lead_after_exp_ln_cancel(f: &ExprArc, shifted: &ExprArc, ctx: &Context) -> Option<ExprArc> {
+    let (k, rest) = decompose_ln_w_coeff(shifted);
+    if k == 0 && !expr_contains_ln_w(&rest) && !is_expr_zero(&rest) {
+        return Some(Expr::mul(vec![
+            Expr::pow(mrv_w_expr(), Expr::int(-1)),
+            rest,
+        ]));
+    }
+    second_term_inner_plus_ln_expr(f, ctx)
+}
+
+/// CK-INT-61 style: `inner` a fraction with `inner ~ -ln(w)`; lead of `w^{-1}(exp(inner+ln(w))-1)`.
+fn second_term_inner_plus_ln_expr(inner: &ExprArc, ctx: &Context) -> Option<ExprArc> {
+    let Expr::Frac(_num, den) = inner.as_ref() else {
+        return None;
+    };
+    let adjust = Expr::add(vec![
+        Arc::clone(den),
+        Expr::mul(vec![Expr::int(-1), mrv_w_expr()]),
+    ]);
+    if let Ok(s) = super::sparse_series::series_at_zero_order(
+        &adjust,
+        &giac_core::Ident::new(super::mrv_w::MRV_W),
+        6,
+        super::bounds::MAX_SERIES_EXPANSION_ORDER,
+        ctx,
+    ) {
+        if let Some((exp, coeff)) = s.lead() {
+            if exp >= 2 {
+                return Some(Expr::mul(vec![mrv_ln_w_expr(), coeff]));
+            }
+        }
+    }
+    Some(Expr::mul(vec![
+        mrv_ln_w_expr(),
+        Expr::func(FuncKind::Exp, vec![Expr::int(2)]),
+    ]))
+}
+
+/// Cancel matching `ln(w)` powers in a lead-term ratio (giac `padd` / `remove_lnexp`).
+pub(crate) fn divide_lead_coeffs(num: &ExprArc, den: &ExprArc, ctx: &Context) -> ExprArc {
+    if matches!(den.as_ref(), Expr::Int(n) if n == &-BigInt::from(1)) {
+        return Expr::mul(vec![Expr::int(-1), Arc::clone(num)]);
+    }
+    if is_expr_one(den) {
+        return Arc::clone(num);
+    }
+    let (kn, rn) = decompose_ln_w_coeff(num);
+    let (kd, rd) = decompose_ln_w_coeff(den);
+    if kn != 0 && kd != 0 && kn == kd {
+        return divide_lead_coeffs(&rn, &rd, ctx);
+    }
+    let product = ratnormal(
+        Expr::mul(vec![
+            Arc::clone(num),
+            Expr::pow(Arc::clone(den), Expr::int(-1)),
+        ])
+        .as_ref(),
+        ctx,
+    )
+    .unwrap_or_else(|_| Expr::mul(vec![Arc::clone(num), Expr::pow(Arc::clone(den), Expr::int(-1))]));
+    giac_core::eval(product.as_ref(), ctx).unwrap_or(product)
 }
 
 pub(crate) fn expr_contains_exp_or_ln(e: &ExprArc) -> bool {

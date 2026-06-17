@@ -33,8 +33,13 @@ pub(crate) fn expr_has_nested_exp(e: &ExprArc) -> bool {
 }
 
 pub(crate) use mrv_series_lead::normalize_expr_quotients;
-pub(crate) use asymptotic::{asymptotic_series_at_infinity, limit_at_plus_infinity};
-pub(crate) use mrv_lead_term::{limit_from_mrv_lead_term, mrv_lead_term_plus_infinity};
+pub(crate) use asymptotic::{
+    asymptotic_series_at_infinity, limit_at_plus_infinity, limit_at_zero_fallback,
+    peel_shared_u_inv_in_frac,
+};
+pub(crate) use mrv_lead_term::{
+    limit_from_mrv_lead_term, limit_unidirectional_plus_infinity, mrv_lead_term_plus_infinity,
+};
 pub(crate) use sparse_series::{series_at_center, series_at_zero, SparseSeries};
 
 pub(crate) fn limit_finite_algebraic(
@@ -294,13 +299,13 @@ pub(crate) fn limit_plus_infinity_algebraic(
     var: &Ident,
     ctx: &Context,
 ) -> Result<ExprArc, EvalError> {
+    if let Ok(r) = limit_at_plus_infinity(expr, var, ctx) {
+        return Ok(r);
+    }
     if let Some((num, den)) = try_as_rational(expr, var) {
         if let Ok(r) = limit_rational_infinity(&num, &den, var, ctx) {
             return Ok(r);
         }
-    }
-    if let Ok(r) = limit_at_plus_infinity(expr, var, ctx) {
-        return Ok(r);
     }
     if let Some((num, den)) = try_as_quotient(expr, var) {
         if matches!(num.as_ref(), Expr::Func(FuncKind::Exp, _)) {
@@ -521,20 +526,8 @@ fn limit_via_reciprocal(expr: &ExprArc, var: &Ident, ctx: &Context) -> Result<Ex
     let inv = Expr::pow(var_to_expr(&t), Expr::int(-1));
     let swapped = eval_subst_map(expr, &subst_map(var, inv))?;
     let normalized = ratnormal(swapped.as_ref(), ctx).unwrap_or(swapped);
-    let zero = Expr::int(0);
-    if let Ok(r) = limit_quotient_finite(&normalized, &t, &zero, ctx, 0) {
-        if !contains_zero_negative_power(&r) {
-            return Ok(r);
-        }
-    }
-    if let Some((num, den)) = try_as_quotient_add_shared_power(&normalized, &t) {
-        if let Ok(r) = limit_rational_finite(&num, &den, &t, &zero, ctx, 0) {
-            if !contains_zero_negative_power(&r) {
-                return Ok(r);
-            }
-        }
-    }
-    limit_finite_algebraic(&normalized, &t, &zero, ctx)
+    let normalized = peel_shared_u_inv_in_frac(&normalized, &t);
+    limit_at_zero_fallback(&normalized, &t, ctx)
 }
 
 fn subst_eval(expr: &ExprArc, var: &Ident, point: &ExprArc, ctx: &Context) -> Result<ExprArc, EvalError> {

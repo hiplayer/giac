@@ -11,15 +11,15 @@ use giac_simplify::ratnormal;
 use num_traits::{Signed, Zero};
 
 use super::bounds::{
-    mrv_rewrite_bounded, mrv_series_eligible, MAX_SERIES_EXPANSION_ORDER, MAX_SERIES_ORDER,
+    mrv_limit_eligible, mrv_rewrite_bounded, MAX_SERIES_EXPANSION_ORDER, MAX_SERIES_ORDER,
 };
-use super::mrv::{choose_mrv_w, mrv_at_plus_infinity};
+use super::mrv::{choose_mrv_w, linear_coeff_in_var, mrv_at_plus_infinity, is_negative_const_expr};
 use super::mrv_w::{
     decompose_ln_w_coeff, expr_contains_ln_w, is_expr_zero as mrv_is_zero, is_mrv_w_var, MRV_W,
 };
-use super::mrv_series_lead::{add_has_exp_w_inv_difference, mrv_lead_term_at_zero, normalize_expr_quotients};
+use super::mrv_series_lead::normalize_expr_quotients;
 use super::preprocess::limit_preprocess_plus_infinity;
-use super::remove_lnexp::remove_lnexp;
+use super::remove_lnexp::{divide_lead_coeffs, remove_lnexp};
 use super::sparse_series::{series_at_zero_order, series_spdiv_one, SparseSeries};
 
 #[derive(Clone, Debug)]
@@ -34,21 +34,26 @@ pub(crate) fn mrv_lead_term_plus_infinity(
     var: &Ident,
     ctx: &Context,
 ) -> Result<MrvLeadTerm, EvalError> {
-    if !mrv_series_eligible(expr) {
+    if !mrv_limit_eligible(expr) {
         return Err(EvalError::NotImplemented("limit"));
     }
-    let pre = normalize_expr_quotients(&limit_preprocess_plus_infinity(expr, var, ctx)?);
-    if !mrv_series_eligible(&pre) {
+    let pre = limit_preprocess_plus_infinity(expr, var, ctx)?;
+    let pre = upscale_while_var_in_mrv(&pre, var, ctx);
+    let pre = normalize_expr_quotients(&pre);
+    if !mrv_limit_eligible(&pre) {
         return Err(EvalError::NotImplemented("limit"));
     }
-    let set = mrv_at_plus_infinity(&pre, var);
+    let set = mrv_at_plus_infinity(&pre, var, ctx);
     if set.is_empty() {
+        if crate::risch::depends_on_var(&pre, var) {
+            return Err(EvalError::NotImplemented("limit"));
+        }
         return Ok(MrvLeadTerm {
             coeff: ratnormal(pre.as_ref(), ctx).unwrap_or(pre),
             exponent: 0,
         });
     }
-    let (omega, _) = choose_mrv_w(&set, var).ok_or(EvalError::NotImplemented("limit"))?;
+    let (omega, _) = choose_mrv_w(&set, var, ctx).ok_or(EvalError::NotImplemented("limit"))?;
     let w = Ident::new(MRV_W);
     let swapped = rewrite_in_mrv_w(&pre, var, &omega, &w);
     if !mrv_rewrite_bounded(&swapped) {
@@ -56,7 +61,7 @@ pub(crate) fn mrv_lead_term_plus_infinity(
     }
     let swapped = ratnormal(swapped.as_ref(), ctx).unwrap_or(swapped);
     let g = g_from_omega(&omega, var, &w);
-    let dont_invert = omega_tends_to_zero_at_plus_inf(&omega, var);
+    let dont_invert = omega_tends_to_zero_at_plus_inf(&omega, var, ctx);
     let omega_is_exp = matches!(omega.as_ref(), Expr::Func(FuncKind::Exp, _));
     mrv_series_lead_loop(
         &swapped,
@@ -67,7 +72,6 @@ pub(crate) fn mrv_lead_term_plus_infinity(
         MAX_SERIES_ORDER,
         ctx,
     )
-    .or_else(|_| mrv_lead_fallback(&swapped, &w, ctx))
 }
 
 pub(crate) fn limit_from_mrv_lead_term(
@@ -95,7 +99,62 @@ pub(crate) fn limit_from_mrv_lead_term(
     Ok(coeff)
 }
 
+/// upstream `unidirectional_limit` at `+infinity`: `mrv_lead_term` then recurse on coeff.
+pub(crate) fn limit_unidirectional_plus_infinity(
+    expr: &ExprArc,
+    var: &Ident,
+    ctx: &Context,
+) -> Result<ExprArc, EvalError> {
+    let mut e_copy = Arc::clone(expr);
+    for _ in 0..8 {
+        let lead = mrv_lead_term_plus_infinity(&e_copy, var, ctx)?;
+        if lead.exponent > 0 {
+            return Ok(Expr::int(0));
+        }
+        if lead.exponent < 0 {
+            return Ok(sign_infinity(&eval(lead.coeff.as_ref(), ctx)?));
+        }
+        let coeff = limit_from_mrv_lead_term(&lead, var, ctx)?;
+        if !crate::risch::depends_on_var(&coeff, var) {
+            return Ok(coeff);
+        }
+        e_copy = coeff;
+    }
+    Err(EvalError::NotImplemented("limit"))
+}
+
 /// Replace `exp(±x)` with `w`/`w^-1` and `x` with `-ln(w)` when `omega = exp(-x)`.
+fn subst_symbol(expr: &ExprArc, from: &Ident, to: &ExprArc) -> ExprArc {
+    match expr.as_ref() {
+        Expr::Symbol(id) if id == from => Arc::clone(to),
+        Expr::Add(ts) => Expr::add(ts.iter().map(|t| subst_symbol(t, from, to)).collect()),
+        Expr::Mul(fs) => Expr::mul(fs.iter().map(|t| subst_symbol(t, from, to)).collect()),
+        Expr::Pow(b, e) => Expr::pow(subst_symbol(b, from, to), subst_symbol(e, from, to)),
+        Expr::Frac(n, d) => Arc::new(Expr::Frac(subst_symbol(n, from, to), subst_symbol(d, from, to))),
+        Expr::Func(kind, args) => Expr::func(
+            *kind,
+            args.iter().map(|a| subst_symbol(a, from, to)).collect(),
+        ),
+        _ => Arc::clone(expr),
+    }
+}
+
+/// giac `upscale`: `ln(x)→x`, `x→exp(x)` while `x` remains in the MRV set.
+fn upscale_while_var_in_mrv(expr: &ExprArc, var: &Ident, ctx: &Context) -> ExprArc {
+    let ln_x = Expr::func(FuncKind::Ln, vec![Expr::sym(var.as_str())]);
+    let exp_x = Expr::func(FuncKind::Exp, vec![Expr::sym(var.as_str())]);
+    let mut out = Arc::clone(expr);
+    for _ in 0..4 {
+        let set = mrv_at_plus_infinity(&out, var, ctx);
+        if !set.faster.iter().any(|f| is_var(f, var)) {
+            break;
+        }
+        out = subst_symbol(&out, var, &exp_x);
+        out = subst_expr_once(&out, &ln_x, &Expr::sym(var.as_str()));
+    }
+    out
+}
+
 fn rewrite_in_mrv_w(expr: &ExprArc, var: &Ident, omega: &ExprArc, w: &Ident) -> ExprArc {
     let w_expr = Expr::sym(w.as_str());
     if expr_eq(expr, omega) {
@@ -194,9 +253,15 @@ fn g_from_omega(omega: &ExprArc, var: &Ident, w: &Ident) -> ExprArc {
     }
 }
 
-fn omega_tends_to_zero_at_plus_inf(omega: &ExprArc, var: &Ident) -> bool {
+fn omega_tends_to_zero_at_plus_inf(omega: &ExprArc, var: &Ident, ctx: &Context) -> bool {
     match omega.as_ref() {
-        Expr::Func(FuncKind::Exp, args) if args.len() == 1 => is_neg_var_linear(&args[0], var),
+        Expr::Func(FuncKind::Exp, args) if args.len() == 1 => {
+            if is_neg_var_linear(&args[0], var) {
+                return true;
+            }
+            linear_coeff_in_var(&args[0], var)
+                .is_some_and(|c| is_negative_const_expr(&c, ctx))
+        }
         _ => false,
     }
 }
@@ -346,6 +411,12 @@ fn subst_expr_once(expr: &ExprArc, from: &ExprArc, to: &ExprArc) -> ExprArc {
 }
 
 fn peel_neg_ln_w_inv(expr: &ExprArc, w: &Ident) -> Option<(ExprArc, ExprArc)> {
+    if let Expr::Frac(n, d) = expr.as_ref() {
+        if super::mrv_w::is_neg_ln_w_expr(d) {
+            let ln_inv = Expr::pow(Arc::clone(d), Expr::int(-1));
+            return Some((Arc::clone(n), ln_inv));
+        }
+    }
     let Expr::Mul(fs) = expr.as_ref() else {
         return None;
     };
@@ -384,7 +455,7 @@ fn combine_lead_with_ln_inv(
     };
     MrvLeadTerm {
         exponent: lead.exponent,
-        coeff: super::mrv_series_lead::divide_lead_coeffs(&lead.coeff, &den, ctx),
+        coeff: divide_lead_coeffs(&lead.coeff, &den, ctx),
     }
 }
 
@@ -412,14 +483,7 @@ fn mrv_series_lead_loop(
     ctx: &Context,
 ) -> Result<MrvLeadTerm, EvalError> {
     if let Some((core, ln_inv)) = peel_neg_ln_w_inv(swapped, w) {
-        if add_has_exp_w_inv_difference(&core) {
-            let (exp, coeff) = mrv_lead_term_at_zero(&core, w, ctx)?;
-            let lead = MrvLeadTerm {
-                coeff,
-                exponent: exp,
-            };
-            return Ok(combine_lead_with_ln_inv(&lead, &ln_inv, ctx));
-        }
+        return lead_from_peeled_core(&core, &ln_inv, w, g, dont_invert, begin_ordre, ctx);
     }
     let mut f = Arc::clone(swapped);
     if !dont_invert {
@@ -429,12 +493,34 @@ fn mrv_series_lead_loop(
         f = rewrite_ln_exp_in_f(&f, w, g, dont_invert, begin_ordre, ctx)?;
     }
     if let Some((core, ln_inv)) = peel_neg_ln_w_inv(&f, w) {
-        let mut core = remove_lnexp(&core, ctx);
-        core = ratnormal(core.as_ref(), ctx).unwrap_or(core);
-        let lead = mrv_series_lead_loop_inner(&core, w, g, dont_invert, begin_ordre, ctx)?;
-        return Ok(combine_lead_with_ln_inv(&lead, &ln_inv, ctx));
+        return lead_from_peeled_core(&core, &ln_inv, w, g, dont_invert, begin_ordre, ctx);
     }
     mrv_series_lead_loop_inner(&f, w, g, dont_invert, begin_ordre, ctx)
+}
+
+fn lead_from_peeled_core(
+    core: &ExprArc,
+    ln_inv: &ExprArc,
+    w: &Ident,
+    g: &ExprArc,
+    dont_invert: bool,
+    begin_ordre: usize,
+    ctx: &Context,
+) -> Result<MrvLeadTerm, EvalError> {
+    let core = ratnormal(remove_lnexp(core, ctx).as_ref(), ctx).unwrap_or_else(|_| remove_lnexp(core, ctx));
+    if let Ok(s) = series_at_zero_order(&core, w, begin_ordre, MAX_SERIES_EXPANSION_ORDER, ctx) {
+        if let Some((exp, coeff)) = s.lead() {
+            if !mrv_is_zero(&coeff) {
+                let lead = MrvLeadTerm {
+                    exponent: exp,
+                    coeff: normalize_series_coeff(&coeff, ctx),
+                };
+                return Ok(combine_lead_with_ln_inv(&lead, ln_inv, ctx));
+            }
+        }
+    }
+    let lead = mrv_series_lead_loop_inner(&core, w, g, dont_invert, begin_ordre, ctx)?;
+    Ok(combine_lead_with_ln_inv(&lead, ln_inv, ctx))
 }
 
 fn mrv_series_lead_loop_inner(
@@ -528,20 +614,6 @@ fn depends_on_w(e: &ExprArc, w: &Ident) -> bool {
     }
 }
 
-fn mrv_lead_fallback(
-    expr: &ExprArc,
-    w: &Ident,
-    ctx: &Context,
-) -> Result<MrvLeadTerm, EvalError> {
-    let (exp, coeff) = mrv_lead_term_at_zero(expr, w, ctx)?;
-    let coeff = ratnormal(coeff.as_ref(), ctx).unwrap_or(coeff);
-    let coeff = eval(coeff.as_ref(), ctx).unwrap_or(coeff);
-    Ok(MrvLeadTerm {
-        coeff: ratnormal(coeff.as_ref(), ctx).unwrap_or(coeff),
-        exponent: exp,
-    })
-}
-
 fn contains_ln_w(e: &ExprArc) -> bool {
     match e.as_ref() {
         Expr::Func(FuncKind::Ln, args) if args.len() == 1 && contains_w(&args[0]) => true,
@@ -587,6 +659,28 @@ mod tests {
 
     use super::*;
     use crate::plugin::xcas_default;
+
+    #[test]
+    fn mrv_series_expansion_order_cap() {
+        assert_eq!(MAX_SERIES_ORDER, 10);
+        assert!(
+            MAX_SERIES_EXPANSION_ORDER > MAX_SERIES_ORDER,
+            "MRV ordre loop must escalate beyond default Taylor cap"
+        );
+    }
+
+    #[test]
+    fn limit_seven_pow_n_over_eight() {
+        let ctx = xcas_default();
+        let var = Ident::new("n");
+        let e = Arc::new(Expr::Frac(
+            Expr::pow(Expr::int(7), Expr::sym("n")),
+            Expr::pow(Expr::int(8), Expr::sym("n")),
+        ));
+        let r = limit_unidirectional_plus_infinity(&e, &var, &ctx).unwrap();
+        let got = format_expr(r.as_ref());
+        assert_eq!(got, "0", "got {got}");
+    }
 
     #[test]
     fn mrv_lead_ck_int_61() {

@@ -490,4 +490,129 @@ mod tests {
         );
         assert_eq!(format_expr(r.as_ref()), "-exp(2)");
     }
+
+    /// Maxima `tests/rtest_limit*.mac` — one `#[test]` per case.
+    ///
+    /// Run a single case (fast feedback):
+    /// `cargo test -p giac-calculus limit::tests::maxima_rtest::NAME -- --exact`
+    mod maxima_rtest {
+        use super::*;
+
+        fn assert_limit(input: &str, expected: &str) {
+            let r = eval_parsed_limit(input);
+            assert_eq!(
+                format_expr(r.as_ref()),
+                expected,
+                "input: {input}"
+            );
+        }
+
+        // --- passing (from Maxima, verified) ---
+
+        /// `rtest_limit.mac` L61 / Wester LIM-001
+        #[test]
+        fn rtest_limit_sin_over_x() {
+            assert_limit("limit(sin(x)/x,x,0)", "1");
+        }
+
+        /// `rtest_limit_wester.mac` L19
+        #[test]
+        fn rtest_limit_one_minus_cos_over_x2() {
+            assert_limit("limit((1-cos(x))/x^2,x,0)", "1/2");
+        }
+
+        /// `rtest_limit_wester.mac` L15
+        #[test]
+        fn rtest_limit_wester_one_plus_one_over_n_power_n() {
+            assert_limit("limit((1+1/n)^n,n,+infinity)", "exp(1)");
+        }
+
+        /// `rtest_limit.mac` L99
+        #[test]
+        fn rtest_limit_a_over_n() {
+            assert_limit("limit(a/n,n,+infinity)", "0");
+        }
+
+        // --- pending: `NotImplemented("limit")` or wrong answer ---
+
+        /// `rtest_limit.mac` L20 — exp base comparison at `+infinity` (MRV)
+        #[test]
+        fn rtest_limit_seven_pow_n_over_eight_pow_n() {
+            assert_limit("limit(7^n/8^n,n,+infinity)", "0");
+        }
+
+        /// `rtest_limit.mac` L26 / L133
+        #[test]
+        fn rtest_limit_four_pow_n_over_two_pow_2n() {
+            assert_limit("limit(4^n/2^(2*n),n,+infinity)", "1");
+        }
+
+        /// `rtest_limit.mac` L125 — algebraic conjugate at `+infinity`
+        #[test]
+        fn rtest_limit_x_sqrt_conjugate() {
+            assert_limit("limit(x*(sqrt(1+x^2)-x),x,+infinity)", "1/2");
+        }
+
+        /// `rtest_limit.mac` L129
+        #[test]
+        #[ignore = "NotImplemented(limit)"]
+        fn rtest_limit_x_over_x_pow_ln_x() {
+            assert_limit("limit(x/(x^ln(x)),x,+infinity)", "0");
+        }
+
+        /// `rtest_limit.mac` L137
+        #[test]
+        #[ignore = "NotImplemented(limit)"]
+        fn rtest_limit_one_plus_one_over_x_sqrt() {
+            assert_limit("limit((1+1/x)*(sqrt(x+1)+1),x,+infinity)", "+infinity");
+        }
+
+        // --- pending: MRV / nested `exp` (gruntz) ---
+
+        /// `rtest_limit_gruntz.mac` L51
+        #[test]
+        #[ignore = "NotImplemented(limit)"]
+        fn gruntz_exp_times_exp_diff_minus_one() {
+            assert_limit(
+                "limit(exp(x)*(exp(1/x-exp(-x))-exp(1/x)),x,+infinity)",
+                "-1",
+            );
+        }
+
+        /// `rtest_limit_gruntz.mac` L82
+        #[test]
+        #[ignore = "NotImplemented(limit)"]
+        fn gruntz_three_x_five_x_root() {
+            assert_limit("limit((3^x+5^x)^(1/x),x,+infinity)", "5");
+        }
+
+        /// `rtest_limit_gruntz.mac` L98 — CK-INT-60 shape
+        #[test]
+        #[ignore = "NotImplemented(limit); ~11s MRV attempt"]
+        fn gruntz_ck_int_60_ratio() {
+            assert_limit(
+                "limit(exp(x*exp(-x)/(exp(-x)+exp(-2*x^2/(x+1))))/exp(x),x,+infinity)",
+                "1",
+            );
+        }
+
+        /// `rtest_limit_gruntz.mac` L53
+        #[test]
+        #[ignore = "NotImplemented(limit)"]
+        fn gruntz_exp_nested_diff() {
+            assert_limit(
+                "limit(exp(x)*(exp(1/x+exp(-x)+exp(-x^2))-exp(1/x-exp(-exp(x)))),x,+infinity)",
+                "1",
+            );
+        }
+
+        // --- pending: hangs ---
+
+        /// `rtest_limit.mac` L53 — `atan` at `+infinity`
+        #[test]
+        #[ignore = "hangs >60s"]
+        fn rtest_limit_x_atan_x_over_x_plus_1() {
+            assert_limit("limit(x*atan(x)/(x+1),x,+infinity)", "pi/2");
+        }
+    }
 }

@@ -13,7 +13,7 @@ use giac_simplify::ratnormal;
 use giac_poly::{coeff_at, univariate_degree, Poly, Var};
 use num_bigint::BigInt;
 use num_rational::Ratio;
-use num_traits::Zero;
+use num_traits::{One, Signed, Zero};
 
 use super::bounds::{MAX_SERIES_DEPTH, MAX_SERIES_EXPANSION_ORDER, MAX_SERIES_ORDER, MAX_SERIES_TERMS};
 use super::mrv_w::{
@@ -399,6 +399,10 @@ fn series_at_zero_depth(
                     Arc::clone(exp),
                 )));
             }
+            if is_half_exponent(exp) {
+                let base = series_at_zero_depth(b, var, order, order_cap, depth + 1, ctx)?;
+                return series_sqrt(&base, order, order_cap, ctx);
+            }
             if let Expr::Int(n) = exp.as_ref() {
                 let base = series_at_zero_depth(b, var, order, order_cap, depth + 1, ctx)?;
                 return series_pow_int(&base, bigint_to_i64(n)?, order, order_cap, ctx);
@@ -451,6 +455,19 @@ fn series_at_zero_depth(
         Expr::Func(FuncKind::Cos, args) if args.len() == 1 && is_series_var(&args[0], var) => {
             series_cos(order)
         }
+        Expr::Func(FuncKind::Sqrt, args) if args.len() == 1 => {
+            let arg = series_at_zero_depth(&args[0], var, order, order_cap, depth + 1, ctx)?;
+            series_sqrt(&arg, order, order_cap, ctx)
+        }
+        Expr::Func(FuncKind::Atan, args) if args.len() == 1 => {
+            if is_inv_series_var(&args[0], var) {
+                return series_atan_of_inv(order);
+            }
+            if is_series_var(&args[0], var) {
+                return series_atan(order);
+            }
+            Err(EvalError::NotImplemented("series"))
+        }
         _ => Err(EvalError::NotImplemented("series")),
     }
 }
@@ -491,6 +508,71 @@ fn series_cos(order: usize) -> Result<SparseSeries, EvalError> {
         k += 2;
     }
     Ok(SparseSeries { terms })
+}
+
+fn series_sqrt(
+    arg: &SparseSeries,
+    order: usize,
+    order_cap: usize,
+    ctx: &Context,
+) -> Result<SparseSeries, EvalError> {
+    let one = SparseSeries::constant(Expr::int(1));
+    let neg_one = SparseSeries::constant(Expr::int(-1));
+    let delta = arg.add(&neg_one, ctx)?;
+    let mut acc = one;
+    let mut term = delta.clone();
+    let mut binom = Ratio::new(BigInt::from(1), BigInt::from(2));
+    let lim = order.min(order_cap).min(MAX_SERIES_EXPANSION_ORDER);
+    for k in 1..lim {
+        let scale = ratio_to_expr(&binom);
+        let scaled = term.map_coeffs(|c| Expr::mul(vec![Arc::clone(c), Arc::clone(&scale)]));
+        acc = acc.add(&scaled, ctx)?;
+        term = term.mul_with_cap(&delta, order, order_cap, ctx)?;
+        binom = binom * Ratio::new(BigInt::from(3 - 2 * (k as i64)), BigInt::from(2 * (k as i64)));
+    }
+    Ok(acc)
+}
+
+/// `atan(u) = u - u^3/3 + u^5/5 - ...`
+fn series_atan(order: usize) -> Result<SparseSeries, EvalError> {
+    let mut terms = Vec::new();
+    let lim = order.min(MAX_SERIES_ORDER);
+    let mut k = 1usize;
+    let mut sign = 1i64;
+    while k < lim {
+        terms.push((k as i32, Expr::rat(sign, k as i64)));
+        sign = -sign;
+        k += 2;
+    }
+    Ok(SparseSeries { terms })
+}
+
+/// `atan(1/u) = pi/2 - u + u^3/3 - u^5/5 + ...` for `u → 0+`.
+fn series_atan_of_inv(order: usize) -> Result<SparseSeries, EvalError> {
+    let mut terms = vec![(0, Expr::mul(vec![Expr::sym("pi"), Expr::rat(1, 2)]))];
+    let lim = order.min(MAX_SERIES_ORDER);
+    let mut k = 1usize;
+    let mut sign = -1i64;
+    while k < lim {
+        terms.push((k as i32, Expr::rat(sign, k as i64)));
+        sign = -sign;
+        k += 2;
+    }
+    Ok(SparseSeries { terms })
+}
+
+fn is_inv_series_var(e: &ExprArc, var: &Ident) -> bool {
+    match e.as_ref() {
+        Expr::Pow(b, exp)
+            if matches!(exp.as_ref(), Expr::Int(n) if n.is_negative()) && is_series_var(b, var) =>
+        {
+            true
+        }
+        Expr::Frac(n, d) if matches!(n.as_ref(), Expr::Int(n) if n.is_one()) && is_series_var(d, var) => {
+            true
+        }
+        _ => false,
+    }
 }
 
 /// `exp(arg)` when `arg` may contain `k*ln(w)` in the constant term (MRV series).
@@ -687,7 +769,11 @@ fn series_inv(
     ctx: &Context,
 ) -> Result<SparseSeries, EvalError> {
     let (_, lead_coeff) = den.lead().ok_or(EvalError::NotImplemented("series"))?;
-    let inv_lead = Expr::pow(lead_coeff, Expr::int(-1));
+    let inv_lead = eval(
+        Expr::pow(Arc::clone(&lead_coeff), Expr::int(-1)).as_ref(),
+        ctx,
+    )
+    .unwrap_or_else(|_| Expr::pow(Arc::clone(&lead_coeff), Expr::int(-1)));
     let mut acc = SparseSeries::constant(inv_lead.clone());
     let mut rest = den.clone();
     if let Some((_, c)) = rest.terms.first_mut() {
@@ -801,6 +887,18 @@ fn arg_has_symbolic_ln_w(arg: &SparseSeries) -> bool {
 }
 
 /// `(-ln(w))^k` and similar non-Taylor powers stay symbolic in MRV series coeffs.
+fn is_half_exponent(exp: &ExprArc) -> bool {
+    use num_bigint::BigInt;
+    use num_rational::Ratio;
+    matches!(exp.as_ref(), Expr::Rat(r) if *r == Ratio::new(1.into(), 2.into()))
+        || matches!(
+            exp.as_ref(),
+            Expr::Frac(n, d)
+                if matches!(n.as_ref(), Expr::Int(nn) if nn.is_one())
+                    && matches!(d.as_ref(), Expr::Int(dd) if dd == &BigInt::from(2))
+        )
+}
+
 fn is_mrv_symbolic_pow(base: &ExprArc, exp: &ExprArc) -> bool {
     if !matches!(exp.as_ref(), Expr::Int(_)) {
         return false;
@@ -853,13 +951,13 @@ mod tests {
     }
 
     #[test]
-    fn sparse_series_exp_at_zero() {
+    fn sparse_series_atan_inv_over_one_plus_u() {
         let ctx = xcas_default();
-        let var = Ident::new("w");
-        let e = Expr::func(FuncKind::Exp, vec![var_to_expr(&var)]);
-        let s = series_at_zero(&e, &var, 4, &ctx).unwrap();
+        let var = Ident::new("u");
+        let atan = Expr::func(FuncKind::Atan, vec![Expr::pow(var_to_expr(&var), Expr::int(-1))]);
+        let s = series_at_zero(&atan, &var, 12, &ctx).unwrap();
         let (exp, coeff) = s.lead().unwrap();
         assert_eq!(exp, 0);
-        assert_eq!(format_expr(coeff.as_ref()), "1");
+        assert_eq!(format_expr(coeff.as_ref()), "pi/2");
     }
 }

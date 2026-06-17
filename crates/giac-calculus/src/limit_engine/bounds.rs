@@ -43,6 +43,11 @@ pub(crate) fn mrv_series_eligible(e: &ExprArc) -> bool {
         && expr_depth(e) <= MAX_SERIES_DEPTH
 }
 
+/// Limit at `+infinity` via `mrv_lead_term` (upstream `unidirectional_limit`); broader than series-only gate.
+pub(crate) fn mrv_limit_eligible(e: &ExprArc) -> bool {
+    expr_nodes(e) <= MAX_EXPAND_NODES && expr_depth(e) <= MAX_SERIES_DEPTH
+}
+
 /// MRV rewrite is bounded when the rewritten tree stays under the node cap.
 pub(crate) fn mrv_rewrite_bounded(e: &ExprArc) -> bool {
     expr_nodes(e) <= MAX_EXPAND_NODES
