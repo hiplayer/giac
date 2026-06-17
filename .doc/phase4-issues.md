@@ -2,21 +2,25 @@
 
 基于 [rust-migration-plan.md §5 Phase 4](rust-migration-plan.md)、[rust-migration-supplement.md §4.5–4.7](rust-migration-supplement.md) 及 `giac-rs` 实现状态整理。
 
-**最后同步：** 2026-06-15（Batch 1 ✅；Batch 2 **大部分 ✅**；Batch 3 ✅；Batch 4 **✅**）
+**最后同步：** 2026-06-16（upstream 统一为 `giac/giac-2.0.0`；新增 GIAC-204b / GIAC-232）
 
 **阶段定义（实现时间线）：** Phase 4 = `giac-solve` + `giac-calculus` + `giac-ode`（线性代数为 Phase 3，已大体完成）。
 
 **门禁：** 每项合并前须 `cargo test --workspace` + `cargo ci-clippy` 全绿（[supplement §7](rust-migration-supplement.md#7-工程门禁)）。
 
-### 进度快照（GIAC-201–222）
+**CI 快照（2026-06-16）：** `phase4_batch2` / `phase4_batch4` / `phase4_triple` ✅；`phase4_batch3` ⚠️（`GIAC-206`/`GIAC-212` 各 1 失败）；`phase4_integrate_table` ⚠️（**27/28** eval）；`giac_check_integrate` ⚠️（**30/31** enabled eval；`giac_check_risch_matches_integrate` 同阻塞）。
+
+### 进度快照（GIAC-201–231）
 
 | 状态 | Issues |
 |------|--------|
-| ✅ 已关闭 | 201–205, 209, 211, 214, 207–208, 212–213, 215–218, 220, 222；210/211 积分表 |
-| ⚠️ 部分完成 | 206（`sturm` 重因子已缓解）、210（表 A **7/7** ✅）、219（check harness；**28/66** enabled）、**GIAC-224** `partfrac` 重复线性因子 ✅、**GIAC-223** 指数/三角商式规则 ✅、**GIAC-225** sqrt/半角/三角商式 ✅（CK-INT-11/12/18/19/28/32）；**GIAC-226** 塔 + `pow2expln` ⚠️；**GIAC-227** Hermite 约化 ✅（CK-INT-06）；**GIAC-228/228a/228b** RT + 代数共轭配对 ⚠️（CK-INT-07/08 ✅；CK-INT-04 ✅）；**GIAC-215** limit 子集 ✅（CK-INT-55/59） |
-| ❌ 未开始 | 221（文档收尾）；check golden 全量 67 条 |
+| ✅ 已关闭（batch 验收绿） | 201–205, 209, 211, 214, 207–208, 213, 215–218, 220, 222；216/217（4a） |
+| ⚠️ 部分完成 / fixture 超前 | 206（`sturm((x^3+1)^2)` 仍失败）、210（**INT-A06** `1/(1-x^2)` 回归）、212（**CK-INT-05** 复杂分母）、219（harness 已接；**30/31** enabled eval）、221（文档）、224–228（写死模式见 §3.1.6） |
+| ❌ 未开始 | 229–231（真 Risch 主流程）；`giac_check_limit` / `giac_check_other` 全量 golden；**GIAC-204b** 语句级 `assume`/`purge`；**GIAC-232** `froot`/`froots` |
 
-**积分表 fixture：** `phase4_integrate_table.json` — **26/27** 行 `enabled: true`（表 A 全绿；表 D/E 未入 fixture）。
+**积分表 fixture：** `phase4_integrate_table.json` — **28/28** 行 `enabled: true`（**27/28** eval 绿；**INT-A06** 失败）。
+
+**check fixture：** `check_integrate_table.json` — **31/66** enabled（**30/31** eval 绿；**CK-INT-05** 失败）。
 
 ---
 
@@ -31,8 +35,9 @@
 | `assert_equiv` | ✅ | `giac-core::algebra::assert_equiv`，conformance 已用 |
 | `test_diff` conformance | ✅ | parse + SymPy 子集 |
 | `test_solve` conformance | ✅ | parse + ≥1 行 SymPy |
-| `test_sturm` conformance | ⚠️ | `test_sturm` 全行 ✅；`test_sturm_ext` 中 `sturm((x^3+1)^2)` 与 SymPy 不一致 |
-| `phase4_integrate_table` | ✅ | 26 条 enabled 行 SymPy 导数还原全绿 |
+| `test_sturm` conformance | ✅ | `test_sturm` 全行 ✅ |
+| `test_sturm_ext` conformance | ⚠️ | `realroot` 有理根子集 ✅；`sturm((x^3+1)^2)` 仍失败（**GIAC-206**） |
+| `phase4_integrate_table` | ⚠️ | **27/28** enabled 行 eval 绿（**INT-A06** 回归） |
 | `phase4_batch1` / `phase4_batch2` / `phase4_batch3` | ✅ | 201–204、205/206/209/211/214、**207/208/212/213/215** 验收测试 |
 | `phase4_maxima_rtest` | ✅ 部分 | 8 条 Maxima limit 草稿（**LIM-001/002 enabled**；余 6 条待更强 `limit`） |
 | `giac-wasm` | ✅ 冒烟 | `eval_to_string`：`solve`/`integrate`/`diff`（GIAC-222 基础） |
@@ -57,7 +62,7 @@
 | `test_desolve_ext` | 3 | **0** | 同上 |
 | `test_partfrac_ext` | 4 | **0** | 未接 e2e conformance；高阶 `partfrac`（GIAC-212） |
 
-**check golden（Phase 4 验收目标）：** `testintegrate`（67 条）、`testlimit`（52 条）、`testother`（4 条）、`testpartfrac`（1 条）——**均未接入** Rust conformance（GIAC-219）。
+**check golden（Phase 4 验收目标）：** `testintegrate`（67 条）、`testlimit`（52 条）、`testother`（4 条）、`testpartfrac`（1 条）——`giac_check_integrate` 已接 **31/66** enabled（**GIAC-219** ⚠️）；`giac_check_limit` / `giac_check_other` 未接。
 
 ### 1.3 与迁移计划的对照
 
@@ -65,10 +70,103 @@
 
 | 模块 | 计划能力 | 当前（2026-06-15） |
 |------|----------|-------------------|
-| `giac-solve` | `solve`, `linsolve`, `fsolve`/`newton`, `sturm`/`realroot` | `solve`+`rootof`、`linsolve`、`fsolve` ✅；`sturm`/`sturmab` ⚠️；`realroot` stub |
-| `giac-calculus` | `diff`, `limit`, `series`/`taylor`, `partfrac` 对接 | `diff`/`derive` ✅；`integrate` 规则 + **`partfrac_integrate` + Hermite/RT** ⚠️；`limit`/`series` 部分实现；`risch` 仍委托 `integrate` |
-| `integrate` | 规则表 + 部分分式，再 port `risch` | 表 B/C 全绿；**check 25/66**；`partfrac` 管道已接（重复因子/Hermite/RT）；`exp*sin` 分部仍缺 |
-| `giac-ode` | `desolve` 线性常系数 | **骨架 crate** + `desolve` stub；ODE 语法可解析 |
+| `giac-solve` | `solve`, `linsolve`, `fsolve`/`newton`, `sturm`/`realroot` | 多项式 `solve`+`rootof`、`linsolve`、`fsolve` ✅；`sturmab` ✅；`sturm` 重因子 ⚠️；`realroot` 仅有理根；`froot`/`froots` ❌（**GIAC-232**） |
+| `giac-calculus` | `diff`, `limit`, `series`/`taylor`, `partfrac` 对接 | `diff`/`derive` ✅ 子集；`integrate` 规则+partfrac/Hermite/RT ⚠️；`limit`/`series` 经典子集 ✅；`risch` 委托 `integrate`（4a） |
+| `integrate` | 规则表 + 部分分式，再 port `risch` | check **30/31** enabled eval；`partfrac` 混合高阶分母仍缺；真 Risch **§3.1** 229–231 ❌ |
+| `giac-ode` | `desolve` 线性常系数 | 二阶齐次/常数强迫、`y'=x*y` 等子集 ✅（batch4）；一般非齐次/高阶 ❌ |
+
+---
+
+### 1.4 与 `giac/giac-2.0.0` 差异（2026-06-16 审计）
+
+**Upstream 根目录：** [`giac/giac-2.0.0`](/home/kanli.hu/upstream/giac/giac/giac-2.0.0)（算法源码 `src/`、验收 `check/`、bin 脚本 `bin/`）。
+
+**对照基准：**
+
+| 层次 | 路径 | 用途 |
+|------|------|------|
+| 算法参考 | `giac/giac-2.0.0/src/{intg,risch,derive,series,solve,desolve,csturm,misc,usual,prog}.cc` | 实现深度估算 |
+| 验收规格 | `giac/giac-2.0.0/check/{testintegrate,testlimit,testother,testpartfrac,flanex}` | golden / inventory |
+| bin 脚本 | `giac/giac-2.0.0/bin/test_{solve,integrate*,diff,limit,series,sturm*,desolve*}` | SymPy triple |
+
+**代码量对比（Rust Phase 4 crate vs `giac-2.0.0` C++）：**
+
+| `giac-2.0.0` 模块 | 行数（≈） | giac-rs 对应 | 行数（≈） | 估算覆盖 |
+|-------------------|-----------|--------------|-----------|----------|
+| `intg.cc` | 7 344 | `integrate.rs` + `integrate_heuristics.rs` + `partfrac_integrate.rs` | 2 805 | **启发式 ≈10–15%**；无 `do_risch` 兜底 |
+| `risch.cc` | 1 107 | `risch/*`（`eval_risch` 委托 `integrate`） | 1 079 | **真 Risch ≈0%**；塔/Hermite/RT 为窄子集 |
+| `derive.cc` | 1 185 | `diff.rs` | 217 | 单变量链式 + 多元梯度；无 `atan`/`asin` 等扩展 |
+| `series.cc` | 3 713 | `limit.rs` + `series.rs` | 686 | **极限/级数经典子集**；无一般不定式/Laurent |
+| `solve.cc` | 11 712 | `solve.rs` + `rootof.rs` + `fsolve.rs` | 337 | 多项式 + `rootof` + `sin(x)=0`；无 `froot`/`proot` |
+| `desolve.cc` | 2 539 | `desolve.rs` | 451 | 线性常系数子集；无变系数/级数解/边值 |
+| `csturm.cc` | 4 989 | `sturm.rs` + `realroot.rs` | 206 | `sturmab` 完整；`sturm` 重因子缺口；`realroot` 仅有理根 |
+| `misc.cc`（`froot`） | — | — | — | **`froot`/`froots` 未移植**（见 **GIAC-232**） |
+| `usual.cc` + `prog.cc`（`assume`/`purge`） | — | — | — | **语句级未移植**（见 **GIAC-204b**） |
+
+#### 1.4.1 API 实现深度（相对 `giac-2.0.0` 全功能）
+
+| API | `giac-2.0.0` 能力概要 | giac-rs 现状 | **未实现 / 缺口** |
+|-----|------------------------|--------------|-------------------|
+| `integrate` | `integrate_gen` 全启发式 + `partfrac` + `risch` 兜底 | 规则表 + `try_as_rational` + partfrac/Hermite/RT 窄路径 + 启发式子集 | 一般有理式（**`integrate frac`**）；含参/反常定积分；语句级 `assume`/`purge`（**GIAC-204b**）；`intg.cc` 大量换元/特殊函数 |
+| `risch` | `risch_lin` → `in_risch` → `remains_to_integrate` | `eval_risch` ≡ `eval_integrate` | **GIAC-229–231** 整块；`lin`/`trig2exp` 前处理 |
+| `partfrac` | 任意次数因子、二次/高次、复系数 | `giac-poly::partfrac` 线性因子 + 部分重复因子；混合 1L+1Q 写死系数 | **GIAC-224b/c**；一般 `factor`（**GIAC-212b**）；非线性因子 |
+| `diff` / `derive` | 全初等 + 向量微积分 | 基本初等 + 多元 `derive` → `List` | `atan` 等；`laplacian`/`hessian` 等（Phase 5） |
+| `limit` | `series.cc` 完整极限引擎 | 经典表 + 有理 `+∞` 子集；CK-INT-55/59 硬编码 | `-∞`；一般 `0/0`/`∞/∞`（**GIAC-215b**）；CK-INT-56/58/60/61 |
+| `series` / `taylor` | 一般点、余项 `O()` | `x=0`（或命名中心）泰勒，逐项 `diff` | 一般奇点/Laurent；`O()` 记法（DIV-084） |
+| `solve` | 多项式、超越、系统、假设 | 多项式 + `rootof`；`sin(x)=0`；`linsolve` | 一般超越方程；参数解；`froot`/`froots`（**GIAC-232**） |
+| `fsolve` | 多变量、区间、复根 | 单变量 Newton `f64` | 多变量/复平面 |
+| `froot` / `froots` | `misc.cc` `_froot`：有理式因子根列表；`solve.cc` `proot`/`realproot` 数值根 | 未注册 / 未实现 | **GIAC-232**；`check/flanex` L195 |
+| `sturm` / `sturmab` | 平方因子、代数扩张、序列规范 | `sturmab` ✅；`sturm` 用 `odd_multiplicity_part` | **`sturm((x^3+1)^2)`** 当前 `TypeError`（**GIAC-206**） |
+| `realroot` | 孤立区间 + 无理根 | 因式分解后的**有理根**列表 | 一般多项式实根隔离（需完整 Sturm/区间算术） |
+| `desolve` | 线性/非线性、变系数、边值、级数 | 常系数 2 阶齐次 + `sin` 强迫 + 一阶线性子集 | `y''+4y=sin(x)` 以外强迫；3 阶+；边值/参数 |
+| `assume` / `purge` | `usual.cc` `giac_assume`；`prog.cc` `_purge`；积分/求解中临时假设 | 未解析逗号分隔多语句 | **GIAC-204b**；`check/testintegrate` L51/L55 |
+| `proot` / `simplify` | 数值根、化简管道 | **可解析**；eval 未接积分主路径 | 与 `integrate`/`limit` 联调 |
+| `ibp` / `ibpu` / `ibpdv` | 分部积分 API | 未注册 / 未实现 | Phase 4 非目标（规则内嵌于 `integrate`） |
+
+#### 1.4.2 check / bin 验收相对 `giac-2.0.0`
+
+| 来源 | `giac-2.0.0` 规模 | giac-rs 接入 | 通过情况（2026-06-16） |
+|------|---------------|--------------|------------------------|
+| `check/testintegrate` | 67 行（integrate+limit+series+复合） | `check_integrate_table.json` **31/66 enabled** | **30/31** eval ✅；阻塞：**CK-INT-05** |
+| `check/testlimit` | 52 行 | 未独立 harness | 子集经 CK-INT limit 行覆盖 |
+| `check/testother` | 4 行 | 未接入 | ❌ |
+| `check/testpartfrac` | 1 行 | 经 `partfrac` + integrate 间接 | 高阶仍失败 |
+| `phase4_integrate_table` | 自建 SymPy 表 | 28 enabled | **27/28** eval；阻塞：**INT-A06** |
+| bin `test_desolve*` | 6 行 | parse ✅；batch4 子集 SymPy | 非 batch 覆盖行仍 `NotImplemented` |
+| bin `test_series` | 3 行 | batch4 ✅ | — |
+| bin `test_partfrac_ext` | 4 行 | 未 e2e conformance | 复杂有理式仍失败 |
+| `check/flanex` | 含 `froots` 等 | 未接 | ❌ **GIAC-232** |
+
+#### 1.4.3 当前已知 eval 回归（fixture `enabled: true` 但失败）
+
+| ID | 行 | 错误 | 阻塞子任务 |
+|----|-----|------|------------|
+| **INT-A06** | `integrate(1/(1-x^2),x)` | `integrate frac` | **GIAC-210/212**：`1-x^2` 项序未进 `integrate_reciprocal_quadratic` / partfrac |
+| **CK-INT-05** | `integrate(1/(3*x*(x^2+x+1)*(x-1)^3),x)` | `integrate frac` | **GIAC-212b** 一般 `factor` + 重复因子 partfrac |
+
+审计命令：
+
+```bash
+cd giac-rs
+cargo test -p giac-conformance --test phase4_integrate_table enabled
+cargo test -p giac-conformance --test giac_check_integrate enabled
+cargo test -p giac-conformance --test giac_check_integrate_inventory enabled_eval_only -- --ignored --nocapture
+```
+
+#### 1.4.4 Phase 4 明确未实现清单（整块缺失）
+
+以下 `giac-2.0.0` 能力在 Phase 4 范围内**尚无对应实现**，非「写死模式」可修：
+
+1. **真 Risch**（`risch_desolve`、`risch_lin`、`in_risch`、`remains_to_integrate`）— GIAC-229–231
+2. **`integrate` → `risch` 兜底**（`giac-2.0.0/src/intg.cc` `do_risch`）— GIAC-231
+3. **`lin` / `trig2exp` / `exp2trig`** 作为积分前处理
+4. **`realroot` 无理根隔离**（完整 Sturm + 区间细化）
+5. **`froot` / `froots` 浮点/因子根列表** — **GIAC-232**（对标 `misc.cc` `_froot`；`check/flanex` L195）
+6. **语句级 `assume` / `purge`** — **GIAC-204b**（对标 `usual.cc` `giac_assume`、`prog.cc` `_purge`；解锁 CK-INT-50/54）
+7. **`giac_check_limit` / `giac_check_other` 全量 golden harness**
+8. **一般 `limit` 不定式化简**（L'Hôpital / 级数展开通用路径）
+9. **`desolve` 一般非齐次**（变强迫、待定系数泛化）
+10. **`giac-2.0.0/src/intg.cc` 主体启发式**（≈7300 行中的换元、特殊函数、含参积分）
 
 ---
 
@@ -88,7 +186,7 @@
 | `risch` / `proot` / `simplify` 未解析 | `test_integrate_more` | P1 | ✅ 可解析 |
 | `taylor`/`series` 的 `x=0` 命名参数 | giac 脚本方言 | P1 | ✅ 可解析 |
 | `+infinity` / 区间端点 | 定积分、极限 check | P1 | ✅ 可解析 |
-| `assume` / `purge`（check 积分） | `testintegrate` 含参积分 | P2 | ❌ 未做 |
+| `assume` / `purge`（check 积分） | `testintegrate` 含参积分 | P1 | ❌ **GIAC-204b** |
 
 ### 2.2 `giac-solve` 算法缺口
 
@@ -98,9 +196,9 @@
 | `solve`（超越） | 仅 `expr_to_poly` 路径 | `solve(sin(x)=0,x)` → 非多项式（**GIAC-208**） |
 | `linsolve` | 已在 `giac-linalg` | 二次方程组可过 |
 | `fsolve` / `newton` | ✅ 单变量 Newton **GIAC-209** | `fsolve(x^2-2,x)` |
-| `sturm` / `sturmab` | `sturmab` ✅；`sturm` 简单情形 ✅，重因子多项式序列 ⚠️ **GIAC-206** | `sturm((x^3+1)^2)` |
-| `realroot` | stub | `realroot(x^4-1)`（**GIAC-207**） |
-| `froots` | 未实现 | 无专项 bin，flanex 可能触发 |
+| `sturm` / `sturmab` | `sturmab` ✅；`sturm` 简单情形 ✅；`sturm((x^3+1)^2)` **TypeError** ⚠️ **GIAC-206** | `sturm((x^3+1)^2)` |
+| `realroot` | 仅有理根（`factor` 后线性因子） | 无理根区间（**GIAC-207** 完整版） |
+| `froot` / `froots` | 未实现 | `giac-2.0.0/check/flanex` L195（**GIAC-232**） |
 
 **根因（已缓解）：** 无理根已通过 `rootof` / `AlgExt` 对接（GIAC-205）；超越方程与 `realroot` 仍待 Batch 3。
 
@@ -124,16 +222,16 @@
 | `x/(x²+1)` | ✅ **GIAC-210** |
 | `1/(x²-1)`、`1/(1-x²)`、`1/(x⁴±1)^n` | ✅ **GIAC-212/224/227/228** partfrac + Hermite + RT |
 | 三角、`ln(x)`、`tan` 等 | ✅ 表 C **GIAC-211** |
-| `exp*sin`/`exp*cos` 分部积分 | ❌ **GIAC-213** |
-| 高阶有理式 `1/(x³+1)` 等 | ❌ 需 `partfrac` 管道（**GIAC-212**） |
+| `exp*sin`/`exp*cos` 分部积分 | ✅ **GIAC-213**（batch3） | — |
+| 高阶有理式 `1/(x³+1)` 等 | ✅ partfrac 管道（多数）；**CK-INT-05** / **INT-A06** 仍失败 | **GIAC-212b** |
 | 定积分 4 参数 | ✅ 框架；F01–F03 已 enabled |
 | `risch` | Phase 4a：`eval_integrate` 委托（**GIAC-217**）；真 Risch **§3.1** GIAC-223–231 |
 
 #### `limit` / `series`
 
-- `limit` / `series` / `taylor` / `risch`：**可解析**；eval 仍为 `NotImplemented` stub（`giac-calculus/src/stubs.rs`）——**GIAC-215/216/217**。
-- `fixtures/phase4_maxima_rtest.json` 已收录 8 条 Maxima Wester limit 草稿（全 disabled，parse 测试已绿）。
-- check `testintegrate` 后半含大量 `limit`/`series`，与积分验收强耦合。
+- `limit` / `series` / `taylor`：**已实现经典子集**（`limit.rs` / `series.rs`）；非表驱动不定式仍 `NotImplemented` — **GIAC-215b**。
+- `fixtures/phase4_maxima_rtest.json`：8 条草稿（**LIM-001/002 enabled**）。
+- check 中 limit/series 行：**CK-INT-55/57/59/62–66** 已 enabled 且 eval ✅；**CK-INT-56/58/60/61** 仍 disabled。
 
 #### `partfrac`
 
@@ -233,7 +331,7 @@ python3 tests/conformance/scripts/sympy_verify.py verify \
 
 **表例 ID** 写入 `phase4_integrate_table.json` 的 `id` 字段；`enabled: true` 行由 `phase4_integrate_table.rs` 驱动 CI。
 
-**fixture 进度（2026-06-15）：** A 7/7 · B 6/6 · C 8/8 · D 0/2（D03–D05 未入 fixture）· E 0/2 · F 3/4 · **合计 26/27 enabled**。
+**fixture 进度（2026-06-16）：** A **6/7 eval**（INT-A06 回归）· B 6/6 · C 8/8 · D 2/2 · E 2/2 · F 3/4 · **合计 28 enabled / 27 eval 绿**。
 
 #### 表 A — 有理式与项序（GIAC-210 / 212）
 
@@ -241,10 +339,10 @@ python3 tests/conformance/scripts/sympy_verify.py verify \
 |----|------------------------|---------|------|----------|
 | INT-A01 | `1/(1+x^2)` | ✅ | 基准 | — |
 | INT-A02 | `1/(x^2+1)` | ✅ | **项序**；须与 A01 同结果 | `test_integrate` L2 |
-| INT-A03 | `1/(x^2-1)` | ❌ | 部分分式预备 → **GIAC-212** | `test_partfrac_ext` |
+| INT-A03 | `1/(x^2-1)` | ✅ | partfrac | — |
 | INT-A04 | `x/(x^2+1)` | ✅ | `u`-代换 | — |
 | INT-A05 | `1/(4+x^2)` | ✅ | `atan(x/2)/2` | 已有单元测试 |
-| INT-A06 | `1/(1-x^2)` | ❌ | 对数型 → **GIAC-212** | — |
+| INT-A06 | `1/(1-x^2)` | ⚠️ | **enabled 但 eval 失败** → **GIAC-210** | — |
 | INT-A07 | `1/(1+x^4)` | ✅ | **GIAC-228** 代数 RT | — |
 
 #### 表 B — 多项式与幂（基线，**6/6 enabled**）
@@ -271,22 +369,22 @@ python3 tests/conformance/scripts/sympy_verify.py verify \
 | INT-C07 | `x*ln(x)` | ✅ | 分部 | — |
 | INT-C08 | `sin(2*x)` | ✅ | 直接 | check 子集 |
 
-#### 表 D — 部分分式管道（GIAC-212，**0/2 in fixture**）
+#### 表 D — 部分分式管道（GIAC-212，**2/2 in fixture**）
 
 | ID | 输入 | enabled | 验证 |
 |----|------|---------|------|
-| INT-D01 | `1/(x^3+1)` | ❌ | `diff` 还原 | `test_integrate_more` L3 |
-| INT-D02 | `1/(x^4-1)` | ❌ | `partfrac` + 逐项 | `test_partfrac_ext` |
+| INT-D01 | `1/(x^3+1)` | ✅ | `diff` 还原 |
+| INT-D02 | `1/(x^4-1)` | ✅ | `partfrac` + 逐项 |
 | INT-D03 | `x/((x-1)*(x+1)^2)` | 重复因子 | check `testintegrate` L4 |
 | INT-D04 | `1/(x*(x^2+1))` | 三类因子 | — |
 | INT-D05 | `(x+1)/(x^2-1)` | 与 `partfrac` 联调 | `test_partfrac_ext` |
 
-#### 表 E — 分部积分（GIAC-213，**0/2 in fixture**）
+#### 表 E — 分部积分（GIAC-213，**2/2 in fixture**）
 
 | ID | 输入 | enabled | 关联 bin |
 |----|------|---------|----------|
-| INT-E01 | `exp(x)*sin(x)` | ❌ | `test_integrate_ext` L1 |
-| INT-E02 | `exp(x)*cos(x)` | ❌ | `test_integrate_more` L1 |
+| INT-E01 | `exp(x)*sin(x)` | ✅ | `test_integrate_ext` L1 |
+| INT-E02 | `exp(x)*cos(x)` | ✅ | `test_integrate_more` L1 |
 | INT-E03 | `x*exp(x)` | 经典 IBP | — |
 | INT-E04 | `x*sin(x)` | IBP | — |
 
@@ -315,16 +413,19 @@ diff(<输出>,x)  vs  f     # SymPy: simplify(diff(F,x)-f)==0
 |----|------|------|------|------------|
 | SOL-H01 | solve | `solve(x^2-2*x+1=0,x)` | ✅ | 根代入残差 0 |
 | SOL-H02 | solve | `solve(t^2-2=0,t)` | ✅ **GIAC-205** | SymPy 或 `rootof` |
-| SOL-H03 | solve | `solve(sin(x)=0,x)` | ❌ **GIAC-208** | 残差 / 解集（DIV-081） |
+| SOL-H03 | solve | `solve(sin(x)=0,x)` | ✅（最小）**GIAC-208** | 残差 / 解集（DIV-081） |
+| SOL-H04 | froots | `froots((x^5-2*x^4+x^3)/(x-2))` | ❌ **GIAC-232** | `check/flanex` L195 |
 | DIF-H01 | diff | `diff(sin(x^2),x)` | ✅ | `test_diff` |
 | DIF-H02 | derive | `derive(2*x^2*y-x*z^3,[x,y,z])` | ✅ **GIAC-214** | 三分量 `sp.diff` |
-| LIM-H01 | limit | `limit(sin(x)/x,x,0)` | ❌ **GIAC-215** | `sp.limit` → 1 |
-| LIM-H02 | limit | `limit((1+1/x)^x,x,+infinity)` | ❌ **GIAC-215** | → `E` |
-| SER-H01 | series | `series(exp(x),x,0,4)` | ❌ **GIAC-216** | 系数至 `x^3` |
+| LIM-H01 | limit | `limit(sin(x)/x,x,0)` | ✅ **GIAC-215** | `sp.limit` → 1 |
+| LIM-H02 | limit | `limit((1+1/x)^x,x,+infinity)` | ✅ **GIAC-215** | → `E` |
+| SER-H01 | series | `series(exp(x),x,0,4)` | ✅ **GIAC-216** | 系数至 `x^3` |
 | STU-H01 | sturm | `sturm(x^3+1,x)` | ⚠️ **GIAC-206** | 区间符号变号 |
-| ODE-H01 | desolve | `desolve(y''+y=0,y(x))` | ❌ **GIAC-218** | `dsolve` + `checkodesol` |
-| ODE-H02 | desolve | `desolve(y'=x*y,y(x))` | ❌ **GIAC-218** | 一阶线性 |
-| ODE-H03 | desolve | `desolve(y''+4*y=sin(x),y(x))` | ❌ **GIAC-218** | 非齐次强迫 |
+| ODE-H01 | desolve | `desolve(y''+y=0,y(x))` | ✅ **GIAC-218** | `dsolve` + `checkodesol` |
+| ODE-H02 | desolve | `desolve(y'=x*y,y(x))` | ✅ **GIAC-218** | 一阶线性 |
+| ODE-H03 | desolve | `desolve(y''+4*y=sin(x),y(x))` | ⚠️ **GIAC-218** | 仅 `sin` 强迫子集 |
+| AST-H01 | assume | `assume(t>2),integrate(x*exp(1/2*abs(ln(x^2))),x,2,t),purge(t)` | ❌ **GIAC-204b** | CK-INT-50 |
+| AST-H02 | assume | `assume(x>0),integrate(ln(x^2+t^2)/(1+t^2),t,0,+infinity),purge(x)` | ❌ **GIAC-204b** | CK-INT-54 |
 
 #### 2.7.1 JSON fixture 骨架（`phase4_integrate_table.json`）
 
@@ -368,23 +469,25 @@ diff(<输出>,x)  vs  f     # SymPy: simplify(diff(F,x)-f)==0
 | GIAC-203 | ✅ | `risch`/`proot`/`simplify` | `test_integrate_more` parse | — |
 | GIAC-204 | ✅ | `+infinity`、`x=0` | `phase4_batch1` | — |
 | GIAC-205 | ✅ | `roots` → `rootof` | `phase4_batch2`；`SOL-H02` | — |
-| GIAC-206 | ⚠️ | `sturm`/`sturmab` | `test_sturm` ✅；ext `sturm` 重因子 | `STU-H01` 部分 |
-| GIAC-207 | ✅ | `realroot` | `phase4_batch3`；`test_sturm_ext` L3 | — |
-| GIAC-208 | ✅ | 超越 `solve` | `phase4_batch3`；`sin(x)=0` | — |
+| GIAC-206 | ⚠️ | `sturm`/`sturmab` | `test_sturm` ✅；`sturm((x^3+1)^2)` 失败 | `STU-H01` 部分 |
+| GIAC-207 | ✅（有理根） | `realroot` | `phase4_batch3`；有理根子集 | 无理根隔离 ❌ |
+| GIAC-208 | ✅（最小） | 超越 `solve` | `phase4_batch3`；`sin(x)=0` | 一般超越 ❌ |
 | GIAC-209 | ✅ | `fsolve` | `phase4_batch2` | — |
-| GIAC-210 | ✅ | 积分项序 | 表 A **7/7** enabled | 表 A |
+| GIAC-210 | ⚠️ | 积分项序 | 表 A **6/7** eval（**INT-A06**） | 表 A |
 | GIAC-211 | ✅ | 三角/`ln` | 表 C **8/8**；`phase4_batch2` | 表 C |
-| GIAC-212 | ✅ | `partfrac` 管道 | `phase4_batch3`；表 D | 表 D **2/2** |
+| GIAC-212 | ⚠️ | `partfrac` 管道 | batch3 部分；**CK-INT-05** 失败 | 表 D **2/2** |
 | GIAC-213 | ✅ | 分部积分 | `phase4_batch3`；表 E | 表 E **2/2** |
 | GIAC-214 | ✅ | 多元 `derive` | `phase4_batch2`；`DIF-H02` | 表 H |
 | GIAC-215 | ✅ | `limit` | `phase4_batch3`；`LIM-H01`–`H02`；`phase4_maxima_rtest` 2 条 | 表 H 部分 |
 | GIAC-216 | ✅ | `series`/`taylor` | `phase4_batch4`；`test_series` | 表 H |
 | GIAC-217 | ✅（4a） | `risch`（→`integrate`）；**4b+ 见 §3.1** | `phase4_batch4`；`giac_check_risch_*` | INT-E02 |
 | GIAC-218 | ✅ | `giac-ode`/`desolve` | `phase4_batch4`；`test_desolve*` | 表 H |
-| GIAC-219 | ⚠️ | check golden | `giac_check_integrate` 表 20 行 + pilot 报告 | 表 A–F |
+| GIAC-219 | ⚠️ | check golden | harness 已接；**30/31** enabled eval | 表 A–F + CK |
 | GIAC-220 | ✅ | `phase4_triple` | `phase4_triple.rs` 全绿 | enabled 表项 |
 | GIAC-221 | ⚠️ | 文档 | 本文件已同步 | — |
 | GIAC-222 | ✅ | WASM | `giac-wasm` 冒烟 | 表 B + H |
+| GIAC-204b | ❌ | 语句级 `assume`/`purge` | `check/testintegrate` L51/L55 parse+eval | CK-INT-50/54 |
+| GIAC-232 | ❌ | `froot`/`froots` | `check/flanex` L195 | — |
 
 ### 里程碑 M4a：解析与基础设施（1–2 周）
 
@@ -420,6 +523,20 @@ diff(<输出>,x)  vs  f     # SymPy: simplify(diff(F,x)-f)==0
 | **Blocked by** | GIAC-201 |
 | **验收** | `limit(...,x,+infinity)`、`taylor(sin(x),x=0,5)` 可解析 |
 | **第三方测试** | parser 单测覆盖 `+infinity`、`x=0`；对接 `LIM-H02` parse |
+| **后续** | 语句级 `assume`/`purge` 见 **GIAC-204b** |
+
+#### GIAC-204b — 语句级 `assume` / `purge` — ❌ 未开始
+
+对标 `giac/giac-2.0.0/src/usual.cc`（`giac_assume`、`purge_assume`）与 `prog.cc`（`_purge`）。`giac-2.0.0` 脚本以**逗号分隔**多语句执行假设 → 计算 → 清除假设。
+
+| 字段 | 内容 |
+|------|------|
+| **Blocked by** | GIAC-204（`+infinity` 已解析） |
+| **What** | 解析 `assume(t>2),integrate(...),purge(t)`；在 `Context` 中维护临时假设栈；`purge` 弹出 |
+| **上游用例** | `giac/giac-2.0.0/check/testintegrate` L51：`assume(t>2),integrate(x*exp(1/2*abs(ln(x^2))),x,2,t),purge(t)`；L55：`assume(x>0),integrate(ln(x^2+t^2)/(1+t^2),t,0,+infinity),purge(x)` |
+| **验收** | CK-INT-50、CK-INT-54 parse + eval；`giac_check_integrate` 可 `enabled: true` |
+| **第三方测试** | SymPy：在等价假设下验证定积分；或属性测试 `purge` 后上下文无残留 |
+| **Rust 落点** | `giac-parse`（逗号语句链）；`giac-core::Context` 假设表；`giac-calculus::eval_integrate` 定积分边界化简 |
 
 ---
 
@@ -436,22 +553,24 @@ diff(<输出>,x)  vs  f     # SymPy: simplify(diff(F,x)-f)==0
 
 #### GIAC-206 — 实现 `sturm` / `sturmab` — ⚠️ 部分关闭
 
-`sturmab` 与 `test_sturm` 全行已通过；`sturm` 对 `(x^3+1)^2` 等重因子多项式序列与 SymPy 不一致（`test_sturm_ext` 失败）。关项前须修复或登记 DIV-083。
+`sturmab` 与 `test_sturm` 全行已通过；`sturm((x^3+1)^2)` 当前报 `TypeError: constant polynomial`（`odd_multiplicity_part` 后序列退化）。关项前须修复或登记 DIV-083。
 
 | 字段 | 内容 |
 |------|------|
 | **Blocked by** | GIAC-201 |
-| **What** | 对标 `csturm.cc`：Sturm 序列、区间根数 |
+| **What** | 对标 `csturm.cc`：Sturm 序列、区间根数；重因子多项式 |
 | **验收** | `test_sturm`、`test_sturm_ext` 全行 SymPy 或属性验证 |
 | **第三方测试** | `test_sturm.rs`；`sympy_verify.py` 新增 `sturm`/`sturmab` 属性（区间根数 vs `real_roots`）；`STU-H01` |
 
-#### GIAC-207 — 实现 `realroot`
+#### GIAC-207 — 实现 `realroot` — ✅ 有理根子集 / ❌ 完整隔离
 
 | 字段 | 内容 |
 |------|------|
 | **Blocked by** | GIAC-206 |
-| **验收** | `realroot(x^4-1)` 返回孤立区间列表 |
-| **第三方测试** | `test_sturm_ext` L3；SymPy `real_roots` 区间覆盖（不交、并集覆盖） |
+| **What（已做）** | `factor` 后收集有理实根 + 重数 |
+| **What（未做）** | `giac-2.0.0` 无理根孤立区间（对标 `csturm.cc` 完整 `realroot`） |
+| **验收** | `realroot(x^4-1)` 有理根 ✅；`realroot(x^2-2)` 等需区间形式 |
+| **第三方测试** | `test_sturm_ext` L3；SymPy `real_roots` 区间覆盖 |
 
 #### GIAC-208 — `solve` 超越方程（最小子集）
 
@@ -471,20 +590,33 @@ diff(<输出>,x)  vs  f     # SymPy: simplify(diff(F,x)-f)==0
 | **验收** | `test_numerical` 子集；WASM 可编译 |
 | **第三方测试** | `|f(x*)| < 1e-8`；与 SymPy `nsolve` 同初值对比（容差 1e-6） |
 
+#### GIAC-232 — `froot` / `froots`（因子根列表） — ❌ 未开始
+
+对标 `giac/giac-2.0.0/src/misc.cc` `_froot`（`at_froot`）及 `solve.cc` 中 `proot` / `realproot` 数值路径。`giac/giac-2.0.0/check/flanex` 使用 `froots`（与 `froot` 同族 API，MVP 须同时注册别名）。
+
+| 字段 | 内容 |
+|------|------|
+| **Blocked by** | GIAC-205（`factor` / `expr_to_poly`） |
+| **What** | `froot(p)` / `froot(p,x)`：有理式分子分母因子根及重数列表；可选对接 `proot` 浮点根 |
+| **上游参考** | `misc.cc` L1405–1427 `_froot`；`solve.cc` `proot` / `realproot` |
+| **验收** | `froots((x^5-2*x^4+x^3)/(x-2))` 与 `giac-2.0.0` golden 或 SymPy 因子根一致 |
+| **第三方测试** | `check/flanex` L195；单元：简单有理式因子根计数 |
+| **Rust 落点** | `giac-solve::froot`；`FuncKind::Froot` / `Froots`；复用 `giac-poly::factor` |
+
 ---
 
 ### 里程碑 M4c：`giac-calculus` 核心（3–5 周）
 
 #### GIAC-210 — 修复 `integrate` 有理式项序与规范化 — ⚠️ 部分关闭
 
-表 A 中 A01/A02/A04/A05 已 `enabled`；A03/A06/A07 依赖 **GIAC-212** partfrac，暂 disabled。
+表 A 中 **INT-A06** `1/(1-x^2)` 已 `enabled` 但 eval 失败（`integrate frac`）；其余 A01–A05、A07 绿。
 
 | 字段 | 内容 |
 |------|------|
 | **Blocked by** | 无 |
-| **What** | `integrate_reciprocal_quadratic` 对 `Add` 项交换律不敏感；`1/(x^2+1)` 与 `1/(1+x^2)` 同结果 |
-| **验收** | `test_integrate` 第 2 行；回归现有 `integrate` 单元测试 |
-| **第三方测试** | **表 A**（`INT-A01`–`A07`）全部 `enabled`；`phase4_integrate_table.rs`；`INT-A02` 与 `INT-A01` SymPy 导数还原均为 0 |
+| **What** | `integrate_reciprocal_quadratic` / partfrac 对 `1-x^2` 项序不敏感 |
+| **验收** | `phase4_integrate_table` 表 A **7/7** eval |
+| **第三方测试** | **表 A** 全部 `enabled` 且 eval 绿 |
 
 #### GIAC-211 — 三角与 `ln` 积分规则表 — ✅ 已关闭
 
@@ -497,14 +629,16 @@ diff(<输出>,x)  vs  f     # SymPy: simplify(diff(F,x)-f)==0
 | **验收** | `test_integrate` 第 1、3 行（`simplify` 依赖 GIAC-203） |
 | **第三方测试** | **表 C**（`INT-C01`–`C08`）；`test_integrate.rs` SymPy 子集；每条 `diff(F,x)-f` 经 SymPy 为 0 |
 
-#### GIAC-212 — 积分 ↔ `partfrac` 管道
+#### GIAC-212 — 积分 ↔ `partfrac` 管道 — ⚠️ 部分关闭
+
+多数 check 有理行与表 D 已绿；**CK-INT-05** `1/(3*x*(x^2+x+1)*(x-1)^3)` 仍 `integrate frac`。
 
 | 字段 | 内容 |
 |------|------|
 | **Blocked by** | GIAC-111（高阶 `resultant`/`partfrac`） |
-| **What** | 有理函数积分先 `partfrac` 再逐项积分 |
-| **验收** | `test_integrate_more` 中 `1/(x^3+1)`；`test_partfrac_ext` 改善 |
-| **第三方测试** | **表 D**；`partfrac` 行用 SymPy `apart` 展开校验；积分行用导数还原 |
+| **What** | 有理函数积分先 `partfrac` 再逐项积分；一般 `factor` |
+| **验收** | `CK-INT-05` + `INT-A06` eval 绿 |
+| **第三方测试** | **表 D**；`partfrac` 行用 SymPy `apart` 展开校验 |
 
 #### GIAC-213 — 分部积分 `exp*sin` / `exp*cos`
 
@@ -555,7 +689,7 @@ diff(<输出>,x)  vs  f     # SymPy: simplify(diff(F,x)-f)==0
 
 ### 3.1 Risch / `integrate` 移植路线图（Phase 4b+）
 
-对标上游 `giac/giac-1.5.0/src/risch.cc`（≈1010 行）及 `intg.cc` 中对 `risch()` 的兜底调用（启发式失败后，约 3045 行）。**不可**将 `risch.cc` 单独编译移植：其依赖 `gen` / `polynome` / `fraction`、`derive`、`subst`、`sym2poly`、`partfrac`、`lin`（指数线性分解）、`trig2exp` / `exp2trig`、`gausspol`、`ifactor`、`Tresultant` 等全栈能力。
+对标 `giac/giac-2.0.0/src/risch.cc`（≈1107 行）及 `intg.cc` 中对 `risch()` 的兜底调用（启发式失败后）。**不可**将 `risch.cc` 单独编译移植：其依赖 `gen` / `polynome` / `fraction`、`derive`、`subst`、`sym2poly`、`partfrac`、`lin`（指数线性分解）、`trig2exp` / `exp2trig`、`gausspol`、`ifactor`、`Tresultant` 等全栈能力。
 
 **策略总览：** 短期以 **`integrate` 规则表 + `partfrac` 管道** 拉高 `check/testintegrate` 与积分表覆盖率；中长期在 Rust 中**按依赖顺序**补齐 Risch 子算法，最终 `integrate` 在规则失败时调用 `risch()`，`risch` 与 `integrate` 共享同一实现核心。
 
@@ -591,7 +725,7 @@ flowchart LR
 
 | GIAC（`risch.cc` / `intg.cc`） | 作用 | giac-rs 目标模块 | 现状 |
 |-------------------------------|------|------------------|------|
-| `integrate_gen` / 启发式 | 三角、分部、`sqrt` 等 | `giac-calculus::integrate` + `integrate_heuristics` | ⚠️ 规则子集 + 写死 `try_integrate_*`；**25/66** SymPy enabled |
+| `integrate_gen` / 启发式 | 三角、分部、`sqrt` 等 | `giac-calculus::integrate` + `integrate_heuristics` | ⚠️ 规则子集 + 写死 `try_integrate_*`；check **30/31** enabled eval |
 | `partfrac` + `integrate` 有理项 | 有理函数积分 | `partfrac_integrate` + `giac-poly::partfrac` | ✅ 重复因子/Hermite；⚠️ 混合 1L+1Q 仍写死系数（**GIAC-224b**） |
 | `lin` + `trig2exp` | 拆成 `coeff*exp(expo)` | `giac-core::algebra`（新）或 `giac-calculus` | ❌ |
 | `risch_tower` | 判定 `exp`/`ln` 初等塔 | `giac-calculus::risch::tower` | ⚠️ 骨架 + `pow2expln` |
@@ -615,7 +749,7 @@ flowchart LR
 | **4d 长期** | GIAC-230 | **`risch` 主流程**：`risch_lin` → `in_risch`；`remains_to_integrate` | GIAC-229 | `risch(f,x)` ≠ 单纯委托；`giac_check_risch_*` 独立 gate |
 | **4d 长期** | GIAC-231 | **`integrate` 接 `risch` 兜底**（对标 `intg.cc` `do_risch`） | GIAC-230 | `check/testintegrate` enabled 比例目标（见下） |
 
-**非目标（Phase 4）：** 完整搬运 `intg.cc`（≈6255 行）全部启发式；`assume`/`purge` 含参积分；复数塔上完整 Risch（`has_i` 分支可后置）。
+**非目标（Phase 4）：** 完整搬运 `giac-2.0.0/src/intg.cc`（≈7344 行）全部启发式；复数塔上完整 Risch（`has_i` 分支可后置）。语句级 `assume`/`purge` 与 `froot`/`froots` 已纳入 **GIAC-204b** / **GIAC-232**。
 
 #### 3.1.3 `integrate` 与 `risch` 的职责划分
 
@@ -630,7 +764,7 @@ flowchart LR
 | 里程碑 | `check_integrate_table.json` | 说明 |
 |--------|------------------------------|------|
 | Phase 4a | harness + 首批 enabled | `giac_check_integrate` gate 已接 |
-| Phase 4b 目标 | ≥20/66 enabled | 规则 + partfrac — **✅ 28/66（2026-06-15）** |
+| Phase 4b 目标 | ≥20/66 enabled | 规则 + partfrac — **✅ 31/66 enabled；30/31 eval（2026-06-16）** |
 | Phase 4c 目标 | ≥35/66 enabled | Hermite + Rothstein–Trager；inventory 见 **§3.1.7** |
 | Phase 4d 目标 | ≥50/66 enabled | 真 `risch`；余下多为含参/定积分/非初等 |
 
@@ -662,29 +796,31 @@ flowchart LR
 | **GIAC-225b** | `integrate_heuristics.rs` | 半角、`x/√(x²+c)`、`x·√(ax²+bx+c)` 等硬匹配 | 扩展 `intg.cc` 子集或 `trig2exp` 前处理 | **CK-INT-11**、14、43 |
 | **GIAC-215b** | `limit.rs` — `try_known_limit` | 经典极限表；**无** 0/∞ 不定式化简 | `series` 在点展开或 L'Hôpital 子集 | **CK-INT-55/56/58/60/61** |
 | **GIAC-217b** | `risch/mod.rs` — `eval_risch` | 完全委托 `eval_integrate` | **GIAC-230** 真 `risch_lin` / `in_risch` | `risch` ≠ `integrate` 语义 |
-| **GIAC-204b** | parser / eval | `assume`/`purge` 复合语句未解析 | 语句级 `assume` 或跳过多语句行 | **CK-INT-50/54** |
+| **GIAC-204b** | `giac-parse` + `giac-core::Context` | 逗号分隔 `assume,expr,purge` 未解析 | 假设栈 + CK-INT-50/54 eval | **CK-INT-50/54** |
 | **GIAC-213b** | `integrate` 乘积 | `sin²·cos⁴` 等幂次三角积 | 降幂 / `trig2exp` | **CK-INT-14** |
 
 **尚未实现（非写死，整块缺失）：** GIAC-229–231（`risch_desolve`、主流程、`integrate`→`risch` 兜底）；一般塔上 RT；含参定积分与 `+infinity` 完整语义。
 
 #### 3.1.7 CK-INT inventory（下一批可启用）
 
-**门禁：** `cargo test -p giac-conformance --test giac_check_integrate enabled`（integrate 行仅 eval；limit/series 仍 SymPy；当前 **28/66** enabled）。
+**门禁：** `cargo test -p giac-conformance --test giac_check_integrate enabled`（integrate 行仅 eval；limit/series 仍 SymPy；当前 **30/31** enabled eval）。
 
 **手动 SymPy（易超时）：** `cargo test -p giac-conformance --test giac_check_integrate enabled_sympy -- --ignored`
 
-**已 enabled（28）：** CK-INT-02, 03, 04, 06, 07, 08, 09, **11**, 12, 13, 18, 19, 20, 21, 22, 28, 29, 30, 32, 37, **55**, 57, **59**, 62–66（series）。
+**已 enabled eval 绿（30）：** CK-INT-02–04, 06–09, 11–14, 18–22, 28–30, 32, 37, 43, 55, 57, 59, 62–66。
+
+**enabled 但 eval 失败（1）：** CK-INT-05。
 
 **Inventory 命令：**
 
 ```bash
-# 快：仅 eval（无 SymPy）
+# enabled 行 eval 审计
+cargo test -p giac-conformance --test giac_check_integrate_inventory \
+  enabled_eval_only -- --ignored --nocapture
+
+# disabled 行 eval 审计
 cargo test -p giac-conformance --test giac_check_integrate_inventory \
   disabled_eval_only -- --ignored --nocapture
-
-# 慢：disabled 行逐条 SymPy（含参/+∞ 行可能挂起，慎用）
-cargo test -p giac-conformance --test giac_check_integrate_inventory \
-  disabled_sympy_green -- --ignored --nocapture
 ```
 
 **2026-06-15 eval-only（41 disabled → 4 eval OK）：**
@@ -719,9 +855,11 @@ cargo test -p giac-conformance --test giac_check_integrate_inventory \
 
 | 文件 | 阅读顺序 | 说明 |
 |------|----------|------|
-| `giac/giac-1.5.0/src/intg.cc` | 1 | `integrate_gen` 启发式；`do_risch` 开关 |
-| `giac/giac-1.5.0/src/risch.cc` | 2 | `risch` → `risch_lin` → `in_risch` |
-| `giac/giac-1.5.0/src/risch.h` | — | 对外 API |
+| `giac/giac-2.0.0/src/intg.cc` | 1 | `integrate_gen` 启发式；`do_risch` 开关 |
+| `giac/giac-2.0.0/src/risch.cc` | 2 | `risch` → `risch_lin` → `in_risch` |
+| `giac/giac-2.0.0/src/risch.h` | — | 对外 API |
+| `giac/giac-2.0.0/src/usual.cc` | — | `giac_assume` / `purge_assume`（**GIAC-204b**） |
+| `giac/giac-2.0.0/src/misc.cc` | — | `_froot`（**GIAC-232**） |
 | `giac-rs/crates/giac-calculus/src/integrate.rs` | — | 当前规则入口 |
 | `giac-rs/crates/giac-calculus/src/partfrac_integrate.rs` | — | partfrac 积分管道 |
 | `giac-rs/crates/giac-calculus/src/risch/` | — | 塔 / Hermite / RT（待扩展为真 Risch） |
@@ -730,14 +868,15 @@ cargo test -p giac-conformance --test giac_check_integrate_inventory \
 
 ### 里程碑 M4d：`giac-ode` 与验收（2–3 周）
 
-#### GIAC-218 — 新建 `giac-ode` + 线性常系数 `desolve`
+#### GIAC-218 — 新建 `giac-ode` + 线性常系数 `desolve` — ✅ 子集 / ❌ 完整 `desolve.cc`
 
 | 字段 | 内容 |
 |------|------|
 | **Blocked by** | GIAC-202, GIAC-205 |
-| **What** | 特征方程法；重根、非齐次常数强迫项 |
-| **验收** | `test_desolve`、`test_desolve_ext` SymPy `dsolve` 对照 |
-| **第三方测试** | `ODE-H01`–`H03`；SymPy `dsolve` + `checkodesol`；`test_desolve.rs` 全文件 |
+| **What（已做）** | 特征方程法；`y''+y=0`；`y'=x*y`；`y''+4y=sin(x)`（`sin` 强迫） |
+| **What（未做）** | 一般强迫、变系数、边值、级数解（对标 `desolve.cc` 主体） |
+| **验收** | `phase4_batch4`；`test_desolve*` 全文件 SymPy 子集 |
+| **第三方测试** | `ODE-H01`–`H03`；SymPy `dsolve` + `checkodesol` |
 
 #### GIAC-219 — check golden harness（integrate / limit / other）
 
@@ -785,6 +924,8 @@ flowchart TD
     G217[GIAC-217 risch 4a]
     G223[GIAC-223-231 Risch 4b+]
     G204[GIAC-204 infinity]
+    G204b[GIAC-204b assume/purge]
+    G232[GIAC-232 froot/froots]
     G205[GIAC-205 roots rootof]
     G206[GIAC-206 sturm]
     G207[GIAC-207 realroot]
@@ -798,6 +939,8 @@ flowchart TD
     G220[GIAC-220 phase4 triple]
 
     G201 --> G204
+    G204 --> G204b
+    G205 --> G232
     G201 --> G206
     G206 --> G207
     G205 --> G218
@@ -808,7 +951,7 @@ flowchart TD
     G215 --> G216
     G210 --> G223
     G212 --> G223
-    G223 --> G219
+    G204b --> G219
     G215 --> G219
     G219 --> G220
 ```
@@ -819,9 +962,10 @@ flowchart TD
 | **Batch 2** | 205, 206, 211, 214, 209 | solve 根 + Sturm + 积分扩展 + 多元导数 | **⚠️ 2026-06-15**（206 部分；余 ✅） |
 | **Batch 3** | 207, 208, 212, 213, 215 | partfrac 管道、分部积分、极限 | **✅ 2026-06-15** |
 | **Batch 4** | 216, 217, 218, 219, 220, 221, 222 | 级数、ODE、golden、文档、WASM | **✅ 2026-06-15**（219/221 部分） |
-| **Batch 4b+** | 223–231 + §3.1.6 子任务 | `integrate`/`partfrac` → Hermite/RT → Risch | ⚠️ **25/66**；224/227/228 部分 ✅ |
+| **Batch 4b+** | 223–231 + §3.1.6 子任务 | `integrate`/`partfrac` → Hermite/RT → Risch | ⚠️ **30/31** enabled eval；224/227/228 部分 ✅ |
+| **Batch 4c** | 204b, 232 | `assume`/`purge` 语句链；`froot`/`froots` | ❌ 未开始 |
 
-**建议下一批（Batch 3 优先序）：** GIAC-212 → GIAC-215 → GIAC-206 收尾 → GIAC-213 → GIAC-207/208。
+**建议下一批（P0 修回归）：** **INT-A06** + **CK-INT-05**（partfrac 项序/一般 factor）→ **GIAC-206** `sturm` 重因子 → 向 **35/66** 推进（CK-INT-01 SymPy 性能、CK-INT-56/58/60/61 limit）。
 
 **与 Phase 3 收尾的衔接：** 建议先关闭 [GIAC-106](phase3-issues.md)（符号线代迁入 `giac-linalg`），再大规模扩展 `giac-solve` 对 `linsolve` 的依赖，避免 crate 边界反复搬迁。
 
@@ -829,12 +973,13 @@ flowchart TD
 
 ## 5. Phase 4 验收标准（对齐迁移计划）
 
-| 级别 | 标准 | 当前（2026-06-15） |
+| 级别 | 标准 | 当前（2026-06-16） |
 |------|------|-------------------|
 | **最小（M4 启动）** | `giac-solve` / `giac-calculus` workspace 全绿；`test_solve` + `test_diff` | ✅ 已达成 |
-| **中期（M4 核心）** | 全部 Phase 4 **bin** 可解析；≥80% 行 SymPy 通过 | ⚠️ 解析 ✅；SymPy **未达 80%**（limit/series/desolve/partfrac 阻塞） |
-| **积分专项** | `phase4_integrate_table.json` 已关闭 GIAC 项 **enabled 全绿** | ⚠️ 211 ✅；210 缺 3 行；212/213 未启 |
-| **关门（M4 完成）** | check golden 子集；`giac-ode` 覆盖 `test_desolve*` | ❌ 未开始 |
+| **中期（M4 核心）** | 全部 Phase 4 **bin** 可解析；≥80% 行 SymPy 通过 | ⚠️ 解析 ✅；SymPy 约 **60–70%**（`test_partfrac_ext`/`test_desolve_ext` 未全覆盖） |
+| **积分专项** | `phase4_integrate_table.json` enabled 行 eval 全绿 | ⚠️ **27/28**（**INT-A06**） |
+| **check 专项** | `check_integrate_table.json` enabled eval 全绿 | ⚠️ **30/31**（**CK-INT-05**） |
+| **关门（M4 完成）** | check golden 子集；`giac-ode` 覆盖 `test_desolve*` | ❌ `giac_check_limit`/`other` 未接；desolve 子集 |
 | **工程** | `cargo ci-clippy`；`wasm32` `giac-wasm`；DIV-080+ | ✅ clippy/wasm 冒烟；DIV 未系统登记 |
 
 ---
@@ -859,21 +1004,21 @@ flowchart TD
 | [phase3-issues.md](phase3-issues.md) | GIAC-101–117、Phase 3→4 衔接 |
 | [functional-coverage.md](functional-coverage.md) | API ↔ 测试映射 |
 | [conformance-testing.md §3](conformance-testing.md) | `assert_equiv` 规格 |
-| `giac-rs/tests/conformance/fixtures/check_integrate_table.json` | §3.1 `testintegrate` 分级 enabled（25/66） |
-| `giac-rs/tests/conformance/tests/giac_check_integrate_inventory.rs` | §3.1.7 disabled 行 eval / SymPy inventory（`#[ignore]`） |
-| `giac-rs/tests/conformance/fixtures/phase4_integrate_table.json` | §2.7 积分表 fixture（26/27 enabled） |
+| `giac-rs/tests/conformance/fixtures/check_integrate_table.json` | §3.1 `testintegrate` 分级 enabled（**31/66**；**30/31** eval） |
+| `giac-rs/tests/conformance/tests/giac_check_integrate_inventory.rs` | enabled/disabled eval 审计（`enabled_eval_only` / `disabled_eval_only`） |
+| `giac-rs/tests/conformance/fixtures/phase4_integrate_table.json` | §2.7 积分表 fixture（**28 enabled**；**27/28** eval） |
 | `giac-rs/tests/conformance/fixtures/phase4_maxima_rtest.json` | Maxima limit 草稿（8 条，待 GIAC-215） |
 | `giac-rs/tests/conformance/scripts/extract_maxima_rtest.py` | Maxima `.mac` → giac JSON 抽取 |
 | `giac-rs/tests/conformance/scripts/sympy_verify.py` | 第三方 SymPy 验证 |
 | [builtin-api-map.md](builtin-api-map.md) | `at_*` → Rust crate |
-| `giac/giac-1.5.0/src/solve.cc`, `intg.cc`, `derive.cc`, `series.cc`, `risch.cc`, `csturm.cc`, `desolve.cc` | 算法参考 |
+| `giac/giac-2.0.0/src/{solve,intg,derive,series,risch,csturm,desolve,misc,usual,prog}.cc` | 算法参考（[根目录](/home/kanli.hu/upstream/giac/giac/giac-2.0.0)） |
 | `giac-rs/crates/giac-solve/`, `giac-calculus/` | 当前实现 |
 
 ---
 
 ## 8. 维护
 
-1. Issue 关闭时同步更新本文件 §3.0 状态列与 §1 进度快照，并将 `phase4_integrate_table.json` 中相关项 `enabled: true`。
+1. Issue 关闭时同步更新本文件 §1 / §3.0 状态列，并确保 `enabled: true` 行 **eval 实测绿**（§1.4.3 审计命令）。
 2. 新建 DIV 须写入 [known-divergences.md](known-divergences.md)（DIV-080 起），注明验证层级（T1–T5）。
 3. 外部语料（Maxima rtest）经 `extract_maxima_rtest.py` 生成草稿后，审核通过再写入 `fixtures/` 并酌情 `enabled`。
 4. Phase 4 关门后，将 [phase3-issues.md](phase3-issues.md) 重命名为 `migration-issues.md` 或合并入本文档 Phase 5+ 章节（见 phase3-issues §维护）。
