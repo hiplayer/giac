@@ -8,6 +8,9 @@ use num_bigint::BigInt;
 use num_traits::{Signed, Zero};
 
 use crate::integrate::try_as_rational;
+use crate::limit_engine::{
+    limit_finite_algebraic, limit_minus_infinity_algebraic, limit_plus_infinity_algebraic,
+};
 
 /// `limit(expr, var, point)` — algebraic/trigonometric basics (GIAC-215).
 pub fn eval_limit(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
@@ -64,9 +67,9 @@ fn limit_expr(
         return Ok(r);
     }
     match point {
-        LimitPoint::Finite => limit_finite(expr, var, point_expr, ctx),
-        LimitPoint::PlusInfinity => limit_plus_infinity(expr, var, ctx),
-        LimitPoint::MinusInfinity => Err(EvalError::NotImplemented("limit")),
+        LimitPoint::Finite => limit_finite_algebraic(expr, var, point_expr, ctx),
+        LimitPoint::PlusInfinity => limit_plus_infinity_algebraic(expr, var, ctx),
+        LimitPoint::MinusInfinity => limit_minus_infinity_algebraic(expr, var, ctx),
     }
 }
 
@@ -496,5 +499,28 @@ mod tests {
         );
         let r = eval(e.as_ref(), &ctx).unwrap();
         assert_eq!(format_expr(r.as_ref()), "+infinity");
+    }
+
+    fn eval_parsed_limit(line: &str) -> ExprArc {
+        let ctx = xcas_default();
+        let stmts = giac_parse::parse_program(&format!("{line};"), &ctx).expect("parse");
+        let giac_core::Stmt::ExprStmt(e) = stmts.first().expect("stmt") else {
+            panic!("expected expr stmt");
+        };
+        eval(e.as_ref(), &ctx).expect("eval")
+    }
+
+    #[test]
+    fn limit_ck_int_58_parsed() {
+        let r = eval_parsed_limit("limit((x+1)/sqrt((x+1)/(x-1)),x,+infinity)");
+        assert_eq!(format_expr(r.as_ref()), "+infinity");
+    }
+
+    #[test]
+    fn limit_ck_int_61_parsed() {
+        let r = eval_parsed_limit(
+            "limit((exp(x*exp(-x)/(exp(-x)+exp(-2*x^2/(x+1))))-exp(x))/x,x,+infinity)",
+        );
+        assert_eq!(format_expr(r.as_ref()), "-exp(2)");
     }
 }

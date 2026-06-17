@@ -392,8 +392,8 @@
       "id": "CK-INT-56",
       "line": "limit(sqrt(x^2+x+1)-sqrt(x^2+1),x,+infinity)",
       "kind": "limit",
-      "enabled": false,
-      "giac_issue": "GIAC-219"
+      "enabled": true,
+      "giac_issue": "GIAC-215b"
     },
     {
       "id": "CK-INT-57",
@@ -406,8 +406,8 @@
       "id": "CK-INT-58",
       "line": "limit((x+1)/sqrt((x+1)/(x-1)),x,+infinity)",
       "kind": "limit",
-      "enabled": false,
-      "giac_issue": "GIAC-219"
+      "enabled": true,
+      "giac_issue": "GIAC-215b"
     },
     {
       "id": "CK-INT-59",
@@ -420,15 +420,15 @@
       "id": "CK-INT-60",
       "line": "limit(exp(x*exp(-x)/(exp(-x)+exp(-2*x^2/(x+1))))/x,x,+infinity)",
       "kind": "limit",
-      "enabled": false,
-      "giac_issue": "GIAC-219"
+      "enabled": true,
+      "giac_issue": "GIAC-215b"
     },
     {
       "id": "CK-INT-61",
       "line": "limit((exp(x*exp(-x)/(exp(-x)+exp(-2*x^2/(x+1))))-exp(x))/x,x,+infinity)",
       "kind": "limit",
-      "enabled": false,
-      "giac_issue": "GIAC-219"
+      "enabled": true,
+      "giac_issue": "GIAC-215b"
     },
     {
       "id": "CK-INT-62",

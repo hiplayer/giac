@@ -11,6 +11,7 @@ mod partfrac_integrate;
 mod plugin;
 mod stubs;
 mod limit;
+mod limit_engine;
 mod series;
 mod risch;
 
