@@ -39,26 +39,38 @@ Maxima `tests/rtest_limit*.mac` 中抽取了 14 条 `limit` 用例（`giac-calcu
 | `sparse_series.rs` | `atan(1/u)`、`sqrt` 二项级数 |
 | `mod.rs` | `limit_via_reciprocal` 改走 `limit_at_zero_fallback`（避免 atan L'Hôpital 挂起） |
 
-## Maxima 回归状态（2026-06-17）
+## Maxima 回归状态（2026-06-17，续）
 
 | 用例 | 期望 | 状态 |
 |------|------|------|
 | `sin(x)/x` @ 0 | 1 | ✅ |
 | `(1-cos)/x²` @ 0 | 1/2 | ✅ |
-| `(1+1/n)^n` @ +∞ | `exp(1)` | ✅（已知极限） |
+| `(1+1/n)^n` @ +∞ | `exp(1)` | ✅ |
 | `a/n` @ +∞ | 0 | ✅ |
 | `7^n/8^n` @ +∞ | 0 | ✅ MRV |
-| `4^n/2^(2n)` @ +∞ | 1 | ✅ `fold_exp_zero_linear` |
-| `x*(sqrt(1+x²)-x)` @ +∞ | 1/2 | ✅ 共轭 |
-| `x/(x^ln(x))` @ +∞ | 0 | ❌ 超越渐近（`ln(x)²`） |
-| `(1+1/x)*(sqrt(x+1)+1)` @ +∞ | +∞ | ❌ |
-| `x*atan(x)/(x+1)` @ +∞ | `pi/2` | ❌ 倒数级数 / `series_div` 与 `pi` |
+| `4^n/2^(2n)` @ +∞ | 1 | ✅ |
+| `x*(sqrt(1+x²)-x)` @ +∞ | 1/2 | ✅ 共轭 / fallback |
+| `x/(x^ln(x))` @ +∞ | 0 | ✅ 形状识别 |
+| `(1+1/x)*(sqrt(x+1)+1)` @ +∞ | +∞ | ✅ `limit_poly_over_sqrt` |
+| `x*atan(x)/(x+1)` @ +∞ | `pi/2` | ✅ 倒数级数 + `series_atan_of_inv` |
+| `(3^x+5^x)^(1/x)` | 5 | ✅ `limit_exp_sum_nth_root` |
 | gruntz `exp*(exp(...)-exp(...))` | -1 | ❌ MRV 级数 |
-| `(3^x+5^x)^(1/x)` | 5 | ❌ 缺 `mrv_compare` 主导项 |
 | CK-INT-60 比值 | 1 | ❌ MRV 比值收敛 |
 | gruntz 嵌套 exp 差 | 1 | ❌ MRV 级数 |
 
-**通过：7/14**（原 4/14）；**仍 ignore：7 条**。
+**通过：11/14**；**仍 ignore：3 条 gruntz**。
+
+### Phase 0 fallback-only（`limit_at_plus_infinity_fallback`）
+
+| 用例 | 期望 | 状态 |
+|------|------|------|
+| `(x+1)/(x-1)` | 1 | ✅ |
+| `x*(sqrt(1+x²)-x)` | 1/2 | ✅ |
+| CK-INT-58 | +∞ | ✅ |
+| `x*atan(x)/(x+1)` | `pi/2` | ✅ |
+| `(1+1/x)*(sqrt(x+1)+1)` | +∞ | ✅ |
+
+**fallback 矩阵：5/5 全绿。**
 
 ## 后续（对齐 upstream 完整实现）
 
