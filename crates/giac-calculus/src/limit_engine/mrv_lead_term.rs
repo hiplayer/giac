@@ -3,16 +3,17 @@
 use std::sync::Arc;
 
 use giac_core::{
-    eval, ratnormal, Context, EvalError, Expr, ExprArc, FuncKind, Ident,
+    eval, eval_subst_map, expr_to_poly, poly_to_expr, Context, EvalError, Expr, ExprArc,
+    FuncKind, Ident,
 };
+use giac_simplify::ratnormal;
 use num_traits::{Signed, Zero};
 
 use super::bounds::{mrv_rewrite_bounded, mrv_series_eligible, MAX_SERIES_ORDER};
 use super::mrv::{choose_mrv_w, mrv_at_plus_infinity};
+use super::mrv_w::{decompose_ln_w_coeff, expr_contains_ln_w, is_mrv_w_var, MRV_W};
 use super::preprocess::limit_preprocess_plus_infinity;
 use super::sparse_series::series_at_zero;
-
-const MRV_W: &str = "_mrv_w";
 
 #[derive(Clone, Debug)]
 pub(crate) struct MrvLeadTerm {
@@ -133,10 +134,23 @@ fn is_neg_var(e: &ExprArc, var: &Ident) -> bool {
 }
 
 fn rewrite_ln_w(expr: &ExprArc, var: &Ident) -> ExprArc {
+    if expr_contains_ln_w(expr) {
+        let (k, rest) = decompose_ln_w_coeff(expr);
+        if k != 0 {
+            let mut parts = vec![Expr::mul(vec![
+                Expr::int(i64::from(k)),
+                Expr::mul(vec![Expr::int(-1), Expr::sym(var.as_str())]),
+            ])];
+            if !super::mrv_w::is_expr_one(&rest) && !super::mrv_w::is_expr_zero(&rest) {
+                parts.push(rewrite_ln_w(&rest, var));
+            }
+            return Expr::add(parts);
+        }
+    }
     match expr.as_ref() {
         Expr::Func(FuncKind::Ln, args)
             if args.len() == 1
-                && matches!(args[0].as_ref(), Expr::Symbol(id) if id.as_str() == MRV_W) =>
+                && matches!(args[0].as_ref(), Expr::Symbol(id) if is_mrv_w_var(id)) =>
         {
             Expr::mul(vec![Expr::int(-1), Expr::sym(var.as_str())])
         }
@@ -242,12 +256,11 @@ mod tests {
             ]),
             Expr::pow(Expr::sym("x"), Expr::int(-1)),
         ]);
-        if let Ok(lead) = mrv_lead_term_plus_infinity(&e, &var, &ctx) {
+        let lead = mrv_lead_term_plus_infinity(&e, &var, &ctx);
+        if let Ok(lead) = lead {
             if let Ok(lim) = limit_from_mrv_lead_term(&lead, &var, &ctx) {
                 assert_eq!(format_expr(lim.as_ref()), "-exp(2)");
-                return;
             }
         }
-        // MRV series not yet strong enough for nested exp; shape rule covers this in limit engine.
     }
 }

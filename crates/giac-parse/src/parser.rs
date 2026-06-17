@@ -505,6 +505,7 @@ fn lookup_func(name: &str) -> Option<FuncKind> {
         "halftan" => Some(FuncKind::Halftan),
         "lin" => Some(FuncKind::Lin),
         "factor" => Some(FuncKind::Factor),
+        "ifactor" => Some(FuncKind::Ifactor),
         "quo" => Some(FuncKind::Quo),
         "rem" => Some(FuncKind::Rem),
         "content" => Some(FuncKind::Content),

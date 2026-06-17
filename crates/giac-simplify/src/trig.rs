@@ -2,10 +2,10 @@ use std::sync::Arc;
 
 use num_bigint::BigInt;
 
-use crate::num_util::bigint_to_i64;
-use crate::{Context, EvalError, Expr, ExprArc, FuncKind};
+use giac_core::bigint_to_i64;
+use giac_core::{Context, EvalError, Expr, ExprArc, FuncKind};
 
-use super::expand::expand;
+use crate::expand::expand;
 
 /// Expand transcendental functions (`sin`, `cos`, `exp`, `ln`) in arguments, then algebraically expand.
 pub fn texpand(expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
@@ -409,7 +409,7 @@ fn lin_exp_plus_one_pow(base: &ExprArc, exp: &ExprArc) -> Option<ExprArc> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::format_expr;
+    use giac_core::format_expr;
 
     fn ctx() -> Context {
         Context::default()

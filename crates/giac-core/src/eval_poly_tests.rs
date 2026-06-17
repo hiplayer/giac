@@ -75,20 +75,6 @@ fn eval_smod_irem_direct() {
 }
 
 #[test]
-fn eval_factor_direct() {
-    let ctx = Context::xcas_default();
-    let e = Expr::func(
-        FuncKind::Factor,
-        vec![Expr::add(vec![
-            Expr::pow(Expr::sym("x"), Expr::int(4)),
-            Expr::int(-1),
-        ])],
-    );
-    let r = eval(e.as_ref(), &ctx).unwrap();
-    assert_eq!(format_expr(r.as_ref()), "(x-1)*(x+1)*(x^2+1)");
-}
-
-#[test]
 fn eval_mod_gcd_direct() {
     let ctx = Context::xcas_default();
     let a = Arc::new(Expr::Mod(
@@ -240,32 +226,6 @@ fn eval_greduce_circle() {
     );
     let r = eval(e.as_ref(), &ctx).unwrap();
     assert_eq!(format_expr(r.as_ref()), "2*y^2-1");
-}
-
-#[test]
-fn eval_normal_mod_power() {
-    let ctx = Context::xcas_default();
-    let e = Expr::func(
-        FuncKind::Normal,
-        vec![Expr::pow(
-            Arc::new(Expr::Mod(
-                Expr::add(vec![
-                    Expr::mul(vec![Expr::int(2), Expr::sym("x")]),
-                    Expr::int(1),
-                ]),
-                Expr::int(13),
-            )),
-            Expr::int(5),
-        )],
-    );
-    let r = eval(e.as_ref(), &ctx).unwrap();
-    let s = format_expr(r.as_ref());
-    assert!(s.contains("(6 % 13)*x^5") || s.contains("x^5"), "got {s}");
-    verify_sympy_style_mod(&s);
-}
-
-fn verify_sympy_style_mod(s: &str) {
-    assert!(s.contains("% 13"));
 }
 
 #[test]

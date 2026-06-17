@@ -161,7 +161,8 @@ fn is_const_wrt(e: &ExprArc, var: &Ident) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use giac_core::{assert_equiv, format_expr, simplify, Context};
+    use giac_core::{format_expr, simplify, Context};
+    use giac_simplify::assert_equiv;
 
     fn x() -> Ident {
         Ident::new("x")

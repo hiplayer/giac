@@ -83,7 +83,7 @@ pub(crate) fn u64_to_expr_int(n: u64) -> ExprArc {
     }
 }
 
-fn ratio_to_expr(r: &Ratio<BigInt>) -> ExprArc {
+pub fn ratio_to_expr(r: &Ratio<BigInt>) -> ExprArc {
     if r.is_zero() {
         Expr::int(0)
     } else if r.denom() == &BigInt::one() {

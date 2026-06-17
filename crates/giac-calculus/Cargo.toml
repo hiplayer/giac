@@ -16,6 +16,7 @@ num-bigint = { workspace = true }
 num-rational = { workspace = true }
 num-traits = { workspace = true }
 giac-solve = { workspace = true }
+giac-simplify = { workspace = true }
 
 [dev-dependencies]
 giac-parse = { workspace = true }

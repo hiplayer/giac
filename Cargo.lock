@@ -60,6 +60,7 @@ dependencies = [
  "giac-core",
  "giac-parse",
  "giac-poly",
+ "giac-simplify",
  "giac-solve",
  "num-bigint",
  "num-rational",
@@ -88,6 +89,7 @@ dependencies = [
  "giac-linalg",
  "giac-ode",
  "giac-parse",
+ "giac-simplify",
  "giac-solve",
  "serde",
  "serde_json",
@@ -123,6 +125,7 @@ dependencies = [
  "giac-calculus",
  "giac-core",
  "giac-poly",
+ "giac-simplify",
  "nalgebra",
  "num-bigint",
  "num-integer",
@@ -166,6 +169,11 @@ name = "giac-simplify"
 version = "0.1.0"
 dependencies = [
  "giac-core",
+ "giac-poly",
+ "num-bigint",
+ "num-integer",
+ "num-rational",
+ "num-traits",
 ]
 
 [[package]]

@@ -2,9 +2,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use giac_core::{
-    eval, eval_subst_map, expand, expr_to_poly, poly_to_expr, ratnormal, Context, EvalError, Expr,
-    ExprArc, FuncKind, Ident,
+    eval, eval_subst_map, expr_to_poly, poly_to_expr, Context, EvalError, Expr, ExprArc,
+    FuncKind, Ident,
 };
+use giac_simplify::{expand, ratnormal};
 use giac_poly::{coeff_at, univariate_degree, Poly, Var};
 use num_bigint::BigInt;
 use num_rational::Ratio;
@@ -21,6 +22,8 @@ mod asymptotic;
 mod bounds;
 mod mrv;
 mod mrv_lead_term;
+mod mrv_series_lead;
+mod mrv_w;
 pub(crate) mod preprocess;
 mod sparse_series;
 

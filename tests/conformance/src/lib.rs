@@ -9,7 +9,8 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use giac_core::{assert_equiv, exec_stmt, format_expr, Context, Stmt, StmtResult};
+use giac_core::{exec_stmt, format_expr, Context, Stmt, StmtResult};
+use giac_simplify::assert_equiv;
 use giac_ode::xcas_default;
 use giac_parse::parse_program;
 

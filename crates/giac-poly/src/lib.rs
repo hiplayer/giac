@@ -21,7 +21,10 @@ pub use poly::{Poly, abcuv, egcd, quo, rem, simp2};
 pub use modint::{ModInt, irem, smod};
 pub use modular::{PolyMod, modp};
 pub use resultant::{coeff_at, resultant, roots, univariate_degree};
-pub use factor::{as_perfect_power, factor_into, factor_poly, factor_poly_mod, factor_mod_irreducibles, try_linear_power};
+pub use factor::{
+    as_perfect_power, factor_into, factor_mod_irreducibles, factor_poly, factor_poly_mod,
+    quadratic_sqrt_factor_exprs, ratio_perfect_sqrt, try_linear_power, vars_in,
+};
 pub use partfrac::{partfrac_rational_terms, partfrac_terms};
 pub use chinrem::{chinrem, chinrem_lists};
 pub use ops::{content, gauss};

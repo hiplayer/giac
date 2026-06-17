@@ -4,8 +4,9 @@ use num_bigint::BigInt;
 use num_rational::Ratio;
 
 use giac_core::{
-    bigint_to_i64, expand, Context, EvalError, Expr, ExprArc, FuncKind, Ident,
+    bigint_to_i64, Context, EvalError, Expr, ExprArc, FuncKind, Ident,
 };
+use giac_simplify::expand;
 
 /// Basic integration rules (Phase 1 / GIAC-110 subset).
 ///

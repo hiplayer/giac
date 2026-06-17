@@ -3,10 +3,11 @@ use std::sync::Arc;
 use num_bigint::BigInt;
 use num_traits::Zero;
 
-use crate::{Context, EvalError, Expr, ExprArc};
+use giac_core::{Context, EvalError, Expr, ExprArc};
 
-use super::expand::expand;
-use super::poly::{expr_to_poly, poly_to_expr, Poly};
+use crate::expand::expand;
+use giac_core::{expr_to_poly, poly_to_expr};
+use giac_poly::Poly;
 
 /// Normalize a rational expression to a single fraction in lowest terms.
 pub fn ratnormal(expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
@@ -45,12 +46,12 @@ fn rational_parts(expr: &Expr, ctx: &Context) -> Result<(Poly, Poly), EvalError>
         Expr::Pow(base, exp) => {
             if let Expr::Int(e) = exp.as_ref() {
                 if e < &BigInt::zero() {
-                    let e_u = crate::num_util::bigint_to_u32_abs(e)?;
+                    let e_u = giac_core::bigint_to_u32_abs(e)?;
                     let (n, d) = rational_parts(base, ctx)?;
                     return Ok((d.pow(u64::from(e_u)), n.pow(u64::from(e_u))));
                 }
                 if e >= &BigInt::zero() {
-                    let e_u = crate::num_util::bigint_to_nonneg_u32(e)?;
+                    let e_u = giac_core::bigint_to_nonneg_u32(e)?;
                     let (n, d) = rational_parts(base, ctx)?;
                     return Ok((n.pow(u64::from(e_u)), d.pow(u64::from(e_u))));
                 }
@@ -113,8 +114,8 @@ fn reduce_fraction(num: Poly, den: Poly) -> Result<(Poly, Poly), EvalError> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::expr::{Expr, FuncKind};
-    use crate::{format_expr, Context};
+    use giac_core::{Expr, FuncKind};
+    use giac_core::{format_expr, Context};
 
     #[test]
     fn ratnormal_frac_form() {

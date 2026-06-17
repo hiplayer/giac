@@ -264,6 +264,7 @@ fn func_name(kind: FuncKind) -> &'static str {
         FuncKind::Apply => "apply",
         FuncKind::Prime => "prime",
         FuncKind::Factor => "factor",
+        FuncKind::Ifactor => "ifactor",
         FuncKind::Quo => "quo",
         FuncKind::Rem => "rem",
         FuncKind::Content => "content",

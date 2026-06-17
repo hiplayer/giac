@@ -40,9 +40,10 @@ pub fn install_calculus(ctx: &mut Context) {
     ctx.set_calculus_plugin(Arc::new(DefaultCalculusPlugin));
 }
 
-/// Full CAS context: linear algebra, solving, and calculus.
+/// Full CAS context: linear algebra, solving, simplification, and calculus.
 pub fn xcas_default() -> Context {
     let mut ctx = giac_solve::xcas_default();
+    giac_simplify::install_simplify(&mut ctx);
     install_calculus(&mut ctx);
     ctx
 }

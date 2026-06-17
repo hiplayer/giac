@@ -12,6 +12,7 @@ workspace = true
 [dependencies]
 giac-core = { workspace = true }
 giac-poly = { workspace = true }
+giac-simplify = { workspace = true }
 num-bigint = { workspace = true }
 num-integer = { workspace = true }
 num-rational = { workspace = true }

@@ -3,6 +3,7 @@
 #![cfg_attr(not(test), warn(clippy::expect_used))]
 
 mod algebra;
+mod algebra_plugin;
 mod context;
 mod display;
 mod error;
@@ -31,12 +32,16 @@ pub use expr::{Expr, ExprArc, FuncKind, RelOp};
 pub use float_format::format_float;
 pub use ident::Ident;
 pub use limits::MAX_POLY_EXPONENT;
+pub use algebra_plugin::AlgebraPlugin;
 pub use calculus_plugin::CalculusPlugin;
 pub use linalg_plugin::LinalgPlugin;
 pub use ode_plugin::OdePlugin;
 pub use solve_plugin::SolvePlugin;
-pub use algebra::poly::{expr_to_poly, poly_to_expr};
-pub use num_util::{bigint_to_i64, reduce_rational_pair};
-pub use algebra::{assert_equiv, expand, factor, is_zero, normal, ratnormal, sub};
+pub use algebra::poly::{
+    expr_to_poly, poly_mod_to_expr, poly_to_expr, ratio_to_expr, vars_from_expr,
+};
+pub use num_util::{
+    bigint_to_i64, bigint_to_nonneg_u32, bigint_to_u32_abs, reduce_rational_pair,
+};
 pub use simplify::simplify;
 pub use stmt::{exec_stmt, Stmt, StmtResult};

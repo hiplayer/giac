@@ -5,11 +5,11 @@ use std::sync::Arc;
 use num_rational::Ratio;
 use num_traits::{One, Zero};
 
-use crate::context::Context;
-use crate::error::EvalError;
-use crate::expr::{Expr, ExprArc, FuncKind};
+use giac_core::Context;
+use giac_core::EvalError;
+use giac_core::{Expr, ExprArc, FuncKind};
 
-use super::normal::normal;
+use crate::expand::normal;
 
 /// Construct `a - b` as an expression tree.
 pub fn sub(a: &Expr, b: &Expr) -> Result<ExprArc, EvalError> {
@@ -128,7 +128,7 @@ fn inv_sqrt_to_mul(base: &Expr) -> Option<ExprArc> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::format_expr;
+    use giac_core::format_expr;
 
     #[test]
     fn equiv_commutative_add() {

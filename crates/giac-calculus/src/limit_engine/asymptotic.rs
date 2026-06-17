@@ -7,9 +7,10 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use giac_core::{
-    eval, eval_subst_map, expr_to_poly, poly_to_expr, ratnormal, Context, EvalError, Expr,
+    eval, eval_subst_map, expr_to_poly, poly_to_expr, Context, EvalError, Expr,
     ExprArc, Ident,
 };
+use giac_simplify::ratnormal;
 use giac_poly::{coeff_at, univariate_degree, Poly, Var};
 use num_bigint::BigInt;
 use num_rational::Ratio;

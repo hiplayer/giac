@@ -9,6 +9,7 @@ mod multivariate;
 mod patterns;
 mod poly_uni;
 mod power;
+mod sqrt;
 #[cfg(test)]
 mod tracer;
 mod univariate;
@@ -16,7 +17,9 @@ mod util;
 
 use crate::poly::Poly;
 
+pub use util::{ratio_perfect_sqrt, vars_in};
 pub use power::{as_perfect_power, try_linear_power};
+pub use sqrt::quadratic_sqrt_factor_exprs;
 pub use univariate::factor_power_pairs;
 pub(crate) use univariate::find_rational_root;
 

@@ -4,9 +4,9 @@ use giac_poly::modp;
 use num_bigint::BigInt;
 use num_traits::Zero;
 
-use crate::{Context, EvalError, Expr, ExprArc, FuncKind};
+use giac_core::{Context, EvalError, Expr, ExprArc, FuncKind};
 
-use super::poly::{expr_to_poly, poly_mod_to_expr, poly_to_expr};
+use giac_core::{expr_to_poly, poly_mod_to_expr, poly_to_expr};
 
 /// Distribute products over sums and expand powers of sums.
 pub fn expand(expr: &Expr, _ctx: &Context) -> Result<ExprArc, EvalError> {
@@ -58,7 +58,7 @@ fn expand_pow(base: &ExprArc, exp: &ExprArc, ctx: &Context) -> Result<ExprArc, E
         if let (Ok(p), Ok(mod_i)) = (expr_to_poly(b), modulus_from_expr(m)) {
             if let Expr::Int(n) = exp.as_ref() {
                 if n >= &num_bigint::BigInt::zero() && n <= &num_bigint::BigInt::from(50) {
-                    let e = crate::num_util::bigint_to_nonneg_u32(n)?;
+                    let e = giac_core::bigint_to_nonneg_u32(n)?;
                     let pm = modp(&p.pow(u64::from(e)), mod_i).map_err(mod_err)?;
                     return Ok(poly_mod_to_expr(&pm));
                 }
@@ -68,7 +68,7 @@ fn expand_pow(base: &ExprArc, exp: &ExprArc, ctx: &Context) -> Result<ExprArc, E
     let base_e = expand(base, ctx)?;
     if let Expr::Int(n) = exp.as_ref() {
         if n >= &BigInt::zero() && n <= &BigInt::from(20) {
-            let e = crate::num_util::bigint_to_nonneg_u32(n)?;
+            let e = giac_core::bigint_to_nonneg_u32(n)?;
             if e == 0 {
                 return Ok(Expr::int(1));
             }
@@ -141,13 +141,13 @@ fn mod_err(e: giac_poly::PolyError) -> EvalError {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::{format_expr, Context, Expr};
+    use giac_core::{format_expr, Context, Expr};
 
     #[test]
     fn normal_mod_power_displays_giac_style() {
-        let ctx = Context::default();
+        let ctx = crate::plugin::xcas_default();
         let e = Expr::func(
-            crate::expr::FuncKind::Normal,
+            giac_core::FuncKind::Normal,
             vec![Expr::pow(
                 Arc::new(Expr::Mod(
                     Expr::add(vec![
@@ -159,11 +159,12 @@ mod tests {
                 Expr::int(5),
             )],
         );
-        let r = crate::eval::eval(e.as_ref(), &ctx).unwrap();
+        let r = giac_core::eval(e.as_ref(), &ctx).unwrap();
         let s = format_expr(r.as_ref());
         assert!(s.contains("% 13"), "got {s}");
         assert!(!s.contains(" mod 13*"), "nested mod display: {s}");
         assert!(s.contains("x^5"));
+        assert!(s.contains("(6 % 13)*x^5") || s.contains("x^5"));
     }
 
     #[test]
@@ -210,7 +211,7 @@ mod tests {
         let r = expand(&c, &ctx).unwrap();
         assert_eq!(format_expr(r.as_ref()), "a+b*i");
 
-        let trig = Expr::func(crate::expr::FuncKind::Sin, vec![Expr::sym("x")]);
+        let trig = Expr::func(giac_core::FuncKind::Sin, vec![Expr::sym("x")]);
         let n = normal(trig.as_ref(), &ctx).unwrap();
         assert_eq!(format_expr(n.as_ref()), "sin(x)");
     }
@@ -233,7 +234,7 @@ mod tests {
     fn expand_binomial_fallback_for_non_poly() {
         let ctx = Context::default();
         let e = Expr::pow(
-            Expr::add(vec![Expr::func(crate::expr::FuncKind::Sin, vec![Expr::sym("x")]), Expr::int(1)]),
+            Expr::add(vec![Expr::func(giac_core::FuncKind::Sin, vec![Expr::sym("x")]), Expr::int(1)]),
             Expr::int(2),
         );
         let r = expand(e.as_ref(), &ctx).unwrap();

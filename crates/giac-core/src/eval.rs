@@ -264,14 +264,21 @@ fn eval_func(kind: FuncKind, args: &[ExprArc], ctx: &Context) -> Result<ExprArc,
             Ok(Expr::func(kind, args.to_vec()))
         }
         FuncKind::Ln => Ok(Expr::func(FuncKind::Ln, args.to_vec())),
-        FuncKind::Normal => crate::algebra::normal(args[0].as_ref(), ctx),
-        FuncKind::Ratnormal => crate::algebra::ratnormal(args[0].as_ref(), ctx),
-        FuncKind::Expand => crate::algebra::expand(args[0].as_ref(), ctx),
-        FuncKind::Factor => crate::algebra::factor(args[0].as_ref(), ctx),
-        FuncKind::Texpand => crate::algebra::texpand(args[0].as_ref(), ctx),
+        FuncKind::Normal => ctx.algebra()?.normal(args[0].as_ref(), ctx),
+        FuncKind::Ratnormal => ctx.algebra()?.ratnormal(args[0].as_ref(), ctx),
+        FuncKind::Expand => ctx.algebra()?.expand(args[0].as_ref(), ctx),
+        FuncKind::Factor => ctx.algebra()?.factor(args[0].as_ref(), ctx),
+        FuncKind::Ifactor => {
+            let a = args.first().ok_or(EvalError::TooFewArgs("ifactor"))?;
+            match a.as_ref() {
+                Expr::Int(n) => Ok(ctx.algebra()?.ifactor(n)),
+                _ => Err(EvalError::TypeError("ifactor expects integer")),
+            }
+        }
+        FuncKind::Texpand => ctx.algebra()?.texpand(args[0].as_ref(), ctx),
         FuncKind::Tlin => Err(EvalError::NotImplemented("tlin")),
-        FuncKind::Halftan => crate::algebra::halftan(args[0].as_ref(), ctx),
-        FuncKind::Lin => crate::algebra::lin(args[0].as_ref(), ctx),
+        FuncKind::Halftan => ctx.algebra()?.halftan(args[0].as_ref(), ctx),
+        FuncKind::Lin => ctx.algebra()?.lin(args[0].as_ref(), ctx),
         FuncKind::Quo => crate::eval_poly::eval_quo(&args, ctx),
         FuncKind::Rem => crate::eval_poly::eval_rem(&args, ctx),
         FuncKind::Content => crate::eval_poly::eval_content(&args, ctx),
@@ -1006,6 +1013,7 @@ fn func_name(kind: FuncKind) -> &'static str {
         FuncKind::Tlin => "tlin",
         FuncKind::Halftan => "halftan",
         FuncKind::Lin => "lin",
+        FuncKind::Ifactor => "ifactor",
     }
 }
 
@@ -1109,7 +1117,7 @@ mod tests {
     }
 
     #[test]
-    fn eval_factor_x4_minus_1() {
+    fn eval_factor_x4_minus_1_requires_plugin() {
         let ctx = Context::default();
         let e = Expr::func(
             FuncKind::Factor,
@@ -1118,8 +1126,8 @@ mod tests {
                 Expr::int(-1),
             ])],
         );
-        let r = eval(e.as_ref(), &ctx);
-        assert!(r.is_ok());
+        let err = eval(e.as_ref(), &ctx).unwrap_err();
+        assert!(matches!(err, EvalError::NotImplemented(_)));
     }
 
     #[test]
@@ -1191,17 +1199,14 @@ mod tests {
     }
 
     #[test]
-    fn expand_binomial_no_stack_overflow() {
+    fn expand_binomial_requires_algebra_plugin() {
         let ctx = Context::default();
         let e = Expr::func(
             FuncKind::Normal,
             vec![Expr::pow(Expr::add(vec![Expr::sym("x"), Expr::int(3)]), Expr::int(4))],
         );
-        let r = eval(e.as_ref(), &ctx).unwrap();
-        assert_eq!(
-            format_expr(r.as_ref()),
-            "x^4+12*x^3+54*x^2+108*x+81"
-        );
+        let err = eval(e.as_ref(), &ctx).unwrap_err();
+        assert!(matches!(err, EvalError::NotImplemented(_)));
     }
 
     #[test]
@@ -1229,7 +1234,7 @@ mod tests {
     }
 
     #[test]
-    fn factor_perfect_square() {
+    fn factor_perfect_square_requires_algebra_plugin() {
         let ctx = Context::default();
         let e = Expr::func(
             FuncKind::Factor,
@@ -1241,8 +1246,8 @@ mod tests {
                 Expr::int(81),
             ])],
         );
-        let r = eval(e.as_ref(), &ctx).unwrap();
-        assert_eq!(format_expr(r.as_ref()), "(x+3)^4");
+        let err = eval(e.as_ref(), &ctx).unwrap_err();
+        assert!(matches!(err, EvalError::NotImplemented(_)));
     }
 
     #[test]
@@ -1306,7 +1311,7 @@ mod tests {
     }
 
     #[test]
-    fn eval_subst_and_algebra_funcs() {
+    fn eval_subst_algebra_funcs_require_plugin() {
         let ctx = ctx();
         let body = Expr::pow(Expr::add(vec![Expr::sym("x"), Expr::int(2)]), Expr::int(-1));
         let eq = Arc::new(Expr::Relation(RelOp::Eq, Expr::sym("x"), Expr::int(2)));
@@ -1325,8 +1330,8 @@ mod tests {
             .as_ref(),
             &ctx,
         )
-        .unwrap();
-        assert!(format_expr(rn.as_ref()).contains('/'));
+        .unwrap_err();
+        assert!(matches!(rn, EvalError::NotImplemented(_)));
 
         let ex = eval(
             Expr::func(
@@ -1336,8 +1341,8 @@ mod tests {
             .as_ref(),
             &ctx,
         )
-        .unwrap();
-        assert_eq!(format_expr(ex.as_ref()), "x^2+2*x+1");
+        .unwrap_err();
+        assert!(matches!(ex, EvalError::NotImplemented(_)));
     }
 
     #[test]
@@ -1674,7 +1679,7 @@ mod tests {
     }
 
     #[test]
-    fn eval_ratnormal_builtin() {
+    fn eval_ratnormal_builtin_requires_plugin() {
         let ctx = ctx();
         let e = Expr::func(
             FuncKind::Ratnormal,
@@ -1683,8 +1688,8 @@ mod tests {
                 Expr::rat(1, 2),
             ])],
         );
-        let r = eval(e.as_ref(), &ctx).unwrap();
-        assert!(format_expr(r.as_ref()).contains('x'));
+        let err = eval(e.as_ref(), &ctx).unwrap_err();
+        assert!(matches!(err, EvalError::NotImplemented(_)));
     }
 
     #[test]

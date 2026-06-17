@@ -6,15 +6,19 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use giac_core::{
-    eval, eval_subst_map, expr_to_poly, ratnormal, Context, EvalError, Expr, ExprArc, FuncKind,
+    eval, eval_subst_map, expr_to_poly, Context, EvalError, Expr, ExprArc, FuncKind,
     Ident,
 };
+use giac_simplify::ratnormal;
 use giac_poly::{coeff_at, univariate_degree, Poly, Var};
 use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::Zero;
 
 use super::bounds::{MAX_SERIES_DEPTH, MAX_SERIES_ORDER, MAX_SERIES_TERMS};
+use super::mrv_w::{
+    decompose_ln_w_coeff, is_expr_one, is_expr_zero as mrv_is_zero, is_mrv_w_var, mrv_ln_w_expr,
+};
 use crate::integrate::try_as_rational;
 use crate::risch::depends_on_var;
 
@@ -261,12 +265,14 @@ fn series_at_zero_depth(
     if !depends_on_var(expr, var) {
         return Ok(SparseSeries::constant(eval(expr.as_ref(), ctx)?));
     }
-    if let Some((num, den)) = try_as_rational(expr, var) {
-        return SparseSeries::from_rational_laurent(&num, &den, var, order);
-    }
-    if let Some(normalized) = ratnormal(expr.as_ref(), ctx).ok() {
-        if let Some((num, den)) = try_as_rational(&normalized, var) {
+    if !is_mrv_w_var(var) {
+        if let Some((num, den)) = try_as_rational(expr, var) {
             return SparseSeries::from_rational_laurent(&num, &den, var, order);
+        }
+        if let Some(normalized) = ratnormal(expr.as_ref(), ctx).ok() {
+            if let Some((num, den)) = try_as_rational(&normalized, var) {
+                return SparseSeries::from_rational_laurent(&num, &den, var, order);
+            }
         }
     }
     match expr.as_ref() {
@@ -309,13 +315,33 @@ fn series_at_zero_depth(
         }
         Expr::Func(FuncKind::Exp, args) if args.len() == 1 => {
             let arg = series_at_zero_depth(&args[0], var, order, depth + 1, ctx)?;
-            if arg.lead().is_some_and(|(e, _)| e < 0) {
-                return Err(EvalError::NotImplemented("series"));
+            if is_mrv_w_var(var) {
+                series_exp_mrv(&arg, order, ctx)
+            } else {
+                if arg.lead().is_some_and(|(e, _)| e < 0) {
+                    return Err(EvalError::NotImplemented("series"));
+                }
+                series_exp(&arg, order, ctx)
             }
-            series_exp(&arg, order, ctx)
         }
-        Expr::Func(FuncKind::Ln, args) if args.len() == 1 && is_series_var(&args[0], var) => {
-            Ok(SparseSeries::constant(Expr::func(FuncKind::Ln, vec![var_to_expr(var)])))
+        Expr::Func(FuncKind::Ln, args) if args.len() == 1 => {
+            if is_mrv_w_var(var)
+                && matches!(args[0].as_ref(), Expr::Symbol(id) if is_mrv_w_var(id))
+            {
+                return Ok(SparseSeries::constant(mrv_ln_w_expr()));
+            }
+            if is_series_var(&args[0], var) && !is_mrv_w_var(var) {
+                return Ok(SparseSeries::constant(Expr::func(
+                    FuncKind::Ln,
+                    vec![var_to_expr(var)],
+                )));
+            }
+            let arg = series_at_zero_depth(&args[0], var, order, depth + 1, ctx)?;
+            if is_mrv_w_var(var) {
+                series_ln_mrv(&arg, order, ctx)
+            } else {
+                Err(EvalError::NotImplemented("series"))
+            }
         }
         Expr::Func(FuncKind::Sin, args) if args.len() == 1 && is_series_var(&args[0], var) => {
             series_sin(order)
@@ -323,7 +349,6 @@ fn series_at_zero_depth(
         Expr::Func(FuncKind::Cos, args) if args.len() == 1 && is_series_var(&args[0], var) => {
             series_cos(order)
         }
-        Expr::Func(FuncKind::Ln, _) => Err(EvalError::NotImplemented("series")),
         _ => Err(EvalError::NotImplemented("series")),
     }
 }
@@ -364,6 +389,114 @@ fn series_cos(order: usize) -> Result<SparseSeries, EvalError> {
         k += 2;
     }
     Ok(SparseSeries { terms })
+}
+
+/// `exp(arg)` when `arg` may contain `k*ln(w)` in the constant term (MRV series).
+fn series_exp_mrv(arg: &SparseSeries, order: usize, ctx: &Context) -> Result<SparseSeries, EvalError> {
+    let min_e = arg.lead().map(|(e, _)| e).unwrap_or(0);
+    if min_e < 0 {
+        let shifted = shift_series_exponents(arg, -min_e);
+        let exp_s = series_exp_mrv_positive(&shifted, order, ctx)?;
+        let w_part = SparseSeries {
+            terms: vec![(min_e, Expr::int(1))],
+        };
+        return w_part.mul(&exp_s, order, ctx);
+    }
+    series_exp_mrv_positive(arg, order, ctx)
+}
+
+fn shift_series_exponents(s: &SparseSeries, delta: i32) -> SparseSeries {
+    SparseSeries {
+        terms: s
+            .terms
+            .iter()
+            .map(|(e, c)| (e.saturating_add(delta), Arc::clone(c)))
+            .collect(),
+    }
+}
+
+fn series_exp_mrv_positive(
+    arg: &SparseSeries,
+    order: usize,
+    ctx: &Context,
+) -> Result<SparseSeries, EvalError> {
+    let mut const_term = Expr::int(0);
+    let mut hi_terms = Vec::new();
+    for (e, c) in &arg.terms {
+        if *e == 0 {
+            const_term = Expr::add(vec![const_term, Arc::clone(c)]);
+        } else if *e < 0 {
+            return Err(EvalError::NotImplemented("series"));
+        } else {
+            hi_terms.push((*e, Arc::clone(c)));
+        }
+    }
+    let (k, a_rest) = decompose_ln_w_coeff(&const_term);
+    let w_part = if k == 0 {
+        SparseSeries::constant(Expr::int(1))
+    } else {
+        SparseSeries {
+            terms: vec![(k, Expr::int(1))],
+        }
+    };
+    let exp_a = if mrv_is_zero(&a_rest) || is_expr_one(&a_rest) {
+        SparseSeries::constant(Expr::int(1))
+    } else {
+        SparseSeries::constant(Expr::func(FuncKind::Exp, vec![a_rest]))
+    };
+    let hi = SparseSeries { terms: hi_terms };
+    let taylor = if hi.is_zero() {
+        SparseSeries::constant(Expr::int(1))
+    } else {
+        series_exp(&hi, order, ctx)?
+    };
+    Ok(w_part
+        .mul(&exp_a, order, ctx)?
+        .mul(&taylor, order, ctx)?)
+}
+
+fn series_ln_mrv(arg: &SparseSeries, order: usize, ctx: &Context) -> Result<SparseSeries, EvalError> {
+    let (min_e, lead_c) = arg.lead().ok_or(EvalError::NotImplemented("series"))?;
+    if min_e > 0 {
+        let mut shifted = Vec::new();
+        for (e, c) in &arg.terms {
+            shifted.push((e - min_e, Arc::clone(c)));
+        }
+        let shifted_s = SparseSeries { terms: shifted };
+        let (k2, c_rest) = shifted_s
+            .lead()
+            .map(|(_, c)| decompose_ln_w_coeff(&c))
+            .unwrap_or((0, Expr::int(1)));
+        let total_k = i32::try_from(min_e).unwrap_or(i32::MAX).saturating_add(k2);
+        let mut parts = Vec::new();
+        if total_k != 0 {
+            parts.push(Expr::mul(vec![Expr::int(i64::from(total_k)), mrv_ln_w_expr()]));
+        }
+        if !is_expr_one(&c_rest) && !mrv_is_zero(&c_rest) {
+            parts.push(Expr::func(FuncKind::Ln, vec![c_rest]));
+        }
+        if parts.is_empty() {
+            return Ok(SparseSeries::constant(Expr::int(0)));
+        }
+        return Ok(SparseSeries::constant(Expr::add(parts)));
+    }
+    if min_e == 0 {
+        let (k, rest) = decompose_ln_w_coeff(&lead_c);
+        let mut parts = Vec::new();
+        if k != 0 {
+            parts.push(Expr::mul(vec![Expr::int(i64::from(k)), mrv_ln_w_expr()]));
+        }
+        if !is_expr_one(&rest) && !mrv_is_zero(&rest) {
+            parts.push(Expr::func(FuncKind::Ln, vec![rest]));
+        }
+        if parts.is_empty() {
+            return Ok(SparseSeries::constant(Expr::int(0)));
+        }
+        return Ok(SparseSeries::constant(Expr::add(parts)));
+    }
+    let _ = order;
+    let _ = ctx;
+    Err(EvalError::NotImplemented("series"))
 }
 
 fn series_exp(arg: &SparseSeries, order: usize, ctx: &Context) -> Result<SparseSeries, EvalError> {

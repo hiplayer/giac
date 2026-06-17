@@ -1,6 +1,6 @@
 [package]
 name = "giac-simplify"
-description = "Symbolic simplification facade (expand, normal, ratnormal, factor)"
+description = "Symbolic simplification (expand, normal, ratnormal, factor)"
 version.workspace = true
 edition.workspace = true
 license.workspace = true
@@ -11,3 +11,8 @@ workspace = true
 
 [dependencies]
 giac-core = { workspace = true }
+giac-poly = { workspace = true }
+num-bigint = { workspace = true }
+num-rational = { workspace = true }
+num-traits = { workspace = true }
+num-integer = { workspace = true }

@@ -1,14 +1,16 @@
 use std::sync::Arc;
 
 use num_bigint::BigInt;
-use num_traits::Signed;
+use num_rational::Ratio;
+use num_traits::{One, Signed, Zero};
 
-use crate::{Context, EvalError, Expr, ExprArc};
-use giac_poly::{factor_into, factor_poly};
+use giac_core::{Context, EvalError, Expr, ExprArc, FuncKind};
+use giac_poly::{factor_into, factor_poly, ratio_perfect_sqrt, univariate_degree, vars_in};
 use giac_poly::Poly;
 
-use super::normal::normal;
-use super::poly::{expr_to_poly, poly_to_expr};
+use crate::ifactor::ifactor;
+use crate::expand::normal;
+use giac_core::{expr_to_poly, poly_to_expr, ratio_to_expr};
 
 /// Full factorization: structural (`Mul`/`Pow`/`Frac`) then polynomial engine.
 pub fn factor(expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
@@ -31,7 +33,7 @@ fn factor_expr(e: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
                     let b = factor_expr(base.as_ref(), ctx)?;
                     return Ok(Expr::pow(b, Arc::clone(exp)));
                 }
-                if let Ok(e_u) = crate::num_util::bigint_to_nonneg_u32(n) {
+                if let Ok(e_u) = giac_core::bigint_to_nonneg_u32(n) {
                     if e_u == 0 {
                         return Ok(Expr::int(1));
                     }
@@ -53,6 +55,7 @@ fn factor_expr(e: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
                 Expr::pow(fd, Expr::int(-1)),
             ]))
         }
+        Expr::Int(n) => Ok(ifactor(n)),
         _ => factor_poly_form(e, ctx),
     }
 }
@@ -87,7 +90,60 @@ fn factor_poly_form(e: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
             return Ok(poly_to_expr(&factors[0]));
         }
     }
+    if ctx.with_sqrt {
+        if let Some(factors) = try_factor_quadratic_sqrt(&p) {
+            return Ok(Expr::mul(factors));
+        }
+    }
     Ok(poly_to_expr(&factor_poly(&p)))
+}
+
+fn try_factor_quadratic_sqrt(p: &Poly) -> Option<Vec<ExprArc>> {
+    let vars = vars_in(p);
+    if vars.len() != 1 {
+        return None;
+    }
+    let var = &vars[0];
+    if univariate_degree(p, var) != 2 {
+        return None;
+    }
+    let mut a = Ratio::zero();
+    let mut b = Ratio::zero();
+    let mut c = Ratio::zero();
+    for (m, coeff) in &p.terms {
+        match m.exp_of(var) {
+            2 => a += coeff,
+            1 => b += coeff,
+            0 => c += coeff,
+            _ => return None,
+        }
+    }
+    if a.is_zero() {
+        return None;
+    }
+    let disc = &b * &b - Ratio::from_integer(BigInt::from(4)) * &a * &c;
+    if disc.is_zero() {
+        return None;
+    }
+    if ratio_perfect_sqrt(&disc).is_some() {
+        return None;
+    }
+    let sqrt_d = Expr::func(FuncKind::Sqrt, vec![ratio_to_expr(&disc)]);
+    let two_a = ratio_to_expr(&(Ratio::from_integer(BigInt::from(2)) * &a));
+    let neg_b = ratio_to_expr(&(-&b));
+    let r1 = Arc::new(Expr::Frac(
+        Expr::add(vec![neg_b.clone(), sqrt_d.clone()]),
+        two_a.clone(),
+    ));
+    let r2 = Arc::new(Expr::Frac(
+        Expr::add(vec![neg_b, Expr::mul(vec![Expr::int(-1), sqrt_d])]),
+        two_a,
+    ));
+    let x = poly_to_expr(&Poly::var(var.clone()));
+    Some(vec![
+        Expr::add(vec![x.clone(), Expr::mul(vec![Expr::int(-1), r1])]),
+        Expr::add(vec![x, Expr::mul(vec![Expr::int(-1), r2])]),
+    ])
 }
 
 fn rational_num_den(e: &Expr) -> Result<(Poly, Poly), EvalError> {

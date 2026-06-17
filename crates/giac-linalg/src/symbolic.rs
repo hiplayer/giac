@@ -8,7 +8,7 @@ use num_integer::Integer;
 use num_rational::Ratio;
 use num_traits::{One, Zero};
 
-use giac_core::normal;
+use giac_simplify::normal;
 use giac_core::Context;
 use giac_core::EvalError;
 use giac_core::eval;

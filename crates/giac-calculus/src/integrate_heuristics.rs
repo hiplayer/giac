@@ -5,7 +5,8 @@ use std::sync::Arc;
 use num_bigint::BigInt;
 use num_rational::Ratio;
 
-use giac_core::{bigint_to_i64, expand, ratnormal, Context, EvalError, Expr, ExprArc, FuncKind, Ident};
+use giac_core::{bigint_to_i64, Context, EvalError, Expr, ExprArc, FuncKind, Ident};
+use giac_simplify::{expand, ratnormal};
 
 use crate::integrate::{
     integrate_frac, is_const_wrt, is_var, ln_abs_expr, try_as_rational, var_to_expr,
