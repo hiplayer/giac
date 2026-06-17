@@ -514,4 +514,26 @@ mod tests {
         });
         assert_eq!(recomposed, num);
     }
+
+    #[test]
+    fn partfrac_ck_int_05_denominator() {
+        let three = Poly::constant(Ratio::from_integer(3.into()));
+        let den = three
+            .mul(&x())
+            .mul(&x().pow(2).add(&x()).add(&Poly::one()))
+            .mul(&x().sub(&Poly::one()).pow(3));
+        let num = Poly::one();
+        let r = partfrac_rational_terms(&num, &den, &Var::from("x"));
+        eprintln!("ck05 partfrac: {:?}", r.as_ref().map(|(_, t)| t.len()));
+        let (_, terms) = r.unwrap();
+        assert!(terms.len() >= 4, "got {} terms", terms.len());
+    }
+
+    #[test]
+    fn partfrac_one_over_one_minus_x_squared() {
+        let num = Poly::one();
+        let den = Poly::one().sub(&x().pow(2));
+        let (_, terms) = partfrac_rational_terms(&num, &den, &Var::from("x")).unwrap();
+        assert_eq!(terms.len(), 2);
+    }
 }

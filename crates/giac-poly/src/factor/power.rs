@@ -92,7 +92,9 @@ pub fn try_linear_power(p: &Poly, var: &Var) -> Option<(Poly, u64)> {
     let root = super::univariate::find_rational_root(p, var)?;
     let lin = super::util::linear_poly(var, &root);
     for exp in (2..=deg).rev() {
-        if lin.pow(exp) == *p {
+        let lin_pow = lin.pow(exp);
+        let (_, rem) = p.div_rem(&lin_pow);
+        if rem.is_zero() {
             return Some((lin, exp));
         }
     }

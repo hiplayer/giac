@@ -11,7 +11,16 @@ use num_rational::Ratio;
 
 pub fn eval_sturm(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     let (poly, var) = poly_and_var(args, ctx)?;
-    let q = giac_poly::odd_multiplicity_part(&poly, &var).map_err(sturm_err)?;
+    let mut q = giac_poly::odd_multiplicity_part(&poly, &var).map_err(sturm_err)?;
+    if univariate_degree(&q, &var) == 0 {
+        if univariate_degree(&poly, &var) == 0 {
+            return Err(EvalError::TypeError("constant polynomial"));
+        }
+        q = giac_poly::square_free_part(&poly, &var).map_err(sturm_err)?;
+        if univariate_degree(&q, &var) == 0 {
+            return Err(EvalError::TypeError("constant polynomial"));
+        }
+    }
     let seq = sturm_sequence(&q, &var).map_err(sturm_err)?;
     let items: Vec<ExprArc> = seq.into_iter().map(|p| poly_to_expr(&p)).collect();
     Ok(Arc::new(Expr::List(items)))
@@ -78,6 +87,18 @@ mod tests {
 
     use super::*;
     use crate::plugin::xcas_default;
+
+    #[test]
+    fn sturm_x_cubed_plus_one_squared() {
+        let ctx = xcas_default();
+        let p = Expr::pow(
+            Expr::add(vec![Expr::pow(Expr::sym("x"), Expr::int(3)), Expr::int(1)]),
+            Expr::int(2),
+        );
+        let e = Expr::func(FuncKind::Sturm, vec![p]);
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        assert!(matches!(r.as_ref(), Expr::List(items) if items.len() >= 2));
+    }
 
     #[test]
     fn sturm_x_cubed_plus_one() {

@@ -30,6 +30,30 @@ struct InventoryRow {
 
 #[test]
 #[ignore = "inventory helper: eval only, no SymPy"]
+fn giac_check_integrate_enabled_eval_only() -> Result<(), String> {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/check_integrate_table.json");
+    let text = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let table: Table = serde_json::from_str(&text).map_err(|e| e.to_string())?;
+    let mut ok = 0usize;
+    for e in table.entries.iter().filter(|e| e.enabled) {
+        match run_line(&e.line) {
+            Ok(_) => {
+                eprintln!("EVAL OK: {} {}", e.id, e.line);
+                ok += 1;
+            }
+            Err(err) => eprintln!("EVAL FAIL: {} {} ({err})", e.id, e.line),
+        }
+    }
+    eprintln!(
+        "enabled eval inventory: {}/{} ok",
+        ok,
+        table.entries.iter().filter(|e| e.enabled).count()
+    );
+    Ok(())
+}
+
+#[test]
+#[ignore = "inventory helper: eval only, no SymPy"]
 fn giac_check_integrate_disabled_eval_only() -> Result<(), String> {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/check_integrate_table.json");
     let text = fs::read_to_string(&path).map_err(|e| e.to_string())?;

@@ -248,6 +248,32 @@ pub fn square_free_factorization(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, u
     Ok(factors)
 }
 
+/// Product of distinct square-free factors (`p = ∏ f_k^k` → `∏ f_k`).
+pub fn square_free_part(p: &Poly, var: &Var) -> PolyResult<Poly> {
+    if p.is_zero() {
+        return Err(PolyError::TypeError("zero polynomial"));
+    }
+    let mut prod = Poly::one();
+    for (g, _) in square_free_factorization(p, var)? {
+        prod = prod.mul(&g);
+    }
+    Ok(prod)
+}
+
+/// Substitute `var -> sub` in univariate polynomial `p`.
+pub fn substitute_univariate(p: &Poly, var: &Var, sub: &Poly) -> Poly {
+    let d = univariate_degree(p, var);
+    let mut out = Poly::zero();
+    for e in 0..=d {
+        let c = coeff_at(p, var, e);
+        if c.is_zero() {
+            continue;
+        }
+        out = out.add(&Poly::constant(c).mul(&sub.pow(e)));
+    }
+    out
+}
+
 /// Product of square-free factors with odd multiplicity (giac `sturm` / `sturmab` convention).
 pub fn odd_multiplicity_part(p: &Poly, var: &Var) -> PolyResult<Poly> {
     if p.is_zero() {

@@ -32,6 +32,7 @@ pub use tresultant::{
 };
 pub use univariate::{
     eval_univariate_at, odd_multiplicity_part, sign_variations, square_free_factorization,
+    square_free_part, substitute_univariate,
     sturm_sequence, sturm_sign_variations_at, sturmab_count, univariate_derivative,
 };
 
