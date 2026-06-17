@@ -8,6 +8,7 @@ use giac_core::{
 use num_traits::Zero;
 
 use crate::diff::diff;
+use crate::limit_engine::asymptotic_series_at_infinity;
 
 /// `series(f,var,center,order)` / `taylor(f,var,center,order)` (GIAC-216).
 pub fn eval_series(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
@@ -16,7 +17,17 @@ pub fn eval_series(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError
     }
     let f = eval(args[0].as_ref(), ctx)?;
     let (var, center, order) = parse_series_location(&args[1..], ctx)?;
+    if is_plus_infinity(&center) {
+        return asymptotic_series_at_infinity(&f, &var, order, ctx);
+    }
     taylor_series(&f, &var, &center, order, ctx)
+}
+
+fn is_plus_infinity(e: &ExprArc) -> bool {
+    matches!(
+        e.as_ref(),
+        Expr::Symbol(id) if id.as_str() == "+infinity" || id.as_str() == "infinity"
+    )
 }
 
 fn parse_series_location(

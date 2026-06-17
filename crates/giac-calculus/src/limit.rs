@@ -97,9 +97,6 @@ fn try_known_limit_pointless(expr: &ExprArc, var: &Ident, point: LimitPoint) -> 
         if is_one_plus_one_over_x_power_x(expr, var) {
             return Some(Expr::func(FuncKind::Exp, vec![Expr::int(1)]));
         }
-        if is_sqrt_diff_at_infinity(expr, var) {
-            return Some(Expr::rat(1, 2));
-        }
         return None;
     }
     if is_sin_over_x(expr, var) {
@@ -242,41 +239,6 @@ fn is_sin_of_var(e: &ExprArc, var: &Ident) -> bool {
 
 fn is_ln_of_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Func(FuncKind::Ln, args) if args.len() == 1 && is_var(&args[0], var))
-}
-
-fn is_sqrt_diff_at_infinity(expr: &ExprArc, var: &Ident) -> bool {
-    let Expr::Add(terms) = expr.as_ref() else {
-        return false;
-    };
-    if terms.len() != 2 {
-        return false;
-    }
-    let (pos, neg) = if is_sqrt_x_squared_plus_linear(&terms[0], var, 1) {
-        (&terms[0], &terms[1])
-    } else if is_sqrt_x_squared_plus_linear(&terms[1], var, 1) {
-        (&terms[1], &terms[0])
-    } else {
-        return false;
-    };
-    is_sqrt_x_squared_plus_linear(pos, var, 1)
-        && matches!(
-            neg.as_ref(),
-            Expr::Mul(fs) if fs.len() == 2
-                && matches!(fs[0].as_ref(), Expr::Int(n) if n == &-BigInt::from(1))
-                && is_sqrt_x_squared_plus_linear(&fs[1], var, 0)
-        )
-}
-
-fn is_sqrt_x_squared_plus_linear(e: &ExprArc, var: &Ident, linear: i64) -> bool {
-    let Expr::Func(FuncKind::Sqrt, args) = e.as_ref() else {
-        return false;
-    };
-    let Expr::Add(ts) = args[0].as_ref() else {
-        return false;
-    };
-    ts.len() == 2
-        && ts.iter().any(|t| is_x_squared(t, var))
-        && ts.iter().any(|t| matches!(t.as_ref(), Expr::Int(n) if n == &BigInt::from(linear)))
 }
 
 fn is_x_squared(e: &ExprArc, var: &Ident) -> bool {

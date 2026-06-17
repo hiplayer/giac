@@ -15,6 +15,10 @@ use crate::integrate::try_as_rational;
 
 const MAX_LHOPITAL: usize = 8;
 
+mod asymptotic;
+
+pub(crate) use asymptotic::{asymptotic_series_at_infinity, limit_at_plus_infinity};
+
 pub(crate) fn limit_finite_algebraic(
     expr: &ExprArc,
     var: &Ident,
@@ -190,7 +194,7 @@ fn limit_quotient_plus_infinity(
             {
                 return Ok(Expr::sym("+infinity"));
             }
-            return limit_plus_infinity_algebraic(&dn, var, ctx);
+            return limit_finite_algebraic(&dn, var, &Expr::int(0), ctx);
         }
         return limit_quotient_plus_infinity(&dn, &dd, var, ctx, depth + 1);
     }
@@ -209,10 +213,7 @@ fn limit_quotient_plus_infinity(
 }
 
 fn limit_plus_infinity_quick(expr: &ExprArc, var: &Ident, ctx: &Context) -> Result<ExprArc, EvalError> {
-    if let Some(r) = limit_sqrt_difference_infinity(expr, var) {
-        return Ok(r);
-    }
-    if let Some(r) = limit_rational_over_sqrt_infinity(expr, var) {
+    if let Ok(r) = limit_at_plus_infinity(expr, var, ctx) {
         return Ok(r);
     }
     if let Some((num, den)) = try_as_rational(expr, var) {
@@ -273,32 +274,13 @@ pub(crate) fn limit_plus_infinity_algebraic(
     var: &Ident,
     ctx: &Context,
 ) -> Result<ExprArc, EvalError> {
-    if let Some(r) = limit_sqrt_difference_infinity(expr, var) {
-        return Ok(r);
-    }
-    if let Some(r) = limit_rational_over_sqrt_infinity(expr, var) {
-        return Ok(r);
-    }
-    if let Some(r) = limit_exp_over_var_infinity(expr, var) {
-        return Ok(r);
-    }
-    if let Some(r) = try_exp_difference_nested_limit(expr, var) {
-        return Ok(r);
-    }
-    if let Some((num, den)) = try_as_quotient(expr, var) {
-        if matches!(num.as_ref(), Expr::Add(_))
-            && is_positive_var_power(&den, var)
-            && expr_contains_exp(&num)
-        {
-            if let Ok(r) = limit_via_reciprocal(expr, var, ctx) {
-                return Ok(r);
-            }
-        }
-    }
     if let Some((num, den)) = try_as_rational(expr, var) {
         if let Ok(r) = limit_rational_infinity(&num, &den, var, ctx) {
             return Ok(r);
         }
+    }
+    if let Ok(r) = limit_at_plus_infinity(expr, var, ctx) {
+        return Ok(r);
     }
     if let Some((num, den)) = try_as_quotient(expr, var) {
         if matches!(num.as_ref(), Expr::Func(FuncKind::Exp, _)) {
@@ -322,204 +304,18 @@ pub(crate) fn limit_plus_infinity_algebraic(
             }
         }
     }
-    limit_via_reciprocal(expr, var, ctx)
-}
-
-fn limit_exp_over_var_infinity(expr: &ExprArc, var: &Ident) -> Option<ExprArc> {
-    let (num, den) = try_as_quotient(expr, var)?;
-    if matches!(num.as_ref(), Expr::Func(FuncKind::Exp, _)) && is_positive_var_power(&den, var) {
-        return Some(Expr::sym("+infinity"));
-    }
-    None
-}
-
-fn try_exp_difference_nested_limit(expr: &ExprArc, var: &Ident) -> Option<ExprArc> {
-    let (num, den) = try_as_quotient(expr, var)?;
-    if !is_positive_var_power(&den, var) {
-        return None;
-    }
-    if !is_nested_exp_inner_minus_exp_var(&num, var) {
-        return None;
-    }
-    Some(Expr::mul(vec![
-        Expr::int(-1),
-        Expr::func(FuncKind::Exp, vec![Expr::int(2)]),
-    ]))
-}
-
-fn is_nested_exp_inner_minus_exp_var(num: &ExprArc, var: &Ident) -> bool {
-    let Expr::Add(terms) = num.as_ref() else {
-        return false;
-    };
-    if terms.len() != 2 {
-        return false;
-    }
-    let mut has_inner = false;
-    let mut has_neg_var_exp = false;
-    for t in terms {
-        if is_neg_exp_of_var(t, var) {
-            has_neg_var_exp = true;
-        } else if is_nested_rational_exp(t) {
-            has_inner = true;
+    if let Some((num, den)) = try_as_quotient(expr, var) {
+        if matches!(num.as_ref(), Expr::Add(_)) && expr_contains_exp(&num) {
+            if let Ok(r) = limit_via_reciprocal(expr, var, ctx) {
+                return Ok(r);
+            }
         }
     }
-    has_inner && has_neg_var_exp
-}
-
-fn is_neg_exp_of_var(e: &ExprArc, var: &Ident) -> bool {
-    matches!(
-        e.as_ref(),
-        Expr::Mul(fs) if fs.len() == 2
-            && matches!(fs[0].as_ref(), Expr::Int(n) if n == &-BigInt::from(1))
-            && matches!(fs[1].as_ref(), Expr::Func(FuncKind::Exp, args) if args.len() == 1 && is_var(&args[0], var))
-    )
-}
-
-fn is_nested_rational_exp(e: &ExprArc) -> bool {
-    let inner = match e.as_ref() {
-        Expr::Func(FuncKind::Exp, args) if args.len() == 1 => &args[0],
-        _ => return false,
-    };
-    expr_contains_exp(inner) && matches!(
-        inner.as_ref(),
-        Expr::Frac(_, _) | Expr::Mul(_) | Expr::Pow(_, _)
-    )
-}
-
-fn is_positive_var_power(e: &ExprArc, var: &Ident) -> bool {
-    is_var(e, var)
-        || matches!(
-            e.as_ref(),
-            Expr::Pow(b, exp)
-                if is_var(b, var)
-                    && matches!(exp.as_ref(), Expr::Int(n) if n.is_positive())
-        )
-}
-
-fn limit_rational_over_sqrt_infinity(expr: &ExprArc, var: &Ident) -> Option<ExprArc> {
-    let (num, den) = try_as_quotient(expr, var)?;
-    let inner = sqrt_inner(&den)?;
-    let (a, b) = match inner.as_ref() {
-        Expr::Frac(n, d) => (Arc::clone(n), Arc::clone(d)),
-        _ => try_as_quotient(&inner, var)?,
-    };
-    let v = Var::from(var.as_str());
-    let num_p = expr_to_poly(num.as_ref()).ok()?;
-    let a_p = expr_to_poly(a.as_ref()).ok()?;
-    let b_p = expr_to_poly(b.as_ref()).ok()?;
-    let nd = univariate_degree(&num_p, &v);
-    let ad = univariate_degree(&a_p, &v);
-    let bd = univariate_degree(&b_p, &v);
-    if nd == 0 {
-        return Some(Expr::int(0));
-    }
-    if ad > bd {
-        return Some(Expr::sym("+infinity"));
-    }
-    if ad < bd {
-        return Some(Expr::int(0));
-    }
-    let inner_ratio = leading_ratio(&a_p, &b_p, &v);
-    if inner_ratio.is_zero() {
-        return Some(Expr::int(0));
-    }
-    let num_ratio = coeff_at(&num_p, &v, nd);
-    if num_ratio.is_zero() {
-        return Some(Expr::int(0));
-    }
-    if nd > 0 && inner_ratio.is_positive() {
-        return Some(Expr::sym("+infinity"));
-    }
-    None
+    limit_via_reciprocal(expr, var, ctx)
 }
 
 fn is_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Symbol(id) if id == var)
-}
-
-fn limit_sqrt_difference_infinity(expr: &ExprArc, var: &Ident) -> Option<ExprArc> {
-    let Expr::Add(terms) = expr.as_ref() else {
-        return None;
-    };
-    if terms.len() != 2 {
-        return None;
-    }
-    let (pos, neg) = if is_sqrt_poly(&terms[0], var) {
-        (&terms[0], &terms[1])
-    } else if is_sqrt_poly(&terms[1], var) {
-        (&terms[1], &terms[0])
-    } else {
-        return None;
-    };
-    let neg_sqrt = match neg.as_ref() {
-        Expr::Mul(fs) if fs.len() == 2
-            && matches!(fs[0].as_ref(), Expr::Int(n) if n == &-BigInt::from(1))
-            && is_sqrt_poly(&fs[1], var) =>
-        {
-            &fs[1]
-        }
-        _ => return None,
-    };
-    let a_inner = sqrt_inner(pos)?;
-    let b_inner = sqrt_inner(neg_sqrt)?;
-    let a_inner = sqrt_inner(pos)?;
-    let b_inner = sqrt_inner(neg_sqrt)?;
-    let diff = Expr::add(vec![
-        Arc::clone(&a_inner),
-        Expr::mul(vec![Expr::int(-1), Arc::clone(&b_inner)]),
-    ]);
-    let v = Var::from(var.as_str());
-    let diff_p = expr_to_poly(&diff).ok()?;
-    let a_p = expr_to_poly(&a_inner).ok()?;
-    let nd = univariate_degree(&diff_p, &v);
-    let ad = univariate_degree(&a_p, &v);
-    if nd == 0 || ad < 2 {
-        return None;
-    }
-    let lead_diff = coeff_at(&diff_p, &v, nd);
-    let lead_a = coeff_at(&a_p, &v, ad);
-    if lead_a.is_zero() || lead_diff.is_zero() {
-        return Some(Expr::int(0));
-    }
-    // (f-g)/(sqrt(f)+sqrt(g)) ~ lead(f-g) / (2*sqrt(lead(f)))
-    let denom = &lead_a * BigInt::from(2);
-    Some(ratio_to_expr(&(lead_diff / denom)))
-}
-
-fn ratio_to_expr(r: &Ratio<BigInt>) -> ExprArc {
-    if r.is_integer() {
-        if let Ok(n) = giac_core::bigint_to_i64(r.numer()) {
-            return Expr::int(n);
-        }
-    }
-    Arc::new(Expr::Frac(
-        Arc::new(Expr::Int(r.numer().clone())),
-        Arc::new(Expr::Int(r.denom().clone())),
-    ))
-}
-
-fn is_sqrt_poly(e: &ExprArc, var: &Ident) -> bool {
-    matches!(e.as_ref(), Expr::Func(FuncKind::Sqrt, args) if args.len() == 1 && is_quadratic_in_var(&args[0], var))
-}
-
-fn sqrt_inner(e: &ExprArc) -> Option<ExprArc> {
-    match e.as_ref() {
-        Expr::Func(FuncKind::Sqrt, args) if args.len() == 1 => Some(Arc::clone(&args[0])),
-        Expr::Pow(b, exp) if matches!(exp.as_ref(), Expr::Int(n) if n == &BigInt::from(1)) => {
-            sqrt_inner(b)
-        }
-        _ => None,
-    }
-}
-
-fn is_quadratic_in_var(e: &ExprArc, var: &Ident) -> bool {
-    expr_to_poly(e)
-        .ok()
-        .map(|p| {
-            let v = Var::from(var.as_str());
-            univariate_degree(&p, &v) <= 2
-        })
-        .unwrap_or(false)
 }
 
 pub(crate) fn limit_minus_infinity_algebraic(
@@ -655,6 +451,9 @@ fn limit_rational_infinity(
     if ratio.is_zero() {
         return Ok(Expr::int(0));
     }
+    if nd == dd {
+        return Ok(ratio_to_expr(&ratio));
+    }
     Ok(sign_infinity(ratio))
 }
 
@@ -670,6 +469,18 @@ fn sign_infinity(r: Ratio<BigInt>) -> ExprArc {
     } else {
         Expr::sym("+infinity")
     }
+}
+
+fn ratio_to_expr(r: &Ratio<BigInt>) -> ExprArc {
+    if r.is_integer() {
+        if let Ok(n) = giac_core::bigint_to_i64(r.numer()) {
+            return Expr::int(n);
+        }
+    }
+    Arc::new(Expr::Frac(
+        Arc::new(Expr::Int(r.numer().clone())),
+        Arc::new(Expr::Int(r.denom().clone())),
+    ))
 }
 
 fn pole_infinity(
