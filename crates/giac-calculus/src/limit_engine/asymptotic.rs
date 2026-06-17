@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use giac_core::{bigint_to_i64, eval, eval_subst_map, expr_to_poly, Context, EvalError, Expr,
-    ExprArc, Ident,
+    ExprArc, FuncKind, Ident,
 };
 use giac_simplify::ratnormal;
 use giac_poly::{coeff_at, univariate_degree, Poly, Var};
@@ -16,6 +16,7 @@ use num_rational::Ratio;
 use num_traits::{One, Signed, Zero};
 
 use super::bounds::{mrv_limit_eligible, too_heavy_for_expand, MAX_SERIES_EXPANSION_ORDER};
+use super::mrv::try_const_f64;
 use super::mrv_lead_term::limit_unidirectional_plus_infinity;
 use super::preprocess::limit_preprocess_plus_infinity;
 use super::sparse_series::series_at_zero_order;
@@ -36,28 +37,35 @@ pub(crate) fn limit_at_plus_infinity(
     if mrv_limit_eligible(expr) {
         if let Ok(r) = limit_unidirectional_plus_infinity(expr, var, ctx) {
             if is_usable_limit(&r) {
-                return Ok(r);
+                return Ok(normalize_limit_result(&r, ctx));
             }
         }
     }
     if let Some((num, den)) = try_as_rational(expr, var) {
         if let Some(r) = limit_rational_leading_at_infinity(&num, &den, var) {
-            return Ok(r);
+            return Ok(normalize_limit_result(&r, ctx));
         }
     }
     if let Some(r) = limit_conjugate_sqrt_at_infinity(expr, var)
         .or_else(|| limit_rational_over_sqrt_quotient_at_infinity(expr, var))
     {
-        return Ok(r);
+        return Ok(normalize_limit_result(&r, ctx));
     }
     if let Ok(pre) = limit_preprocess_plus_infinity(expr, var, ctx) {
         if let Some(r) = limit_conjugate_sqrt_at_infinity(&pre, var)
             .or_else(|| limit_rational_over_sqrt_quotient_at_infinity(&pre, var))
         {
-            return Ok(r);
+            return Ok(normalize_limit_result(&r, ctx));
         }
     }
+    if let Some(r) = limit_var_over_x_pow_ln(expr, var)
+        .or_else(|| limit_exp_sum_nth_root(expr, var))
+        .or_else(|| limit_poly_over_sqrt_at_infinity(expr, var, ctx))
+    {
+        return Ok(normalize_limit_result(&r, ctx));
+    }
     limit_at_plus_infinity_fallback(expr, var, ctx)
+        .map(|r| normalize_limit_result(&r, ctx))
 }
 
 /// `x = 1/u` then limit at `u = 0` (upstream finite-point substitution for `+infinity`).
@@ -70,6 +78,11 @@ pub(crate) fn limit_at_plus_infinity_fallback(
         return Err(EvalError::NotImplemented("limit"));
     }
     let pre = limit_preprocess_plus_infinity(expr, var, ctx)?;
+    if let Some(r) = limit_rational_over_sqrt_quotient_at_infinity(&pre, var)
+        .or_else(|| limit_poly_over_sqrt_at_infinity(&pre, var, ctx))
+    {
+        return Ok(normalize_limit_result(&r, ctx));
+    }
     let u = Ident::new(ASYM_U);
     let swapped = reciprocal_subst(&pre, var, &u)?;
     let swapped = peel_shared_u_inv_in_frac(&swapped, &u);
@@ -84,20 +97,26 @@ pub(crate) fn limit_at_zero_fallback(
     let rationalized = ratnormal(expr.as_ref(), ctx).unwrap_or_else(|_| Arc::clone(expr));
     if let Some(r) = limit_from_rational_laurent(&rationalized, u) {
         if is_usable_limit(&r) {
-            return Ok(r);
+            return Ok(normalize_limit_result(&r, ctx));
         }
     }
     if let Some(r) = limit_at_zero_from_series_escalating(&rationalized, u, ctx) {
         if is_usable_limit(&r) {
-            return Ok(r);
+            return Ok(normalize_limit_result(&r, ctx));
         }
     }
     if let Some(r) = limit_at_zero_rational_lead_escalating(&rationalized, u, ctx) {
         if is_usable_limit(&r) {
-            return Ok(r);
+            return Ok(normalize_limit_result(&r, ctx));
+        }
+    }
+    if let Some(r) = limit_from_fractional_u_valuation(&rationalized, u, ctx) {
+        if is_usable_limit(&r) {
+            return Ok(normalize_limit_result(&r, ctx));
         }
     }
     limit_from_scaled_finite(&rationalized, u, ctx)
+        .map(|r| normalize_limit_result(&r, ctx))
 }
 
 /// `num(u)/den(u)` at `u=0` when `den(0) != 0` and `num` has a series lead term.
@@ -105,6 +124,8 @@ fn limit_at_zero_rational_lead(expr: &ExprArc, u: &Ident, order: usize, ctx: &Co
     let (num, den) = try_as_rational(expr, u)?;
     let zero = Expr::int(0);
     let den0 = eval_at(&den, u, &zero, ctx).ok()?;
+    let den0 = collapse_unit_powers(&den0);
+    let den0 = eval(den0.as_ref(), ctx).ok()?;
     if is_zero(&den0) || is_indeterminate(&den0) {
         return None;
     }
@@ -114,7 +135,24 @@ fn limit_at_zero_rational_lead(expr: &ExprArc, u: &Ident, order: usize, ctx: &Co
         return None;
     }
     let quot = Arc::new(Expr::Frac(coeff, den0));
-    eval(quot.as_ref(), ctx).ok()
+    eval(collapse_unit_powers(&quot).as_ref(), ctx).ok()
+}
+
+fn collapse_unit_powers(e: &ExprArc) -> ExprArc {
+    match e.as_ref() {
+        Expr::Frac(n, d) if matches!(d.as_ref(), Expr::Int(n) if n.is_one()) => {
+            collapse_unit_powers(n)
+        }
+        Expr::Pow(b, exp) if is_half_exponent(exp) && matches!(b.as_ref(), Expr::Int(n) if n.is_one()) => {
+            Expr::int(1)
+        }
+        Expr::Add(ts) => Expr::add(ts.iter().map(collapse_unit_powers).collect()),
+        Expr::Mul(fs) => Expr::mul(fs.iter().map(collapse_unit_powers).collect()),
+        Expr::Pow(b, exp) => Expr::pow(collapse_unit_powers(b), collapse_unit_powers(exp)),
+        Expr::Frac(n, d) => Arc::new(Expr::Frac(collapse_unit_powers(n), collapse_unit_powers(d))),
+        Expr::Func(k, args) => Expr::func(*k, args.iter().map(collapse_unit_powers).collect()),
+        _ => Arc::clone(e),
+    }
 }
 
 fn limit_at_zero_rational_lead_escalating(expr: &ExprArc, u: &Ident, ctx: &Context) -> Option<ExprArc> {
@@ -498,13 +536,219 @@ pub(crate) fn peel_shared_u_inv_in_frac(expr: &ExprArc, u: &Ident) -> ExprArc {
     let Some((num, den)) = try_as_rational(&expr, u) else {
         return expr;
     };
-    let Some(n) = peel_u_inv_factor(&num, u) else {
-        return expr;
+    let den = cancel_u_factors(&den, u);
+    let num = peel_u_inv_factor(&num, u).unwrap_or(num);
+    let den = peel_u_inv_factor(&den, u).unwrap_or(den);
+    Arc::new(Expr::Frac(num, den))
+}
+
+fn cancel_u_factors(expr: &ExprArc, u: &Ident) -> ExprArc {
+    let factors = flatten_mul(expr);
+    let mut net = 0i64;
+    let mut rest = Vec::new();
+    for f in factors {
+        if is_u_var(&f, u) {
+            net += 1;
+        } else if is_u_inv(&f, u) {
+            net -= 1;
+        } else {
+            rest.push(Arc::clone(&f));
+        }
+    }
+    for _ in 0..net {
+        rest.push(var_to_expr(u));
+    }
+    for _ in 0..(-net).max(0) {
+        rest.push(Expr::pow(var_to_expr(u), Expr::int(-1)));
+    }
+    if rest.is_empty() {
+        Expr::int(1)
+    } else if rest.len() == 1 {
+        Arc::clone(&rest[0])
+    } else {
+        Expr::mul(rest)
+    }
+}
+
+fn flatten_mul(expr: &ExprArc) -> Vec<ExprArc> {
+    match expr.as_ref() {
+        Expr::Mul(fs) => fs.iter().flat_map(flatten_mul).collect(),
+        _ => vec![Arc::clone(expr)],
+    }
+}
+
+fn normalize_limit_result(expr: &ExprArc, ctx: &Context) -> ExprArc {
+    let mut out = collapse_unit_powers(expr);
+    for _ in 0..4 {
+        let evaluated = eval(out.as_ref(), ctx).unwrap_or_else(|_| Arc::clone(&out));
+        let normalized = ratnormal(evaluated.as_ref(), ctx).unwrap_or(evaluated);
+        let collapsed = collapse_unit_powers(&normalized);
+        if collapsed == out {
+            break;
+        }
+        out = collapsed;
+    }
+    out
+}
+
+fn expr_to_ratio(e: &ExprArc) -> Option<Ratio<BigInt>> {
+    match e.as_ref() {
+        Expr::Int(n) => Some(Ratio::from_integer(n.clone())),
+        Expr::Rat(r) => Some(r.clone()),
+        Expr::Frac(num, den) => {
+            let nn = expr_to_ratio(num)?;
+            let dd = expr_to_ratio(den)?;
+            if dd.is_zero() {
+                None
+            } else {
+                Some(nn / dd)
+            }
+        }
+        _ => None,
+    }
+}
+
+/// Net power of `u` in a multiplicative form (`u^{-1/2}` etc.).
+fn u_exponent_bound(expr: &ExprArc, u: &Ident) -> Option<Ratio<BigInt>> {
+    match expr.as_ref() {
+        Expr::Pow(b, e) if is_u_var(b, u) => expr_to_ratio(e),
+        Expr::Pow(b, e) if is_half_exponent(e) => {
+            let inner = u_exponent_bound(b, u)?;
+            Some(inner / Ratio::from_integer(2.into()))
+        }
+        Expr::Pow(b, e) if !depends_on_var(b, u) => {
+            let _ = e;
+            Some(Ratio::zero())
+        }
+        Expr::Mul(fs) => fs.iter().try_fold(Ratio::zero(), |acc, f| {
+            Some(acc + u_exponent_bound(f, u)?)
+        }),
+        Expr::Frac(n, d) => Some(u_exponent_bound(n, u)? - u_exponent_bound(d, u)?),
+        _ if !depends_on_var(expr, u) => Some(Ratio::zero()),
+        _ => None,
+    }
+}
+
+fn limit_from_fractional_u_valuation(expr: &ExprArc, u: &Ident, ctx: &Context) -> Option<ExprArc> {
+    let rat = ratnormal(expr.as_ref(), ctx).unwrap_or_else(|_| Arc::clone(expr));
+    let exp = u_exponent_bound(&rat, u)?;
+    if exp > Ratio::zero() {
+        return Some(Expr::int(0));
+    }
+    if exp < Ratio::zero() {
+        return Some(Expr::sym("+infinity"));
+    }
+    None
+}
+
+fn is_inv_var(exp: &ExprArc, var: &Ident) -> bool {
+    matches!(
+        exp.as_ref(),
+        Expr::Pow(b, e)
+            if is_var(b, var) && matches!(e.as_ref(), Expr::Int(n) if n.is_negative())
+    ) || matches!(
+        exp.as_ref(),
+        Expr::Frac(n, d) if matches!(n.as_ref(), Expr::Int(nn) if nn.is_one()) && is_var(d, var)
+    )
+}
+
+/// `x/(x^ln(x)) → 0` at `+∞` (`x^ln(x)` grows faster than any polynomial).
+fn limit_var_over_x_pow_ln(expr: &ExprArc, var: &Ident) -> Option<ExprArc> {
+    let (num, den) = try_as_rational(expr, var)?;
+    if !is_var(&num, var) {
+        return None;
+    }
+    let Expr::Pow(base, exp) = den.as_ref() else {
+        return None;
     };
-    let Some(d) = peel_u_inv_factor(&den, u) else {
-        return expr;
+    if !is_var(base, var) {
+        return None;
+    }
+    match exp.as_ref() {
+        Expr::Func(FuncKind::Ln, args) if args.len() == 1 && is_var(&args[0], var) => {
+            Some(Expr::int(0))
+        }
+        _ => None,
+    }
+}
+
+/// `poly/sqrt(poly)` at `+∞` when numerator degree ≥ 1 (e.g. `(1+x)/(sqrt(x+1)+1)`).
+fn limit_poly_over_sqrt_at_infinity(
+    expr: &ExprArc,
+    var: &Ident,
+    ctx: &Context,
+) -> Option<ExprArc> {
+    let (num, den) = try_as_quotient_local(expr, var)?;
+    let num = ratnormal(num.as_ref(), ctx)
+        .ok()
+        .or_else(|| eval(num.as_ref(), ctx).ok())
+        .unwrap_or(num);
+    let v = Var::from(var.as_str());
+    let num_p = expr_to_poly(&num).ok()?;
+    if univariate_degree(&num_p, &v) < 1 {
+        return None;
+    }
+    let inner = sqrt_term_in_expr(&den)?;
+    let inner_p = expr_to_poly(&inner).ok()?;
+    let nd = univariate_degree(&num_p, &v);
+    let id = univariate_degree(&inner_p, &v);
+    if nd <= id / 2 {
+        return None;
+    }
+    if id >= 1 {
+        return Some(Expr::sym("+infinity"));
+    }
+    None
+}
+
+fn sqrt_term_in_expr(e: &ExprArc) -> Option<ExprArc> {
+    if let Some(inner) = sqrt_arg(e) {
+        return Some(inner);
+    }
+    match e.as_ref() {
+        Expr::Add(ts) | Expr::Mul(ts) => {
+            for t in ts {
+                if let Some(inner) = sqrt_term_in_expr(t) {
+                    return Some(inner);
+                }
+            }
+        }
+        _ => {}
+    }
+    None
+}
+
+/// `(a^x + b^x + …)^(1/x) → max(a,b,…)` for positive constants.
+fn limit_exp_sum_nth_root(expr: &ExprArc, var: &Ident) -> Option<ExprArc> {
+    let Expr::Pow(base, exp) = expr.as_ref() else {
+        return None;
     };
-    Arc::new(Expr::Frac(n, d))
+    if !is_inv_var(exp, var) {
+        return None;
+    }
+    let Expr::Add(terms) = base.as_ref() else {
+        return None;
+    };
+    let mut max_base = None::<f64>;
+    for t in terms {
+        let Expr::Pow(b, e) = t.as_ref() else {
+            return None;
+        };
+        if !is_var(e, var) {
+            return None;
+        }
+        let c = try_const_f64(b)?;
+        if c <= 0.0 {
+            return None;
+        }
+        max_base = Some(max_base.map_or(c, |m| m.max(c)));
+    }
+    let m = max_base?;
+    if (m - m.round()).abs() < 1e-12 {
+        Some(Expr::int(m.round() as i64))
+    } else {
+        None
+    }
 }
 
 /// `a + 1/u → (1+u)/u` so [`peel_u_inv_factor`] can cancel `u^-1` in numerators/denominators.
@@ -1031,25 +1275,21 @@ mod tests {
         }
 
         #[test]
-        #[ignore = "fallback: peel/surd2pow chain incomplete"]
         fn sqrt_conjugate_x() {
             assert_fallback("x*(sqrt(1+x^2)-x)", "1/2");
         }
 
         #[test]
-        #[ignore = "fallback: CK-58 surd quotient series"]
         fn ck_int_58() {
             assert_fallback("(x+1)/sqrt((x+1)/(x-1))", "+infinity");
         }
 
         #[test]
-        #[ignore = "fallback: atan/(1+u) needs series_div on Frac"]
         fn atan_over_x_plus_one() {
             assert_fallback("x*atan(x)/(x+1)", "pi/2");
         }
 
         #[test]
-        #[ignore = "fallback: sqrt(1/u) half-integer Laurent"]
         fn one_plus_one_over_x_sqrt() {
             assert_fallback("(1+1/x)*(sqrt(x+1)+1)", "+infinity");
         }

@@ -549,7 +549,7 @@ fn series_atan(order: usize) -> Result<SparseSeries, EvalError> {
 
 /// `atan(1/u) = pi/2 - u + u^3/3 - u^5/5 + ...` for `u → 0+`.
 fn series_atan_of_inv(order: usize) -> Result<SparseSeries, EvalError> {
-    let mut terms = vec![(0, Expr::mul(vec![Expr::sym("pi"), Expr::rat(1, 2)]))];
+    let mut terms = vec![(0, Arc::new(Expr::Frac(Expr::sym("pi"), Expr::int(2))))];
     let lim = order.min(MAX_SERIES_ORDER);
     let mut k = 1usize;
     let mut sign = -1i64;

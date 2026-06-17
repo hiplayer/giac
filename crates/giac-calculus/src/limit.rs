@@ -555,14 +555,12 @@ mod tests {
 
         /// `rtest_limit.mac` L129
         #[test]
-        #[ignore = "NotImplemented(limit)"]
         fn rtest_limit_x_over_x_pow_ln_x() {
             assert_limit("limit(x/(x^ln(x)),x,+infinity)", "0");
         }
 
         /// `rtest_limit.mac` L137
         #[test]
-        #[ignore = "NotImplemented(limit)"]
         fn rtest_limit_one_plus_one_over_x_sqrt() {
             assert_limit("limit((1+1/x)*(sqrt(x+1)+1),x,+infinity)", "+infinity");
         }
@@ -581,7 +579,6 @@ mod tests {
 
         /// `rtest_limit_gruntz.mac` L82
         #[test]
-        #[ignore = "NotImplemented(limit)"]
         fn gruntz_three_x_five_x_root() {
             assert_limit("limit((3^x+5^x)^(1/x),x,+infinity)", "5");
         }
@@ -610,7 +607,6 @@ mod tests {
 
         /// `rtest_limit.mac` L53 — `atan` at `+infinity`
         #[test]
-        #[ignore = "hangs >60s"]
         fn rtest_limit_x_atan_x_over_x_plus_1() {
             assert_limit("limit(x*atan(x)/(x+1),x,+infinity)", "pi/2");
         }
