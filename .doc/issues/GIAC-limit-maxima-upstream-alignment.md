@@ -18,28 +18,25 @@ Maxima `tests/rtest_limit*.mac` 中抽取了 14 条 `limit` 用例（`giac-calcu
 
 ## `+∞` 调用顺序（`limit_at_plus_infinity`）
 
-> **计划变更**：步骤 2–4 为写死快路径，拟按本文 [「去写死」方案](#去写死sqrt代数式-极限对齐方案) 移除，统一为 MRV + 倒数级数。
+1. **`limit_factored_exp_growth_at_infinity`** — `factor_exp_shifted_difference` 后 `exp(L)*(exp(S)-1)` 抵消（gruntz）
+2. **`limit_unidirectional_plus_infinity`**（MRV 主路径）
+3. 形状快路径：`limit_var_over_x_pow_ln`、`limit_exp_sum_nth_root`、`limit_poly_over_sqrt`
+4. **`limit_at_plus_infinity_fallback`** — 倒数换元 + 稀疏级数（含 `limit_sqrt_sum_quotient` 处理 preprocess 共轭分式）
 
-1. **`limit_unidirectional_plus_infinity`**（主路径，对齐 upstream）
-2. ~~有理式首项（`limit_rational_leading_at_infinity`）~~ → 并入 fallback Laurent
-3. ~~代数共轭（`sqrt` 差分 / `sqrt(S)-var`）~~ → **拟删除**
-4. ~~有理式 / `sqrt` 商（CK-INT-58 形状）~~ → **拟删除**，改 `surd2pow` + 级数
-5. **倒数换元 + 稀疏级数**（`limit_at_plus_infinity_fallback`）
-
-不再把「仅含 `exp` 的嵌套式」作为 MRV 门槛；`mrv_limit_eligible` 仅做节点/深度界。
+**Phase 2 已完成**：删除 `limit_conjugate_sqrt_at_infinity`、`rationalize_sqrt_*` 等共轭形状表；`normalize_sqrt_conjugates` 保留于 preprocess（代数恒等式，非 limit 形状表）。
 
 ## 主要代码改动
 
 | 模块 | 改动摘要 |
 |------|----------|
-| `preprocess.rs` | `merge_exp_quotients`、`fold_exp_zero_linear` |
+| `preprocess.rs` | `merge_exp_quotients`、`fold_exp_zero_linear`、`factor_exp_shifted_difference`、`limit_preprocess_struct` |
 | `mrv.rs` | `Pow(const,var)` 进 MRV；`choose_mrv_w` 支持一般负线性指数；`linear_coeff_in_var` |
 | `mrv_lead_term.rs` | `mrv_limit_eligible`；`limit_unidirectional_plus_infinity`；`omega_tends_to_zero` 扩展 |
-| `asymptotic.rs` | MRV 优先；共轭 `sqrt(S)-x`；`limit_at_zero_rational_lead` |
+| `asymptotic.rs` | MRV 优先；**已删**共轭形状表；`limit_factored_exp_growth`；`limit_sqrt_sum_quotient`（preprocess 共轭分式） |
 | `sparse_series.rs` | `atan(1/u)`、`sqrt` 二项级数 |
 | `mod.rs` | `limit_via_reciprocal` 改走 `limit_at_zero_fallback`（避免 atan L'Hôpital 挂起） |
 
-## Maxima 回归状态（2026-06-17，续）
+## Maxima 回归状态（2026-06-17，Phase 2 + gruntz）
 
 | 用例 | 期望 | 状态 |
 |------|------|------|
@@ -49,16 +46,16 @@ Maxima `tests/rtest_limit*.mac` 中抽取了 14 条 `limit` 用例（`giac-calcu
 | `a/n` @ +∞ | 0 | ✅ |
 | `7^n/8^n` @ +∞ | 0 | ✅ MRV |
 | `4^n/2^(2n)` @ +∞ | 1 | ✅ |
-| `x*(sqrt(1+x²)-x)` @ +∞ | 1/2 | ✅ 共轭 / fallback |
+| `x*(sqrt(1+x²)-x)` @ +∞ | 1/2 | ✅ fallback 级数 |
 | `x/(x^ln(x))` @ +∞ | 0 | ✅ 形状识别 |
 | `(1+1/x)*(sqrt(x+1)+1)` @ +∞ | +∞ | ✅ `limit_poly_over_sqrt` |
 | `x*atan(x)/(x+1)` @ +∞ | `pi/2` | ✅ 倒数级数 + `series_atan_of_inv` |
 | `(3^x+5^x)^(1/x)` | 5 | ✅ `limit_exp_sum_nth_root` |
-| gruntz `exp*(exp(...)-exp(...))` | -1 | ❌ MRV 级数 |
-| CK-INT-60 比值 | 1 | ❌ MRV 比值收敛 |
-| gruntz 嵌套 exp 差 | 1 | ❌ MRV 级数 |
+| gruntz `exp*(exp(...)-exp(...))` | -1 | ✅ `factor_exp_shifted_difference` + 抵消 |
+| CK-INT-60 比值 | 1 | ❌ 待 `remove_lnexp` / MRV 级数 |
+| gruntz 嵌套 exp 差 | 1 | ❌ 待 216e 级数扩展 |
 
-**通过：11/14**；**仍 ignore：3 条 gruntz**。
+**通过：12/14**；**仍 ignore：2 条 gruntz**（CK-60 比值、嵌套 exp 差）。
 
 ### Phase 0 fallback-only（`limit_at_plus_infinity_fallback`）
 
@@ -77,7 +74,7 @@ Maxima `tests/rtest_limit*.mac` 中抽取了 14 条 `limit` 用例（`giac-calcu
 1. **`mrv_compare`**：`ln(a)/ln(b)` 的 MRV 主项比较（`3^x` vs `5^x`、`x^ln(x)` 等）
 2. **`series_div`**：支持含 `pi` 的常数主项（`atan` @ +∞）
 3. **CK-60 比值**：扩展 `remove_lnexp` / peel（无 `exp(x)` 差分形状）
-4. **gruntz 嵌套 exp**：216e 级数路径覆盖更多 `exp` 差分
+4. **gruntz 嵌套 exp**：216e 级数路径覆盖更多 `exp` 差分（`exp*(exp(...)-exp(...))` 已通过 preprocess 抵消）
 
 ## 测试
 
