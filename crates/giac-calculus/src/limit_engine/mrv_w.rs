@@ -4,7 +4,7 @@ use std::sync::Arc;
 
 use giac_core::{Expr, ExprArc, FuncKind, Ident};
 use num_bigint::BigInt;
-use num_traits::{One, Zero};
+use num_traits::{One, Signed, Zero};
 
 pub(crate) const MRV_W: &str = "_mrv_w";
 
@@ -18,6 +18,45 @@ pub(crate) fn mrv_w_expr() -> ExprArc {
 
 pub(crate) fn mrv_ln_w_expr() -> ExprArc {
     Expr::func(FuncKind::Ln, vec![mrv_w_expr()])
+}
+
+/// `-ln(w)` as `Mul(-1, Ln(w))`.
+pub(crate) fn neg_ln_w_expr() -> ExprArc {
+    Expr::mul(vec![Expr::int(-1), mrv_ln_w_expr()])
+}
+
+pub(crate) fn is_neg_ln_w_expr(e: &ExprArc) -> bool {
+    matches!(
+        e.as_ref(),
+        Expr::Mul(fs)
+            if fs.len() == 2
+                && fs.iter().any(|f| matches!(f.as_ref(), Expr::Int(n) if n == &-BigInt::from(1)))
+                && fs.iter().any(|f| matches!(f.as_ref(), Expr::Func(FuncKind::Ln, args)
+                    if args.len() == 1 && matches!(args[0].as_ref(), Expr::Symbol(id) if is_mrv_w_var(id))))
+    )
+}
+
+pub(crate) fn is_neg_w_inv(e: &ExprArc) -> bool {
+    match e.as_ref() {
+        Expr::Pow(base, exp)
+            if matches!(exp.as_ref(), Expr::Int(n) if n.is_negative())
+                && matches!(base.as_ref(), Expr::Symbol(id) if is_mrv_w_var(id)) =>
+        {
+            true
+        }
+        Expr::Mul(fs)
+            if fs.len() == 2
+                && fs.iter().any(|f| matches!(f.as_ref(), Expr::Int(n) if n.is_negative()))
+                && fs.iter().any(|f| {
+                    matches!(f.as_ref(), Expr::Pow(b, e)
+                        if matches!(e.as_ref(), Expr::Int(n) if n.is_negative())
+                            && matches!(b.as_ref(), Expr::Symbol(id) if is_mrv_w_var(id)))
+                }) =>
+        {
+            true
+        }
+        _ => false,
+    }
 }
 
 pub(crate) fn expr_contains_w_var(e: &ExprArc) -> bool {
@@ -59,6 +98,38 @@ pub(crate) fn is_expr_zero(e: &ExprArc) -> bool {
     matches!(e.as_ref(), Expr::Int(n) if n.is_zero())
 }
 
+/// Signed coefficient of `n*ln(w)` when `f` is purely `n*ln(w)`.
+fn ln_w_mul_coeff(f: &ExprArc) -> Option<i32> {
+    if is_ln_w(f) {
+        return Some(1);
+    }
+    match f.as_ref() {
+        Expr::Mul(fs) => {
+            let mut n = 1i32;
+            let mut has_ln = false;
+            for x in fs {
+                if is_ln_w(x) {
+                    has_ln = true;
+                    continue;
+                }
+                if let Expr::Int(i) = x.as_ref() {
+                    if let Ok(v) = giac_core::bigint_to_i64(i) {
+                        n = n.saturating_mul(i32::try_from(v).unwrap_or(0));
+                        continue;
+                    }
+                }
+                return None;
+            }
+            if has_ln {
+                Some(n)
+            } else {
+                None
+            }
+        }
+        _ => None,
+    }
+}
+
 /// Write `e` as `k * ln(w) + rest` with `rest` free of `ln(w)`.
 pub(crate) fn decompose_ln_w_coeff(e: &ExprArc) -> (i32, ExprArc) {
     match e.as_ref() {
@@ -66,6 +137,10 @@ pub(crate) fn decompose_ln_w_coeff(e: &ExprArc) -> (i32, ExprArc) {
             let mut k = 0i32;
             let mut rest = Vec::new();
             for t in ts {
+                if let Some(lk) = ln_w_mul_coeff(t) {
+                    k = k.saturating_add(lk);
+                    continue;
+                }
                 let (tk, tr) = decompose_ln_w_coeff(t);
                 k = k.saturating_add(tk);
                 if !is_expr_one(&tr) && !is_expr_zero(&tr) {
@@ -78,8 +153,8 @@ pub(crate) fn decompose_ln_w_coeff(e: &ExprArc) -> (i32, ExprArc) {
             let mut k = 0i32;
             let mut rest = Vec::new();
             for f in fs {
-                if is_ln_w(f) {
-                    k += 1;
+                if let Some(lk) = ln_w_mul_coeff(f) {
+                    k = k.saturating_add(lk);
                     continue;
                 }
                 let (fk, fr) = decompose_ln_w_coeff(f);

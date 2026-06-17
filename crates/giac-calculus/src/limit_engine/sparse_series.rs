@@ -17,8 +17,10 @@ use num_traits::Zero;
 
 use super::bounds::{MAX_SERIES_DEPTH, MAX_SERIES_ORDER, MAX_SERIES_TERMS};
 use super::mrv_w::{
-    decompose_ln_w_coeff, is_expr_one, is_expr_zero as mrv_is_zero, is_mrv_w_var, mrv_ln_w_expr,
+    decompose_ln_w_coeff, expr_contains_ln_w, is_expr_one, is_expr_zero as mrv_is_zero, is_mrv_w_var,
+    is_neg_ln_w_expr, mrv_ln_w_expr,
 };
+use super::remove_lnexp::{expr_contains_exp_or_ln, remove_lnexp};
 use crate::integrate::try_as_rational;
 use crate::risch::depends_on_var;
 
@@ -280,6 +282,27 @@ fn series_at_zero_depth(
             terms: vec![(1, Expr::int(1))],
         }),
         Expr::Add(ts) => {
+            if is_mrv_w_var(var) {
+                let combined = remove_lnexp(
+                    &Expr::add(ts.iter().map(|t| remove_lnexp(t, ctx)).collect()),
+                    ctx,
+                );
+                let combined = ratnormal(combined.as_ref(), ctx).unwrap_or(combined);
+                return match combined.as_ref() {
+                    Expr::Add(ts2) => {
+                        let mut acc = SparseSeries::default();
+                        for t in ts2 {
+                            acc = acc.add(
+                                &series_at_zero_depth(t, var, order, depth + 1, ctx)?,
+                                ctx,
+                            )?;
+                        }
+                        acc.truncate_to_order(order);
+                        Ok(acc)
+                    }
+                    _ => series_at_zero_depth(&combined, var, order, depth + 1, ctx),
+                };
+            }
             let mut acc = SparseSeries::default();
             for t in ts {
                 acc = acc.add(
@@ -307,6 +330,12 @@ fn series_at_zero_depth(
             series_div(&num_s, &den_s, order, ctx)
         }
         Expr::Pow(b, exp) => {
+            if is_mrv_w_var(var) && is_mrv_symbolic_pow(b, exp) {
+                return Ok(SparseSeries::constant(Expr::pow(
+                    Arc::clone(b),
+                    Arc::clone(exp),
+                )));
+            }
             if let Expr::Int(n) = exp.as_ref() {
                 let base = series_at_zero_depth(b, var, order, depth + 1, ctx)?;
                 return series_pow_int(&base, bigint_to_i64(n)?, order, ctx);
@@ -316,13 +345,23 @@ fn series_at_zero_depth(
         Expr::Func(FuncKind::Exp, args) if args.len() == 1 => {
             let arg = series_at_zero_depth(&args[0], var, order, depth + 1, ctx)?;
             if is_mrv_w_var(var) {
-                series_exp_mrv(&arg, order, ctx)
-            } else {
-                if arg.lead().is_some_and(|(e, _)| e < 0) {
-                    return Err(EvalError::NotImplemented("series"));
+                if arg_has_symbolic_ln_w(&arg) {
+                    return Ok(SparseSeries::constant(Expr::func(
+                        FuncKind::Exp,
+                        vec![arg.to_expr(var)],
+                    )));
                 }
-                series_exp(&arg, order, ctx)
+                return series_exp_mrv(&arg, order, ctx).or_else(|_| {
+                    Ok(SparseSeries::constant(Expr::func(
+                        FuncKind::Exp,
+                        vec![arg.to_expr(var)],
+                    )))
+                });
             }
+            if arg.lead().is_some_and(|(e, _)| e < 0) {
+                return Err(EvalError::NotImplemented("series"));
+            }
+            series_exp(&arg, order, ctx)
         }
         Expr::Func(FuncKind::Ln, args) if args.len() == 1 => {
             if is_mrv_w_var(var)
@@ -592,7 +631,16 @@ fn normalize_map(map: HashMap<i32, ExprArc>, ctx: &Context) -> Result<SparseSeri
     let mut terms: Vec<(i32, ExprArc)> = map
         .into_iter()
         .filter_map(|(e, c)| {
-            let ev = ratnormal(c.as_ref(), ctx).ok().or_else(|| eval(c.as_ref(), ctx).ok())?;
+            let ev = if expr_contains_exp_or_ln(&c) {
+                let r = remove_lnexp(&c, ctx);
+                ratnormal(r.as_ref(), ctx)
+                    .ok()
+                    .or_else(|| eval(r.as_ref(), ctx).ok())
+            } else {
+                ratnormal(c.as_ref(), ctx)
+                    .ok()
+                    .or_else(|| eval(c.as_ref(), ctx).ok())
+            }?;
             if is_expr_zero(&ev) {
                 None
             } else {
@@ -653,6 +701,24 @@ fn is_expr_zero(e: &ExprArc) -> bool {
 
 fn is_series_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Symbol(id) if id == var)
+}
+
+fn arg_has_symbolic_ln_w(arg: &SparseSeries) -> bool {
+    arg.iter_terms()
+        .any(|(_, c)| expr_contains_ln_w(c) || is_neg_ln_w_expr(c))
+}
+
+/// `(-ln(w))^k` and similar non-Taylor powers stay symbolic in MRV series coeffs.
+fn is_mrv_symbolic_pow(base: &ExprArc, exp: &ExprArc) -> bool {
+    if !matches!(exp.as_ref(), Expr::Int(_)) {
+        return false;
+    }
+    is_neg_ln_w_expr(base)
+        || matches!(
+            base.as_ref(),
+            Expr::Func(FuncKind::Ln, args)
+                if args.len() == 1 && matches!(args[0].as_ref(), Expr::Symbol(id) if is_mrv_w_var(id))
+        )
 }
 
 #[cfg(test)]

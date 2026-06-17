@@ -25,6 +25,7 @@ mod mrv_lead_term;
 mod mrv_series_lead;
 mod mrv_w;
 pub(crate) mod preprocess;
+mod remove_lnexp;
 mod sparse_series;
 
 pub(crate) fn expr_has_nested_exp(e: &ExprArc) -> bool {

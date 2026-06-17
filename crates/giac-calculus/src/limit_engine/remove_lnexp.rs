@@ -1,0 +1,306 @@
+//! Upstream `remove_lnexp` for sparse-series coefficient merging (`series.cc`).
+//!
+//! `ln_expand`: `ln(exp(f))→f`, product/power/inv rules.
+//! `exp_series`: `exp(a*ln(v)+b) → exp(b)*v^a` when linear in a single `ln(v)`.
+
+use std::sync::Arc;
+
+use giac_core::{bigint_to_i64, Context, Expr, ExprArc, FuncKind};
+use giac_simplify::ratnormal;
+use num_bigint::BigInt;
+
+use super::mrv_w::{
+    decompose_ln_w_coeff, expr_contains_ln_w, is_expr_one, is_expr_zero, is_neg_ln_w_expr,
+    is_neg_w_inv, mrv_ln_w_expr, mrv_w_expr,
+};
+
+/// Bottom-up `subst` on `ln` / `exp` (giac `remove_lnexp`).
+pub(crate) fn remove_lnexp(expr: &ExprArc, ctx: &Context) -> ExprArc {
+    let folded = fold_children(expr, ctx);
+    if let Some(rewritten) = try_rewrite_exp_minus_w_inv(&folded, ctx) {
+        return remove_lnexp(&rewritten, ctx);
+    }
+    match folded.as_ref() {
+        Expr::Func(FuncKind::Ln, args) if args.len() == 1 => {
+            let factored = ratnormal(args[0].as_ref(), ctx).unwrap_or_else(|_| Arc::clone(&args[0]));
+            ln_expand0(&factored)
+        }
+        Expr::Func(FuncKind::Exp, args) if args.len() == 1 => exp_series_expand(&args[0], ctx),
+        _ => folded,
+    }
+}
+
+/// `exp(f) - w^{-1} = w^{-1} * (exp(f + ln(w)) - 1)` (MRV / `padd` cancellation).
+fn try_rewrite_exp_minus_w_inv(expr: &ExprArc, ctx: &Context) -> Option<ExprArc> {
+    let Expr::Add(ts) = expr.as_ref() else {
+        return None;
+    };
+    if ts.len() != 2 {
+        return None;
+    }
+    for (exp_side, other) in [(0, 1), (1, 0)] {
+        let a = &ts[exp_side];
+        let b = &ts[other];
+        let Expr::Func(FuncKind::Exp, args) = a.as_ref() else {
+            continue;
+        };
+        if args.len() != 1 || !is_neg_w_inv(b) {
+            continue;
+        }
+        let shifted = remove_lnexp(
+            &Expr::add(vec![Arc::clone(&args[0]), mrv_ln_w_expr()]),
+            ctx,
+        );
+        let w_inv = Expr::pow(mrv_w_expr(), Expr::int(-1));
+        return Some(Expr::mul(vec![
+            w_inv,
+            Expr::add(vec![
+                Expr::func(FuncKind::Exp, vec![shifted]),
+                Expr::int(-1),
+            ]),
+        ]));
+    }
+    None
+}
+
+pub(crate) fn expr_contains_exp_or_ln(e: &ExprArc) -> bool {
+    match e.as_ref() {
+        Expr::Func(FuncKind::Exp | FuncKind::Ln, _) => true,
+        Expr::Add(ts) => ts.iter().any(expr_contains_exp_or_ln),
+        Expr::Mul(fs) => fs.iter().any(expr_contains_exp_or_ln),
+        Expr::Pow(b, exp) => expr_contains_exp_or_ln(b) || expr_contains_exp_or_ln(exp),
+        Expr::Frac(n, d) => expr_contains_exp_or_ln(n) || expr_contains_exp_or_ln(d),
+        Expr::Func(_, args) => args.iter().any(expr_contains_exp_or_ln),
+        _ => false,
+    }
+}
+
+fn fold_children(expr: &ExprArc, ctx: &Context) -> ExprArc {
+    match expr.as_ref() {
+        Expr::Add(ts) => Expr::add(ts.iter().map(|t| remove_lnexp(t, ctx)).collect()),
+        Expr::Mul(fs) => Expr::mul(fs.iter().map(|t| remove_lnexp(t, ctx)).collect()),
+        Expr::Pow(b, e) => Expr::pow(remove_lnexp(b, ctx), remove_lnexp(e, ctx)),
+        Expr::Frac(n, d) => Arc::new(Expr::Frac(remove_lnexp(n, ctx), remove_lnexp(d, ctx))),
+        Expr::Func(kind, args) => Expr::func(
+            *kind,
+            args.iter().map(|a| remove_lnexp(a, ctx)).collect(),
+        ),
+        _ => Arc::clone(expr),
+    }
+}
+
+fn ln_expand0(e: &ExprArc) -> ExprArc {
+    match e.as_ref() {
+        Expr::Func(FuncKind::Exp, args) if args.len() == 1 => Arc::clone(&args[0]),
+        Expr::Mul(fs) => Expr::add(fs.iter().map(ln_expand0).collect()),
+        Expr::Pow(b, exp) => {
+            if let Expr::Int(n) = exp.as_ref() {
+                if let Ok(k) = bigint_to_i64(n) {
+                    return Expr::mul(vec![Expr::int(k), ln_expand0(b)]);
+                }
+            }
+            Expr::func(FuncKind::Ln, vec![Arc::clone(e)])
+        }
+        Expr::Frac(n, d) if is_expr_one(n) => Expr::mul(vec![Expr::int(-1), ln_expand0(d)]),
+        Expr::Pow(b, exp)
+            if matches!(exp.as_ref(), Expr::Int(n) if n == &-BigInt::from(1)) =>
+        {
+            Expr::mul(vec![Expr::int(-1), ln_expand0(b)])
+        }
+        _ => Expr::func(FuncKind::Ln, vec![Arc::clone(e)]),
+    }
+}
+
+fn exp_series_expand(arg: &ExprArc, ctx: &Context) -> ExprArc {
+    if expr_contains_ln_w(arg) {
+        return exp_series_ln_w(arg);
+    }
+    if let Some((ln_expr, base)) = unique_ln_subexpr(arg) {
+        if is_integer_like(&base) {
+            let (a, b) = linear_decompose_wrt(arg, &ln_expr);
+            if is_integer_like(&a) {
+                let base_pow = Expr::pow(base, a);
+                let exp_b = if is_expr_zero(&b) || is_expr_one(&b) {
+                    Expr::int(1)
+                } else {
+                    Expr::func(FuncKind::Exp, vec![b])
+                };
+                return Expr::mul(vec![exp_b, base_pow]);
+            }
+        }
+    }
+    let _ = ctx;
+    Expr::func(FuncKind::Exp, vec![Arc::clone(arg)])
+}
+
+fn exp_series_ln_w(arg: &ExprArc) -> ExprArc {
+    let (k, rest) = decompose_ln_w_coeff(arg);
+    if k == 0 {
+        return Expr::func(FuncKind::Exp, vec![Arc::clone(arg)]);
+    }
+    let w_pow = if k == 1 {
+        mrv_w_expr()
+    } else {
+        Expr::pow(mrv_w_expr(), Expr::int(i64::from(k)))
+    };
+    let exp_rest = if is_expr_zero(&rest) || is_expr_one(&rest) {
+        Expr::int(1)
+    } else {
+        Expr::func(FuncKind::Exp, vec![rest])
+    };
+    Expr::mul(vec![exp_rest, w_pow])
+}
+
+fn unique_ln_subexpr(e: &ExprArc) -> Option<(ExprArc, ExprArc)> {
+    let mut found: Option<(ExprArc, ExprArc)> = None;
+    collect_ln(e, &mut found);
+    found
+}
+
+fn collect_ln(e: &ExprArc, found: &mut Option<(ExprArc, ExprArc)>) {
+    match e.as_ref() {
+        Expr::Func(FuncKind::Ln, args) if args.len() == 1 => {
+            if found.is_some() {
+                *found = None;
+                return;
+            }
+            *found = Some((Arc::clone(e), Arc::clone(&args[0])));
+        }
+        Expr::Add(ts) => {
+            for t in ts {
+                collect_ln(t, found);
+                if found.is_none() {
+                    return;
+                }
+            }
+        }
+        Expr::Mul(fs) => {
+            for f in fs {
+                collect_ln(f, found);
+                if found.is_none() {
+                    return;
+                }
+            }
+        }
+        Expr::Pow(b, exp) => {
+            collect_ln(b, found);
+            if found.is_none() {
+                return;
+            }
+            collect_ln(exp, found);
+            if found.is_none() {
+                return;
+            }
+        }
+        Expr::Frac(n, d) => {
+            collect_ln(n, found);
+            if found.is_none() {
+                return;
+            }
+            collect_ln(d, found);
+            if found.is_none() {
+                return;
+            }
+        }
+        Expr::Func(_, args) => {
+            for a in args {
+                collect_ln(a, found);
+                if found.is_none() {
+                    return;
+                }
+            }
+        }
+        _ => {}
+    }
+}
+
+fn linear_decompose_wrt(e: &ExprArc, ln_expr: &ExprArc) -> (ExprArc, ExprArc) {
+    match e.as_ref() {
+        Expr::Add(ts) => {
+            let mut a = Expr::int(0);
+            let mut b = Expr::int(0);
+            for t in ts {
+                let (ta, tb) = linear_decompose_wrt(t, ln_expr);
+                a = Expr::add(vec![a, ta]);
+                b = Expr::add(vec![b, tb]);
+            }
+            (a, b)
+        }
+        Expr::Mul(fs) => {
+            if fs.iter().any(|f| f == ln_expr) {
+                let mut coeff = Expr::int(1);
+                for f in fs {
+                    if f != ln_expr {
+                        coeff = Expr::mul(vec![coeff, Arc::clone(f)]);
+                    }
+                }
+                return (coeff, Expr::int(0));
+            }
+            (Expr::int(0), Arc::clone(e))
+        }
+        _ if e == ln_expr => (Expr::int(1), Expr::int(0)),
+        _ => (Expr::int(0), Arc::clone(e)),
+    }
+}
+
+fn is_integer_like(e: &ExprArc) -> bool {
+    match e.as_ref() {
+        Expr::Int(_) => true,
+        Expr::Frac(n, d) => {
+            matches!(n.as_ref(), Expr::Int(_)) && matches!(d.as_ref(), Expr::Int(_))
+        }
+        _ => false,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use giac_core::{format_expr, FuncKind};
+
+    use super::*;
+    use crate::plugin::xcas_default;
+
+    #[test]
+    fn remove_lnexp_ln_exp_cancels() {
+        let ctx = xcas_default();
+        let e = Expr::func(FuncKind::Ln, vec![Expr::func(FuncKind::Exp, vec![Expr::sym("x")])]);
+        let r = remove_lnexp(&e, &ctx);
+        assert_eq!(format_expr(r.as_ref()), "x");
+    }
+
+    #[test]
+    fn remove_lnexp_exp_ln_w() {
+        let ctx = xcas_default();
+        let inner = Expr::add(vec![
+            Expr::mul(vec![Expr::int(-1), super::super::mrv_w::mrv_ln_w_expr()]),
+            Expr::sym("a"),
+        ]);
+        let e = Expr::func(FuncKind::Exp, vec![inner]);
+        let r = remove_lnexp(&e, &ctx);
+        let s = format_expr(r.as_ref());
+        assert!(
+            s.contains("_mrv_w") && s.contains("exp(a)"),
+            "expected w^-1*exp(a), got {s}"
+        );
+    }
+
+    #[test]
+    fn remove_lnexp_exp_difference() {
+        let ctx = xcas_default();
+        let w = super::super::mrv_w::mrv_w_expr();
+        let inner = Expr::add(vec![
+            Expr::mul(vec![Expr::int(-1), super::super::mrv_w::mrv_ln_w_expr()]),
+            Expr::sym("eps"),
+        ]);
+        let e = Expr::add(vec![
+            Expr::func(FuncKind::Exp, vec![inner]),
+            Expr::mul(vec![Expr::int(-1), Expr::pow(w, Expr::int(-1))]),
+        ]);
+        let r = remove_lnexp(&e, &ctx);
+        let s = format_expr(r.as_ref());
+        assert!(
+            s.contains("exp(eps)") && s.contains("_mrv_w"),
+            "expected w^-1*(exp(eps)-1) style, got {s}"
+        );
+    }
+}

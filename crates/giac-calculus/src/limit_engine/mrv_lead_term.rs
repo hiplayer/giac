@@ -15,8 +15,8 @@ use super::mrv_w::{
     decompose_ln_w_coeff, expr_contains_ln_w, is_expr_zero as mrv_is_zero, is_mrv_w_var, MRV_W,
 };
 use super::mrv_series_lead::mrv_lead_term_at_zero;
-use super::mrv_series_lead::normalize_expr_quotients;
 use super::preprocess::limit_preprocess_plus_infinity;
+use super::remove_lnexp::remove_lnexp;
 use super::sparse_series::series_at_zero;
 
 #[derive(Clone, Debug)]
@@ -176,15 +176,50 @@ fn series_lead_at_zero(
     order: usize,
     ctx: &Context,
 ) -> Result<MrvLeadTerm, EvalError> {
-    if is_mrv_w_var(w) && needs_exp_difference_cancellation(expr) {
-        return mrv_lead_fallback(expr, w, ctx);
+    let mut try_order = order.max(4);
+    let max_order = MAX_SERIES_ORDER.saturating_mul(2);
+    loop {
+        match series_at_zero(expr, w, try_order, ctx) {
+            Ok(series) => {
+                if let Some((exp, coeff)) = series.lead() {
+                    let coeff = remove_lnexp(&coeff, ctx);
+                    let coeff = ratnormal(coeff.as_ref(), ctx).unwrap_or(coeff);
+                    if !mrv_is_zero(&coeff) && lead_coeff_ready(&coeff, w) {
+                        return Ok(MrvLeadTerm {
+                            coeff,
+                            exponent: exp,
+                        });
+                    }
+                }
+            }
+            Err(EvalError::NotImplemented(_)) => break,
+            Err(e) => return Err(e),
+        }
+        if try_order >= max_order {
+            break;
+        }
+        try_order = try_order.saturating_add(2);
     }
-    let series = series_at_zero(expr, w, order, ctx)?;
-    let (exp, coeff) = series.lead().ok_or(EvalError::NotImplemented("limit"))?;
-    Ok(MrvLeadTerm {
-        coeff: ratnormal(coeff.as_ref(), ctx).unwrap_or(coeff),
-        exponent: exp,
-    })
+    mrv_lead_fallback(expr, w, ctx)
+}
+
+fn lead_coeff_ready(coeff: &ExprArc, w: &Ident) -> bool {
+    if expr_contains_ln_w(coeff) {
+        return false;
+    }
+    !contains_w(coeff) && !depends_on_w(coeff, w)
+}
+
+fn depends_on_w(e: &ExprArc, w: &Ident) -> bool {
+    match e.as_ref() {
+        Expr::Symbol(id) => id == w,
+        Expr::Add(ts) => ts.iter().any(|t| depends_on_w(t, w)),
+        Expr::Mul(fs) => fs.iter().any(|f| depends_on_w(f, w)),
+        Expr::Pow(b, exp) => depends_on_w(b, w) || depends_on_w(exp, w),
+        Expr::Frac(n, d) => depends_on_w(n, w) || depends_on_w(d, w),
+        Expr::Func(_, args) => args.iter().any(|a| depends_on_w(a, w)),
+        _ => false,
+    }
 }
 
 fn mrv_lead_fallback(
@@ -199,55 +234,6 @@ fn mrv_lead_fallback(
         coeff: ratnormal(coeff.as_ref(), ctx).unwrap_or(coeff),
         exponent: exp,
     })
-}
-
-/// `exp(f) - w^{-1}` style cancellation (CK-INT-61); full `SparseSeries` on `Add` blows up.
-fn needs_exp_difference_cancellation(expr: &ExprArc) -> bool {
-    if add_has_exp_w_inv_difference(expr) {
-        return true;
-    }
-    match expr.as_ref() {
-        Expr::Frac(n, _) => add_has_exp_w_inv_difference(n),
-        Expr::Mul(fs) => fs.iter().any(needs_exp_difference_cancellation),
-        _ => false,
-    }
-}
-
-fn add_has_exp_w_inv_difference(expr: &ExprArc) -> bool {
-    let Expr::Add(terms) = expr.as_ref() else {
-        return false;
-    };
-    if terms.len() != 2 {
-        return false;
-    }
-    let has_exp = terms.iter().any(|t| {
-        matches!(t.as_ref(), Expr::Func(FuncKind::Exp, args) if args.len() == 1)
-    });
-    let has_w_inv = terms.iter().any(is_neg_w_inv);
-    has_exp && has_w_inv
-}
-
-fn is_neg_w_inv(e: &ExprArc) -> bool {
-    match e.as_ref() {
-        Expr::Pow(base, exp)
-            if matches!(exp.as_ref(), Expr::Int(n) if n.is_negative())
-                && matches!(base.as_ref(), Expr::Symbol(id) if is_mrv_w_var(id)) =>
-        {
-            true
-        }
-        Expr::Mul(fs)
-            if fs.len() == 2
-                && fs.iter().any(|f| matches!(f.as_ref(), Expr::Int(n) if n.is_negative()))
-                && fs.iter().any(|f| {
-                    matches!(f.as_ref(), Expr::Pow(b, e)
-                        if matches!(e.as_ref(), Expr::Int(n) if n.is_negative())
-                            && matches!(b.as_ref(), Expr::Symbol(id) if is_mrv_w_var(id)))
-                }) =>
-        {
-            true
-        }
-        _ => false,
-    }
 }
 
 fn contains_ln_w(e: &ExprArc) -> bool {
