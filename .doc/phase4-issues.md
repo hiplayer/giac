@@ -15,7 +15,7 @@
 | 状态 | Issues |
 |------|--------|
 | ✅ 已关闭（batch 验收绿） | 201–205, 209, 211, 214, 207–208, 213, 215–218, 220, 222；216/217（4a） |
-| ⚠️ 部分完成 / fixture 超前 | 206（`sturm((x^3+1)^2)` 仍失败）、210（**INT-A06** `1/(1-x^2)` 回归）、212（**CK-INT-05** 复杂分母）、219（harness 已接；**30/31** enabled eval）、221（文档）、224–228（写死模式见 §3.1.6） |
+| ⚠️ 部分完成 / fixture 超前 | 206（`sturm((x^3+1)^2)` 仍失败）、210（**INT-A06** `1/(1-x^2)` 回归）、212（**CK-INT-05** 复杂分母）、219（harness 已接；**30/31** enabled eval）、221（文档）、224–228（写死模式见 §3.1.6）、**216e**（`series_lead_at_zero` 未收敛，见 [GIAC-216e](issues/GIAC-216e-mrv-series-lead-convergence.md)） |
 | ❌ 未开始 | 229–231（真 Risch 主流程）；`giac_check_limit` / `giac_check_other` 全量 golden；**GIAC-204b** 语句级 `assume`/`purge`；**GIAC-232** `froot`/`froots` |
 
 **积分表 fixture：** `phase4_integrate_table.json` — **28/28** 行 `enabled: true`（**27/28** eval 绿；**INT-A06** 失败）。
@@ -674,6 +674,7 @@ diff(<输出>,x)  vs  f     # SymPy: simplify(diff(F,x)-f)==0
 | **What** | 在 `x=0` 泰勒展开；对接 `Context::series_order` |
 | **验收** | `test_series` 全行 |
 | **第三方测试** | `SER-H01`；系数与 `sp.series(f,x,0,n).removeO()` 逐项相等 |
+| **子项** | **GIAC-216e** — MRV `series_lead_at_zero` 统一收敛（[issue](issues/GIAC-216e-mrv-series-lead-convergence.md)）；CK-INT-61 仍回退 `mrv_series_lead` |
 
 #### GIAC-217 — `risch` 最小子集（Phase 4a ✅）与 Risch 移植（Phase 4b+）
 
