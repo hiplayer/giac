@@ -3,3 +3,5 @@ build-coverage/
 bin/
 obj/
 session.tex
+giac-rs
+giac/giac_stable.tgz
