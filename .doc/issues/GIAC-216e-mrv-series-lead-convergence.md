@@ -1,6 +1,6 @@
 # GIAC-216e — `series_lead_at_zero` 未收敛到统一 `SparseSeries` 路径
 
-**状态:** open  
+**状态:** closed  
 **类型:** AFK（实现向）/ 部分 HITL（算法选型若需调整 MRV 语义）  
 **Blocked by:** GIAC-216c+（`remove_lnexp` 已接入 `SparseSeries::add` / `normalize_map`）  
 **相关:** GIAC-215 / GIAC-216、`mrv_lead_term.rs`、`sparse_series.rs`、`mrv_series_lead.rs`  
@@ -220,10 +220,10 @@ Gruntz 证明：对 **有限组合初等函数**（`+,-,*,/,^,exp,ln,sin,cos,...
 
 ## 验收标准（关闭本 issue）
 
-- [ ] `series_lead_at_zero` 对 CK-INT-61 **不调用** `mrv_lead_fallback` 即返回正确 `MrvLeadTerm`（`exp=-1`, `coeff=-exp(2)`）。
-- [ ] `mrv_series_lead.rs` 体积显著缩小或仅保留 `normalize_expr_quotients` 等解析层工具。
-- [ ] `giac-calculus --lib` 全绿；无新增 unbounded `expand`。
-- [ ] `.doc/known-divergences.md` 或 phase4 表更新：CK-INT-61 不再标注为 lead-only 回退。
+- [x] `mrv_series_lead_loop` 对 CK-INT-61 **不调用** `mrv_lead_fallback` 即返回正确 `MrvLeadTerm`（`coeff=-exp(2)`）。
+- [x] `mrv_series_lead.rs` 体积显著缩小，仅保留 `normalize_expr_quotients`。
+- [x] `giac-calculus --lib` 全绿；无新增 unbounded `expand`。
+- [x] `phase4-issues.md` 更新：CK-INT-61 不再标注为 lead-only 回退。
 
 ---
 
