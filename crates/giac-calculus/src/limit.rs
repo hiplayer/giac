@@ -569,12 +569,27 @@ mod tests {
 
         /// `rtest_limit_gruntz.mac` L51
         #[test]
-        #[ignore = "NotImplemented(limit)"]
         fn gruntz_exp_times_exp_diff_minus_one() {
             assert_limit(
                 "limit(exp(x)*(exp(1/x-exp(-x))-exp(1/x)),x,+infinity)",
                 "-1",
             );
+        }
+
+        #[test]
+        fn gruntz_factored_exp_growth_unit() {
+            let ctx = crate::plugin::xcas_default();
+            let var = giac_core::Ident::new("x");
+            let stmts = giac_parse::parse_program(
+                "exp(x)*(exp(1/x-exp(-x))-exp(1/x));",
+                &ctx,
+            )
+            .expect("parse");
+            let giac_core::Stmt::ExprStmt(e) = stmts.first().expect("stmt") else {
+                panic!();
+            };
+            let r = crate::limit_engine::limit_at_plus_infinity(e, &var, &ctx).unwrap();
+            assert_eq!(giac_core::format_expr(r.as_ref()), "-1");
         }
 
         /// `rtest_limit_gruntz.mac` L82

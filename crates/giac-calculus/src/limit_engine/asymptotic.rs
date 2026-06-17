@@ -18,7 +18,7 @@ use num_traits::{One, Signed, Zero};
 use super::bounds::{mrv_limit_eligible, too_heavy_for_expand, MAX_SERIES_EXPANSION_ORDER};
 use super::mrv::try_const_f64;
 use super::mrv_lead_term::limit_unidirectional_plus_infinity;
-use super::preprocess::limit_preprocess_plus_infinity;
+use super::preprocess::{limit_preprocess_plus_infinity, limit_preprocess_struct};
 use super::sparse_series::series_at_zero_order;
 
 use crate::integrate::try_as_rational;
@@ -34,6 +34,9 @@ pub(crate) fn limit_at_plus_infinity(
     var: &Ident,
     ctx: &Context,
 ) -> Result<ExprArc, EvalError> {
+    if let Some(r) = limit_factored_exp_growth_at_infinity(expr, var, ctx) {
+        return Ok(normalize_limit_result(&r, ctx));
+    }
     if mrv_limit_eligible(expr) {
         if let Ok(r) = limit_unidirectional_plus_infinity(expr, var, ctx) {
             if is_usable_limit(&r) {
@@ -41,26 +44,10 @@ pub(crate) fn limit_at_plus_infinity(
             }
         }
     }
-    if let Some((num, den)) = try_as_rational(expr, var) {
-        if let Some(r) = limit_rational_leading_at_infinity(&num, &den, var) {
-            return Ok(normalize_limit_result(&r, ctx));
-        }
-    }
-    if let Some(r) = limit_conjugate_sqrt_at_infinity(expr, var)
-        .or_else(|| limit_rational_over_sqrt_quotient_at_infinity(expr, var))
-    {
-        return Ok(normalize_limit_result(&r, ctx));
-    }
-    if let Ok(pre) = limit_preprocess_plus_infinity(expr, var, ctx) {
-        if let Some(r) = limit_conjugate_sqrt_at_infinity(&pre, var)
-            .or_else(|| limit_rational_over_sqrt_quotient_at_infinity(&pre, var))
-        {
-            return Ok(normalize_limit_result(&r, ctx));
-        }
-    }
     if let Some(r) = limit_var_over_x_pow_ln(expr, var)
         .or_else(|| limit_exp_sum_nth_root(expr, var))
         .or_else(|| limit_poly_over_sqrt_at_infinity(expr, var, ctx))
+        .or_else(|| limit_factored_exp_growth_at_infinity(expr, var, ctx))
     {
         return Ok(normalize_limit_result(&r, ctx));
     }
@@ -78,8 +65,14 @@ pub(crate) fn limit_at_plus_infinity_fallback(
         return Err(EvalError::NotImplemented("limit"));
     }
     let pre = limit_preprocess_plus_infinity(expr, var, ctx)?;
+    if let Some((num, den)) = try_as_rational(&pre, var) {
+        if let Some(r) = limit_rational_leading_at_infinity(&num, &den, var) {
+            return Ok(normalize_limit_result(&r, ctx));
+        }
+    }
     if let Some(r) = limit_rational_over_sqrt_quotient_at_infinity(&pre, var)
         .or_else(|| limit_poly_over_sqrt_at_infinity(&pre, var, ctx))
+        .or_else(|| limit_sqrt_sum_quotient_at_infinity(&pre, var))
     {
         return Ok(normalize_limit_result(&r, ctx));
     }
@@ -282,162 +275,6 @@ fn sqrt_arg(e: &ExprArc) -> Option<ExprArc> {
     }
 }
 
-fn is_neg_var(e: &ExprArc, var: &Ident) -> bool {
-    is_var(e, var)
-        || matches!(
-            e.as_ref(),
-            Expr::Mul(fs) if fs.len() == 2
-                && fs.iter().any(|f| matches!(f.as_ref(), Expr::Int(n) if n.is_negative()))
-                && fs.iter().any(|f| is_var(f, var))
-        )
-}
-
-fn rationalize_sqrt_difference(expr: &ExprArc) -> Option<ExprArc> {
-    let Expr::Add(terms) = expr.as_ref() else {
-        return None;
-    };
-    if terms.len() != 2 {
-        return None;
-    }
-    let (pos, neg) = if is_sqrt(&terms[0]) {
-        (&terms[0], &terms[1])
-    } else if is_sqrt(&terms[1]) {
-        (&terms[1], &terms[0])
-    } else {
-        return None;
-    };
-    let neg_sqrt = match neg.as_ref() {
-        Expr::Mul(fs) if fs.len() == 2
-            && matches!(fs[0].as_ref(), Expr::Int(n) if n == &-BigInt::from(1))
-            && is_sqrt(&fs[1]) =>
-        {
-            &fs[1]
-        }
-        _ => return None,
-    };
-    let a = sqrt_arg(pos)?;
-    let b = sqrt_arg(neg_sqrt)?;
-    Some(Arc::new(Expr::Frac(
-        Expr::add(vec![a, Expr::mul(vec![Expr::int(-1), b])]),
-        Expr::add(vec![Arc::clone(pos), Arc::clone(neg_sqrt)]),
-    )))
-}
-
-fn rationalize_sqrt_minus_var(expr: &ExprArc, var: &Ident) -> Option<ExprArc> {
-    let Expr::Add(terms) = expr.as_ref() else {
-        return None;
-    };
-    if terms.len() != 2 {
-        return None;
-    };
-    let (sqrt_t, _) = if is_sqrt(&terms[0]) && is_neg_var(&terms[1], var) {
-        (&terms[0], &terms[1])
-    } else if is_sqrt(&terms[1]) && is_neg_var(&terms[0], var) {
-        (&terms[1], &terms[0])
-    } else {
-        return None;
-    };
-    let inner = sqrt_arg(sqrt_t)?;
-    if !is_monic_quadratic_leading(var, &inner).unwrap_or(false) {
-        return None;
-    }
-    let var_e = var_to_expr(var);
-    Some(Arc::new(Expr::Frac(
-        Expr::int(1),
-        Expr::add(vec![Arc::clone(sqrt_t), var_e]),
-    )))
-}
-
-fn rationalize_sqrt_in_expr(expr: &ExprArc, var: &Ident) -> Option<ExprArc> {
-    if let Expr::Mul(fs) = expr.as_ref() {
-        if fs.len() == 2 {
-            for (i, other) in [(0, 1), (1, 0)] {
-                if is_var(&fs[i], var) {
-                    if let Some(frac) = rationalize_sqrt_difference(&fs[other])
-                        .or_else(|| rationalize_sqrt_minus_var(&fs[other], var))
-                    {
-                        if let Expr::Frac(n, d) = frac.as_ref() {
-                            return Some(Arc::new(Expr::Frac(
-                                Expr::mul(vec![Arc::clone(&fs[i]), Arc::clone(n)]),
-                                Arc::clone(d),
-                            )));
-                        }
-                        return Some(Expr::mul(vec![Arc::clone(&fs[i]), frac]));
-                    }
-                }
-            }
-        }
-    }
-    if let Expr::Frac(n, d) = expr.as_ref() {
-        if is_var(n, var) {
-            if let Some(frac) = rationalize_sqrt_minus_var(d, var)
-                .or_else(|| rationalize_sqrt_difference(d))
-            {
-                if let Expr::Frac(nn, dd) = frac.as_ref() {
-                    return Some(Arc::new(Expr::Frac(
-                        Arc::clone(n),
-                        Expr::mul(vec![Arc::clone(nn), Arc::clone(dd)]),
-                    )));
-                }
-            }
-        }
-    }
-    rationalize_sqrt_difference(expr).or_else(|| rationalize_sqrt_minus_var(expr, var))
-}
-
-fn limit_conjugate_sqrt_at_infinity(expr: &ExprArc, var: &Ident) -> Option<ExprArc> {
-    let rewritten = rationalize_sqrt_in_expr(expr, var)?;
-    let (num, den) = try_as_quotient_local(&rewritten, var)?;
-    let v = Var::from(var.as_str());
-    let num_p = expr_to_poly(&num).ok()?;
-    let nd = univariate_degree(&num_p, &v);
-    if nd == 0 {
-        return Some(Expr::int(0));
-    }
-    let lead_num = coeff_at(&num_p, &v, nd);
-    let den_x = sqrt_sum_leading_linear_coeff(&den, var)?;
-    if nd > 1 {
-        return Some(Expr::int(0));
-    }
-    if nd == 1 {
-        if den_x.is_zero() {
-            return Some(Expr::sym("+infinity"));
-        }
-        return Some(ratio_to_expr(&(lead_num / den_x)));
-    }
-    None
-}
-
-fn sqrt_sum_leading_linear_coeff(den: &ExprArc, var: &Ident) -> Option<Ratio<BigInt>> {
-    let Expr::Add(terms) = den.as_ref() else {
-        return None;
-    };
-    let mut total = Ratio::from_integer(BigInt::from(0));
-    for t in terms {
-        if is_var(t, var) {
-            total += Ratio::one();
-            continue;
-        }
-        let inner = sqrt_arg(t)?;
-        if is_monic_quadratic_leading(var, &inner)? {
-            total += Ratio::one();
-        } else {
-            return None;
-        }
-    }
-    Some(total)
-}
-
-fn is_monic_quadratic_leading(var: &Ident, inner: &ExprArc) -> Option<bool> {
-    let v = Var::from(var.as_str());
-    let p = expr_to_poly(inner).ok()?;
-    let d = univariate_degree(&p, &v);
-    if d != 2 {
-        return Some(false);
-    }
-    Some(coeff_at(&p, &v, 2) == Ratio::one())
-}
-
 fn limit_rational_over_sqrt_quotient_at_infinity(expr: &ExprArc, var: &Ident) -> Option<ExprArc> {
     let (num, den) = try_as_quotient_local(expr, var)?;
     let inner = sqrt_arg(&den)?;
@@ -469,6 +306,62 @@ fn limit_rational_over_sqrt_quotient_at_infinity(expr: &ExprArc, var: &Ident) ->
         return Some(Expr::sym("+infinity"));
     }
     None
+}
+
+/// After `normalize_sqrt_conjugates`, `poly/(sqrt+…)` leading term at `+∞`.
+fn limit_sqrt_sum_quotient_at_infinity(expr: &ExprArc, var: &Ident) -> Option<ExprArc> {
+    let (num, den) = try_as_quotient_local(expr, var)?;
+    let v = Var::from(var.as_str());
+    let num_p = expr_to_poly(&num).ok()?;
+    let nd = univariate_degree(&num_p, &v);
+    if nd == 0 {
+        return Some(Expr::int(0));
+    }
+    let den_x = sqrt_sum_leading_linear_coeff(&den, var)?;
+    if nd > 1 {
+        return Some(Expr::int(0));
+    }
+    if nd == 1 {
+        if den_x.is_zero() {
+            return Some(Expr::sym("+infinity"));
+        }
+        return Some(ratio_to_expr(&(coeff_at(&num_p, &v, nd) / den_x)));
+    }
+    None
+}
+
+fn sqrt_sum_leading_linear_coeff(den: &ExprArc, var: &Ident) -> Option<Ratio<BigInt>> {
+    let Expr::Add(terms) = den.as_ref() else {
+        let inner = sqrt_arg(den)?;
+        return match is_monic_quadratic_leading(var, &inner) {
+            Some(true) => Some(Ratio::one()),
+            _ => None,
+        };
+    };
+    let mut total = Ratio::from_integer(BigInt::from(0));
+    for t in terms {
+        if is_var(t, var) {
+            total += Ratio::one();
+            continue;
+        }
+        let inner = sqrt_arg(t)?;
+        if is_monic_quadratic_leading(var, &inner)? {
+            total += Ratio::one();
+        } else {
+            return None;
+        }
+    }
+    Some(total)
+}
+
+fn is_monic_quadratic_leading(var: &Ident, inner: &ExprArc) -> Option<bool> {
+    let v = Var::from(var.as_str());
+    let p = expr_to_poly(inner).ok()?;
+    let d = univariate_degree(&p, &v);
+    if d != 2 {
+        return Some(false);
+    }
+    Some(coeff_at(&p, &v, 2) == Ratio::one())
 }
 
 fn try_as_quotient_local(expr: &ExprArc, var: &Ident) -> Option<(ExprArc, ExprArc)> {
@@ -749,6 +642,185 @@ fn limit_exp_sum_nth_root(expr: &ExprArc, var: &Ident) -> Option<ExprArc> {
     } else {
         None
     }
+}
+
+/// After `factor_exp_shifted_difference`: `exp(L)*(exp(S)-1)` with `S→0`.
+/// Uses `exp(S)-1 ~ S` and cancels `exp(L)*(-exp(-var))` when `L = var + rest`.
+fn limit_factored_exp_growth_at_infinity(
+    expr: &ExprArc,
+    var: &Ident,
+    ctx: &Context,
+) -> Option<ExprArc> {
+    let pre = limit_preprocess_struct(expr, var);
+    let (outer_arg, small_shift) = match_exp_times_exp_minus_one(&pre)?;
+    let rest = exp_rest_after_unit_var(&outer_arg, var)?;
+    if !is_neg_exp_of_neg_var(&small_shift, var) {
+        return None;
+    }
+    limit_neg_exp_rest_at_infinity(&rest, var, ctx)
+}
+
+fn exp_rest_after_unit_var(arg: &ExprArc, var: &Ident) -> Option<ExprArc> {
+    if is_unit_var_term(arg, var) {
+        return Some(Expr::int(0));
+    }
+    let Expr::Add(ts) = arg.as_ref() else {
+        return None;
+    };
+    let mut rest = Vec::new();
+    let mut saw_unit_var = false;
+    for t in ts {
+        if is_unit_var_term(t, var) {
+            if saw_unit_var {
+                return None;
+            }
+            saw_unit_var = true;
+        } else {
+            rest.push(Arc::clone(t));
+        }
+    }
+    if !saw_unit_var {
+        return None;
+    }
+    Some(match rest.len() {
+        0 => Expr::int(0),
+        1 => Arc::clone(&rest[0]),
+        _ => Expr::add(rest),
+    })
+}
+
+fn is_unit_var_term(e: &ExprArc, var: &Ident) -> bool {
+    if is_var(e, var) {
+        return true;
+    }
+    match e.as_ref() {
+        Expr::Mul(fs) if fs.len() == 2 => {
+            (is_var(&fs[0], var) && is_one(&fs[1])) || (is_var(&fs[1], var) && is_one(&fs[0]))
+        }
+        _ => false,
+    }
+}
+
+fn is_one(e: &ExprArc) -> bool {
+    matches!(e.as_ref(), Expr::Int(n) if n == &BigInt::from(1))
+}
+
+fn limit_neg_exp_rest_at_infinity(rest: &ExprArc, var: &Ident, ctx: &Context) -> Option<ExprArc> {
+    if !depends_on_var(rest, var) {
+        return eval(
+            Expr::mul(vec![
+                Expr::int(-1),
+                Expr::func(FuncKind::Exp, vec![Arc::clone(rest)]),
+            ])
+            .as_ref(),
+            ctx,
+        )
+        .ok();
+    }
+    if vanishes_at_plus_infinity(rest, var) {
+        return Some(Expr::int(-1));
+    }
+    None
+}
+
+fn vanishes_at_plus_infinity(e: &ExprArc, var: &Ident) -> bool {
+    match e.as_ref() {
+        Expr::Pow(b, exp) if is_var(b, var) => {
+            matches!(exp.as_ref(), Expr::Int(n) if n.is_negative())
+        }
+        Expr::Frac(n, d) => {
+            matches!(n.as_ref(), Expr::Int(nn) if nn.is_one()) && is_var(d, var)
+        }
+        Expr::Mul(fs) => fs.iter().all(|f| vanishes_at_plus_infinity(f, var) || !depends_on_var(f, var)),
+        Expr::Func(FuncKind::Exp, args) if args.len() == 1 => super::mrv::linear_coeff_in_var(
+            &args[0],
+            var,
+        )
+        .and_then(|c| try_const_f64(&c))
+        .is_some_and(|x| x < 0.0),
+        _ => false,
+    }
+}
+
+fn match_exp_times_exp_minus_one(expr: &ExprArc) -> Option<(ExprArc, ExprArc)> {
+    let Expr::Mul(fs) = expr.as_ref() else {
+        return None;
+    };
+    if fs.len() != 2 {
+        return None;
+    }
+    for (i, j) in [(0, 1), (1, 0)] {
+        if let Some(outer) = exp_func_arg(&fs[i]) {
+            if let Some(shift) = exp_minus_one_arg(&fs[j]) {
+                return Some((outer, shift));
+            }
+        }
+    }
+    None
+}
+
+fn exp_func_arg(e: &ExprArc) -> Option<ExprArc> {
+    match e.as_ref() {
+        Expr::Func(FuncKind::Exp, args) if args.len() == 1 => Some(Arc::clone(&args[0])),
+        _ => None,
+    }
+}
+
+fn exp_minus_one_arg(e: &ExprArc) -> Option<ExprArc> {
+    let Expr::Add(ts) = e.as_ref() else {
+        return None;
+    };
+    if ts.len() != 2 {
+        return None;
+    }
+    let (pos, neg) = if matches!(ts[1].as_ref(), Expr::Int(n) if n.is_negative()) {
+        (&ts[0], &ts[1])
+    } else if matches!(ts[0].as_ref(), Expr::Int(n) if n.is_negative()) {
+        (&ts[1], &ts[0])
+    } else {
+        return None;
+    };
+    if !matches!(neg.as_ref(), Expr::Int(n) if n.is_negative()) {
+        return None;
+    }
+    exp_func_arg(pos)
+}
+
+fn is_neg_exp_of_neg_var(e: &ExprArc, var: &Ident) -> bool {
+    match e.as_ref() {
+        Expr::Mul(fs) if fs.len() == 2 => {
+            let neg = fs.iter().any(|f| matches!(f.as_ref(), Expr::Int(n) if n.is_negative()));
+            let exp_inner = fs.iter().find_map(|f| {
+                if let Expr::Func(FuncKind::Exp, args) = f.as_ref() {
+                    if args.len() == 1 {
+                        return Some(&args[0]);
+                    }
+                }
+                None
+            });
+            neg && exp_inner.is_some_and(|a| is_neg_var_exp(a, var))
+        }
+        _ => is_neg_var_exp(e, var),
+    }
+}
+
+fn is_neg_var_exp(e: &ExprArc, var: &Ident) -> bool {
+    matches!(
+        e.as_ref(),
+        Expr::Mul(fs) if fs.len() == 2
+            && fs.iter().any(|f| matches!(f.as_ref(), Expr::Int(n) if n.is_negative()))
+            && fs.iter().any(|f| is_var(f, var))
+    ) || matches!(
+        e.as_ref(),
+        Expr::Func(FuncKind::Exp, args)
+            if args.len() == 1
+                && matches!(
+                    args[0].as_ref(),
+                    Expr::Mul(fs) if fs.len() == 2
+                        && fs.iter().any(|f| matches!(f.as_ref(), Expr::Int(n) if n.is_negative()))
+                        && fs.iter().any(|f| is_var(f, var))
+                )
+    )
 }
 
 /// `a + 1/u → (1+u)/u` so [`peel_u_inv_factor`] can cancel `u^-1` in numerators/denominators.
