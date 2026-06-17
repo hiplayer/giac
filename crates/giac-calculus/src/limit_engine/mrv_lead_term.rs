@@ -1,5 +1,6 @@
-//! `mrv_lead_term` and limit from MRV series (GIAC-216c).
+//! `mrv_lead_term` and limit from MRV series (GIAC-216c / GIAC-216e).
 
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use giac_core::{
@@ -9,15 +10,17 @@ use giac_core::{
 use giac_simplify::ratnormal;
 use num_traits::{Signed, Zero};
 
-use super::bounds::{mrv_rewrite_bounded, mrv_series_eligible, MAX_SERIES_ORDER};
+use super::bounds::{
+    mrv_rewrite_bounded, mrv_series_eligible, MAX_SERIES_EXPANSION_ORDER, MAX_SERIES_ORDER,
+};
 use super::mrv::{choose_mrv_w, mrv_at_plus_infinity};
 use super::mrv_w::{
     decompose_ln_w_coeff, expr_contains_ln_w, is_expr_zero as mrv_is_zero, is_mrv_w_var, MRV_W,
 };
-use super::mrv_series_lead::mrv_lead_term_at_zero;
+use super::mrv_series_lead::{add_has_exp_w_inv_difference, mrv_lead_term_at_zero, normalize_expr_quotients};
 use super::preprocess::limit_preprocess_plus_infinity;
 use super::remove_lnexp::remove_lnexp;
-use super::sparse_series::series_at_zero;
+use super::sparse_series::{series_at_zero_order, series_spdiv_one, SparseSeries};
 
 #[derive(Clone, Debug)]
 pub(crate) struct MrvLeadTerm {
@@ -34,7 +37,7 @@ pub(crate) fn mrv_lead_term_plus_infinity(
     if !mrv_series_eligible(expr) {
         return Err(EvalError::NotImplemented("limit"));
     }
-    let pre = limit_preprocess_plus_infinity(expr, var, ctx)?;
+    let pre = normalize_expr_quotients(&limit_preprocess_plus_infinity(expr, var, ctx)?);
     if !mrv_series_eligible(&pre) {
         return Err(EvalError::NotImplemented("limit"));
     }
@@ -52,7 +55,19 @@ pub(crate) fn mrv_lead_term_plus_infinity(
         return Err(EvalError::NotImplemented("limit"));
     }
     let swapped = ratnormal(swapped.as_ref(), ctx).unwrap_or(swapped);
-    series_lead_at_zero(&swapped, &w, MAX_SERIES_ORDER, ctx)
+    let g = g_from_omega(&omega, var, &w);
+    let dont_invert = omega_tends_to_zero_at_plus_inf(&omega, var);
+    let omega_is_exp = matches!(omega.as_ref(), Expr::Func(FuncKind::Exp, _));
+    mrv_series_lead_loop(
+        &swapped,
+        &w,
+        &g,
+        dont_invert,
+        omega_is_exp,
+        MAX_SERIES_ORDER,
+        ctx,
+    )
+    .or_else(|_| mrv_lead_fallback(&swapped, &w, ctx))
 }
 
 pub(crate) fn limit_from_mrv_lead_term(
@@ -170,37 +185,328 @@ fn rewrite_ln_w(expr: &ExprArc, var: &Ident) -> ExprArc {
     }
 }
 
-fn series_lead_at_zero(
-    expr: &ExprArc,
+fn g_from_omega(omega: &ExprArc, var: &Ident, w: &Ident) -> ExprArc {
+    match omega.as_ref() {
+        Expr::Func(FuncKind::Exp, args) if args.len() == 1 => {
+            rewrite_in_mrv_w(&args[0], var, omega, w)
+        }
+        _ => Expr::int(0),
+    }
+}
+
+fn omega_tends_to_zero_at_plus_inf(omega: &ExprArc, var: &Ident) -> bool {
+    match omega.as_ref() {
+        Expr::Func(FuncKind::Exp, args) if args.len() == 1 => is_neg_var_linear(&args[0], var),
+        _ => false,
+    }
+}
+
+fn is_neg_var_linear(e: &ExprArc, var: &Ident) -> bool {
+    matches!(
+        e.as_ref(),
+        Expr::Mul(fs) if fs.len() == 2
+            && fs.iter().any(|f| matches!(f.as_ref(), Expr::Int(n) if n.is_negative()))
+            && fs.iter().any(|f| is_var(f, var))
+    )
+}
+
+fn subst_w_inv(expr: &ExprArc, w: &Ident) -> Result<ExprArc, EvalError> {
+    let mut m = HashMap::new();
+    m.insert(w.clone(), Expr::pow(Expr::sym(w.as_str()), Expr::int(-1)));
+    eval_subst_map(expr, &m)
+}
+
+fn is_ln_w(e: &ExprArc) -> bool {
+    matches!(
+        e.as_ref(),
+        Expr::Func(FuncKind::Ln, args)
+            if args.len() == 1 && matches!(args[0].as_ref(), Expr::Symbol(id) if is_mrv_w_var(id))
+    )
+}
+
+fn subst_ln_w_expr(expr: &ExprArc, replacement: &ExprArc) -> ExprArc {
+    if is_ln_w(expr) {
+        return Arc::clone(replacement);
+    }
+    match expr.as_ref() {
+        Expr::Add(ts) => Expr::add(ts.iter().map(|t| subst_ln_w_expr(t, replacement)).collect()),
+        Expr::Mul(fs) => Expr::mul(fs.iter().map(|t| subst_ln_w_expr(t, replacement)).collect()),
+        Expr::Pow(b, e) => Expr::pow(subst_ln_w_expr(b, replacement), subst_ln_w_expr(e, replacement)),
+        Expr::Frac(n, d) => Arc::new(Expr::Frac(
+            subst_ln_w_expr(n, replacement),
+            subst_ln_w_expr(d, replacement),
+        )),
+        Expr::Func(kind, args) => Expr::func(
+            *kind,
+            args.iter()
+                .map(|a| subst_ln_w_expr(a, replacement))
+                .collect(),
+        ),
+        _ => Arc::clone(expr),
+    }
+}
+
+fn collect_ln_exprs(expr: &ExprArc, out: &mut Vec<ExprArc>) {
+    if is_ln_w(expr) {
+        out.push(Arc::clone(expr));
+        return;
+    }
+    match expr.as_ref() {
+        Expr::Add(ts) | Expr::Mul(ts) => {
+            for t in ts {
+                collect_ln_exprs(t, out);
+            }
+        }
+        Expr::Pow(b, e) => {
+            collect_ln_exprs(b, out);
+            collect_ln_exprs(e, out);
+        }
+        Expr::Frac(n, d) => {
+            collect_ln_exprs(n, out);
+            collect_ln_exprs(d, out);
+        }
+        Expr::Func(_, args) => {
+            for a in args {
+                collect_ln_exprs(a, out);
+            }
+        }
+        _ => {}
+    }
+}
+
+/// upstream `ln(exp(g)^k*...) -> k*g + ln(...)` when MRV element is `exp`.
+fn rewrite_ln_exp_in_f(
+    f: &ExprArc,
     w: &Ident,
-    order: usize,
+    g: &ExprArc,
+    dont_invert: bool,
+    begin_ordre: usize,
+    ctx: &Context,
+) -> Result<ExprArc, EvalError> {
+    let order_cap = MAX_SERIES_EXPANSION_ORDER;
+    let mut ln_nodes = Vec::new();
+    collect_ln_exprs(f, &mut ln_nodes);
+    if ln_nodes.is_empty() {
+        return Ok(Arc::clone(f));
+    }
+    let g_use = if dont_invert {
+        Arc::clone(g)
+    } else {
+        Expr::mul(vec![Expr::int(-1), Arc::clone(g)])
+    };
+    let mut out = Arc::clone(f);
+    for ln_e in ln_nodes {
+        let Expr::Func(FuncKind::Ln, args) = ln_e.as_ref() else {
+            continue;
+        };
+        let argln = &args[0];
+        let Ok(s) = series_at_zero_order(argln, w, begin_ordre, order_cap, ctx) else {
+            continue;
+        };
+        let Some((lead_exp, lead_c)) = s.lead() else {
+            continue;
+        };
+        if is_series_coeff_undef(&lead_c) {
+            continue;
+        }
+        let mut arg = Arc::clone(argln);
+        if lead_exp != 0 {
+            arg = Expr::mul(vec![
+                Arc::clone(argln),
+                Expr::pow(Expr::sym(w.as_str()), Expr::int(-i64::from(lead_exp))),
+            ]);
+        }
+        let new_ln = Expr::add(vec![
+            Expr::mul(vec![Expr::int(i64::from(lead_exp)), Arc::clone(&g_use)]),
+            Expr::func(FuncKind::Ln, vec![arg]),
+        ]);
+        out = subst_expr_once(&out, &ln_e, &new_ln);
+    }
+    Ok(out)
+}
+
+fn subst_expr_once(expr: &ExprArc, from: &ExprArc, to: &ExprArc) -> ExprArc {
+    if expr == from {
+        return Arc::clone(to);
+    }
+    match expr.as_ref() {
+        Expr::Add(ts) => Expr::add(ts.iter().map(|t| subst_expr_once(t, from, to)).collect()),
+        Expr::Mul(fs) => Expr::mul(fs.iter().map(|t| subst_expr_once(t, from, to)).collect()),
+        Expr::Pow(b, e) => Expr::pow(subst_expr_once(b, from, to), subst_expr_once(e, from, to)),
+        Expr::Frac(n, d) => Arc::new(Expr::Frac(
+            subst_expr_once(n, from, to),
+            subst_expr_once(d, from, to),
+        )),
+        Expr::Func(kind, args) => Expr::func(
+            *kind,
+            args.iter().map(|a| subst_expr_once(a, from, to)).collect(),
+        ),
+        _ => Arc::clone(expr),
+    }
+}
+
+fn peel_neg_ln_w_inv(expr: &ExprArc, w: &Ident) -> Option<(ExprArc, ExprArc)> {
+    let Expr::Mul(fs) = expr.as_ref() else {
+        return None;
+    };
+    if fs.len() != 2 {
+        return None;
+    }
+    let ln_inv = |e: &ExprArc| {
+        matches!(
+            e.as_ref(),
+            Expr::Pow(base, exp)
+                if matches!(exp.as_ref(), Expr::Int(n) if n == &-num_bigint::BigInt::from(1))
+                    && super::mrv_w::is_neg_ln_w_expr(base)
+        )
+    };
+    if ln_inv(&fs[0]) {
+        return Some((Arc::clone(&fs[1]), Arc::clone(&fs[0])));
+    }
+    if ln_inv(&fs[1]) {
+        return Some((Arc::clone(&fs[0]), Arc::clone(&fs[1])));
+    }
+    None
+}
+
+fn combine_lead_with_ln_inv(
+    lead: &MrvLeadTerm,
+    ln_inv: &ExprArc,
+    ctx: &Context,
+) -> MrvLeadTerm {
+    let den = match ln_inv.as_ref() {
+        Expr::Pow(base, exp)
+            if matches!(exp.as_ref(), Expr::Int(n) if n.is_negative()) =>
+        {
+            Arc::clone(base)
+        }
+        _ => Arc::clone(ln_inv),
+    };
+    MrvLeadTerm {
+        exponent: lead.exponent,
+        coeff: super::mrv_series_lead::divide_lead_coeffs(&lead.coeff, &den, ctx),
+    }
+}
+
+fn is_series_coeff_undef(c: &ExprArc) -> bool {
+    matches!(c.as_ref(), Expr::Undefined) || expr_contains_ln_w(c)
+}
+
+fn normalize_series_coeff(c: &ExprArc, ctx: &Context) -> ExprArc {
+    let c = remove_lnexp(c, ctx);
+    ratnormal(c.as_ref(), ctx).unwrap_or(c)
+}
+
+fn pnormal_series(p: &SparseSeries, ctx: &Context) -> SparseSeries {
+    p.map_coeffs(|c| ratnormal(c.as_ref(), ctx).unwrap_or_else(|_| Arc::clone(c)))
+}
+
+/// upstream `mrv_lead_term` ordre loop: `series__SPOL1`, `ln(w)→±g`, `spdiv`.
+fn mrv_series_lead_loop(
+    swapped: &ExprArc,
+    w: &Ident,
+    g: &ExprArc,
+    dont_invert: bool,
+    omega_is_exp: bool,
+    begin_ordre: usize,
     ctx: &Context,
 ) -> Result<MrvLeadTerm, EvalError> {
-    let mut try_order = order.max(4);
-    let max_order = MAX_SERIES_ORDER.saturating_mul(2);
-    loop {
-        match series_at_zero(expr, w, try_order, ctx) {
-            Ok(series) => {
-                if let Some((exp, coeff)) = series.lead() {
-                    let coeff = remove_lnexp(&coeff, ctx);
-                    let coeff = ratnormal(coeff.as_ref(), ctx).unwrap_or(coeff);
-                    if !mrv_is_zero(&coeff) && lead_coeff_ready(&coeff, w) {
-                        return Ok(MrvLeadTerm {
-                            coeff,
-                            exponent: exp,
-                        });
-                    }
+    if let Some((core, ln_inv)) = peel_neg_ln_w_inv(swapped, w) {
+        if add_has_exp_w_inv_difference(&core) {
+            let (exp, coeff) = mrv_lead_term_at_zero(&core, w, ctx)?;
+            let lead = MrvLeadTerm {
+                coeff,
+                exponent: exp,
+            };
+            return Ok(combine_lead_with_ln_inv(&lead, &ln_inv, ctx));
+        }
+    }
+    let mut f = Arc::clone(swapped);
+    if !dont_invert {
+        f = subst_w_inv(&f, w)?;
+    }
+    if omega_is_exp {
+        f = rewrite_ln_exp_in_f(&f, w, g, dont_invert, begin_ordre, ctx)?;
+    }
+    if let Some((core, ln_inv)) = peel_neg_ln_w_inv(&f, w) {
+        let mut core = remove_lnexp(&core, ctx);
+        core = ratnormal(core.as_ref(), ctx).unwrap_or(core);
+        let lead = mrv_series_lead_loop_inner(&core, w, g, dont_invert, begin_ordre, ctx)?;
+        return Ok(combine_lead_with_ln_inv(&lead, &ln_inv, ctx));
+    }
+    mrv_series_lead_loop_inner(&f, w, g, dont_invert, begin_ordre, ctx)
+}
+
+fn mrv_series_lead_loop_inner(
+    f: &ExprArc,
+    w: &Ident,
+    g: &ExprArc,
+    dont_invert: bool,
+    begin_ordre: usize,
+    ctx: &Context,
+) -> Result<MrvLeadTerm, EvalError> {
+    let order_cap = MAX_SERIES_EXPANSION_ORDER;
+    let g_subst = if dont_invert {
+        Arc::clone(g)
+    } else {
+        Expr::mul(vec![Expr::int(-1), Arc::clone(g)])
+    };
+    let mut ordre = begin_ordre as f64;
+
+    while ordre < order_cap as f64 {
+        let try_ord = (ordre as usize).min(order_cap);
+        let mut inv = false;
+
+        let mut p = match series_at_zero_order(f, w, try_ord, order_cap, ctx) {
+            Ok(s) => s,
+            Err(EvalError::NotImplemented(_)) => {
+                ordre = ordre * 1.5 + 1.0;
+                continue;
+            }
+            Err(e) => return Err(e),
+        };
+
+        if p.is_zero() {
+            return Ok(MrvLeadTerm {
+                coeff: Expr::int(0),
+                exponent: 0,
+            });
+        }
+
+        if let Some((lead_exp, coeff)) = p.lead() {
+            let coeff = normalize_series_coeff(&coeff, ctx);
+            let needs_inv = is_series_coeff_undef(&coeff) || !lead_coeff_ready(&coeff, w);
+            if needs_inv {
+                let substituted = subst_ln_w_expr(&coeff, &g_subst);
+                let tmp = ratnormal(substituted.as_ref(), ctx).unwrap_or(substituted);
+                if is_series_coeff_undef(&tmp) || !lead_coeff_ready(&tmp, w) {
+                    inv = true;
+                    p = series_spdiv_one(&p, try_ord, order_cap, ctx)?;
+                    p = pnormal_series(&p, ctx);
                 }
             }
-            Err(EvalError::NotImplemented(_)) => break,
-            Err(e) => return Err(e),
         }
-        if try_order >= max_order {
-            break;
+
+        p = p.map_coeffs(|c| subst_ln_w_expr(c, &g_subst));
+
+        if inv {
+            p = series_spdiv_one(&p, try_ord, order_cap, ctx)?;
+            p = pnormal_series(&p, ctx);
         }
-        try_order = try_order.saturating_add(2);
+
+        if let Some((exp, coeff)) = p.lead() {
+            let coeff = normalize_series_coeff(&coeff, ctx);
+            if !is_series_coeff_undef(&coeff) && lead_coeff_ready(&coeff, w) && !mrv_is_zero(&coeff) {
+                return Ok(MrvLeadTerm {
+                    coeff,
+                    exponent: exp,
+                });
+            }
+        }
+
+        ordre = ordre * 1.5 + 1.0;
     }
-    mrv_lead_fallback(expr, w, ctx)
+    Err(EvalError::NotImplemented("series"))
 }
 
 fn lead_coeff_ready(coeff: &ExprArc, w: &Ident) -> bool {

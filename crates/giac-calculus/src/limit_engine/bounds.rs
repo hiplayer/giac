@@ -3,6 +3,8 @@
 use giac_core::{Expr, ExprArc, FuncKind, Ident};
 
 pub(crate) const MAX_SERIES_ORDER: usize = 10;
+/// Upper bound for MRV `mrv_lead_term` ordre escalation (`series.cc` `max_series_expansion_order`).
+pub(crate) const MAX_SERIES_EXPANSION_ORDER: usize = 24;
 pub(crate) const MAX_SERIES_TERMS: usize = 24;
 pub(crate) const MAX_SERIES_DEPTH: usize = 32;
 pub(crate) const MAX_EXPAND_NODES: usize = 256;

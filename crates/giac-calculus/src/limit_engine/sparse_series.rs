@@ -15,7 +15,7 @@ use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::Zero;
 
-use super::bounds::{MAX_SERIES_DEPTH, MAX_SERIES_ORDER, MAX_SERIES_TERMS};
+use super::bounds::{MAX_SERIES_DEPTH, MAX_SERIES_EXPANSION_ORDER, MAX_SERIES_ORDER, MAX_SERIES_TERMS};
 use super::mrv_w::{
     decompose_ln_w_coeff, expr_contains_ln_w, is_expr_one, is_expr_zero as mrv_is_zero, is_mrv_w_var,
     is_neg_ln_w_expr, mrv_ln_w_expr,
@@ -89,14 +89,20 @@ impl SparseSeries {
         normalize_map(map, ctx)
     }
 
-    pub(crate) fn mul(&self, other: &Self, max_order: usize, ctx: &Context) -> Result<Self, EvalError> {
+    pub(crate) fn mul_with_cap(
+        &self,
+        other: &Self,
+        max_order: usize,
+        order_cap: usize,
+        ctx: &Context,
+    ) -> Result<Self, EvalError> {
         if self.is_zero() || other.is_zero() {
             return Ok(Self::default());
         }
         if self.term_count() * other.term_count() > MAX_SERIES_TERMS * 4 {
             return Err(EvalError::NotImplemented("series"));
         }
-        let cap = max_order.min(MAX_SERIES_ORDER);
+        let cap = max_order.min(order_cap);
         let mut map: HashMap<i32, ExprArc> = HashMap::new();
         for (e1, c1) in &self.terms {
             for (e2, c2) in &other.terms {
@@ -111,14 +117,41 @@ impl SparseSeries {
             }
         }
         let mut s = normalize_map(map, ctx)?;
-        s.truncate_to_order(cap);
+        s.truncate_to_order_cap(cap);
         Ok(s)
     }
 
+    pub(crate) fn mul(&self, other: &Self, max_order: usize, ctx: &Context) -> Result<Self, EvalError> {
+        self.mul_with_cap(other, max_order, MAX_SERIES_ORDER, ctx)
+    }
+
     fn truncate_to_order(&mut self, max_order: usize) {
+        self.truncate_to_order_cap(max_order.min(MAX_SERIES_ORDER));
+    }
+
+    fn truncate_to_order_cap(&mut self, max_order: usize) {
         self.terms.sort_by(|a, b| a.0.cmp(&b.0));
-        self.terms.retain(|(e, _)| (*e as usize) <= max_order.saturating_add(2));
+        self.terms.retain(|(e, _)| {
+            if *e < 0 {
+                true
+            } else {
+                (*e as usize) <= max_order.saturating_add(2)
+            }
+        });
         self.terms.truncate(MAX_SERIES_TERMS);
+    }
+
+    pub(crate) fn map_coeffs<F>(&self, f: F) -> Self
+    where
+        F: Fn(&ExprArc) -> ExprArc,
+    {
+        Self {
+            terms: self
+                .terms
+                .iter()
+                .map(|(e, c)| (*e, f(c)))
+                .collect(),
+        }
     }
 
     pub(crate) fn from_rational_laurent(
@@ -247,14 +280,43 @@ pub(crate) fn series_at_zero(
     order: usize,
     ctx: &Context,
 ) -> Result<SparseSeries, EvalError> {
-    let order = order.min(MAX_SERIES_ORDER);
-    series_at_zero_depth(expr, var, order, 0, ctx)
+    series_at_zero_order(expr, var, order, MAX_SERIES_ORDER, ctx)
+}
+
+/// MRV/limit path: allow `order_cap` up to [`MAX_SERIES_EXPANSION_ORDER`].
+pub(crate) fn series_at_zero_order(
+    expr: &ExprArc,
+    var: &Ident,
+    order: usize,
+    order_cap: usize,
+    ctx: &Context,
+) -> Result<SparseSeries, EvalError> {
+    let order_cap = order_cap.min(MAX_SERIES_EXPANSION_ORDER);
+    let order = order.min(order_cap);
+    series_at_zero_depth(expr, var, order, order_cap, 0, ctx)
+}
+
+/// giac `spdiv(sparse_poly1(1), p)` for MRV lead extraction.
+pub(crate) fn series_spdiv_one(
+    den: &SparseSeries,
+    order: usize,
+    order_cap: usize,
+    ctx: &Context,
+) -> Result<SparseSeries, EvalError> {
+    series_div(
+        &SparseSeries::constant(Expr::int(1)),
+        den,
+        order,
+        order_cap,
+        ctx,
+    )
 }
 
 fn series_at_zero_depth(
     expr: &ExprArc,
     var: &Ident,
     order: usize,
+    order_cap: usize,
     depth: usize,
     ctx: &Context,
 ) -> Result<SparseSeries, EvalError> {
@@ -293,41 +355,42 @@ fn series_at_zero_depth(
                         let mut acc = SparseSeries::default();
                         for t in ts2 {
                             acc = acc.add(
-                                &series_at_zero_depth(t, var, order, depth + 1, ctx)?,
+                                &series_at_zero_depth(t, var, order, order_cap, depth + 1, ctx)?,
                                 ctx,
                             )?;
                         }
-                        acc.truncate_to_order(order);
+                        acc.truncate_to_order_cap(order.min(order_cap));
                         Ok(acc)
                     }
-                    _ => series_at_zero_depth(&combined, var, order, depth + 1, ctx),
+                    _ => series_at_zero_depth(&combined, var, order, order_cap, depth + 1, ctx),
                 };
             }
             let mut acc = SparseSeries::default();
             for t in ts {
                 acc = acc.add(
-                    &series_at_zero_depth(t, var, order, depth + 1, ctx)?,
+                    &series_at_zero_depth(t, var, order, order_cap, depth + 1, ctx)?,
                     ctx,
                 )?;
             }
-            acc.truncate_to_order(order);
+            acc.truncate_to_order_cap(order.min(order_cap));
             Ok(acc)
         }
         Expr::Mul(fs) => {
             let mut acc = SparseSeries::constant(Expr::int(1));
             for f in fs {
-                acc = acc.mul(
-                    &series_at_zero_depth(f, var, order, depth + 1, ctx)?,
+                acc = acc.mul_with_cap(
+                    &series_at_zero_depth(f, var, order, order_cap, depth + 1, ctx)?,
                     order,
+                    order_cap,
                     ctx,
                 )?;
             }
             Ok(acc)
         }
         Expr::Frac(n, d) => {
-            let num_s = series_at_zero_depth(n, var, order, depth + 1, ctx)?;
-            let den_s = series_at_zero_depth(d, var, order, depth + 1, ctx)?;
-            series_div(&num_s, &den_s, order, ctx)
+            let num_s = series_at_zero_depth(n, var, order, order_cap, depth + 1, ctx)?;
+            let den_s = series_at_zero_depth(d, var, order, order_cap, depth + 1, ctx)?;
+            series_div(&num_s, &den_s, order, order_cap, ctx)
         }
         Expr::Pow(b, exp) => {
             if is_mrv_w_var(var) && is_mrv_symbolic_pow(b, exp) {
@@ -337,13 +400,13 @@ fn series_at_zero_depth(
                 )));
             }
             if let Expr::Int(n) = exp.as_ref() {
-                let base = series_at_zero_depth(b, var, order, depth + 1, ctx)?;
-                return series_pow_int(&base, bigint_to_i64(n)?, order, ctx);
+                let base = series_at_zero_depth(b, var, order, order_cap, depth + 1, ctx)?;
+                return series_pow_int(&base, bigint_to_i64(n)?, order, order_cap, ctx);
             }
             Err(EvalError::NotImplemented("series"))
         }
         Expr::Func(FuncKind::Exp, args) if args.len() == 1 => {
-            let arg = series_at_zero_depth(&args[0], var, order, depth + 1, ctx)?;
+            let arg = series_at_zero_depth(&args[0], var, order, order_cap, depth + 1, ctx)?;
             if is_mrv_w_var(var) {
                 if arg_has_symbolic_ln_w(&arg) {
                     return Ok(SparseSeries::constant(Expr::func(
@@ -351,7 +414,7 @@ fn series_at_zero_depth(
                         vec![arg.to_expr(var)],
                     )));
                 }
-                return series_exp_mrv(&arg, order, ctx).or_else(|_| {
+                return series_exp_mrv(&arg, order, order_cap, ctx).or_else(|_| {
                     Ok(SparseSeries::constant(Expr::func(
                         FuncKind::Exp,
                         vec![arg.to_expr(var)],
@@ -361,7 +424,7 @@ fn series_at_zero_depth(
             if arg.lead().is_some_and(|(e, _)| e < 0) {
                 return Err(EvalError::NotImplemented("series"));
             }
-            series_exp(&arg, order, ctx)
+            series_exp(&arg, order, order_cap, ctx)
         }
         Expr::Func(FuncKind::Ln, args) if args.len() == 1 => {
             if is_mrv_w_var(var)
@@ -375,7 +438,7 @@ fn series_at_zero_depth(
                     vec![var_to_expr(var)],
                 )));
             }
-            let arg = series_at_zero_depth(&args[0], var, order, depth + 1, ctx)?;
+            let arg = series_at_zero_depth(&args[0], var, order, order_cap, depth + 1, ctx)?;
             if is_mrv_w_var(var) {
                 series_ln_mrv(&arg, order, ctx)
             } else {
@@ -431,17 +494,22 @@ fn series_cos(order: usize) -> Result<SparseSeries, EvalError> {
 }
 
 /// `exp(arg)` when `arg` may contain `k*ln(w)` in the constant term (MRV series).
-fn series_exp_mrv(arg: &SparseSeries, order: usize, ctx: &Context) -> Result<SparseSeries, EvalError> {
+fn series_exp_mrv(
+    arg: &SparseSeries,
+    order: usize,
+    order_cap: usize,
+    ctx: &Context,
+) -> Result<SparseSeries, EvalError> {
     let min_e = arg.lead().map(|(e, _)| e).unwrap_or(0);
     if min_e < 0 {
         let shifted = shift_series_exponents(arg, -min_e);
-        let exp_s = series_exp_mrv_positive(&shifted, order, ctx)?;
+        let exp_s = series_exp_mrv_positive(&shifted, order, order_cap, ctx)?;
         let w_part = SparseSeries {
             terms: vec![(min_e, Expr::int(1))],
         };
-        return w_part.mul(&exp_s, order, ctx);
+        return w_part.mul_with_cap(&exp_s, order, order_cap, ctx);
     }
-    series_exp_mrv_positive(arg, order, ctx)
+    series_exp_mrv_positive(arg, order, order_cap, ctx)
 }
 
 fn shift_series_exponents(s: &SparseSeries, delta: i32) -> SparseSeries {
@@ -457,6 +525,7 @@ fn shift_series_exponents(s: &SparseSeries, delta: i32) -> SparseSeries {
 fn series_exp_mrv_positive(
     arg: &SparseSeries,
     order: usize,
+    order_cap: usize,
     ctx: &Context,
 ) -> Result<SparseSeries, EvalError> {
     let mut const_term = Expr::int(0);
@@ -487,11 +556,11 @@ fn series_exp_mrv_positive(
     let taylor = if hi.is_zero() {
         SparseSeries::constant(Expr::int(1))
     } else {
-        series_exp(&hi, order, ctx)?
+        series_exp(&hi, order, order_cap, ctx)?
     };
     Ok(w_part
-        .mul(&exp_a, order, ctx)?
-        .mul(&taylor, order, ctx)?)
+        .mul_with_cap(&exp_a, order, order_cap, ctx)?
+        .mul_with_cap(&taylor, order, order_cap, ctx)?)
 }
 
 fn series_ln_mrv(arg: &SparseSeries, order: usize, ctx: &Context) -> Result<SparseSeries, EvalError> {
@@ -538,11 +607,16 @@ fn series_ln_mrv(arg: &SparseSeries, order: usize, ctx: &Context) -> Result<Spar
     Err(EvalError::NotImplemented("series"))
 }
 
-fn series_exp(arg: &SparseSeries, order: usize, ctx: &Context) -> Result<SparseSeries, EvalError> {
+fn series_exp(
+    arg: &SparseSeries,
+    order: usize,
+    order_cap: usize,
+    ctx: &Context,
+) -> Result<SparseSeries, EvalError> {
     let mut acc = SparseSeries::constant(Expr::int(1));
     let mut term = SparseSeries::constant(Expr::int(1));
     for k in 1..order.min(8) {
-        term = term.mul(arg, order, ctx)?;
+        term = term.mul_with_cap(arg, order, order_cap, ctx)?;
         let coeff = Expr::rat(1, factorial(k)?);
         let scaled = SparseSeries {
             terms: term
@@ -556,17 +630,29 @@ fn series_exp(arg: &SparseSeries, order: usize, ctx: &Context) -> Result<SparseS
             break;
         }
     }
-    acc.truncate_to_order(order);
+    acc.truncate_to_order_cap(order.min(order_cap));
     Ok(acc)
 }
 
-fn series_pow_int(base: &SparseSeries, n: i64, order: usize, ctx: &Context) -> Result<SparseSeries, EvalError> {
+fn series_pow_int(
+    base: &SparseSeries,
+    n: i64,
+    order: usize,
+    order_cap: usize,
+    ctx: &Context,
+) -> Result<SparseSeries, EvalError> {
     if n == 0 {
         return Ok(SparseSeries::constant(Expr::int(1)));
     }
     if n < 0 {
-        let pos = series_pow_int(base, -n, order, ctx)?;
-        return series_div(&SparseSeries::constant(Expr::int(1)), &pos, order, ctx);
+        let pos = series_pow_int(base, -n, order, order_cap, ctx)?;
+        return series_div(
+            &SparseSeries::constant(Expr::int(1)),
+            &pos,
+            order,
+            order_cap,
+            ctx,
+        );
     }
     if n > 8 {
         return Err(EvalError::NotImplemented("series"));
@@ -576,9 +662,9 @@ fn series_pow_int(base: &SparseSeries, n: i64, order: usize, ctx: &Context) -> R
     let mut exp = n;
     while exp > 0 {
         if exp % 2 == 1 {
-            acc = acc.mul(&b, order, ctx)?;
+            acc = acc.mul_with_cap(&b, order, order_cap, ctx)?;
         }
-        b = b.mul(&b, order, ctx)?;
+        b = b.mul_with_cap(&b, order, order_cap, ctx)?;
         exp /= 2;
     }
     Ok(acc)
@@ -588,12 +674,18 @@ fn series_div(
     num: &SparseSeries,
     den: &SparseSeries,
     order: usize,
+    order_cap: usize,
     ctx: &Context,
 ) -> Result<SparseSeries, EvalError> {
-    num.mul(&series_inv(den, order, ctx)?, order, ctx)
+    num.mul_with_cap(&series_inv(den, order, order_cap, ctx)?, order, order_cap, ctx)
 }
 
-fn series_inv(den: &SparseSeries, order: usize, ctx: &Context) -> Result<SparseSeries, EvalError> {
+fn series_inv(
+    den: &SparseSeries,
+    order: usize,
+    order_cap: usize,
+    ctx: &Context,
+) -> Result<SparseSeries, EvalError> {
     let (_, lead_coeff) = den.lead().ok_or(EvalError::NotImplemented("series"))?;
     let inv_lead = Expr::pow(lead_coeff, Expr::int(-1));
     let mut acc = SparseSeries::constant(inv_lead.clone());
@@ -605,7 +697,7 @@ fn series_inv(den: &SparseSeries, order: usize, ctx: &Context) -> Result<SparseS
         rest.terms.remove(0);
     }
     for _ in 0..order.min(8) {
-        let prod = acc.mul(&rest, order, ctx)?;
+        let prod = acc.mul_with_cap(&rest, order, order_cap, ctx)?;
         let neg = SparseSeries {
             terms: prod
                 .terms

@@ -165,7 +165,7 @@ fn frac_lead_at_zero(
     })
 }
 
-fn add_has_exp_w_inv_difference(expr: &ExprArc) -> bool {
+pub(crate) fn add_has_exp_w_inv_difference(expr: &ExprArc) -> bool {
     let Expr::Add(terms) = expr.as_ref() else {
         return false;
     };
@@ -294,7 +294,7 @@ fn is_neg_w_inv(e: &ExprArc) -> bool {
 }
 
 /// Cancel matching `ln(w)` powers in a lead-term ratio (giac `padd` / `remove_lnexp`).
-fn divide_lead_coeffs(num: &ExprArc, den: &ExprArc, ctx: &Context) -> ExprArc {
+pub(crate) fn divide_lead_coeffs(num: &ExprArc, den: &ExprArc, ctx: &Context) -> ExprArc {
     if is_minus_one(den) {
         return Expr::mul(vec![Expr::int(-1), Arc::clone(num)]);
     }
