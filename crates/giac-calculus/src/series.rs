@@ -8,7 +8,8 @@ use giac_core::{
 use num_traits::Zero;
 
 use crate::diff::diff;
-use crate::limit_engine::asymptotic_series_at_infinity;
+use crate::limit_engine::{asymptotic_series_at_infinity, series_at_center};
+use crate::limit_engine::preprocess::series_preprocess;
 
 /// `series(f,var,center,order)` / `taylor(f,var,center,order)` (GIAC-216).
 pub fn eval_series(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
@@ -17,6 +18,7 @@ pub fn eval_series(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError
     }
     let f = eval(args[0].as_ref(), ctx)?;
     let (var, center, order) = parse_series_location(&args[1..], ctx)?;
+    let f = series_preprocess(&f, &var, ctx)?;
     if is_plus_infinity(&center) {
         return asymptotic_series_at_infinity(&f, &var, order, ctx);
     }
@@ -85,6 +87,19 @@ fn taylor_series(
     if order == 0 {
         return Ok(Expr::int(0));
     }
+    if let Ok(r) = series_at_center(f, var, center, order, ctx) {
+        return Ok(r);
+    }
+    taylor_series_diff(f, var, center, order, ctx)
+}
+
+fn taylor_series_diff(
+    f: &ExprArc,
+    var: &Ident,
+    center: &ExprArc,
+    order: usize,
+    ctx: &Context,
+) -> Result<ExprArc, EvalError> {
     let mut terms = Vec::new();
     let mut fk = Arc::clone(f);
     for k in 0..order {

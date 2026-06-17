@@ -36,7 +36,14 @@ pub(crate) fn too_heavy_for_expand(e: &ExprArc) -> bool {
 }
 
 pub(crate) fn mrv_series_eligible(e: &ExprArc) -> bool {
-    expr_contains_exp(e) && expr_nodes(e) <= MAX_EXPAND_NODES && expr_depth(e) <= MAX_SERIES_DEPTH
+    expr_contains_exp(e)
+        && expr_nodes(e) <= MAX_EXPAND_NODES
+        && expr_depth(e) <= MAX_SERIES_DEPTH
+}
+
+/// MRV rewrite is bounded when the rewritten tree stays under the node cap.
+pub(crate) fn mrv_rewrite_bounded(e: &ExprArc) -> bool {
+    expr_nodes(e) <= MAX_EXPAND_NODES
 }
 
 pub(crate) fn expr_contains_exp(e: &ExprArc) -> bool {

@@ -6,8 +6,16 @@ use giac_core::{eval, Context, EvalError, Expr, ExprArc, Ident};
 
 use crate::risch::pow2expln;
 
-/// `pow2expln` and light normalization before asymptotic analysis at `+infinity`.
+/// `pow2expln` and light normalization before series / limit asymptotics.
 pub(crate) fn limit_preprocess_plus_infinity(
+    expr: &ExprArc,
+    var: &Ident,
+    ctx: &Context,
+) -> Result<ExprArc, EvalError> {
+    series_preprocess(expr, var, ctx)
+}
+
+pub(crate) fn series_preprocess(
     expr: &ExprArc,
     var: &Ident,
     ctx: &Context,

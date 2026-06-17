@@ -21,12 +21,12 @@ mod asymptotic;
 mod bounds;
 mod mrv;
 mod mrv_lead_term;
-mod preprocess;
+pub(crate) mod preprocess;
 mod sparse_series;
 
 pub(crate) use asymptotic::{asymptotic_series_at_infinity, limit_at_plus_infinity};
 pub(crate) use mrv_lead_term::{limit_from_mrv_lead_term, mrv_lead_term_plus_infinity};
-pub(crate) use sparse_series::{series_at_zero, SparseSeries};
+pub(crate) use sparse_series::{series_at_center, series_at_zero, SparseSeries};
 
 pub(crate) fn limit_finite_algebraic(
     expr: &ExprArc,

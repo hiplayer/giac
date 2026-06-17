@@ -162,6 +162,78 @@ impl SparseSeries {
     }
 }
 
+/// Taylor series of `expr` in `var` about `center` (GIAC-216d).
+pub(crate) fn series_at_center(
+    expr: &ExprArc,
+    var: &Ident,
+    center: &ExprArc,
+    order: usize,
+    ctx: &Context,
+) -> Result<ExprArc, EvalError> {
+    if is_expr_zero(center) {
+        let s = series_at_zero(expr, var, order, ctx)?;
+        return series_sparse_to_expr(&s, var, center);
+    }
+    let t = Ident::new("_series_t");
+    let x_sub = Expr::add(vec![var_to_expr(&t), Arc::clone(center)]);
+    let mut subs = HashMap::new();
+    subs.insert(var.clone(), x_sub);
+    let shifted = eval_subst_map(expr, &subs)?;
+    let s = series_at_zero(&shifted, &t, order, ctx)?;
+    let delta = Expr::add(vec![
+        var_to_expr(var),
+        Expr::mul(vec![Expr::int(-1), Arc::clone(center)]),
+    ]);
+    let mut out = Vec::new();
+    for (exp, coeff) in s.iter_terms() {
+        let term = if exp == 0 {
+            Arc::clone(coeff)
+        } else {
+            Expr::mul(vec![
+                Arc::clone(coeff),
+                Expr::pow(Arc::clone(&delta), Expr::int(i64::from(exp))),
+            ])
+        };
+        out.push(term);
+    }
+    if out.is_empty() {
+        return Ok(Expr::int(0));
+    }
+    eval(Expr::add(out).as_ref(), ctx)
+}
+
+fn series_sparse_to_expr(
+    s: &SparseSeries,
+    var: &Ident,
+    center: &ExprArc,
+) -> Result<ExprArc, EvalError> {
+    let delta = if is_expr_zero(center) {
+        var_to_expr(var)
+    } else {
+        Expr::add(vec![
+            var_to_expr(var),
+            Expr::mul(vec![Expr::int(-1), Arc::clone(center)]),
+        ])
+    };
+    let mut out = Vec::new();
+    for (exp, coeff) in s.iter_terms() {
+        let term = if exp == 0 {
+            Arc::clone(coeff)
+        } else {
+            Expr::mul(vec![
+                Arc::clone(coeff),
+                Expr::pow(Arc::clone(&delta), Expr::int(i64::from(exp))),
+            ])
+        };
+        out.push(term);
+    }
+    if out.is_empty() {
+        Ok(Expr::int(0))
+    } else {
+        Ok(Expr::add(out))
+    }
+}
+
 /// Taylor/Laurent series of `expr` in `var` at `var = 0` (bounded).
 pub(crate) fn series_at_zero(
     expr: &ExprArc,
@@ -245,9 +317,53 @@ fn series_at_zero_depth(
         Expr::Func(FuncKind::Ln, args) if args.len() == 1 && is_series_var(&args[0], var) => {
             Ok(SparseSeries::constant(Expr::func(FuncKind::Ln, vec![var_to_expr(var)])))
         }
+        Expr::Func(FuncKind::Sin, args) if args.len() == 1 && is_series_var(&args[0], var) => {
+            series_sin(order)
+        }
+        Expr::Func(FuncKind::Cos, args) if args.len() == 1 && is_series_var(&args[0], var) => {
+            series_cos(order)
+        }
         Expr::Func(FuncKind::Ln, _) => Err(EvalError::NotImplemented("series")),
         _ => Err(EvalError::NotImplemented("series")),
     }
+}
+
+fn series_sin(order: usize) -> Result<SparseSeries, EvalError> {
+    let mut terms = Vec::new();
+    let lim = order.min(MAX_SERIES_ORDER);
+    let mut k = 1usize;
+    let mut sign = 1i64;
+    let mut fact = 1i64;
+    while k < lim {
+        terms.push((k as i32, Expr::rat(sign, fact)));
+        sign = -sign;
+        k += 2;
+        if k < lim {
+            fact = fact
+                .checked_mul((k - 1) as i64)
+                .and_then(|f| f.checked_mul(k as i64))
+                .ok_or(EvalError::NotImplemented("series"))?;
+        }
+    }
+    Ok(SparseSeries { terms })
+}
+
+fn series_cos(order: usize) -> Result<SparseSeries, EvalError> {
+    let mut terms = vec![(0, Expr::int(1))];
+    let lim = order.min(MAX_SERIES_ORDER);
+    let mut k = 2usize;
+    let mut sign = -1i64;
+    let mut fact = 1i64;
+    while k < lim {
+        fact = fact
+            .checked_mul((k - 1) as i64)
+            .and_then(|f| f.checked_mul(k as i64))
+            .ok_or(EvalError::NotImplemented("series"))?;
+        terms.push((k as i32, Expr::rat(sign, fact)));
+        sign = -sign;
+        k += 2;
+    }
+    Ok(SparseSeries { terms })
 }
 
 fn series_exp(arg: &SparseSeries, order: usize, ctx: &Context) -> Result<SparseSeries, EvalError> {
