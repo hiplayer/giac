@@ -173,6 +173,19 @@ mod tests {
     use crate::plugin::xcas_default;
 
     #[test]
+    fn series_preprocess_pow2expln() {
+        let ctx = xcas_default();
+        let var = Ident::new("x");
+        let e = Expr::pow(
+            Expr::func(FuncKind::Exp, vec![Expr::sym("x")]),
+            Expr::int(2),
+        );
+        let r = crate::limit_engine::preprocess::series_preprocess(&e, &var, &ctx).unwrap();
+        let text = format_expr(r.as_ref());
+        assert!(text.contains("exp"), "got {text}");
+    }
+
+    #[test]
     fn series_exp_at_zero() {
         let ctx = xcas_default();
         let e = Expr::func(

@@ -11,7 +11,11 @@ use num_traits::{Signed, Zero};
 
 use super::bounds::{mrv_rewrite_bounded, mrv_series_eligible, MAX_SERIES_ORDER};
 use super::mrv::{choose_mrv_w, mrv_at_plus_infinity};
-use super::mrv_w::{decompose_ln_w_coeff, expr_contains_ln_w, is_mrv_w_var, MRV_W};
+use super::mrv_w::{
+    decompose_ln_w_coeff, expr_contains_ln_w, is_expr_zero as mrv_is_zero, is_mrv_w_var, MRV_W,
+};
+use super::mrv_series_lead::mrv_lead_term_at_zero;
+use super::mrv_series_lead::normalize_expr_quotients;
 use super::preprocess::limit_preprocess_plus_infinity;
 use super::sparse_series::series_at_zero;
 
@@ -172,12 +176,78 @@ fn series_lead_at_zero(
     order: usize,
     ctx: &Context,
 ) -> Result<MrvLeadTerm, EvalError> {
+    if is_mrv_w_var(w) && needs_exp_difference_cancellation(expr) {
+        return mrv_lead_fallback(expr, w, ctx);
+    }
     let series = series_at_zero(expr, w, order, ctx)?;
     let (exp, coeff) = series.lead().ok_or(EvalError::NotImplemented("limit"))?;
     Ok(MrvLeadTerm {
         coeff: ratnormal(coeff.as_ref(), ctx).unwrap_or(coeff),
         exponent: exp,
     })
+}
+
+fn mrv_lead_fallback(
+    expr: &ExprArc,
+    w: &Ident,
+    ctx: &Context,
+) -> Result<MrvLeadTerm, EvalError> {
+    let (exp, coeff) = mrv_lead_term_at_zero(expr, w, ctx)?;
+    let coeff = ratnormal(coeff.as_ref(), ctx).unwrap_or(coeff);
+    let coeff = eval(coeff.as_ref(), ctx).unwrap_or(coeff);
+    Ok(MrvLeadTerm {
+        coeff: ratnormal(coeff.as_ref(), ctx).unwrap_or(coeff),
+        exponent: exp,
+    })
+}
+
+/// `exp(f) - w^{-1}` style cancellation (CK-INT-61); full `SparseSeries` on `Add` blows up.
+fn needs_exp_difference_cancellation(expr: &ExprArc) -> bool {
+    if add_has_exp_w_inv_difference(expr) {
+        return true;
+    }
+    match expr.as_ref() {
+        Expr::Frac(n, _) => add_has_exp_w_inv_difference(n),
+        Expr::Mul(fs) => fs.iter().any(needs_exp_difference_cancellation),
+        _ => false,
+    }
+}
+
+fn add_has_exp_w_inv_difference(expr: &ExprArc) -> bool {
+    let Expr::Add(terms) = expr.as_ref() else {
+        return false;
+    };
+    if terms.len() != 2 {
+        return false;
+    }
+    let has_exp = terms.iter().any(|t| {
+        matches!(t.as_ref(), Expr::Func(FuncKind::Exp, args) if args.len() == 1)
+    });
+    let has_w_inv = terms.iter().any(is_neg_w_inv);
+    has_exp && has_w_inv
+}
+
+fn is_neg_w_inv(e: &ExprArc) -> bool {
+    match e.as_ref() {
+        Expr::Pow(base, exp)
+            if matches!(exp.as_ref(), Expr::Int(n) if n.is_negative())
+                && matches!(base.as_ref(), Expr::Symbol(id) if is_mrv_w_var(id)) =>
+        {
+            true
+        }
+        Expr::Mul(fs)
+            if fs.len() == 2
+                && fs.iter().any(|f| matches!(f.as_ref(), Expr::Int(n) if n.is_negative()))
+                && fs.iter().any(|f| {
+                    matches!(f.as_ref(), Expr::Pow(b, e)
+                        if matches!(e.as_ref(), Expr::Int(n) if n.is_negative())
+                            && matches!(b.as_ref(), Expr::Symbol(id) if is_mrv_w_var(id)))
+                }) =>
+        {
+            true
+        }
+        _ => false,
+    }
 }
 
 fn contains_ln_w(e: &ExprArc) -> bool {
@@ -256,11 +326,8 @@ mod tests {
             ]),
             Expr::pow(Expr::sym("x"), Expr::int(-1)),
         ]);
-        let lead = mrv_lead_term_plus_infinity(&e, &var, &ctx);
-        if let Ok(lead) = lead {
-            if let Ok(lim) = limit_from_mrv_lead_term(&lead, &var, &ctx) {
-                assert_eq!(format_expr(lim.as_ref()), "-exp(2)");
-            }
-        }
+        let lead = mrv_lead_term_plus_infinity(&e, &var, &ctx).expect("mrv lead");
+        let lim = limit_from_mrv_lead_term(&lead, &var, &ctx).expect("limit from mrv");
+        assert_eq!(format_expr(lim.as_ref()), "-exp(2)");
     }
 }

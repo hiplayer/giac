@@ -50,12 +50,58 @@ pub(crate) fn mrv_lead_term_at_zero(
     Ok((lt.exp, lt.coeff))
 }
 
+/// `a/b` and `a*b^-1` share the same Laurent leading term.
+pub(crate) fn normalize_expr_quotients(expr: &ExprArc) -> ExprArc {
+    let normalized = match expr.as_ref() {
+        Expr::Add(ts) => Expr::add(ts.iter().map(normalize_expr_quotients).collect()),
+        Expr::Mul(fs) => Expr::mul(fs.iter().map(normalize_expr_quotients).collect()),
+        Expr::Pow(b, e) => Expr::pow(normalize_expr_quotients(b), normalize_expr_quotients(e)),
+        Expr::Frac(n, d) => Arc::new(Expr::Frac(
+            normalize_expr_quotients(n),
+            normalize_expr_quotients(d),
+        )),
+        Expr::Func(k, args) => Expr::func(*k, args.iter().map(normalize_expr_quotients).collect()),
+        _ => Arc::clone(expr),
+    };
+    if let Some((n, d)) = extract_quotient(&normalized) {
+        Arc::new(Expr::Frac(n, d))
+    } else {
+        normalized
+    }
+}
+
+fn extract_quotient(expr: &ExprArc) -> Option<(ExprArc, ExprArc)> {
+    match expr.as_ref() {
+        Expr::Frac(n, d) => Some((Arc::clone(n), Arc::clone(d))),
+        Expr::Mul(fs) => {
+            let mut num = Vec::new();
+            let mut den = None;
+            for f in fs {
+                if let Expr::Pow(b, exp) = f.as_ref() {
+                    if matches!(exp.as_ref(), Expr::Int(n) if n.is_negative()) {
+                        den = Some(Arc::clone(b));
+                        continue;
+                    }
+                }
+                num.push(Arc::clone(f));
+            }
+            den.map(|d| (if num.is_empty() { Expr::int(1) } else { Expr::mul(num) }, d))
+        }
+        _ => None,
+    }
+}
+
 fn lead_at_zero(expr: &ExprArc, w: &Ident, depth: usize, ctx: &Context) -> Result<LeadTerm, EvalError> {
     if depth > 48 {
         return Err(EvalError::NotImplemented("series"));
     }
     if !depends_on_w(expr, w) {
         return Ok(LeadTerm::constant(eval(expr.as_ref(), ctx)?));
+    }
+    if let Some((num, den)) = as_quotient_by_neg_ln_w(expr, w) {
+        if add_has_exp_w_inv_difference(&num) {
+            return frac_lead_at_zero(&num, &den, w, depth, ctx);
+        }
     }
     match expr.as_ref() {
         Expr::Symbol(id) if is_mrv_w_var(id) => Ok(LeadTerm {
@@ -111,27 +157,165 @@ fn frac_lead_at_zero(
     depth: usize,
     ctx: &Context,
 ) -> Result<LeadTerm, EvalError> {
-    let frac = Arc::new(Expr::Frac(Arc::clone(n), Arc::clone(d)));
-    if let Ok(series) = super::sparse_series::series_at_zero(&frac, w, 3, ctx) {
-        if let Some((exp, coeff)) = series.lead() {
-            return Ok(LeadTerm { exp, coeff });
-        }
-    }
     let num = lead_at_zero(n, w, depth + 1, ctx)?;
     let den = lead_at_zero(d, w, depth + 1, ctx)?;
     Ok(LeadTerm {
         exp: num.exp.saturating_sub(den.exp),
-        coeff: ratnormal(
-            Expr::mul(vec![
-                Arc::clone(&num.coeff),
-                Expr::pow(Arc::clone(&den.coeff), Expr::int(-1)),
-            ])
-            .as_ref(),
-            ctx,
-        )
-        .ok()
-        .unwrap_or_else(|| Expr::mul(vec![num.coeff, Expr::pow(den.coeff, Expr::int(-1))])),
+        coeff: divide_lead_coeffs(&num.coeff, &den.coeff, ctx),
     })
+}
+
+fn add_has_exp_w_inv_difference(expr: &ExprArc) -> bool {
+    let Expr::Add(terms) = expr.as_ref() else {
+        return false;
+    };
+    if terms.len() != 2 {
+        return false;
+    }
+    let has_exp = terms.iter().any(|t| {
+        matches!(t.as_ref(), Expr::Func(FuncKind::Exp, args) if args.len() == 1)
+    });
+    let has_w_inv = terms.iter().any(is_neg_w_inv);
+    has_exp && has_w_inv
+}
+
+fn is_lead_neg_ln_w(coeff: &ExprArc, ctx: &Context) -> bool {
+    let (k, rest) = decompose_ln_w_coeff(coeff);
+    if k != 1 {
+        return false;
+    }
+    if is_minus_one(&rest) {
+        return true;
+    }
+    if let Ok(v) = eval(
+        ratnormal(rest.as_ref(), ctx)
+            .unwrap_or(rest)
+            .as_ref(),
+        ctx,
+    ) {
+        return matches!(v.as_ref(), Expr::Int(n) if n == &-BigInt::from(1));
+    }
+    false
+}
+
+fn is_minus_one(e: &ExprArc) -> bool {
+    match e.as_ref() {
+        Expr::Int(n) => n == &-BigInt::from(1),
+        Expr::Pow(b, exp)
+            if matches!(b.as_ref(), Expr::Int(n) if n == &-BigInt::from(1))
+                && matches!(exp.as_ref(), Expr::Int(n) if n.is_negative()) =>
+        {
+            true
+        }
+        Expr::Mul(fs) => {
+            let mut prod = BigInt::from(1);
+            for f in fs {
+                match f.as_ref() {
+                    Expr::Int(n) => prod *= n,
+                    Expr::Pow(b, exp)
+                        if matches!(b.as_ref(), Expr::Int(n) if n == &-BigInt::from(1))
+                            && matches!(exp.as_ref(), Expr::Int(n) if n.is_negative()) =>
+                    {
+                        prod *= -1;
+                    }
+                    _ => return false,
+                }
+            }
+            prod == -BigInt::from(1)
+        }
+        _ => false,
+    }
+}
+
+fn as_quotient_by_neg_ln_w(expr: &ExprArc, w: &Ident) -> Option<(ExprArc, ExprArc)> {
+    match expr.as_ref() {
+        Expr::Mul(fs) if fs.len() == 2 => {
+            if is_neg_ln_w_inv_factor(&fs[0], w) {
+                return Some((Arc::clone(&fs[1]), neg_ln_w_factor(w)));
+            }
+            if is_neg_ln_w_inv_factor(&fs[1], w) {
+                return Some((Arc::clone(&fs[0]), neg_ln_w_factor(w)));
+            }
+        }
+        _ => {}
+    }
+    None
+}
+
+fn neg_ln_w_factor(w: &Ident) -> ExprArc {
+    Expr::mul(vec![Expr::int(-1), mrv_ln_w_expr()])
+}
+
+fn is_neg_ln_w_inv_factor(e: &ExprArc, w: &Ident) -> bool {
+    let _ = w;
+    match e.as_ref() {
+        Expr::Pow(base, exp)
+            if matches!(exp.as_ref(), Expr::Int(n) if n == &-BigInt::from(1))
+                && is_neg_ln_w_expr(base) =>
+        {
+            true
+        }
+        _ => false,
+    }
+}
+
+fn is_neg_ln_w_expr(e: &ExprArc) -> bool {
+    matches!(
+        e.as_ref(),
+        Expr::Mul(fs)
+            if fs.len() == 2
+                && fs.iter().any(|f| matches!(f.as_ref(), Expr::Int(n) if n == &-BigInt::from(1)))
+                && fs.iter().any(|f| matches!(f.as_ref(), Expr::Func(FuncKind::Ln, args)
+                    if args.len() == 1 && matches!(args[0].as_ref(), Expr::Symbol(id) if is_mrv_w_var(id))))
+    )
+}
+
+fn is_neg_w_inv(e: &ExprArc) -> bool {
+    match e.as_ref() {
+        Expr::Pow(base, exp)
+            if matches!(exp.as_ref(), Expr::Int(n) if n.is_negative())
+                && matches!(base.as_ref(), Expr::Symbol(id) if is_mrv_w_var(id)) =>
+        {
+            true
+        }
+        Expr::Mul(fs)
+            if fs.len() == 2
+                && fs.iter().any(|f| matches!(f.as_ref(), Expr::Int(n) if n.is_negative()))
+                && fs.iter().any(|f| {
+                    matches!(f.as_ref(), Expr::Pow(b, e)
+                        if matches!(e.as_ref(), Expr::Int(n) if n.is_negative())
+                            && matches!(b.as_ref(), Expr::Symbol(id) if is_mrv_w_var(id)))
+                }) =>
+        {
+            true
+        }
+        _ => false,
+    }
+}
+
+/// Cancel matching `ln(w)` powers in a lead-term ratio (giac `padd` / `remove_lnexp`).
+fn divide_lead_coeffs(num: &ExprArc, den: &ExprArc, ctx: &Context) -> ExprArc {
+    if is_minus_one(den) {
+        return Expr::mul(vec![Expr::int(-1), Arc::clone(num)]);
+    }
+    if is_expr_one(den) {
+        return Arc::clone(num);
+    }
+    let (kn, rn) = decompose_ln_w_coeff(num);
+    let (kd, rd) = decompose_ln_w_coeff(den);
+    if kn != 0 && kd != 0 && kn == kd {
+        return divide_lead_coeffs(&rn, &rd, ctx);
+    }
+    let product = ratnormal(
+        Expr::mul(vec![
+            Arc::clone(num),
+            Expr::pow(Arc::clone(den), Expr::int(-1)),
+        ])
+        .as_ref(),
+        ctx,
+    )
+    .unwrap_or_else(|_| Expr::mul(vec![Arc::clone(num), Expr::pow(Arc::clone(den), Expr::int(-1))]));
+    eval(product.as_ref(), ctx).unwrap_or(product)
 }
 
 fn lead_add(
@@ -169,8 +353,6 @@ fn lead_add(
     }
     Err(EvalError::NotImplemented("series"))
 }
-
-/// `exp(f) - exp(g) ~ exp(g)*(f-g)` when the `w^{-1}` parts cancel (CK-INT-61).
 fn try_exp_difference_lead(
     a: &ExprArc,
     b: &ExprArc,
@@ -266,13 +448,13 @@ fn try_exp_minus_w_inv(
     }
     let lf = lead_at_zero(f, w, depth + 2, ctx)?;
     let (k, _) = decompose_ln_w_coeff(&lf.coeff);
-    if lf.exp != 0 || k != -1 {
+    if lf.exp != 0 || k == 0 {
         return Ok(None);
     }
     let diff = Expr::add(vec![Arc::clone(f), mrv_ln_w_expr()]);
     let diff_lead = match lead_at_zero(&diff, w, depth + 2, ctx) {
-        Ok(lt) => lt,
-        Err(_) => second_term_inner_plus_ln(f, w, depth, ctx)?,
+        Ok(lt) if lt.exp > 0 => lt,
+        _ => second_term_inner_plus_ln(f, w, depth, ctx)?,
     };
     let exp_g = LeadTerm {
         exp: -1,
@@ -392,6 +574,21 @@ fn lead_exp(arg: LeadTerm, ctx: &Context) -> Result<LeadTerm, EvalError> {
 }
 
 fn lead_exp_positive(arg: LeadTerm, ctx: &Context) -> Result<LeadTerm, EvalError> {
+    if arg.exp == 0 {
+        if is_lead_neg_ln_w(&arg.coeff, ctx) {
+            return Ok(LeadTerm {
+                exp: -1,
+                coeff: Expr::int(1),
+            });
+        }
+        let (k, rest) = decompose_ln_w_coeff(&arg.coeff);
+        if k == 1 && is_expr_one(&rest) {
+            return Ok(LeadTerm {
+                exp: 1,
+                coeff: Expr::int(1),
+            });
+        }
+    }
     let (k, a_rest) = decompose_ln_w_coeff(&arg.coeff);
     let w_part = if k == 0 {
         LeadTerm::constant(Expr::int(1))

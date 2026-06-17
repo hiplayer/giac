@@ -27,6 +27,11 @@ mod mrv_w;
 pub(crate) mod preprocess;
 mod sparse_series;
 
+pub(crate) fn expr_has_nested_exp(e: &ExprArc) -> bool {
+    bounds::expr_contains_nested_exp(e)
+}
+
+pub(crate) use mrv_series_lead::normalize_expr_quotients;
 pub(crate) use asymptotic::{asymptotic_series_at_infinity, limit_at_plus_infinity};
 pub(crate) use mrv_lead_term::{limit_from_mrv_lead_term, mrv_lead_term_plus_infinity};
 pub(crate) use sparse_series::{series_at_center, series_at_zero, SparseSeries};

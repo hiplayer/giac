@@ -42,9 +42,6 @@ pub(crate) fn limit_at_plus_infinity(
     if let Some(r) = limit_rational_over_sqrt_quotient_at_infinity(expr, var) {
         return Ok(r);
     }
-    if let Some(r) = limit_exp_difference_at_infinity(expr, var) {
-        return Ok(r);
-    }
     if mrv_series_eligible(expr) {
         if let Ok(lead) = mrv_lead_term_plus_infinity(expr, var, ctx) {
             if let Ok(r) = limit_from_mrv_lead_term(&lead, var, ctx) {
@@ -306,51 +303,6 @@ fn is_divisor_var(den: &ExprArc, var: &Ident) -> bool {
                 if is_var(b, var)
                     && matches!(exp.as_ref(), Expr::Int(n) if n == &BigInt::from(1) || n.is_negative())
         )
-}
-
-fn is_neg_exp_var(t: &ExprArc, var: &Ident) -> bool {
-    match t.as_ref() {
-        Expr::Mul(fs) if fs.len() == 2 => {
-            let has_neg = fs
-                .iter()
-                .any(|f| matches!(f.as_ref(), Expr::Int(n) if n == &-BigInt::from(1)));
-            let has_exp = fs.iter().any(|f| {
-                matches!(
-                    f.as_ref(),
-                    Expr::Func(giac_core::FuncKind::Exp, args)
-                        if args.len() == 1
-                            && matches!(args[0].as_ref(), Expr::Symbol(id) if id == var)
-                )
-            });
-            has_neg && has_exp
-        }
-        _ => false,
-    }
-}
-
-fn limit_exp_difference_at_infinity(expr: &ExprArc, var: &Ident) -> Option<ExprArc> {
-    let (num, den) = try_as_quotient(expr, var)?;
-    if !is_divisor_var(&den, var) {
-        return None;
-    }
-    let Expr::Add(terms) = num.as_ref() else {
-        return None;
-    };
-    if terms.len() != 2 {
-        return None;
-    }
-    let has_neg_exp_x = terms.iter().any(|t| is_neg_exp_var(t, var));
-    let has_nested = terms.iter().any(|t| {
-        matches!(t.as_ref(), Expr::Func(giac_core::FuncKind::Exp, args) if args.len() == 1
-            && matches!(args[0].as_ref(), Expr::Frac(_, _) | Expr::Mul(_) | Expr::Pow(_, _)))
-    });
-    if has_neg_exp_x && has_nested {
-        return Some(Expr::mul(vec![
-            Expr::int(-1),
-            Expr::func(giac_core::FuncKind::Exp, vec![Expr::int(2)]),
-        ]));
-    }
-    None
 }
 
 fn rationalize_sqrt_difference(expr: &ExprArc) -> Option<ExprArc> {
@@ -673,6 +625,15 @@ mod tests {
 
     use super::*;
     use crate::plugin::xcas_default;
+
+    #[test]
+    fn asymptotic_series_exp_at_infinity() {
+        let ctx = xcas_default();
+        let var = Ident::new("x");
+        let e = Expr::rat(1, 2);
+        let r = asymptotic_series_at_infinity(&e, &var, 4, &ctx).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "1/2");
+    }
 
     #[test]
     fn asymptotic_ck_int_56() {

@@ -265,6 +265,34 @@ mod tests {
     use super::*;
 
     #[test]
+    fn mrv_nested_exp_inner() {
+        let var = Ident::new("x");
+        let inner = Arc::new(Expr::Frac(
+            Expr::mul(vec![
+                Expr::sym("x"),
+                Expr::func(FuncKind::Exp, vec![Expr::mul(vec![Expr::int(-1), Expr::sym("x")])]),
+            ]),
+            Expr::add(vec![
+                Expr::func(FuncKind::Exp, vec![Expr::mul(vec![Expr::int(-1), Expr::sym("x")])]),
+                Expr::func(
+                    FuncKind::Exp,
+                    vec![Expr::mul(vec![
+                        Expr::int(-2),
+                        Arc::new(Expr::Frac(
+                            Expr::pow(Expr::sym("x"), Expr::int(2)),
+                            Expr::add(vec![Expr::sym("x"), Expr::int(1)]),
+                        )),
+                    ])],
+                ),
+            ]),
+        ));
+        let e = Expr::func(FuncKind::Exp, vec![inner]);
+        let set = mrv_at_plus_infinity(&e, &var);
+        assert!(!set.faster.is_empty());
+        assert!(choose_mrv_w(&set, &var).is_some());
+    }
+
+    #[test]
     fn mrv_exp_neg_x() {
         let var = Ident::new("x");
         let e = Expr::func(FuncKind::Exp, vec![Expr::mul(vec![Expr::int(-1), Expr::sym("x")])]);

@@ -674,6 +674,27 @@ mod tests {
     }
 
     #[test]
+    fn sparse_series_sin_at_zero() {
+        let ctx = xcas_default();
+        let var = Ident::new("x");
+        let e = Expr::func(FuncKind::Sin, vec![var_to_expr(&var)]);
+        let s = series_at_zero(&e, &var, 5, &ctx).unwrap();
+        let out = s.to_expr(&var);
+        let text = format_expr(out.as_ref());
+        assert!(text.contains("x") && !text.contains("x^5"), "got {text}");
+    }
+
+    #[test]
+    fn sparse_series_at_center_shift() {
+        let ctx = xcas_default();
+        let var = Ident::new("x");
+        let e = Expr::pow(Expr::add(vec![Expr::sym("x"), Expr::int(1)]), Expr::int(2));
+        let r = series_at_center(&e, &var, &Expr::int(0), 3, &ctx).unwrap();
+        let text = format_expr(r.as_ref());
+        assert!(text.contains("x^2") || text.contains("2*x"), "got {text}");
+    }
+
+    #[test]
     fn sparse_series_exp_at_zero() {
         let ctx = xcas_default();
         let var = Ident::new("w");
