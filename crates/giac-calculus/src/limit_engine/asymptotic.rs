@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use giac_core::{
-    eval, eval_subst_map, expand, expr_to_poly, poly_to_expr, ratnormal, Context, EvalError, Expr,
+    eval, eval_subst_map, expr_to_poly, poly_to_expr, ratnormal, Context, EvalError, Expr,
     ExprArc, Ident,
 };
 use giac_poly::{coeff_at, univariate_degree, Poly, Var};
@@ -15,13 +15,16 @@ use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::{One, Signed, Zero};
 
+use super::bounds::{mrv_series_eligible, too_heavy_for_expand};
+use super::mrv_lead_term::{limit_from_mrv_lead_term, mrv_lead_term_plus_infinity};
+
 use crate::integrate::try_as_rational;
 
 const ASYM_U: &str = "_asym_u";
 const MAX_PUMP: i64 = 12;
 const DEFAULT_SERIES_ORDER: usize = 8;
 
-/// Limit as `var → +infinity` via asymptotic expansion at `u = 0` after `var = 1/u`.
+/// Limit as `var → +infinity`: fast paths → bounded MRV → safe reciprocal.
 pub(crate) fn limit_at_plus_infinity(
     expr: &ExprArc,
     var: &Ident,
@@ -41,10 +44,29 @@ pub(crate) fn limit_at_plus_infinity(
     if let Some(r) = limit_exp_difference_at_infinity(expr, var) {
         return Ok(r);
     }
+    if mrv_series_eligible(expr) {
+        if let Ok(lead) = mrv_lead_term_plus_infinity(expr, var, ctx) {
+            if let Ok(r) = limit_from_mrv_lead_term(&lead, var, ctx) {
+                if is_usable_limit(&r) {
+                    return Ok(r);
+                }
+            }
+        }
+    }
+    limit_at_plus_infinity_fallback(expr, var, ctx)
+}
+
+pub(crate) fn limit_at_plus_infinity_fallback(
+    expr: &ExprArc,
+    var: &Ident,
+    ctx: &Context,
+) -> Result<ExprArc, EvalError> {
+    if too_heavy_for_expand(expr) {
+        return Err(EvalError::NotImplemented("limit"));
+    }
     let u = Ident::new(ASYM_U);
     let swapped = reciprocal_subst(expr, var, &u)?;
-    let expanded = expand(&swapped, ctx)?;
-    let rationalized = rationalize_sqrt_difference(&expanded).unwrap_or(expanded);
+    let rationalized = ratnormal(swapped.as_ref(), ctx).unwrap_or(swapped);
     if let Some(r) = limit_from_rational_laurent(&rationalized, &u) {
         if is_usable_limit(&r) {
             return Ok(r);
@@ -53,30 +75,36 @@ pub(crate) fn limit_at_plus_infinity(
     limit_from_scaled_finite(&rationalized, &u, ctx)
 }
 
-/// Asymptotic series in `1/var` up to `order` terms (giac `in_series` at `+infinity` subset).
+/// Asymptotic series in `1/var` up to `order` terms (GIAC-216d).
 pub(crate) fn asymptotic_series_at_infinity(
     expr: &ExprArc,
     var: &Ident,
     order: usize,
     ctx: &Context,
 ) -> Result<ExprArc, EvalError> {
+    if too_heavy_for_expand(expr) {
+        return Err(EvalError::NotImplemented("series"));
+    }
     let u = Ident::new(ASYM_U);
     let swapped = reciprocal_subst(expr, var, &u)?;
-    let expanded = expand(&swapped, ctx)?;
-    let terms = laurent_terms_at_zero(&expanded, &u, order, ctx)?;
-    if terms.is_empty() {
+    let normalized = ratnormal(swapped.as_ref(), ctx).unwrap_or(swapped);
+    let series = super::sparse_series::series_at_zero(&normalized, &u, order, ctx)?;
+    if series.is_zero() {
         return Ok(Expr::int(0));
     }
     let inv = Expr::pow(var_to_expr(var), Expr::int(-1));
     let mut out = Vec::new();
-    for (exp, coeff) in terms {
+    for (exp, coeff) in series.iter_terms() {
         let scaled = if exp == 0 {
-            coeff
+            Arc::clone(coeff)
         } else if exp > 0 {
-            Expr::mul(vec![coeff, Expr::pow(Arc::clone(&inv), Expr::int(i64::from(exp)))])
+            Expr::mul(vec![
+                Arc::clone(coeff),
+                Expr::pow(Arc::clone(&inv), Expr::int(i64::from(exp))),
+            ])
         } else {
             Expr::mul(vec![
-                coeff,
+                Arc::clone(coeff),
                 Expr::pow(var_to_expr(&u), Expr::int(i64::from(-exp))),
             ])
         };

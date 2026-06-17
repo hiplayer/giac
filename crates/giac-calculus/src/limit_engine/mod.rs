@@ -13,11 +13,20 @@ use num_traits::{One, Signed, Zero};
 use crate::diff::diff;
 use crate::integrate::try_as_rational;
 
+use bounds::too_heavy_for_expand;
+
 const MAX_LHOPITAL: usize = 8;
 
 mod asymptotic;
+mod bounds;
+mod mrv;
+mod mrv_lead_term;
+mod preprocess;
+mod sparse_series;
 
 pub(crate) use asymptotic::{asymptotic_series_at_infinity, limit_at_plus_infinity};
+pub(crate) use mrv_lead_term::{limit_from_mrv_lead_term, mrv_lead_term_plus_infinity};
+pub(crate) use sparse_series::{series_at_zero, SparseSeries};
 
 pub(crate) fn limit_finite_algebraic(
     expr: &ExprArc,
@@ -38,18 +47,20 @@ pub(crate) fn limit_finite_algebraic(
             return Ok(r);
         }
     }
-    let expanded = expand(expr.as_ref(), ctx)?;
-    if let Ok(v) = subst_eval(&expanded, var, point, ctx) {
-        if is_infinity(&v) {
-            return Ok(v);
+    if !too_heavy_for_expand(expr) {
+        let expanded = expand(expr.as_ref(), ctx)?;
+        if let Ok(v) = subst_eval(&expanded, var, point, ctx) {
+            if is_infinity(&v) {
+                return Ok(v);
+            }
+            if !is_indeterminate(&v) && !contains_zero_negative_power(&v) {
+                return Ok(v);
+            }
         }
-        if !is_indeterminate(&v) && !contains_zero_negative_power(&v) {
-            return Ok(v);
-        }
-    }
-    if let Some((num, den)) = try_as_rational(&expanded, var) {
-        if let Ok(r) = limit_rational_finite(&num, &den, var, point, ctx, 0) {
-            return Ok(r);
+        if let Some((num, den)) = try_as_rational(&expanded, var) {
+            if let Ok(r) = limit_rational_finite(&num, &den, var, point, ctx, 0) {
+                return Ok(r);
+            }
         }
     }
     let normalized = ratnormal(expr.as_ref(), ctx).ok();
@@ -494,24 +505,27 @@ fn pole_infinity(
 }
 
 fn limit_via_reciprocal(expr: &ExprArc, var: &Ident, ctx: &Context) -> Result<ExprArc, EvalError> {
+    if too_heavy_for_expand(expr) {
+        return Err(EvalError::NotImplemented("limit"));
+    }
     let t = Ident::new("_limit_t");
     let inv = Expr::pow(var_to_expr(&t), Expr::int(-1));
     let swapped = eval_subst_map(expr, &subst_map(var, inv))?;
-    let expanded = expand(&swapped, ctx)?;
+    let normalized = ratnormal(swapped.as_ref(), ctx).unwrap_or(swapped);
     let zero = Expr::int(0);
-    if let Ok(r) = limit_quotient_finite(&expanded, &t, &zero, ctx, 0) {
+    if let Ok(r) = limit_quotient_finite(&normalized, &t, &zero, ctx, 0) {
         if !contains_zero_negative_power(&r) {
             return Ok(r);
         }
     }
-    if let Some((num, den)) = try_as_quotient_add_shared_power(&expanded, &t) {
+    if let Some((num, den)) = try_as_quotient_add_shared_power(&normalized, &t) {
         if let Ok(r) = limit_rational_finite(&num, &den, &t, &zero, ctx, 0) {
             if !contains_zero_negative_power(&r) {
                 return Ok(r);
             }
         }
     }
-    limit_finite_algebraic(&expanded, &t, &zero, ctx)
+    limit_finite_algebraic(&normalized, &t, &zero, ctx)
 }
 
 fn subst_eval(expr: &ExprArc, var: &Ident, point: &ExprArc, ctx: &Context) -> Result<ExprArc, EvalError> {
