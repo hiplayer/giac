@@ -10,6 +10,10 @@ pub fn depends_on_var(e: &ExprArc, var: &Ident) -> bool {
         Expr::Add(ts) | Expr::Mul(ts) => ts.iter().any(|t| depends_on_var(t, var)),
         Expr::Pow(b, exp) => depends_on_var(b, var) || depends_on_var(exp, var),
         Expr::Frac(n, d) => depends_on_var(n, var) || depends_on_var(d, var),
+        Expr::AlgExt(a) => {
+            a.min_poly.iter().any(|c| depends_on_var(c, var))
+                || a.coords.iter().any(|c| depends_on_var(c, var))
+        }
         Expr::Func(_, args) => args.iter().any(|a| depends_on_var(a, var)),
         _ => false,
     }

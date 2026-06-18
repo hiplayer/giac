@@ -4,6 +4,7 @@ use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::Zero;
 
+use crate::algebra::alg_ext::AlgExtData;
 use crate::ident::Ident;
 
 pub type ExprArc = Arc<Expr>;
@@ -28,6 +29,8 @@ pub enum Expr {
     /// `matrix[[...]]` display (idn, tran, …)
     GiacMatrix(Vec<Vec<ExprArc>>),
     Relation(RelOp, ExprArc, ExprArc),
+    /// Algebraic extension element (upstream `_EXT` / `rootof` value).
+    AlgExt(Arc<AlgExtData>),
     Str(String),
     Undefined,
 }
@@ -170,6 +173,7 @@ impl Expr {
             Expr::Int(n) => n.is_zero(),
             Expr::Rat(r) => r.is_zero(),
             Expr::Complex(re, im) => re.is_zero() && im.is_zero(),
+            Expr::AlgExt(a) => a.is_zero(),
             _ => false,
         }
     }
@@ -181,7 +185,11 @@ impl Expr {
         ) || matches!(
             self,
             Expr::Rat(r) if *r == Ratio::from_integer(BigInt::from(1))
-        )
+        ) || matches!(self, Expr::AlgExt(a) if a.is_one())
+    }
+
+    pub fn alg_ext(data: AlgExtData) -> ExprArc {
+        Arc::new(Expr::AlgExt(Arc::new(data)))
     }
 }
 

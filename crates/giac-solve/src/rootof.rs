@@ -26,7 +26,9 @@ fn poly1_from_univariate(poly: &Poly, var: &Var) -> ExprArc {
 
 fn rootof_expr(num: &[i64], minpoly: &ExprArc) -> ExprArc {
     let num_seq = Arc::new(Expr::Seq(num.iter().map(|&n| Expr::int(n)).collect()));
-    Expr::func(FuncKind::RootOf, vec![num_seq, Arc::clone(minpoly)])
+    giac_core::AlgExtData::from_rootof(&num_seq, minpoly)
+        .expect("quadratic rootof")
+        .into_expr()
 }
 
 #[cfg(test)]
@@ -76,7 +78,7 @@ mod tests {
     #[test]
     fn rational_quadratic_still_uses_roots() {
         let p = x().pow(2).sub(&Poly::one());
-        let rs = roots(&p, &Var::from("x")).unwrap();
+        let rs = roots(&p, &Var::from("t")).unwrap();
         assert_eq!(rs.len(), 2);
     }
 }

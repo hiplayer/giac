@@ -14,7 +14,9 @@ use crate::simplify::simplify;
 /// Evaluate an expression in the given context.
 pub fn eval(expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
     let result = match expr {
-        Expr::Int(_) | Expr::Rat(_) | Expr::Str(_) | Expr::Undefined => Arc::new(expr.clone()),
+        Expr::Int(_) | Expr::Rat(_) | Expr::Str(_) | Expr::Undefined | Expr::AlgExt(_) => {
+            Arc::new(expr.clone())
+        }
         Expr::Symbol(id) => eval_symbol(id, ctx)?,
         Expr::Add(terms) => eval_add(terms, ctx)?,
         Expr::Mul(factors) => eval_mul(factors, ctx)?,
@@ -127,7 +129,7 @@ fn eval_add(terms: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     match symbolic.len() {
         0 => Ok(Expr::int(0)),
         1 => Ok(Arc::clone(&symbolic[0])),
-        _ => Ok(Expr::add(symbolic)),
+        _ => crate::algebra::alg_ext::fold_algext_sum(&symbolic),
     }
 }
 
@@ -169,7 +171,7 @@ fn eval_mul(factors: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     match symbolic.len() {
         0 => Ok(Expr::int(1)),
         1 => Ok(Arc::clone(&symbolic[0])),
-        _ => Ok(Expr::mul(symbolic)),
+        _ => crate::algebra::alg_ext::fold_algext_product(&symbolic),
     }
 }
 
@@ -341,7 +343,14 @@ fn eval_func(kind: FuncKind, args: &[ExprArc], ctx: &Context) -> Result<ExprArc,
             }
             ctx.linalg()?.eval_trace(&args[0])
         }
-        FuncKind::RootOf => Ok(Expr::func(FuncKind::RootOf, args.to_vec())),
+        FuncKind::RootOf => {
+            let ev: Result<Vec<_>, _> = args.iter().map(|a| eval(a, ctx)).collect();
+            let ev = ev?;
+            match crate::algebra::alg_ext::try_rootof_to_algext(&ev) {
+                Ok(r) => Ok(r),
+                Err(_) => Ok(Expr::func(FuncKind::RootOf, ev)),
+            }
+        }
         FuncKind::Poly1 => Ok(Expr::func(FuncKind::Poly1, args.to_vec())),
         FuncKind::Simplify => {
             if args.is_empty() {
@@ -866,7 +875,9 @@ pub fn eval_subst_map(
                 Ok(Arc::clone(expr))
             }
         }
-        Expr::Int(_) | Expr::Rat(_) | Expr::Str(_) | Expr::Undefined => Ok(Arc::clone(expr)),
+        Expr::Int(_) | Expr::Rat(_) | Expr::Str(_) | Expr::Undefined | Expr::AlgExt(_) => {
+            Ok(Arc::clone(expr))
+        }
         Expr::Add(terms) => {
             let t: Result<Vec<_>, _> = terms
                 .iter()
