@@ -17,7 +17,7 @@ status-level = "slow"
 fail-fast = false
 
 [[profile.default.overrides]]
-filter = 'test(engine_ck_int_60) | test(engine_ck_int_61) | test(giac_check_integrate_ck_int_60) | test(giac_check_integrate_ck_int_61) | test(limit_ck_int_60_parsed) | test(limit_ck_int_61_parsed)'
+filter = 'test(engine_ck_int_60) | test(engine_ck_int_61) | test(engine_ck_int_gruntz_ratio) | test(giac_check_integrate_ck_int_60) | test(giac_check_integrate_ck_int_61) | test(gruntz_ck_int_60_ratio) | test(limit_ck_int_60_parsed) | test(limit_ck_int_61_parsed)'
 slow-timeout = { period = "30s", terminate-after = 1 }
 
 [profile.ci]

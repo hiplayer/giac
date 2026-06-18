@@ -620,10 +620,9 @@ mod tests {
 
         /// `rtest_limit_gruntz.mac` L53
         #[test]
-        #[ignore = "MRV on factored exp*(exp-1) still NotImplemented for this shape"]
         fn gruntz_exp_nested_diff() {
             assert_limit(
-                "limit(exp(x)*(exp(1/x+exp(-x)+exp(-x^2))-exp(1/x-exp(-exp(x)))),x,+infinity)",
+                "limit(exp(x)*(exp(1/x+exp(-x)+exp(-(x^2)))-exp(1/x-exp(-exp(x)))),x,+infinity)",
                 "1",
             );
         }

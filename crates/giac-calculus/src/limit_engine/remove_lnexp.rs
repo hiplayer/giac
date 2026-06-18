@@ -10,16 +10,35 @@ use giac_simplify::ratnormal;
 use num_bigint::BigInt;
 use num_traits::Signed;
 
-use super::exp_diff::{exp_scale_times_exp_minus_one, fold_exp_shifted_difference};
+use super::exp_diff::{
+    exp_minus_one_epsilon, exp_scale_times_exp_minus_one, fold_exp_shifted_difference,
+    is_exp_minus_one_factor,
+};
 use super::mrv_w::{
-    decompose_ln_w_coeff, expr_contains_ln_w, is_expr_one, is_expr_zero, is_neg_ln_w_expr,
-    is_neg_w_inv, mrv_ln_w_expr, mrv_w_expr,
+    decompose_ln_w_coeff, expr_contains_ln_w, is_expr_one, is_expr_zero, is_mrv_w_var,
+    is_neg_ln_w_expr, is_neg_w_inv, mrv_ln_w_expr, mrv_w_expr,
 };
 
 /// Bottom-up `subst` on `ln` / `exp` (giac `remove_lnexp`).
 pub(crate) fn remove_lnexp(expr: &ExprArc, ctx: &Context) -> ExprArc {
-    let folded = fold_exp_shifted_difference(&fold_children(expr, ctx));
+    let mut folded = fold_children(expr, ctx);
+    if let Some(rewritten) = try_collapse_w_inv_exp_plus_ln(&folded, ctx) {
+        folded = rewritten;
+    }
+    if let Some(rewritten) = try_collapse_w_inv_exp_shift(&folded) {
+        folded = rewritten;
+    }
     if let Some(rewritten) = try_rewrite_exp_minus_w_inv(&folded, ctx) {
+        return remove_lnexp(&rewritten, ctx);
+    }
+    folded = fold_exp_shifted_difference(&folded);
+    if let Some(rewritten) = try_rewrite_exp_minus_w_inv(&folded, ctx) {
+        return remove_lnexp(&rewritten, ctx);
+    }
+    if let Some(rewritten) = try_collapse_w_inv_exp_plus_ln(&folded, ctx) {
+        return remove_lnexp(&rewritten, ctx);
+    }
+    if let Some(rewritten) = try_collapse_w_inv_exp_shift(&folded) {
         return remove_lnexp(&rewritten, ctx);
     }
     match folded.as_ref() {
@@ -30,6 +49,79 @@ pub(crate) fn remove_lnexp(expr: &ExprArc, ctx: &Context) -> ExprArc {
         Expr::Func(FuncKind::Exp, args) if args.len() == 1 => exp_series_expand(&args[0], ctx),
         _ => folded,
     }
+}
+
+/// `w^{-1}*(exp(f+ln(w))-1) → exp(f)-w^{-1}` before `exp_series` distorts factors.
+fn try_collapse_w_inv_exp_plus_ln(expr: &ExprArc, ctx: &Context) -> Option<ExprArc> {
+    let Expr::Mul(fs) = expr.as_ref() else {
+        return None;
+    };
+    let w_inv = fs.iter().find(|f| is_neg_w_inv(f))?;
+    let add = fs.iter().find(|f| is_exp_minus_one_factor(f))?;
+    let eps = exp_minus_one_epsilon(add)?;
+    if !expr_contains_ln_w(&eps) {
+        return None;
+    }
+    let (k, rest) = decompose_ln_w_coeff(&eps);
+    if k == 0 {
+        return None;
+    }
+    let exp_f = Expr::func(FuncKind::Exp, vec![rest]);
+    let _ = ctx;
+    Some(Expr::add(vec![
+        exp_f,
+        Expr::mul(vec![Expr::int(-1), Arc::clone(w_inv)]),
+    ]))
+}
+
+/// `w^{-1} * (w*exp(f) - 1) → exp(f) - w^{-1}` (undo bad `exp(f+ln(w))` distribution).
+fn try_collapse_w_inv_exp_shift(expr: &ExprArc) -> Option<ExprArc> {
+    let Expr::Mul(fs) = expr.as_ref() else {
+        return None;
+    };
+    let mut w_inv = None;
+    let mut exp_shift = None;
+    for f in fs {
+        if is_neg_w_inv(f) {
+            w_inv = Some(Arc::clone(f));
+            continue;
+        }
+        if let Expr::Add(ts) = f.as_ref() {
+            if ts.len() == 2 {
+                let (pos, neg) = if matches!(ts[1].as_ref(), Expr::Int(n) if n.is_negative()) {
+                    (&ts[0], &ts[1])
+                } else if matches!(ts[0].as_ref(), Expr::Int(n) if n.is_negative()) {
+                    (&ts[1], &ts[0])
+                } else {
+                    continue;
+                };
+                if !matches!(neg.as_ref(), Expr::Int(n) if n.is_negative()) {
+                    continue;
+                }
+                if let Expr::Mul(mfs) = pos.as_ref() {
+                    if mfs.len() == 2
+                        && mfs.iter().any(|x| is_mrv_w_var_symbol(x))
+                        && mfs.iter().any(|x| matches!(x.as_ref(), Expr::Func(FuncKind::Exp, _)))
+                    {
+                        let exp_f = mfs
+                            .iter()
+                            .find(|x| matches!(x.as_ref(), Expr::Func(FuncKind::Exp, _)))
+                            .cloned()?;
+                        exp_shift = Some(exp_f);
+                    }
+                }
+            }
+        }
+    }
+    let (w_inv, exp_f) = (w_inv?, exp_shift?);
+    Some(Expr::add(vec![
+        exp_f,
+        Expr::mul(vec![Expr::int(-1), w_inv]),
+    ]))
+}
+
+fn is_mrv_w_var_symbol(e: &ExprArc) -> bool {
+    matches!(e.as_ref(), Expr::Symbol(id) if is_mrv_w_var(id))
 }
 
 /// `exp(f) - w^{-1} = w^{-1} * (exp(f + ln(w)) - 1)` (MRV / `padd` cancellation).

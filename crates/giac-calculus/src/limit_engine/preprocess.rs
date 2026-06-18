@@ -11,17 +11,40 @@ use giac_simplify::ratnormal;
 
 use crate::risch::pow2expln;
 
-use super::exp_diff::fold_exp_shifted_difference;
+use super::exp_diff::{
+    algebraize_exp_vanishing_products, balance_exp_arguments_frac_var, first_order_exp_vanishing_epsilon,
+    fold_exp_shifted_difference, is_exp_minus_one_factor, simplify_exp_argument_adds,
+};
+
+/// MRV / series preprocess: fold + merge quotients (no Gruntz ε rewrite).
+pub(crate) fn limit_preprocess_mrv(expr: &ExprArc, var: &Ident) -> ExprArc {
+    let folded = fold_exp_shifted_difference(expr);
+    let normalized = fold_exp_zero_linear(
+        &merge_exp_quotients(&pow2expln(
+            &normalize_sqrt_conjugates(&surd2pow(&folded)),
+            var,
+        )),
+        var,
+    );
+    simplify_exp_argument_adds(&balance_exp_arguments_frac_var(&normalized, var))
+}
 
 /// Structural preprocessing without `eval` (safe for nested `exp` before limit).
 pub(crate) fn limit_preprocess_struct(expr: &ExprArc, var: &Ident) -> ExprArc {
-    fold_exp_zero_linear(
-        &fold_exp_shifted_difference(&merge_exp_quotients(&pow2expln(
-            &normalize_sqrt_conjugates(&surd2pow(expr)),
+    // Fold `exp(A)-exp(B)` while `1/x` is still `Frac(1,x)`; `pow2expln` rewrites to `x^-1`
+    // and breaks shared-subterm detection in `detect_exp_difference_add`.
+    let folded = fold_exp_shifted_difference(expr);
+    let normalized = fold_exp_zero_linear(
+        &merge_exp_quotients(&pow2expln(
+            &normalize_sqrt_conjugates(&surd2pow(&folded)),
             var,
-        ))),
+        )),
         var,
-    )
+    );
+    let epsilon_expanded = first_order_exp_vanishing_epsilon(&normalized, var);
+    let simplified = simplify_exp_argument_adds(&epsilon_expanded);
+    let algebraized = algebraize_exp_vanishing_products(&simplified, var);
+    simplify_exp_argument_adds(&balance_exp_arguments_frac_var(&algebraized, var))
 }
 
 /// `pow2expln` and light normalization before series / limit asymptotics.
@@ -38,11 +61,12 @@ pub(crate) fn series_preprocess(
     var: &Ident,
     ctx: &Context,
 ) -> Result<ExprArc, EvalError> {
+    let folded = fold_exp_shifted_difference(expr);
     let normalized = fold_exp_zero_linear(
-        &fold_exp_shifted_difference(&merge_exp_quotients(&pow2expln(
-            &normalize_sqrt_conjugates(&surd2pow(expr)),
+        &merge_exp_quotients(&pow2expln(
+            &normalize_sqrt_conjugates(&surd2pow(&folded)),
             var,
-        ))),
+        )),
         var,
     );
     let evaluated = eval(normalized.as_ref(), ctx)?;
@@ -232,10 +256,17 @@ pub(crate) fn merge_exp_quotients(expr: &ExprArc) -> ExprArc {
         }
         Expr::Add(ts) => Expr::add(ts.iter().map(merge_exp_quotients).collect()),
         Expr::Mul(fs) => {
+            let merged_fs: Vec<ExprArc> = fs.iter().map(merge_exp_quotients).collect();
+            if merged_fs.iter().any(is_exp_minus_one_factor) {
+                return if merged_fs.len() == 1 {
+                    merged_fs.into_iter().next().unwrap()
+                } else {
+                    Expr::mul(merged_fs)
+                };
+            }
             let mut exp_terms = Vec::new();
             let mut rest = Vec::new();
-            for f in fs {
-                let f = merge_exp_quotients(f);
+            for f in merged_fs {
                 match f.as_ref() {
                     Expr::Func(FuncKind::Exp, args) if args.len() == 1 => {
                         exp_terms.push(Arc::clone(&args[0]));
@@ -328,6 +359,38 @@ mod tests {
     }
 
     #[test]
+    fn preprocess_nested_gruntz_exp_diff_factor() {
+        use crate::limit_engine::asymptotic::limit_at_plus_infinity;
+        use crate::limit_engine::exp_diff::{fold_exp_shifted_difference, match_exp_times_exp_minus_one};
+        let ctx = crate::plugin::xcas_default();
+        let var = Ident::new("x");
+        let stmts = giac_parse::parse_program(
+            "exp(x)*(exp(1/x+exp(-x)+exp(-(x^2)))-exp(1/x-exp(-exp(x))));",
+            &ctx,
+        )
+        .unwrap();
+        let giac_core::Stmt::ExprStmt(e) = stmts.first().unwrap() else {
+            panic!();
+        };
+        let folded = fold_exp_shifted_difference(e);
+        let fs = format_expr(folded.as_ref());
+        assert!(fs.contains("-1"), "fold step: {fs}");
+        let after_pow = merge_exp_quotients(&pow2expln(
+            &normalize_sqrt_conjugates(&surd2pow(&folded)),
+            &var,
+        ));
+        let ps = format_expr(after_pow.as_ref());
+        assert!(
+            match_exp_times_exp_minus_one(&after_pow).is_some(),
+            "expected exp(L)*(exp(S)-1) after pow2expln, got {ps} (fold was {fs})"
+        );
+        let pre = limit_preprocess_struct(e, &var);
+        let r = limit_at_plus_infinity(&pre, &var, &ctx)
+            .unwrap_or_else(|e| panic!("limit failed for {}: {e:?}", format_expr(pre.as_ref())));
+        assert_eq!(format_expr(r.as_ref()), "1");
+    }
+
+    #[test]
     fn preprocess_gruntz_exp_diff_factor() {
         let ctx = crate::plugin::xcas_default();
         let var = Ident::new("x");
@@ -350,10 +413,8 @@ mod tests {
         let pre = limit_preprocess_struct(e, &var);
         let ps = format_expr(pre.as_ref());
         assert!(
-            ps.contains("exp(-exp(-x))")
-                || ps.contains("exp(-exp(-1*x))")
-                || ps.contains("exp(-1*exp(-x))"),
-            "struct pre: {ps}"
+            ps.contains("exp(") && (ps.contains("1*x^-1") || ps.contains("x^-1") || ps.contains("1/x")),
+            "expected algebraized gruntz L1 pre, got {ps}"
         );
     }
 }

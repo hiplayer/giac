@@ -96,6 +96,24 @@ fn collect_mrv(expr: &ExprArc, var: &Ident, set: &mut MrvSet, ctx: &Context) {
     }
 }
 
+/// True when `a/b → 0` at `+∞` (upstream `mrv_compare` on `lna/lnb` subset).
+pub(crate) fn vanishes_faster_than_at_plus_infinity(
+    a: &ExprArc,
+    b: &ExprArc,
+    var: &Ident,
+    ctx: &Context,
+) -> bool {
+    match mrv_compare(a, b, var, ctx) {
+        Ordering::Less => true,
+        Ordering::Equal => {
+            let (_, sa) = growth_rank_detailed(a, var, ctx);
+            let (_, sb) = growth_rank_detailed(b, var, ctx);
+            sa < sb
+        }
+        Ordering::Greater => false,
+    }
+}
+
 /// Compare growth at `+∞` (upstream `mrv_compare` subset).
 pub(crate) fn mrv_compare(a: &ExprArc, b: &ExprArc, var: &Ident, ctx: &Context) -> Ordering {
     let (ga, sa) = growth_rank_detailed(a, var, ctx);
@@ -107,34 +125,153 @@ pub(crate) fn mrv_compare(a: &ExprArc, b: &ExprArc, var: &Ident, ctx: &Context) 
 }
 
 fn growth_rank_detailed(e: &ExprArc, var: &Ident, ctx: &Context) -> (Growth, f64) {
-    let g = growth_rank(e, var);
-    let sub = match e.as_ref() {
-        Expr::Func(FuncKind::Exp, args) if args.len() == 1 => {
-            linear_coeff_in_var(&args[0], var)
-                .and_then(|c| try_const_f64(&c))
-                .or_else(|| try_const_f64(&args[0]))
-                .unwrap_or_else(|| {
-                    eval(args[0].as_ref(), ctx)
-                        .ok()
-                        .and_then(|v| try_const_f64(&v))
-                        .unwrap_or(0.0)
-                })
-        }
-        Expr::Pow(base, exp) if !depends_on_var(base, var) && is_var(exp, var) => {
-            try_const_f64(base).map(|v| v.ln()).unwrap_or(0.0)
-        }
-        Expr::Pow(base, exp) if is_var(base, var) => match exp.as_ref() {
-            Expr::Func(FuncKind::Ln, args) if args.len() == 1 && is_var(&args[0], var) => {
-                f64::INFINITY
+    match e.as_ref() {
+        Expr::Add(ts) => ts
+            .iter()
+            .filter(|t| depends_on_var(t, var))
+            .map(|t| growth_rank_detailed(t, var, ctx))
+            .max_by(|a, b| match a.0.cmp(&b.0) {
+                Ordering::Equal => a.1.partial_cmp(&b.1).unwrap_or(Ordering::Equal),
+                other => other,
+            })
+            .unwrap_or((Growth::Const, 0.0)),
+        Expr::Mul(fs) => {
+            let mut best = (Growth::Const, 0.0);
+            for f in fs {
+                let g = growth_rank_detailed(f, var, ctx);
+                if g.0 > best.0 || (g.0 == best.0 && g.1 > best.1) {
+                    best = g;
+                }
             }
-            Expr::Int(n) => bigint_to_i64(n).ok().map(|k| k as f64).unwrap_or(1.0),
-            _ => 1.0,
+            best
+        }
+        _ => {
+            let g = growth_rank(e, var);
+            let sub = match e.as_ref() {
+                Expr::Func(FuncKind::Exp, args) if args.len() == 1 => {
+                    asymptotic_linear_coeff_at_plus_infinity(&args[0], var, ctx)
+                        .or_else(|| {
+                            linear_coeff_in_var(&args[0], var).and_then(|c| try_const_f64(&c))
+                        })
+                        .or_else(|| try_const_f64(&args[0]))
+                        .unwrap_or_else(|| {
+                            eval(args[0].as_ref(), ctx)
+                                .ok()
+                                .and_then(|v| try_const_f64(&v))
+                                .unwrap_or(0.0)
+                        })
+                }
+                Expr::Pow(base, exp) if !depends_on_var(base, var) && is_var(exp, var) => {
+                    try_const_f64(base).map(|v| v.ln()).unwrap_or(0.0)
+                }
+                Expr::Pow(base, exp) if is_var(base, var) => match exp.as_ref() {
+                    Expr::Func(FuncKind::Ln, args) if args.len() == 1 && is_var(&args[0], var) => {
+                        f64::INFINITY
+                    }
+                    Expr::Int(n) => bigint_to_i64(n).ok().map(|k| k as f64).unwrap_or(1.0),
+                    _ => 1.0,
+                },
+                Expr::Symbol(id) if id == var => 1.0,
+                Expr::Func(FuncKind::Ln, args) if args.len() == 1 && is_var(&args[0], var) => -1.0,
+                _ => 0.0,
+            };
+            (g, sub)
+        }
+    }
+}
+
+/// Leading linear coefficient of a rational at `+∞` (e.g. `-2x²/(x+1) → -2x`).
+fn asymptotic_linear_coeff_at_plus_infinity(
+    e: &ExprArc,
+    var: &Ident,
+    _ctx: &Context,
+) -> Option<f64> {
+    match e.as_ref() {
+        Expr::Frac(n, d) => {
+            let nd = add_degree_in_var(n, var);
+            let dd = add_degree_in_var(d, var);
+            if nd == dd + 1 {
+                let nc = leading_coeff_in_var(n, var)?;
+                let dc = leading_coeff_in_var(d, var)?;
+                if dc.abs() > f64::EPSILON {
+                    return Some(nc / dc);
+                }
+            }
+            None
+        }
+        Expr::Mul(fs) => {
+            let mut scalar = 1.0;
+            let mut var_coeff = None;
+            for f in fs {
+                if let Some(c) = asymptotic_linear_coeff_at_plus_infinity(f, var, _ctx) {
+                    if var_coeff.is_some() {
+                        return None;
+                    }
+                    var_coeff = Some(c);
+                } else if let Some(c) = try_const_f64(f) {
+                    scalar *= c;
+                } else if !depends_on_var(f, var) {
+                    scalar *= try_const_f64(f).unwrap_or(1.0);
+                } else {
+                    return None;
+                }
+            }
+            var_coeff.map(|c| c * scalar)
+        }
+        _ => None,
+    }
+}
+
+/// Leading coefficient of the highest-degree term in `var`.
+fn leading_coeff_in_var(e: &ExprArc, var: &Ident) -> Option<f64> {
+    let deg = add_degree_in_var(e, var);
+    match e.as_ref() {
+        Expr::Symbol(id) if id == var => Some(1.0),
+        Expr::Pow(b, exp) if is_var(b, var) => {
+            let k = match exp.as_ref() {
+                Expr::Int(n) => bigint_to_i64(n).ok()? as isize,
+                _ => return None,
+            };
+            (k == deg).then_some(1.0)
+        }
+        Expr::Mul(fs) => {
+            let mut p = 1.0;
+            for f in fs {
+                if depends_on_var(f, var) {
+                    p *= leading_coeff_in_var(f, var)?;
+                } else {
+                    p *= try_const_f64(f).unwrap_or(1.0);
+                }
+            }
+            Some(p)
+        }
+        Expr::Add(ts) => {
+            let mut sum = 0.0;
+            let mut any = false;
+            for t in ts {
+                if add_degree_in_var(t, var) == deg {
+                    sum += leading_coeff_in_var(t, var).unwrap_or(0.0);
+                    any = true;
+                }
+            }
+            any.then_some(sum)
+        }
+        _ => try_const_f64(e),
+    }
+}
+
+fn add_degree_in_var(e: &ExprArc, var: &Ident) -> isize {
+    match e.as_ref() {
+        Expr::Pow(b, exp) if is_var(b, var) => match exp.as_ref() {
+            Expr::Int(n) => bigint_to_i64(n).ok().unwrap_or(1) as isize,
+            _ => 1,
         },
-        Expr::Symbol(id) if id == var => 1.0,
-        Expr::Func(FuncKind::Ln, args) if args.len() == 1 && is_var(&args[0], var) => -1.0,
-        _ => 0.0,
-    };
-    (g, sub)
+        Expr::Mul(fs) => fs.iter().map(|f| add_degree_in_var(f, var)).sum(),
+        Expr::Symbol(id) if id == var => 1,
+        Expr::Add(ts) => ts.iter().map(|t| add_degree_in_var(t, var)).max().unwrap_or(0),
+        _ if !depends_on_var(e, var) => 0,
+        _ => 0,
+    }
 }
 
 fn merge_mrv_pair(set: &mut MrvSet, elem: ExprArc, coeff_ln: ExprArc, var: &Ident, ctx: &Context) {

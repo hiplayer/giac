@@ -19,7 +19,7 @@ use super::mrv_w::{
     decompose_ln_w_coeff, expr_contains_ln_w, is_expr_zero as mrv_is_zero, is_mrv_w_var, MRV_W,
 };
 use super::mrv_series_lead::normalize_expr_quotients;
-use super::preprocess::limit_preprocess_plus_infinity;
+use super::preprocess::limit_preprocess_mrv;
 use super::remove_lnexp::{divide_lead_coeffs, remove_lnexp};
 use super::sparse_series::{series_at_zero_order, series_spdiv_one, SparseSeries};
 
@@ -38,7 +38,8 @@ pub(crate) fn mrv_lead_term_plus_infinity(
     if !mrv_limit_eligible(expr) {
         return Err(EvalError::NotImplemented("limit"));
     }
-    let pre = limit_preprocess_plus_infinity(expr, var, ctx)?;
+    let pre = limit_preprocess_mrv(expr, var);
+    let pre = ratnormal(pre.as_ref(), ctx).unwrap_or(pre);
     let pre = upscale_while_var_in_mrv(&pre, var, ctx);
     let pre = normalize_expr_quotients(&pre);
     if !mrv_limit_eligible(&pre) {
@@ -473,6 +474,18 @@ fn pnormal_series(p: &SparseSeries, ctx: &Context) -> SparseSeries {
     p.map_coeffs(|c| ratnormal(c.as_ref(), ctx).unwrap_or_else(|_| Arc::clone(c)))
 }
 
+/// upstream `series_lead_at_zero` / `mrv_lead_term` ordre loop at `w = 0`.
+pub(crate) fn series_lead_at_zero(
+    f: &ExprArc,
+    w: &Ident,
+    g: &ExprArc,
+    dont_invert: bool,
+    begin_ordre: usize,
+    ctx: &Context,
+) -> Result<MrvLeadTerm, EvalError> {
+    mrv_series_lead_loop_inner(f, w, g, dont_invert, begin_ordre, ctx)
+}
+
 /// upstream `mrv_lead_term` ordre loop: `series__SPOL1`, `ln(w)→±g`, `spdiv`.
 fn mrv_series_lead_loop(
     swapped: &ExprArc,
@@ -486,7 +499,11 @@ fn mrv_series_lead_loop(
     if let Some((core, ln_inv)) = peel_neg_ln_w_inv(swapped, w) {
         return lead_from_peeled_core(&core, &ln_inv, w, g, dont_invert, begin_ordre, ctx);
     }
-    let mut f = Arc::clone(swapped);
+    let mut f = remove_lnexp(swapped, ctx);
+    f = ratnormal(f.as_ref(), ctx).unwrap_or(f);
+    if let Some((core, ln_inv)) = peel_neg_ln_w_inv(&f, w) {
+        return lead_from_peeled_core(&core, &ln_inv, w, g, dont_invert, begin_ordre, ctx);
+    }
     if !dont_invert {
         f = subst_w_inv(&f, w)?;
     }
@@ -509,13 +526,19 @@ fn lead_from_peeled_core(
     ctx: &Context,
 ) -> Result<MrvLeadTerm, EvalError> {
     let core = ratnormal(remove_lnexp(core, ctx).as_ref(), ctx).unwrap_or_else(|_| remove_lnexp(core, ctx));
+    let (k, rest) = decompose_ln_w_coeff(&core);
+    if k != 0 && lead_coeff_ready(&rest, w) && !mrv_is_zero(&rest) {
+        let lead = MrvLeadTerm {
+            exponent: 0,
+            coeff: normalize_series_coeff(&core, ctx),
+        };
+        return Ok(combine_lead_with_ln_inv(&lead, ln_inv, ctx));
+    }
     if let Ok(s) = series_at_zero_order(&core, w, begin_ordre, MAX_SERIES_EXPANSION_ORDER, ctx) {
         if let Some((exp, coeff)) = s.lead() {
-            if !mrv_is_zero(&coeff) {
-                let lead = MrvLeadTerm {
-                    exponent: exp,
-                    coeff: normalize_series_coeff(&coeff, ctx),
-                };
+            let coeff = normalize_series_coeff(&coeff, ctx);
+            if !mrv_is_zero(&coeff) && lead_coeff_ready(&coeff, w) {
+                let lead = MrvLeadTerm { exponent: exp, coeff };
                 return Ok(combine_lead_with_ln_inv(&lead, ln_inv, ctx));
             }
         }
@@ -597,7 +620,15 @@ fn mrv_series_lead_loop_inner(
 }
 
 fn lead_coeff_ready(coeff: &ExprArc, w: &Ident) -> bool {
-    if expr_contains_ln_w(coeff) {
+    if expr_contains_ln_w(coeff) || super::mrv_w::is_neg_ln_w_expr(coeff) {
+        return false;
+    }
+    if matches!(
+        coeff.as_ref(),
+        Expr::Pow(base, exp)
+            if matches!(exp.as_ref(), Expr::Int(n) if n.is_negative())
+                && super::mrv_w::is_neg_ln_w_expr(base)
+    ) {
         return false;
     }
     !contains_w(coeff) && !depends_on_w(coeff, w)

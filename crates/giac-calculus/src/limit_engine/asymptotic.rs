@@ -17,10 +17,9 @@ use num_traits::{One, Signed, Zero};
 
 use super::bounds::{mrv_limit_eligible, too_heavy_for_expand, MAX_SERIES_EXPANSION_ORDER};
 use super::exp_diff::{
-    try_limit_exp_finite_exponent_at_plus_infinity, try_limit_exp_over_exp_via_quotient,
-    try_limit_exp_times_exp_minus_one_preprocessed,
+    classify_exp_at_plus_infinity, classify_signed_exp_at_plus_infinity, unwrap_signed_frac,
 };
-use super::mrv::try_const_f64;
+use super::mrv::{try_const_f64, vanishes_faster_than_at_plus_infinity};
 use super::mrv_lead_term::limit_unidirectional_plus_infinity;
 use super::preprocess::{limit_preprocess_plus_infinity, limit_preprocess_struct};
 use super::sparse_series::series_at_zero_order;
@@ -32,28 +31,15 @@ const ASYM_U: &str = "_asym_u";
 const MAX_PUMP: i64 = 12;
 const DEFAULT_SERIES_ORDER: usize = 8;
 
-/// Limit as `var → +infinity`: upstream `unidirectional_limit` (MRV) then reciprocal series.
+/// Limit as `var → +infinity`: preprocess → algebraic lead → MRV → fallback.
 pub(crate) fn limit_at_plus_infinity(
     expr: &ExprArc,
     var: &Ident,
     ctx: &Context,
 ) -> Result<ExprArc, EvalError> {
-    if let Some(r) = try_limit_exp_over_exp_via_quotient(expr, var, ctx) {
-        return Ok(normalize_limit_result(&r, ctx));
-    }
     let pre = limit_preprocess_struct(expr, var);
-    if let Some(r) = try_limit_exp_times_exp_minus_one_preprocessed(&pre, var, ctx) {
+    if let Some(r) = limit_preprocessed_at_plus_infinity(&pre, var, ctx) {
         return Ok(normalize_limit_result(&r, ctx));
-    }
-    if let Some(r) = try_limit_exp_finite_exponent_at_plus_infinity(&pre, var, ctx) {
-        return Ok(normalize_limit_result(&r, ctx));
-    }
-    if mrv_limit_eligible(expr) {
-        if let Ok(r) = limit_unidirectional_plus_infinity(expr, var, ctx) {
-            if is_usable_limit(&r) {
-                return Ok(normalize_limit_result(&r, ctx));
-            }
-        }
     }
     if let Some(r) = limit_var_over_x_pow_ln(expr, var)
         .or_else(|| limit_exp_sum_nth_root(expr, var))
@@ -63,6 +49,93 @@ pub(crate) fn limit_at_plus_infinity(
     }
     limit_at_plus_infinity_fallback(expr, var, ctx)
         .map(|r| normalize_limit_result(&r, ctx))
+}
+
+/// After `limit_preprocess_struct`: classify reduced forms before MRV.
+fn limit_preprocessed_at_plus_infinity(
+    expr: &ExprArc,
+    var: &Ident,
+    ctx: &Context,
+) -> Option<ExprArc> {
+    limit_add_at_plus_infinity(expr, var, ctx)
+        .or_else(|| classify_signed_exp_at_plus_infinity(expr, var, ctx))
+        .or_else(|| {
+            if let Expr::Func(FuncKind::Exp, args) = expr.as_ref() {
+                if args.len() == 1 {
+                    return classify_exp_at_plus_infinity(&args[0], var, ctx);
+                }
+            }
+            None
+        })
+        .or_else(|| limit_exp_of_vanishing_frac_argument(expr, var, ctx))
+        .or_else(|| {
+            if !mrv_limit_eligible(expr) {
+                return None;
+            }
+            limit_unidirectional_plus_infinity(expr, var, ctx)
+                .ok()
+                .filter(|r| is_usable_limit(r))
+        })
+}
+
+/// `exp(N/D)` with `N/D → 0` at `+∞` after balance → `1`.
+fn limit_exp_of_vanishing_frac_argument(
+    expr: &ExprArc,
+    var: &Ident,
+    ctx: &Context,
+) -> Option<ExprArc> {
+    let arg = match expr.as_ref() {
+        Expr::Func(FuncKind::Exp, args) if args.len() == 1 => &args[0],
+        _ => return None,
+    };
+    if let Some((n, d)) = unwrap_signed_frac(arg) {
+        if vanishes_faster_than_at_plus_infinity(&n, &d, var, ctx) {
+            return Some(Expr::int(1));
+        }
+    }
+    let lim = limit_at_plus_infinity_fallback(arg, var, ctx).ok()?;
+    if matches!(lim.as_ref(), Expr::Int(n) if n.is_zero()) {
+        return Some(Expr::int(1));
+    }
+    None
+}
+
+fn limit_add_at_plus_infinity(
+    expr: &ExprArc,
+    var: &Ident,
+    ctx: &Context,
+) -> Option<ExprArc> {
+    let Expr::Add(ts) = expr.as_ref() else {
+        return None;
+    };
+    let mut sum = Expr::int(0);
+    for t in ts {
+        let lim = limit_term_at_plus_infinity(t, var, ctx)?;
+        sum = Expr::add(vec![sum, lim]);
+    }
+    eval(sum.as_ref(), ctx).ok()
+}
+
+fn limit_term_at_plus_infinity(
+    expr: &ExprArc,
+    var: &Ident,
+    ctx: &Context,
+) -> Option<ExprArc> {
+    classify_signed_exp_at_plus_infinity(expr, var, ctx).or_else(|| {
+        if let Expr::Func(FuncKind::Exp, args) = expr.as_ref() {
+            if args.len() == 1 {
+                return classify_exp_at_plus_infinity(&args[0], var, ctx);
+            }
+        }
+        None
+    }).or_else(|| {
+        if !mrv_limit_eligible(expr) {
+            return None;
+        }
+        limit_unidirectional_plus_infinity(expr, var, ctx)
+            .ok()
+            .filter(|r| is_usable_limit(r))
+    })
 }
 
 /// `x = 1/u` then limit at `u = 0` (upstream finite-point substitution for `+infinity`).

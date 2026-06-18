@@ -103,6 +103,9 @@ fn ln_w_mul_coeff(f: &ExprArc) -> Option<i32> {
     if is_ln_w(f) {
         return Some(1);
     }
+    if is_neg_ln_w_expr(f) {
+        return Some(-1);
+    }
     match f.as_ref() {
         Expr::Mul(fs) => {
             let mut n = 1i32;
@@ -110,6 +113,11 @@ fn ln_w_mul_coeff(f: &ExprArc) -> Option<i32> {
             for x in fs {
                 if is_ln_w(x) {
                     has_ln = true;
+                    continue;
+                }
+                if is_neg_ln_w_expr(x) {
+                    has_ln = true;
+                    n = n.saturating_mul(-1);
                     continue;
                 }
                 if let Expr::Int(i) = x.as_ref() {

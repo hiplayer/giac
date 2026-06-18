@@ -6,9 +6,10 @@
 //! `fold_exp_shifted_difference` is the same ε→0 pattern on the original variable:
 //! all shapes reduce to `exp(scale_log) * (exp(ε) - 1)` via [`detect_exp_difference`] + [`emit_exp_difference`].
 
+use std::cmp::Ordering;
 use std::sync::Arc;
 
-use giac_core::{eval, Context, Expr, ExprArc, FuncKind, Ident};
+use giac_core::{Context, Expr, ExprArc, FuncKind, Ident};
 use num_bigint::BigInt;
 use num_traits::{One, Signed, Zero};
 
@@ -147,15 +148,169 @@ fn sum_exp_logs(logs: Vec<ExprArc>) -> ExprArc {
     }
 }
 
-/// `exp(A) - exp(B) → exp(B) * (exp(ε) - 1)` when `ε = A-B` cancels a shared add term.
-/// General `exp(A)-exp(B)` without shared subterms stays for MRV / `remove_lnexp` (CK-INT-61).
+/// `exp(A) - exp(B) → exp(B) * (exp(ε) - 1)` with `ε = A - B`.
+/// When `B` is an add subterm of `A`, `remove_add_term` keeps `ε` compact (L1 / gruntz).
 fn detect_exp_difference_add(a: &ExprArc, b: &ExprArc) -> Option<ExpDiffForm> {
     let (pos_arg, neg_arg) = exp_signed_pair(a, b)?;
-    let epsilon = remove_add_term(&pos_arg, &neg_arg)?;
+    let epsilon = remove_add_term(&pos_arg, &neg_arg)
+        .unwrap_or_else(|| difference_add_exprs(&pos_arg, &neg_arg));
     Some(ExpDiffForm {
         scale_log: neg_arg,
         epsilon,
     })
+}
+
+fn difference_add_exprs(a: &ExprArc, b: &ExprArc) -> ExprArc {
+    let mut terms: Vec<(bool, ExprArc)> = signed_add_terms(a)
+        .into_iter()
+        .map(|(p, t)| (p, canonical_add_term(&t)))
+        .collect();
+    for (pos, t) in signed_add_terms(b) {
+        let t = canonical_add_term(&t);
+        let pos = !pos;
+        if let Some(i) = terms.iter().position(|(p, tt)| *p == pos && tt == &t) {
+            terms.remove(i);
+        } else if let Some(i) = terms.iter().position(|(p, tt)| *p != pos && tt == &t) {
+            terms.remove(i);
+        } else {
+            terms.push((pos, t));
+        }
+    }
+    rebuild_signed_add(terms)
+}
+
+fn canonical_add_term(t: &ExprArc) -> ExprArc {
+    match t.as_ref() {
+        Expr::Mul(fs) if fs.len() == 2 && matches!(fs[0].as_ref(), Expr::Int(n) if n.is_one()) => {
+            canonical_add_term(&fs[1])
+        }
+        Expr::Mul(fs) if fs.len() == 2 && matches!(fs[1].as_ref(), Expr::Int(n) if n.is_one()) => {
+            canonical_add_term(&fs[0])
+        }
+        _ => Arc::clone(t),
+    }
+}
+
+fn signed_add_terms(e: &ExprArc) -> Vec<(bool, ExprArc)> {
+    match e.as_ref() {
+        Expr::Add(ts) => ts.iter().flat_map(signed_add_terms).collect(),
+        Expr::Mul(fs) => {
+            if let Some(rest) = peel_unit_negative_factor(fs) {
+                vec![(false, canonical_add_term(&rest))]
+            } else if fs.len() == 2 {
+                if matches!(fs[0].as_ref(), Expr::Int(n) if n.is_negative()) {
+                    vec![(false, canonical_add_term(&fs[1]))]
+                } else if matches!(fs[1].as_ref(), Expr::Int(n) if n.is_negative()) {
+                    vec![(false, canonical_add_term(&fs[0]))]
+                } else {
+                    vec![(true, canonical_add_term(e))]
+                }
+            } else {
+                vec![(true, canonical_add_term(e))]
+            }
+        }
+        _ => vec![(true, canonical_add_term(e))],
+    }
+}
+
+fn peel_unit_negative_factor(fs: &[ExprArc]) -> Option<ExprArc> {
+    let pos = fs
+        .iter()
+        .position(|f| matches!(f.as_ref(), Expr::Int(n) if n.is_negative() && n.abs() == BigInt::one()))?;
+    let rest: Vec<ExprArc> = fs
+        .iter()
+        .enumerate()
+        .filter_map(|(i, f)| if i == pos { None } else { Some(Arc::clone(f)) })
+        .collect();
+    Some(match rest.len() {
+        0 => Expr::int(1),
+        1 => rest.into_iter().next().unwrap(),
+        _ => Expr::mul(rest),
+    })
+}
+
+fn rebuild_mul(fs: Vec<ExprArc>) -> ExprArc {
+    match fs.len() {
+        0 => Expr::int(1),
+        1 => fs.into_iter().next().unwrap(),
+        _ => Expr::mul(fs),
+    }
+}
+
+fn distribute_mul_over_add(e: &ExprArc) -> ExprArc {
+    match e.as_ref() {
+        Expr::Mul(fs) => {
+            let expanded: Vec<ExprArc> = fs.iter().map(distribute_mul_over_add).collect();
+            if let Some(i) = expanded
+                .iter()
+                .position(|f| matches!(f.as_ref(), Expr::Add(_)))
+            {
+                let Expr::Add(ts) = expanded[i].as_ref() else {
+                    unreachable!();
+                };
+                let ts: Vec<ExprArc> = ts.iter().cloned().collect();
+                let mut factors = expanded;
+                factors.remove(i);
+                let flat: Vec<ExprArc> = factors
+                    .into_iter()
+                    .flat_map(|f| flatten_mul_factors(&f))
+                    .collect();
+                return Expr::add(
+                    ts.into_iter()
+                        .map(|t| {
+                            let mut parts = flat.clone();
+                            parts.push(t);
+                            rebuild_mul(parts)
+                        })
+                        .collect(),
+                );
+            }
+            Expr::mul(expanded)
+        }
+        Expr::Add(ts) => Expr::add(ts.iter().map(distribute_mul_over_add).collect()),
+        Expr::Frac(n, d) => Arc::new(Expr::Frac(
+            distribute_mul_over_add(n),
+            distribute_mul_over_add(d),
+        )),
+        Expr::Pow(b, exp) => Expr::pow(distribute_mul_over_add(b), distribute_mul_over_add(exp)),
+        Expr::Func(k, args) => Expr::func(
+            *k,
+            args.iter().map(distribute_mul_over_add).collect(),
+        ),
+        _ => Arc::clone(e),
+    }
+}
+
+fn simplify_balanced_frac(f: &ExprArc) -> ExprArc {
+    match f.as_ref() {
+        Expr::Frac(n, d) => Arc::new(Expr::Frac(
+            simplify_add_sum(&distribute_mul_over_add(n)),
+            Arc::clone(d),
+        )),
+        _ => Arc::clone(f),
+    }
+}
+
+fn rebuild_signed_add(mut terms: Vec<(bool, ExprArc)>) -> ExprArc {
+    terms.retain(|(_, t)| !matches!(t.as_ref(), Expr::Int(n) if n.is_zero()));
+    if terms.is_empty() {
+        return Expr::int(0);
+    }
+    let parts: Vec<ExprArc> = terms
+        .into_iter()
+        .map(|(pos, t)| {
+            if pos {
+                t
+            } else {
+                Expr::mul(vec![Expr::int(-1), t])
+            }
+        })
+        .collect();
+    match parts.len() {
+        0 => Expr::int(0),
+        1 => parts.into_iter().next().unwrap(),
+        _ => Expr::add(parts),
+    }
 }
 
 fn exp_signed_pair(a: &ExprArc, b: &ExprArc) -> Option<(ExprArc, ExprArc)> {
@@ -180,166 +335,462 @@ pub(crate) fn rewrite_exp_minus_scale_inv(
     exp_scale_times_exp_minus_one(scale_inv, shifted)
 }
 
-/// `exp(a)/exp(b)` @ `+∞`: `(exp(a)-exp(b))/v * v/exp(b)` when both sub-limits exist.
-pub(crate) fn try_limit_exp_over_exp_via_quotient(
+fn simplify_add_sum(e: &ExprArc) -> ExprArc {
+    let mut terms: Vec<(bool, ExprArc)> = signed_add_terms(e)
+        .into_iter()
+        .map(|(p, t)| (p, canonical_add_term(&t)))
+        .collect();
+    let mut i = 0;
+    while i < terms.len() {
+        let (pos_i, ref t_i) = terms[i];
+        let mut cancelled = false;
+        let mut j = i + 1;
+        while j < terms.len() {
+            if &terms[j].1 == t_i && terms[j].0 != pos_i {
+                terms.remove(j);
+                terms.remove(i);
+                cancelled = true;
+                break;
+            }
+            j += 1;
+        }
+        if !cancelled {
+            i += 1;
+        }
+    }
+    rebuild_signed_add(terms)
+}
+
+/// Cancel opposing addends inside `exp` arguments (e.g. `x+1/x-x` → `1/x`).
+pub(crate) fn simplify_exp_argument_adds(expr: &ExprArc) -> ExprArc {
+    match expr.as_ref() {
+        Expr::Func(FuncKind::Exp, args) if args.len() == 1 => Expr::func(
+            FuncKind::Exp,
+            vec![simplify_add_sum(&simplify_exp_argument_adds(&args[0]))],
+        ),
+        Expr::Add(ts) => Expr::add(
+            ts.iter()
+                .map(simplify_exp_argument_adds)
+                .collect(),
+        ),
+        Expr::Mul(fs) => Expr::mul(
+            fs.iter()
+                .map(simplify_exp_argument_adds)
+                .collect(),
+        ),
+        Expr::Pow(b, e) => Expr::pow(
+            simplify_exp_argument_adds(b),
+            simplify_exp_argument_adds(e),
+        ),
+        Expr::Frac(n, d) => Arc::new(Expr::Frac(
+            simplify_exp_argument_adds(n),
+            simplify_exp_argument_adds(d),
+        )),
+        Expr::Func(k, args) => Expr::func(
+            *k,
+            args.iter()
+                .map(simplify_exp_argument_adds)
+                .collect(),
+        ),
+        _ => Arc::clone(expr),
+    }
+}
+
+/// `exp(N/D ± x)` → `exp((N ∓ x·D)/D)` inside `exp` args (CK-INT-60 ratio balance).
+pub(crate) fn balance_exp_arguments_frac_var(expr: &ExprArc, var: &Ident) -> ExprArc {
+    match expr.as_ref() {
+        Expr::Func(FuncKind::Exp, args) if args.len() == 1 => {
+            let arg = balance_frac_minus_var(&args[0], var);
+            Expr::func(FuncKind::Exp, vec![arg])
+        }
+        Expr::Add(ts) => Expr::add(
+            ts.iter()
+                .map(|t| balance_exp_arguments_frac_var(t, var))
+                .collect(),
+        ),
+        Expr::Mul(fs) => Expr::mul(
+            fs.iter()
+                .map(|t| balance_exp_arguments_frac_var(t, var))
+                .collect(),
+        ),
+        Expr::Pow(b, e) => Expr::pow(
+            balance_exp_arguments_frac_var(b, var),
+            balance_exp_arguments_frac_var(e, var),
+        ),
+        Expr::Frac(n, d) => Arc::new(Expr::Frac(
+            balance_exp_arguments_frac_var(n, var),
+            balance_exp_arguments_frac_var(d, var),
+        )),
+        Expr::Func(k, args) => Expr::func(
+            *k,
+            args.iter()
+                .map(|a| balance_exp_arguments_frac_var(a, var))
+                .collect(),
+        ),
+        _ => Arc::clone(expr),
+    }
+}
+
+fn balance_frac_minus_var(f: &ExprArc, var: &Ident) -> ExprArc {
+    if let Some(balanced) = try_balance_frac_minus_var(f, var) {
+        return balanced;
+    }
+    match f.as_ref() {
+        Expr::Add(ts) => Expr::add(ts.iter().map(|t| balance_frac_minus_var(t, var)).collect()),
+        Expr::Mul(fs) => Expr::mul(fs.iter().map(|t| balance_frac_minus_var(t, var)).collect()),
+        Expr::Pow(b, e) => Expr::pow(balance_frac_minus_var(b, var), balance_frac_minus_var(e, var)),
+        Expr::Frac(n, d) => Arc::new(Expr::Frac(
+            balance_frac_minus_var(n, var),
+            balance_frac_minus_var(d, var),
+        )),
+        Expr::Func(k, args) => Expr::func(
+            *k,
+            args.iter().map(|a| balance_frac_minus_var(a, var)).collect(),
+        ),
+        _ => Arc::clone(f),
+    }
+}
+
+fn try_balance_frac_minus_var(f: &ExprArc, var: &Ident) -> Option<ExprArc> {
+    let Expr::Add(ts) = f.as_ref() else {
+        return None;
+    };
+    let mut frac = None;
+    let mut var_term = None;
+    for t in ts {
+        if matches!(t.as_ref(), Expr::Frac(_, _)) {
+            if frac.is_some() {
+                return None;
+            }
+            frac = Some(Arc::clone(t));
+        } else if linear_coeff_of_var(t, var).is_some() {
+            if var_term.is_some() {
+                return None;
+            }
+            var_term = Some(Arc::clone(t));
+        } else if depends_on_var(t, var) {
+            return None;
+        }
+    }
+    let frac = frac?;
+    let var_term = var_term?;
+    let Expr::Frac(n, d) = frac.as_ref() else {
+        return None;
+    };
+    // `N/D + t` with linear `t` → `(N + t·D)/D` (e.g. `inner - x` for CK-INT-60 ratio).
+    Some(simplify_balanced_frac(&Arc::new(Expr::Frac(
+        Expr::add(vec![
+            Arc::clone(n),
+            Expr::mul(vec![var_term, Arc::clone(d)]),
+        ]),
+        Arc::clone(d),
+    ))))
+}
+
+fn linear_coeff_of_var(e: &ExprArc, var: &Ident) -> Option<ExprArc> {
+    if is_var(e, var) {
+        return Some(Expr::int(1));
+    }
+    match e.as_ref() {
+        Expr::Mul(fs) if fs.len() == 2 => {
+            if is_var(&fs[0], var) && matches!(fs[1].as_ref(), Expr::Int(n) if n.is_one()) {
+                return Some(Expr::int(1));
+            }
+            if is_var(&fs[1], var) && matches!(fs[0].as_ref(), Expr::Int(n) if n.is_one()) {
+                return Some(Expr::int(1));
+            }
+            if is_var(&fs[0], var) {
+                return Some(Arc::clone(&fs[1]));
+            }
+            if is_var(&fs[1], var) {
+                return Some(Arc::clone(&fs[0]));
+            }
+        }
+        _ => {}
+    }
+    None
+}
+
+/// Classify `exp(f)` at `+∞`: `0`, `1`, or `None`.
+pub(crate) fn classify_exp_at_plus_infinity(
+    f: &ExprArc,
+    var: &Ident,
+    ctx: &Context,
+) -> Option<ExprArc> {
+    let f = simplify_add_sum(f);
+    if let Some((n, d)) = unwrap_signed_frac(&f) {
+        if super::mrv::vanishes_faster_than_at_plus_infinity(&n, &d, var, ctx) {
+            return Some(Expr::int(1));
+        }
+    }
+    if vanishes_at_plus_infinity(&f, var) {
+        return Some(Expr::int(1));
+    }
+    if exp_argument_tends_to_negative_infinity(&f, var) {
+        return Some(Expr::int(0));
+    }
+    None
+}
+
+/// `±num/den` or `num/den` for vanishing-ratio checks after preprocess.
+pub(crate) fn unwrap_signed_frac(e: &ExprArc) -> Option<(ExprArc, ExprArc)> {
+    if let Expr::Frac(n, d) = e.as_ref() {
+        return Some((Arc::clone(n), Arc::clone(d)));
+    }
+    if let Expr::Mul(fs) = e.as_ref() {
+        if let Some(i) = fs.iter().position(|f| matches!(f.as_ref(), Expr::Frac(_, _))) {
+            let Expr::Frac(n, d) = fs[i].as_ref() else {
+                unreachable!();
+            };
+            let mut num = Arc::clone(n);
+            let mut scalar = Expr::int(1);
+            for (j, f) in fs.iter().enumerate() {
+                if j == i {
+                    continue;
+                }
+                scalar = Expr::mul(vec![scalar, Arc::clone(f)]);
+            }
+            if !matches!(scalar.as_ref(), Expr::Int(n) if n.is_one()) {
+                num = Expr::mul(vec![scalar, num]);
+            }
+            return Some((num, Arc::clone(d)));
+        }
+    }
+    None
+}
+
+/// Signed `exp(f)` at `+∞`.
+pub(crate) fn classify_signed_exp_at_plus_infinity(
     expr: &ExprArc,
     var: &Ident,
     ctx: &Context,
 ) -> Option<ExprArc> {
-    let (a, b) = match_exp_over_exp(expr)?;
-    let v = Expr::sym(var.as_str());
-    let diff_q = Expr::mul(vec![
-        Expr::add(vec![
-            Expr::func(FuncKind::Exp, vec![Arc::clone(&a)]),
-            Expr::mul(vec![
-                Expr::int(-1),
-                Expr::func(FuncKind::Exp, vec![Arc::clone(&b)]),
-            ]),
-        ]),
-        Expr::pow(v.clone(), Expr::int(-1)),
-    ]);
-    let scale = Expr::mul(vec![
-        v,
-        Expr::pow(Expr::func(FuncKind::Exp, vec![b.clone()]), Expr::int(-1)),
-    ]);
-    if try_limit_var_over_exp(&b, var, ctx).is_some_and(|s| is_zero_expr(&s)) {
-        return Some(Expr::int(1));
-    }
-    let l = super::asymptotic::limit_at_plus_infinity(&diff_q, var, ctx).ok()?;
-    let s = try_limit_var_over_exp(&b, var, ctx)
-        .or_else(|| super::asymptotic::limit_at_plus_infinity(&scale, var, ctx).ok())?;
-    if depends_on_var(&l, var) || depends_on_var(&s, var) {
-        return None;
-    }
-    if is_zero_expr(&s) {
-        return Some(Expr::int(1));
-    }
-    eval(
-        Expr::add(vec![Expr::int(1), Expr::mul(vec![l, s])]).as_ref(),
-        ctx,
-    )
-    .ok()
+    let (neg, inner) = unwrap_exp_arg(expr)?;
+    classify_exp_at_plus_infinity(&inner, var, ctx)
+        .map(|v| if neg { Expr::mul(vec![Expr::int(-1), v]) } else { v })
 }
 
-/// `x/exp(b) → 0` at `+∞` when `b` is `x` or grows faster than `x` (e.g. `exp(x)`).
-fn try_limit_var_over_exp(b: &ExprArc, var: &Ident, ctx: &Context) -> Option<ExprArc> {
-    if is_var(b, var) {
-        return Some(Expr::int(0));
-    }
-    if super::mrv::linear_coeff_in_var(b, var)
-        .and_then(|c| super::mrv::try_const_f64(&c))
-        .is_some_and(|x| x > 0.0)
-    {
-        return Some(Expr::int(0));
-    }
-    let v = Expr::sym(var.as_str());
-    let scale = Expr::mul(vec![
-        v,
-        Expr::pow(Expr::func(FuncKind::Exp, vec![Arc::clone(b)]), Expr::int(-1)),
-    ]);
-    if vanishes_at_plus_infinity(&scale, var) {
-        return Some(Expr::int(0));
-    }
-    let _ = ctx;
-    None
-}
-
-fn is_zero_expr(e: &ExprArc) -> bool {
-    matches!(e.as_ref(), Expr::Int(n) if n.is_zero())
-}
-
-fn match_exp_over_exp(expr: &ExprArc) -> Option<(ExprArc, ExprArc)> {
-    if let Expr::Frac(num, den) = expr.as_ref() {
-        if let (Expr::Func(FuncKind::Exp, na), Expr::Func(FuncKind::Exp, da)) =
-            (num.as_ref(), den.as_ref())
-        {
-            if na.len() == 1 && da.len() == 1 {
-                return Some((Arc::clone(&na[0]), Arc::clone(&da[0])));
-            }
+fn exp_argument_tends_to_negative_infinity(f: &ExprArc, var: &Ident) -> bool {
+    let f = simplify_add_sum(f);
+    if let Some(c) = super::mrv::linear_coeff_in_var(&f, var) {
+        if super::mrv::try_const_f64(&c).is_some_and(|x| x < 0.0) {
+            return true;
+        }
+        if super::mrv::try_const_f64(&c).is_some_and(|x| x > 0.0) {
+            return false;
         }
     }
-    let Expr::Mul(fs) = expr.as_ref() else {
-        return None;
-    };
-    if fs.len() != 2 {
-        return None;
-    }
-    for (i, j) in [(0, 1), (1, 0)] {
-        if let Some(a) = exp_func_arg(&fs[i]) {
-            if let Some(b) = exp_func_arg_from_inv(&fs[j]) {
-                return Some((a, b));
-            }
-        }
-    }
-    None
+    signed_add_terms(&f).iter().any(|(pos, t)| {
+        !pos && (is_positive_var_power_ge2(t, var) || is_neg_exp_of_positive_growth(t, var))
+    })
 }
 
-fn exp_func_arg_from_inv(e: &ExprArc) -> Option<ExprArc> {
+fn is_positive_var_power_ge2(e: &ExprArc, var: &Ident) -> bool {
     match e.as_ref() {
-        Expr::Pow(base, exp)
-            if matches!(exp.as_ref(), Expr::Int(n) if n.is_negative()) =>
-        {
-            exp_func_arg(base)
+        Expr::Pow(b, exp) if is_var(b, var) => {
+            matches!(exp.as_ref(), Expr::Int(n) if *n >= BigInt::from(2))
         }
-        _ => None,
+        Expr::Mul(fs) if fs.len() == 2 => {
+            let neg = fs.iter().any(|f| matches!(f.as_ref(), Expr::Int(n) if n.is_negative()));
+            neg && fs.iter().any(|f| {
+                matches!(
+                    f.as_ref(),
+                    Expr::Pow(b, exp)
+                        if is_var(b, var) && matches!(exp.as_ref(), Expr::Int(n) if *n >= BigInt::from(2))
+                )
+            })
+        }
+        _ => false,
     }
 }
 
-/// After [`super::preprocess::limit_preprocess_struct`]: `exp(L)*(exp(S)-1)` @ `+∞` (P2).
-pub(crate) fn try_limit_exp_times_exp_minus_one_preprocessed(
-    pre: &ExprArc,
-    var: &Ident,
-    ctx: &Context,
-) -> Option<ExprArc> {
-    let (outer_arg, small_shift) = match_exp_times_exp_minus_one(pre)?;
-    if vanishes_at_plus_infinity(&small_shift, var)
-        || super::mrv_lead_term::limit_unidirectional_plus_infinity(&small_shift, var, ctx)
-            .ok()
-            .is_some_and(|r| is_zero_expr(&r))
-    {
-        let approx = Expr::mul(vec![
-            Expr::func(FuncKind::Exp, vec![Arc::clone(&outer_arg)]),
-            Arc::clone(&small_shift),
-        ]);
-        if let Ok(r) = super::mrv_lead_term::limit_unidirectional_plus_infinity(&approx, var, ctx) {
-            if !depends_on_var(&r, var) {
-                return eval(r.as_ref(), ctx).ok();
-            }
+fn is_neg_exp_of_positive_growth(e: &ExprArc, var: &Ident) -> bool {
+    match e.as_ref() {
+        Expr::Func(FuncKind::Exp, args) if args.len() == 1 => {
+            is_var(&args[0], var)
+                || super::mrv::linear_coeff_in_var(&args[0], var)
+                    .and_then(|c| super::mrv::try_const_f64(&c))
+                    .is_some_and(|x| x > 0.0)
         }
+        Expr::Mul(fs) if fs.len() == 2 => {
+            let neg = fs.iter().any(|f| matches!(f.as_ref(), Expr::Int(n) if n.is_negative()));
+            let growth = fs.iter().any(|f| exp_arg_grows_at_plus_infinity(f, var));
+            neg && growth
+        }
+        _ => false,
     }
-    let rest = exp_rest_after_unit_var(&outer_arg, var)?;
-    if !is_neg_exp_of_neg_var(&small_shift, var) {
-        return None;
-    }
-    limit_neg_exp_rest_at_plus_infinity(&rest, var, ctx)
 }
 
-/// `limit(exp(f), x, +∞)` when `limit(f, x, +∞) = L` is finite: result `exp(L)`.
-pub(crate) fn try_limit_exp_finite_exponent_at_plus_infinity(
-    pre: &ExprArc,
-    var: &Ident,
-    ctx: &Context,
-) -> Option<ExprArc> {
-    let arg = match pre.as_ref() {
-        Expr::Func(FuncKind::Exp, args) if args.len() == 1 => &args[0],
-        _ => return None,
+fn exp_arg_grows_at_plus_infinity(e: &ExprArc, var: &Ident) -> bool {
+    match e.as_ref() {
+        Expr::Func(FuncKind::Exp, args) if args.len() == 1 => {
+            super::mrv::linear_coeff_in_var(&args[0], var)
+                .and_then(|c| super::mrv::try_const_f64(&c))
+                .is_some_and(|x| x > 0.0)
+                || is_var(&args[0], var)
+        }
+        _ => is_var(e, var)
+            || super::mrv::linear_coeff_in_var(e, var)
+                .and_then(|c| super::mrv::try_const_f64(&c))
+                .is_some_and(|x| x > 0.0),
+    }
+}
+
+/// `exp(L) * ε` with `ε = c*exp(g)` → `c*exp(L+g)`; `exp(L)*Add(…)` → `Add(exp(L)*…)`.
+pub(crate) fn algebraize_exp_vanishing_products(expr: &ExprArc, var: &Ident) -> ExprArc {
+    let rebuilt = match expr.as_ref() {
+        Expr::Add(ts) => Expr::add(
+            ts.iter()
+                .map(|t| algebraize_exp_vanishing_products(t, var))
+                .collect(),
+        ),
+        Expr::Mul(fs) => {
+            let folded: Vec<ExprArc> = fs
+                .iter()
+                .map(|t| algebraize_exp_vanishing_products(t, var))
+                .collect();
+            algebraize_exp_mul_factors(&folded)
+        }
+        Expr::Pow(b, e) => Expr::pow(
+            algebraize_exp_vanishing_products(b, var),
+            algebraize_exp_vanishing_products(e, var),
+        ),
+        Expr::Frac(n, d) => Arc::new(Expr::Frac(
+            algebraize_exp_vanishing_products(n, var),
+            algebraize_exp_vanishing_products(d, var),
+        )),
+        Expr::Func(k, args) => Expr::func(
+            *k,
+            args.iter()
+                .map(|a| algebraize_exp_vanishing_products(a, var))
+                .collect(),
+        ),
+        _ => Arc::clone(expr),
     };
-    let lim_arg = super::mrv_lead_term::limit_unidirectional_plus_infinity(arg, var, ctx).ok()?;
-    if depends_on_var(&lim_arg, var) || is_infinity_symbol(&lim_arg) {
-        return None;
-    }
-    eval(
-        Expr::func(FuncKind::Exp, vec![lim_arg]).as_ref(),
-        ctx,
-    )
-    .ok()
+    rebuilt
 }
 
-fn is_infinity_symbol(e: &ExprArc) -> bool {
-    matches!(
-        e.as_ref(),
-        Expr::Symbol(id) if id.as_str() == "+infinity" || id.as_str() == "infinity" || id.as_str() == "-infinity"
-    )
+fn algebraize_exp_mul_factors(factors: &[ExprArc]) -> ExprArc {
+    let flat = flatten_mul_factors_slice(factors);
+    let mut logs = Vec::new();
+    let mut coeff = BigInt::one();
+    let mut add_factor = None;
+    let mut other = Vec::new();
+
+    for f in &flat {
+        if let Some(log) = exp_func_arg(f) {
+            logs.push(log);
+        } else if let Expr::Int(n) = f.as_ref() {
+            coeff *= n;
+        } else if let Some((neg, g)) = unwrap_exp_arg(f) {
+            if neg {
+                coeff = -coeff;
+            }
+            logs.push(g);
+        } else if let Expr::Add(_) = f.as_ref() {
+            if add_factor.is_none() && logs.len() == 1 {
+                add_factor = Some(Arc::clone(f));
+            } else {
+                other.push(Arc::clone(f));
+            }
+        } else {
+            other.push(Arc::clone(f));
+        }
+    }
+
+    if logs.is_empty() || !other.is_empty() {
+        return Expr::mul(flat);
+    }
+
+    let log_sum = logs
+        .into_iter()
+        .reduce(|a, b| simplify_add_sum(&Expr::add(vec![a, b])))
+        .unwrap();
+
+    if let Some(add) = add_factor {
+        let Expr::Add(ts) = add.as_ref() else {
+            return Expr::mul(flat);
+        };
+        return Expr::add(ts.iter().map(|t| algebraize_exp_log_pair(&log_sum, t)).collect());
+    }
+
+    let body = Expr::func(FuncKind::Exp, vec![log_sum]);
+    if coeff.is_zero() {
+        Expr::int(0)
+    } else if coeff == BigInt::one() {
+        body
+    } else if coeff == -BigInt::one() {
+        Expr::mul(vec![Expr::int(-1), body])
+    } else {
+        Expr::mul(vec![Arc::new(Expr::Int(coeff)), body])
+    }
+}
+
+fn algebraize_exp_log_pair(log: &ExprArc, factor: &ExprArc) -> ExprArc {
+    if let Some((neg, g)) = unwrap_exp_arg(factor) {
+        let merged = simplify_add_sum(&Expr::add(vec![Arc::clone(log), g]));
+        let body = Expr::func(FuncKind::Exp, vec![merged]);
+        if neg {
+            Expr::mul(vec![Expr::int(-1), body])
+        } else {
+            body
+        }
+    } else {
+        Expr::mul(vec![
+            Expr::func(FuncKind::Exp, vec![Arc::clone(log)]),
+            Arc::clone(factor),
+        ])
+    }
+}
+
+fn flatten_mul_factors_slice(factors: &[ExprArc]) -> Vec<ExprArc> {
+    let mut out = Vec::new();
+    for f in factors {
+        match f.as_ref() {
+            Expr::Mul(inner) => out.extend(flatten_mul_factors_slice(inner)),
+            _ => out.push(Arc::clone(f)),
+        }
+    }
+    out
+}
+
+/// Gruntz first-order (P1): `exp(ε)-1 ~ ε` when `ε→0` at `+∞`.
+pub(crate) fn first_order_exp_vanishing_epsilon(expr: &ExprArc, var: &Ident) -> ExprArc {
+    if let Some((scale_log, epsilon)) = match_exp_times_exp_minus_one(expr) {
+        if vanishes_at_plus_infinity(&epsilon, var) {
+            return Expr::mul(vec![
+                Expr::func(FuncKind::Exp, vec![scale_log]),
+                epsilon,
+            ]);
+        }
+    }
+    match expr.as_ref() {
+        Expr::Add(ts) => Expr::add(
+            ts.iter()
+                .map(|t| first_order_exp_vanishing_epsilon(t, var))
+                .collect(),
+        ),
+        Expr::Mul(fs) => Expr::mul(
+            fs.iter()
+                .map(|t| first_order_exp_vanishing_epsilon(t, var))
+                .collect(),
+        ),
+        Expr::Pow(b, e) => Expr::pow(
+            first_order_exp_vanishing_epsilon(b, var),
+            first_order_exp_vanishing_epsilon(e, var),
+        ),
+        Expr::Frac(n, d) => Arc::new(Expr::Frac(
+            first_order_exp_vanishing_epsilon(n, var),
+            first_order_exp_vanishing_epsilon(d, var),
+        )),
+        Expr::Func(k, args) => Expr::func(
+            *k,
+            args.iter()
+                .map(|a| first_order_exp_vanishing_epsilon(a, var))
+                .collect(),
+        ),
+        _ => Arc::clone(expr),
+    }
 }
 
 pub(crate) fn match_exp_times_exp_minus_one(expr: &ExprArc) -> Option<(ExprArc, ExprArc)> {
@@ -375,6 +826,15 @@ fn exp_func_arg(e: &ExprArc) -> Option<ExprArc> {
         Expr::Func(FuncKind::Exp, args) if args.len() == 1 => Some(Arc::clone(&args[0])),
         _ => None,
     }
+}
+
+pub(crate) fn exp_minus_one_epsilon(e: &ExprArc) -> Option<ExprArc> {
+    exp_minus_one_inner_arg(e)
+}
+
+/// `exp(ε) - 1` factor (not mergeable with sibling `exp` terms).
+pub(crate) fn is_exp_minus_one_factor(e: &ExprArc) -> bool {
+    exp_minus_one_inner_arg(e).is_some()
 }
 
 fn exp_minus_one_inner_arg(e: &ExprArc) -> Option<ExprArc> {
@@ -415,42 +875,23 @@ fn remove_add_term(sum: &ExprArc, term: &ExprArc) -> Option<ExprArc> {
     })
 }
 
-fn exp_rest_after_unit_var(arg: &ExprArc, var: &Ident) -> Option<ExprArc> {
-    if is_unit_var_term(arg, var) {
-        return Some(Expr::int(0));
-    }
-    let Expr::Add(ts) = arg.as_ref() else {
-        return None;
-    };
-    let mut rest = Vec::new();
-    let mut saw_unit_var = false;
-    for t in ts {
-        if is_unit_var_term(t, var) {
-            if saw_unit_var {
-                return None;
-            }
-            saw_unit_var = true;
-        } else {
-            rest.push(Arc::clone(t));
-        }
-    }
-    if !saw_unit_var {
-        return None;
-    }
-    Some(match rest.len() {
-        0 => Expr::int(0),
-        1 => Arc::clone(&rest[0]),
-        _ => Expr::add(rest),
-    })
-}
-
-fn is_unit_var_term(e: &ExprArc, var: &Ident) -> bool {
-    if is_var(e, var) {
-        return true;
-    }
+pub(crate) fn vanishes_at_plus_infinity(e: &ExprArc, var: &Ident) -> bool {
     match e.as_ref() {
-        Expr::Mul(fs) if fs.len() == 2 => {
-            (is_var(&fs[0], var) && is_one(&fs[1])) || (is_var(&fs[1], var) && is_one(&fs[0]))
+        Expr::Pow(b, exp) if is_var(b, var) => {
+            matches!(exp.as_ref(), Expr::Int(n) if n.is_negative())
+        }
+        Expr::Frac(n, d) => {
+            matches!(n.as_ref(), Expr::Int(nn) if nn.is_one()) && is_var(d, var)
+        }
+        Expr::Add(ts) => ts
+            .iter()
+            .all(|t| vanishes_at_plus_infinity(t, var) || !depends_on_var(t, var)),
+        Expr::Mul(fs) => fs
+            .iter()
+            .all(|f| vanishes_at_plus_infinity(f, var) || !depends_on_var(f, var)),
+        Expr::Func(FuncKind::Exp, args) if args.len() == 1 => {
+            exp_inner_vanishes_at_plus_infinity(&args[0], var)
+                || exp_of_neg_exp_growth(e, var)
         }
         _ => false,
     }
@@ -460,64 +901,83 @@ fn is_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Symbol(id) if id == var)
 }
 
-fn is_one(e: &ExprArc) -> bool {
-    matches!(e.as_ref(), Expr::Int(n) if n == &BigInt::from(1))
-}
-
-fn limit_neg_exp_rest_at_plus_infinity(rest: &ExprArc, var: &Ident, ctx: &Context) -> Option<ExprArc> {
-    if !depends_on_var(rest, var) {
-        return eval(
-            Expr::mul(vec![
-                Expr::int(-1),
-                Expr::func(FuncKind::Exp, vec![Arc::clone(rest)]),
-            ])
-            .as_ref(),
-            ctx,
-        )
-        .ok();
-    }
-    if vanishes_at_plus_infinity(rest, var) {
-        return Some(Expr::int(-1));
-    }
-    None
-}
-
-fn vanishes_at_plus_infinity(e: &ExprArc, var: &Ident) -> bool {
-    match e.as_ref() {
-        Expr::Pow(b, exp) if is_var(b, var) => {
-            matches!(exp.as_ref(), Expr::Int(n) if n.is_negative())
-        }
-        Expr::Frac(n, d) => {
-            matches!(n.as_ref(), Expr::Int(nn) if nn.is_one()) && is_var(d, var)
-        }
-        Expr::Mul(fs) => fs
-            .iter()
-            .all(|f| vanishes_at_plus_infinity(f, var) || !depends_on_var(f, var)),
-        Expr::Func(FuncKind::Exp, args) if args.len() == 1 => super::mrv::linear_coeff_in_var(
-            &args[0],
-            var,
-        )
+fn exp_inner_vanishes_at_plus_infinity(arg: &ExprArc, var: &Ident) -> bool {
+    if super::mrv::linear_coeff_in_var(arg, var)
         .and_then(|c| super::mrv::try_const_f64(&c))
-        .is_some_and(|x| x < 0.0),
+        .is_some_and(|x| x < 0.0)
+    {
+        return true;
+    }
+    if is_neg_var_exp(arg, var) {
+        return true;
+    }
+    if is_negated_var_power_mul(arg, var) {
+        return true;
+    }
+    match arg.as_ref() {
+        Expr::Mul(fs) if fs.iter().any(|f| matches!(f.as_ref(), Expr::Int(n) if n.is_negative())) => {
+            fs.iter().any(|f| is_negated_var_power_mul(f, var) || {
+                matches!(
+                    f.as_ref(),
+                    Expr::Func(FuncKind::Exp, a)
+                        if a.len() == 1
+                            && super::mrv::linear_coeff_in_var(&a[0], var)
+                                .and_then(|c| super::mrv::try_const_f64(&c))
+                                .is_some_and(|x| x > 0.0)
+                )
+            })
+        }
+        Expr::Func(FuncKind::Exp, args) if args.len() == 1 => {
+            is_neg_var_exp(&args[0], var)
+                || super::mrv::linear_coeff_in_var(&args[0], var)
+                    .and_then(|c| super::mrv::try_const_f64(&c))
+                    .is_some_and(|x| x < 0.0)
+                || exp_inner_vanishes_at_plus_infinity(&args[0], var)
+        }
         _ => false,
     }
 }
 
-fn is_neg_exp_of_neg_var(e: &ExprArc, var: &Ident) -> bool {
+fn exp_of_neg_exp_growth(e: &ExprArc, var: &Ident) -> bool {
+    fn arg_grows(f: &ExprArc, var: &Ident) -> bool {
+        match f.as_ref() {
+            Expr::Func(FuncKind::Exp, args) if args.len() == 1 => {
+                super::mrv::linear_coeff_in_var(&args[0], var)
+                    .and_then(|c| super::mrv::try_const_f64(&c))
+                    .is_some_and(|x| x > 0.0)
+                    || is_var(&args[0], var)
+            }
+            _ => is_var(f, var)
+                || super::mrv::linear_coeff_in_var(f, var)
+                    .and_then(|c| super::mrv::try_const_f64(&c))
+                    .is_some_and(|x| x > 0.0),
+        }
+    }
+    match e.as_ref() {
+        Expr::Func(FuncKind::Exp, args) if args.len() == 1 => match args[0].as_ref() {
+            Expr::Mul(fs) if fs.iter().any(|f| matches!(f.as_ref(), Expr::Int(n) if n.is_negative())) => {
+                fs.iter().any(|f| arg_grows(f, var))
+            }
+            _ => false,
+        },
+        _ => false,
+    }
+}
+
+/// `-x^n` as `Mul(-1, Pow(x,n))` inside an `exp` argument.
+fn is_negated_var_power_mul(e: &ExprArc, var: &Ident) -> bool {
     match e.as_ref() {
         Expr::Mul(fs) if fs.len() == 2 => {
             let neg = fs.iter().any(|f| matches!(f.as_ref(), Expr::Int(n) if n.is_negative()));
-            let exp_inner = fs.iter().find_map(|f| {
-                if let Expr::Func(FuncKind::Exp, args) = f.as_ref() {
-                    if args.len() == 1 {
-                        return Some(&args[0]);
-                    }
-                }
-                None
-            });
-            neg && exp_inner.is_some_and(|a| is_neg_var_exp(a, var))
+            neg && fs.iter().any(|f| {
+                matches!(
+                    f.as_ref(),
+                    Expr::Pow(b, exp)
+                        if is_var(b, var) && matches!(exp.as_ref(), Expr::Int(n) if n.is_positive())
+                )
+            })
         }
-        _ => is_neg_var_exp(e, var),
+        _ => false,
     }
 }
 
@@ -598,6 +1058,51 @@ mod tests {
     }
 
     #[test]
+    fn balance_frac_minus_var_rewrites_inner_minus_x() {
+        let var = Ident::new("x");
+        let inner = Arc::new(Expr::Frac(
+            Expr::sym("a"),
+            Expr::sym("b"),
+        ));
+        let e = Expr::add(vec![
+            Arc::clone(&inner),
+            Expr::mul(vec![Expr::int(-1), Expr::sym("x")]),
+        ]);
+        let r = balance_exp_arguments_frac_var(
+            &Expr::func(FuncKind::Exp, vec![e]),
+            &var,
+        );
+        let s = format_expr(r.as_ref());
+        assert!(
+            s.contains("a") && s.contains("b") && s.contains("x"),
+            "expected (a-x*b)/b inside exp, got {s}"
+        );
+        assert!(!s.contains("a+-1*b") && !s.contains("a+(-1)*b"), "wrong coeff-only balance: {s}");
+    }
+
+    #[test]
+    fn first_order_vanishing_epsilon_rewrite() {
+        let var = Ident::new("x");
+        let e = Expr::mul(vec![
+            Expr::func(FuncKind::Exp, vec![Expr::sym("x")]),
+            Expr::add(vec![
+                Expr::func(FuncKind::Exp, vec![Expr::pow(Expr::sym("x"), Expr::int(-1))]),
+                Expr::int(-1),
+            ]),
+        ]);
+        let r = first_order_exp_vanishing_epsilon(&e, &var);
+        let s = format_expr(r.as_ref());
+        assert!(
+            !match_exp_times_exp_minus_one(&r).is_some(),
+            "should not keep exp()-1: {s}"
+        );
+        assert!(
+            s.contains("x^-1") || s.contains("1*x^-1") || s.contains("1/x"),
+            "expected exp(x)*x^-1 style, got {s}"
+        );
+    }
+
+    #[test]
     fn limit_preprocessed_gruntz_minus_one() {
         let ctx = xcas_default();
         let var = Ident::new("x");
@@ -610,7 +1115,7 @@ mod tests {
             panic!();
         };
         let pre = crate::limit_engine::preprocess::limit_preprocess_struct(e, &var);
-        let r = try_limit_exp_times_exp_minus_one_preprocessed(&pre, &var, &ctx).unwrap();
+        let r = super::super::asymptotic::limit_at_plus_infinity(&pre, &var, &ctx).unwrap();
         assert_eq!(format_expr(r.as_ref()), "-1");
     }
 
@@ -619,19 +1124,38 @@ mod tests {
         use super::super::ck_int_gruntz_fixture::ratio;
         let ctx = xcas_default();
         let var = Ident::new("x");
-        assert!(
-            match_exp_over_exp(&ratio()).is_some(),
-            "ratio should match exp/exp"
-        );
-        let r = try_limit_exp_over_exp_via_quotient(&ratio(), &var, &ctx).unwrap();
+        let r = super::super::asymptotic::limit_at_plus_infinity(&ratio(), &var, &ctx).unwrap();
         assert_eq!(format_expr(r.as_ref()), "1");
+    }
+
+    #[test]
+    fn fold_ck_int_61_shape() {
+        use crate::limit_engine::ck_int_gruntz_fixture::{ck_int_61, exp_inner};
+        let var = Ident::new("x");
+        let e = ck_int_61();
+        let add = Expr::add(vec![
+            exp_inner(),
+            Expr::mul(vec![Expr::int(-1), Expr::func(FuncKind::Exp, vec![Expr::sym("x")])]),
+        ]);
+        let add_fold = fold_exp_shifted_difference(&add);
+        assert!(
+            match_exp_times_exp_minus_one(&add_fold).is_some(),
+            "add fold: {}",
+            format_expr(add_fold.as_ref())
+        );
+        let pre = crate::limit_engine::preprocess::limit_preprocess_struct(&e, &var);
+        assert!(
+            format_expr(pre.as_ref()).contains("exp(x)"),
+            "struct preprocess: {}",
+            format_expr(pre.as_ref())
+        );
     }
 
     #[test]
     fn fold_nested_gruntz_add_difference() {
         let ctx = xcas_default();
         let stmts = giac_parse::parse_program(
-            "exp(1/x+exp(-x)+exp(-x^2))-exp(1/x-exp(-exp(x)));",
+            "exp(1/x+exp(-x)+exp(-(x^2)))-exp(1/x-exp(-exp(x)));",
             &ctx,
         )
         .unwrap();
@@ -642,19 +1166,16 @@ mod tests {
             panic!("expected add, got {}", format_expr(e.as_ref()));
         };
         assert_eq!(ts.len(), 2);
-        let form = detect_exp_difference_add(&ts[0], &ts[1]);
-        assert!(
-            form.is_none(),
-            "x-layer fold skips general exp diff without shared subterm: {}",
-            format_expr(e.as_ref())
-        );
+        let form = detect_exp_difference_add(&ts[0], &ts[1]).expect("nested gruntz exp diff");
+        let s = format_expr(&emit_exp_difference(form));
+        assert!(s.contains("-1") && s.contains("exp("), "got {s}");
     }
 
     #[test]
     fn fold_nested_gruntz_full_expr() {
         let ctx = xcas_default();
         let stmts = giac_parse::parse_program(
-            "exp(x)*(exp(1/x+exp(-x)+exp(-x^2))-exp(1/x-exp(-exp(x))));",
+            "exp(x)*(exp(1/x+exp(-x)+exp(-(x^2)))-exp(1/x-exp(-exp(x))));",
             &ctx,
         )
         .unwrap();
@@ -664,10 +1185,43 @@ mod tests {
         let folded = fold_exp_shifted_difference(e);
         let s = format_expr(folded.as_ref());
         assert!(
-            s.contains("-1") && s.contains("exp("),
+            match_exp_times_exp_minus_one(&folded).is_some(),
             "expected exp(L)*(exp(S)-1) form, got {s}"
         );
         let _ = ctx;
+    }
+
+    #[test]
+    fn parse_neg_x_squared_in_exp() {
+        use giac_core::format_expr;
+        let ctx = xcas_default();
+        let stmts = giac_parse::parse_program("exp(-(x^2));", &ctx).unwrap();
+        let giac_core::Stmt::ExprStmt(e) = stmts.first().unwrap() else {
+            panic!();
+        };
+        let s = format_expr(e.as_ref());
+        assert!(
+            s.contains("-x^2") || s.contains("-1*x^2"),
+            "expected -(x^2) in exp arg, got {s}"
+        );
+    }
+
+    #[test]
+    fn limit_nested_gruntz_preprocessed() {
+        let ctx = xcas_default();
+        let var = Ident::new("x");
+        let stmts = giac_parse::parse_program(
+            "exp(x)*(exp(1/x+exp(-x)+exp(-(x^2)))-exp(1/x-exp(-exp(x))));",
+            &ctx,
+        )
+        .unwrap();
+        let giac_core::Stmt::ExprStmt(e) = stmts.first().unwrap() else {
+            panic!();
+        };
+        let pre = crate::limit_engine::preprocess::limit_preprocess_struct(e, &var);
+        let r = super::super::asymptotic::limit_at_plus_infinity(&pre, &var, &ctx)
+            .expect("limit_at_plus_infinity");
+        assert_eq!(format_expr(r.as_ref()), "1");
     }
 
     #[test]
@@ -677,3 +1231,4 @@ mod tests {
         assert!(s.contains("exp(eps)") && s.contains("-1"), "got {s}");
     }
 }
+
