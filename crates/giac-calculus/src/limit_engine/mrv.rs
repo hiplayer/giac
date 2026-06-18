@@ -96,6 +96,15 @@ fn collect_mrv(expr: &ExprArc, var: &Ident, set: &mut MrvSet, ctx: &Context) {
     }
 }
 
+/// True when `n/d → 0` at `+∞` using growth comparison only (no `eval` fallback).
+pub(crate) fn ratio_tends_to_zero_at_plus_infinity(
+    n: &ExprArc,
+    d: &ExprArc,
+    var: &Ident,
+) -> bool {
+    vanishes_faster_than_at_plus_infinity(n, d, var, &Context::default())
+}
+
 /// True when `a/b → 0` at `+∞` (upstream `mrv_compare` on `lna/lnb` subset).
 pub(crate) fn vanishes_faster_than_at_plus_infinity(
     a: &ExprArc,
@@ -137,13 +146,23 @@ fn growth_rank_detailed(e: &ExprArc, var: &Ident, ctx: &Context) -> (Growth, f64
             .unwrap_or((Growth::Const, 0.0)),
         Expr::Mul(fs) => {
             let mut best = (Growth::Const, 0.0);
+            let mut exp_sub_sum = 0.0;
+            let mut exp_count = 0usize;
             for f in fs {
                 let g = growth_rank_detailed(f, var, ctx);
+                if g.0 == Growth::Exp {
+                    exp_sub_sum += g.1;
+                    exp_count += 1;
+                }
                 if g.0 > best.0 || (g.0 == best.0 && g.1 > best.1) {
                     best = g;
                 }
             }
-            best
+            if exp_count > 0 && best.0 == Growth::Exp {
+                (Growth::Exp, exp_sub_sum)
+            } else {
+                best
+            }
         }
         _ => {
             let g = growth_rank(e, var);
@@ -258,6 +277,27 @@ fn leading_coeff_in_var(e: &ExprArc, var: &Ident) -> Option<f64> {
         }
         _ => try_const_f64(e),
     }
+}
+
+/// Limit of `n/d` at `+∞` when the ratio tends to a constant.
+pub(crate) fn limit_rational_const_at_plus_infinity(
+    n: &ExprArc,
+    d: &ExprArc,
+    var: &Ident,
+) -> Option<f64> {
+    let nd = add_degree_in_var(n, var);
+    let dd = add_degree_in_var(d, var);
+    if nd == dd {
+        let nc = leading_coeff_in_var(n, var)?;
+        let dc = leading_coeff_in_var(d, var)?;
+        if dc.abs() > f64::EPSILON {
+            return Some(nc / dc);
+        }
+    }
+    if nd < dd {
+        return Some(0.0);
+    }
+    None
 }
 
 fn add_degree_in_var(e: &ExprArc, var: &Ident) -> isize {

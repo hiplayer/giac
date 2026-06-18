@@ -181,6 +181,21 @@ mod tests {
     }
 
     #[test]
+    fn normal_cancels_distributed_polynomial_terms() {
+        let ctx = Context::default();
+        let e = Expr::add(vec![
+            Expr::mul(vec![
+                Expr::int(2),
+                Expr::sym("x"),
+                Expr::add(vec![Expr::sym("x"), Expr::int(1)]),
+            ]),
+            Expr::mul(vec![Expr::int(-2), Expr::pow(Expr::sym("x"), Expr::int(2))]),
+        ]);
+        let r = normal(e.as_ref(), &ctx).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "2*x");
+    }
+
+    #[test]
     fn expand_distribute_mul_over_add() {
         let ctx = Context::default();
         let e = Expr::mul(vec![

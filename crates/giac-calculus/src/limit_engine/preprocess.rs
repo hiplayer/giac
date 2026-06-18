@@ -26,7 +26,8 @@ pub(crate) fn limit_preprocess_mrv(expr: &ExprArc, var: &Ident) -> ExprArc {
         )),
         var,
     );
-    simplify_exp_argument_adds(&balance_exp_arguments_frac_var(&normalized, var))
+    let refolded = fold_exp_shifted_difference(&normalized);
+    simplify_exp_argument_adds(&balance_exp_arguments_frac_var(&refolded, var))
 }
 
 /// Structural preprocessing without `eval` (safe for nested `exp` before limit).
@@ -41,7 +42,9 @@ pub(crate) fn limit_preprocess_struct(expr: &ExprArc, var: &Ident) -> ExprArc {
         )),
         var,
     );
-    let epsilon_expanded = first_order_exp_vanishing_epsilon(&normalized, var);
+    // `pow2expln` / `merge_exp_quotients` can expand `exp(A)-exp(B)`; refold before ε rewrite.
+    let refolded = fold_exp_shifted_difference(&normalized);
+    let epsilon_expanded = first_order_exp_vanishing_epsilon(&refolded, var);
     let simplified = simplify_exp_argument_adds(&epsilon_expanded);
     let algebraized = algebraize_exp_vanishing_products(&simplified, var);
     simplify_exp_argument_adds(&balance_exp_arguments_frac_var(&algebraized, var))
@@ -199,7 +202,7 @@ pub(crate) fn normalize_sqrt_conjugates(expr: &ExprArc) -> ExprArc {
 }
 
 /// `exp(c*var)` with `c = 0` → `1` (e.g. `4^n/2^(2n)` after `merge_exp_quotients`).
-fn fold_exp_zero_linear(expr: &ExprArc, var: &Ident) -> ExprArc {
+pub(crate) fn fold_exp_zero_linear(expr: &ExprArc, var: &Ident) -> ExprArc {
     match expr.as_ref() {
         Expr::Func(FuncKind::Exp, args) if args.len() == 1 => {
             if crate::limit_engine::mrv::linear_coeff_in_var(&args[0], var)

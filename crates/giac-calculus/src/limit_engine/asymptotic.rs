@@ -9,7 +9,7 @@ use std::sync::Arc;
 use giac_core::{bigint_to_i64, eval, eval_subst_map, expr_to_poly, Context, EvalError, Expr,
     ExprArc, FuncKind, Ident,
 };
-use giac_simplify::ratnormal;
+use giac_simplify::{normal, ratnormal};
 use giac_poly::{coeff_at, univariate_degree, Poly, Var};
 use num_bigint::BigInt;
 use num_rational::Ratio;
@@ -17,7 +17,8 @@ use num_traits::{One, Signed, Zero};
 
 use super::bounds::{mrv_limit_eligible, too_heavy_for_expand, MAX_SERIES_EXPANSION_ORDER};
 use super::exp_diff::{
-    classify_exp_at_plus_infinity, classify_signed_exp_at_plus_infinity, unwrap_signed_frac,
+    classify_exp_at_plus_infinity, classify_signed_exp_at_plus_infinity, simplify_add_sum,
+    unwrap_signed_frac,
 };
 use super::mrv::{try_const_f64, vanishes_faster_than_at_plus_infinity};
 use super::mrv_lead_term::limit_unidirectional_plus_infinity;
@@ -68,6 +69,7 @@ fn limit_preprocessed_at_plus_infinity(
             None
         })
         .or_else(|| limit_exp_of_vanishing_frac_argument(expr, var, ctx))
+        .or_else(|| limit_exp_times_frac_quotient_at_plus_infinity(expr, var, ctx))
         .or_else(|| {
             if !mrv_limit_eligible(expr) {
                 return None;
@@ -98,6 +100,329 @@ fn limit_exp_of_vanishing_frac_argument(
         return Some(Expr::int(1));
     }
     None
+}
+
+/// `±exp(L)·n/d` with `exp(L)·n/d → exp(c)` at `+∞` (CK-INT-61 after preprocess).
+fn limit_exp_times_frac_quotient_at_plus_infinity(
+    expr: &ExprArc,
+    var: &Ident,
+    ctx: &Context,
+) -> Option<ExprArc> {
+    let (neg, scale, n, d) = parse_signed_exp_frac_product(expr, var)?;
+    let num = Expr::mul(vec![Expr::func(FuncKind::Exp, vec![scale]), n]);
+    let num_ln = dominant_ln_exponent_at_plus_infinity(&num, var, ctx)?;
+    let den_ln = dominant_ln_exponent_at_plus_infinity(&d, var, ctx)?;
+    let diff = simplify_add_sum(&Expr::add(vec![
+        num_ln,
+        Expr::mul(vec![Expr::int(-1), den_ln]),
+    ]));
+    let c = limit_const_rational_at_plus_infinity(&diff, var, ctx)?;
+    let mut out = Expr::func(FuncKind::Exp, vec![float_to_expr(c)?]);
+    if neg {
+        out = Expr::mul(vec![Expr::int(-1), out]);
+    }
+    eval(out.as_ref(), ctx).ok()
+}
+
+pub(crate) fn parse_signed_exp_frac_product(
+    expr: &ExprArc,
+    var: &Ident,
+) -> Option<(bool, ExprArc, ExprArc, ExprArc)> {
+    let flat = flatten_top_mul(expr);
+    let mut neg = false;
+    let mut exp_logs = Vec::new();
+    let mut frac = None;
+    let mut var_pow = 0isize;
+    for f in &flat {
+        match f.as_ref() {
+            Expr::Int(n) if n.is_negative() => neg = !neg,
+            Expr::Func(FuncKind::Exp, args) if args.len() == 1 => {
+                exp_logs.push(Arc::clone(&args[0]));
+            }
+            Expr::Frac(n, d) => {
+                if frac.is_some() {
+                    return None;
+                }
+                frac = Some((Arc::clone(n), Arc::clone(d)));
+            }
+            Expr::Pow(b, e) if is_limit_var(b, var) => {
+                let k = match e.as_ref() {
+                    Expr::Int(n) => bigint_to_i64(n).ok()? as isize,
+                    _ => return None,
+                };
+                var_pow += k;
+            }
+            Expr::Symbol(id) if id == var => var_pow += 1,
+            _ => return None,
+        }
+    }
+    let (mut n, d) = frac?;
+    let (n_neg, n_body) = extract_mul_sign(&n);
+    neg ^= n_neg;
+    n = n_body;
+    if var_pow != 0 {
+        n = Expr::mul(vec![
+            n,
+            Expr::pow(Expr::sym(var.as_str()), Expr::int(var_pow as i64)),
+        ]);
+        n = cancel_var_power_in_mul(&n, var);
+    }
+    let scale = match exp_logs.len() {
+        0 => return None,
+        1 => exp_logs.into_iter().next().unwrap(),
+        _ => Expr::add(exp_logs),
+    };
+    Some((neg, scale, n, d))
+}
+
+fn cancel_var_power_in_mul(e: &ExprArc, var: &Ident) -> ExprArc {
+    let flat = flatten_top_mul(e);
+    let mut net: isize = 0;
+    let mut rest = Vec::new();
+    for f in &flat {
+        if is_limit_var(f, var) {
+            net += 1;
+        } else if let Expr::Pow(b, exp) = f.as_ref() {
+            if is_limit_var(b, var) {
+                if let Expr::Int(n) = exp.as_ref() {
+                    if let Ok(k) = bigint_to_i64(n) {
+                        net += k as isize;
+                        continue;
+                    }
+                }
+            }
+            rest.push(Arc::clone(f));
+        } else {
+            rest.push(Arc::clone(f));
+        }
+    }
+    if net != 0 {
+        rest.push(Expr::pow(Expr::sym(var.as_str()), Expr::int(net as i64)));
+    }
+    match rest.len() {
+        0 => Expr::int(1),
+        1 => rest.into_iter().next().unwrap(),
+        _ => Expr::mul(rest),
+    }
+}
+
+fn extract_mul_sign(e: &ExprArc) -> (bool, ExprArc) {
+    match e.as_ref() {
+        Expr::Mul(fs) => {
+            let mut neg = false;
+            let mut rest = Vec::new();
+            for f in fs {
+                if matches!(f.as_ref(), Expr::Int(n) if n.is_negative()) {
+                    neg = !neg;
+                } else {
+                    rest.push(Arc::clone(f));
+                }
+            }
+            let body = match rest.len() {
+                0 => Expr::int(1),
+                1 => rest.into_iter().next().unwrap(),
+                _ => Expr::mul(rest),
+            };
+            (neg, body)
+        }
+        Expr::Int(n) if n.is_negative() => (true, Expr::int(1)),
+        _ => (false, Arc::clone(e)),
+    }
+}
+
+fn flatten_top_mul(expr: &ExprArc) -> Vec<ExprArc> {
+    match expr.as_ref() {
+        Expr::Mul(fs) => fs.iter().flat_map(flatten_top_mul).collect(),
+        _ => vec![Arc::clone(expr)],
+    }
+}
+
+fn is_limit_var(e: &ExprArc, var: &Ident) -> bool {
+    matches!(e.as_ref(), Expr::Symbol(id) if id == var)
+}
+
+pub(crate) fn dominant_ln_exponent_at_plus_infinity(
+    e: &ExprArc,
+    var: &Ident,
+    ctx: &Context,
+) -> Option<ExprArc> {
+    match e.as_ref() {
+        Expr::Func(FuncKind::Exp, args) if args.len() == 1 => Some(Arc::clone(&args[0])),
+        Expr::Mul(fs) => {
+            let mut parts = Vec::new();
+            for f in fs {
+                if let Expr::Func(FuncKind::Exp, args) = f.as_ref() {
+                    if args.len() == 1 {
+                        parts.push(Arc::clone(&args[0]));
+                        continue;
+                    }
+                }
+                if let Some(p) = dominant_ln_exponent_at_plus_infinity(f, var, ctx) {
+                    parts.push(p);
+                } else if depends_on_var(f, var) {
+                    return None;
+                }
+            }
+            if parts.is_empty() {
+                None
+            } else if parts.len() == 1 {
+                Some(parts.into_iter().next().unwrap())
+            } else {
+                Some(Expr::add(parts))
+            }
+        }
+        Expr::Add(ts) => ts
+            .iter()
+            .filter_map(|t| dominant_ln_exponent_at_plus_infinity(t, var, ctx))
+            .max_by(|a, b| {
+                super::mrv::mrv_compare(a, b, var, ctx)
+            }),
+        _ => None,
+    }
+}
+
+fn limit_const_rational_at_plus_infinity(
+    e: &ExprArc,
+    var: &Ident,
+    ctx: &Context,
+) -> Option<f64> {
+    if let Some((n, d)) = try_add_rational_to_frac(e, var) {
+        let n = normal(n.as_ref(), ctx).ok()?;
+        return super::mrv::limit_rational_const_at_plus_infinity(&n, &d, var);
+    }
+    match e.as_ref() {
+        Expr::Frac(n, d) => super::mrv::limit_rational_const_at_plus_infinity(n, d, var),
+        Expr::Add(ts) => {
+            let mut sum = 0.0;
+            let mut any = false;
+            for t in ts {
+                if let Some(v) = limit_const_rational_at_plus_infinity(t, var, ctx) {
+                    sum += v;
+                    any = true;
+                } else if depends_on_var(t, var) {
+                    return None;
+                }
+            }
+            any.then_some(sum)
+        }
+        _ => super::mrv::try_const_f64(e),
+    }
+}
+
+fn try_add_rational_to_frac(e: &ExprArc, var: &Ident) -> Option<(ExprArc, ExprArc)> {
+    let Expr::Add(ts) = e.as_ref() else {
+        return None;
+    };
+    let mut common_den = None;
+    for t in ts {
+        if let Some((_, d)) = as_frac_form(t, var) {
+            if common_den.is_none() {
+                common_den = Some(d);
+            } else if common_den.as_ref() != Some(&d) {
+                return None;
+            }
+        }
+    }
+    let d = common_den?;
+    let mut lin_coeff = Expr::int(0);
+    let mut num = Expr::int(0);
+    for t in ts {
+        if let Some((n, df)) = as_frac_form(t, var) {
+            if df.as_ref() != d.as_ref() {
+                return None;
+            }
+            num = Expr::add(vec![num, n]);
+        } else if let Some(c) = linear_var_term(t, var) {
+            lin_coeff = Expr::add(vec![lin_coeff, c]);
+        } else {
+            return None;
+        }
+    }
+    if !matches!(lin_coeff.as_ref(), Expr::Int(n) if n.is_zero()) {
+        num = Expr::add(vec![
+            num,
+            Expr::mul(vec![
+                lin_coeff,
+                Expr::sym(var.as_str()),
+                Arc::clone(&d),
+            ]),
+        ]);
+    }
+    Some((num, d))
+}
+
+fn split_mul_leading_coeff(e: &ExprArc) -> (ExprArc, ExprArc) {
+    let flat = flatten_top_mul(e);
+    let mut coeff = Expr::int(1);
+    let mut rest = Vec::new();
+    for f in &flat {
+        match f.as_ref() {
+            Expr::Int(_) | Expr::Rat(_) => coeff = Expr::mul(vec![coeff, Arc::clone(f)]),
+            _ => rest.push(Arc::clone(f)),
+        }
+    }
+    let body = match rest.len() {
+        0 => Expr::int(1),
+        1 => rest.into_iter().next().unwrap(),
+        _ => Expr::mul(rest),
+    };
+    (coeff, body)
+}
+
+fn as_frac_form(e: &ExprArc, var: &Ident) -> Option<(ExprArc, ExprArc)> {
+    let _ = var;
+    if let Expr::Frac(n, d) = e.as_ref() {
+        return Some((Arc::clone(n), Arc::clone(d)));
+    }
+    let (coeff, body) = split_mul_leading_coeff(e);
+    if let Expr::Frac(n, d) = body.as_ref() {
+        return Some((Expr::mul(vec![coeff, Arc::clone(n)]), Arc::clone(d)));
+    }
+    let flat = flatten_top_mul(&body);
+    let mut inv_den = None;
+    let mut num_parts = Vec::new();
+    for f in &flat {
+        if let Expr::Pow(b, exp) = f.as_ref() {
+            if matches!(exp.as_ref(), Expr::Int(n) if n.is_negative()) {
+                inv_den = Some(Arc::clone(b));
+                continue;
+            }
+        }
+        num_parts.push(Arc::clone(f));
+    }
+    let d = inv_den?;
+    let n_body = match num_parts.len() {
+        0 => Expr::int(1),
+        1 => num_parts.into_iter().next().unwrap(),
+        _ => Expr::mul(num_parts),
+    };
+    Some((Expr::mul(vec![coeff, n_body]), d))
+}
+
+fn linear_var_term(e: &ExprArc, var: &Ident) -> Option<ExprArc> {
+    let flat = flatten_top_mul(e);
+    if !flat.iter().any(|f| is_limit_var(f, var)) {
+        return None;
+    }
+    let mut coeff = Expr::int(1);
+    for f in &flat {
+        if is_limit_var(f, var) {
+            continue;
+        }
+        match f.as_ref() {
+            Expr::Int(_) | Expr::Rat(_) => coeff = Expr::mul(vec![coeff, Arc::clone(f)]),
+            _ => return None,
+        }
+    }
+    Some(coeff)
+}
+
+fn float_to_expr(c: f64) -> Option<ExprArc> {
+    if (c - c.round()).abs() < f64::EPSILON {
+        Some(Expr::int(c as i64))
+    } else {
+        None
+    }
 }
 
 fn limit_add_at_plus_infinity(
@@ -1184,6 +1509,38 @@ mod tests {
         ]);
         let r = limit_at_plus_infinity(&e, &Ident::new("x"), &ctx).unwrap();
         assert_eq!(format_expr(r.as_ref()), "1/2");
+    }
+
+    #[test]
+    fn asymptotic_ck_int_61_exp_frac_path() {
+        use crate::limit_engine::ck_int_gruntz_fixture::ck_int_61;
+        use crate::limit_engine::preprocess::limit_preprocess_struct;
+        let ctx = xcas_default();
+        let var = Ident::new("x");
+        let pre = limit_preprocess_struct(&ck_int_61(), &var);
+        let (neg, scale, n, d) = parse_signed_exp_frac_product(&pre, &var).expect("parse");
+        let num = Expr::mul(vec![Expr::func(FuncKind::Exp, vec![scale]), n]);
+        let num_ln = dominant_ln_exponent_at_plus_infinity(&num, &var, &ctx).expect("num_ln");
+        let den_ln = dominant_ln_exponent_at_plus_infinity(&d, &var, &ctx).expect("den_ln");
+        let diff = simplify_add_sum(&Expr::add(vec![
+            num_ln,
+            Expr::mul(vec![Expr::int(-1), den_ln]),
+        ]));
+        eprintln!("diff: {}", format_expr(diff.as_ref()));
+        if let Expr::Add(ts) = diff.as_ref() {
+            for (i, t) in ts.iter().enumerate() {
+                eprintln!("  term{i}: {}", format_expr(t.as_ref()));
+            }
+        }
+        eprintln!(
+            "try_add: {:?}",
+            try_add_rational_to_frac(&diff, &var)
+                .map(|(n, d)| (format_expr(n.as_ref()), format_expr(d.as_ref())))
+        );
+        let c = limit_const_rational_at_plus_infinity(&diff, &var, &ctx).expect("const");
+        eprintln!("c={c} neg={neg}");
+        assert!((c - 2.0).abs() < 1e-6);
+        assert!(neg);
     }
 
     #[test]
