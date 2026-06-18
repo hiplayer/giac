@@ -1,9 +1,12 @@
 //! Shared `exp` difference normalization (GIAC-limit-exp-diff P1).
 //!
+//! **通用表示层 API 规则：** [`algorithm-expr-api.md`](../../../../../.doc/algorithm-expr-api.md)  
+//! **本模块专项契约：** [`exp-diff-expr-api.md`](../../../../../.doc/exp-diff-expr-api.md)
+//!
 //! Upstream `remove_lnexp` (`series.cc`) applies `ln_expand` / `exp_series` on coefficients;
 //! the identity `exp(f) - w^{-1} = w^{-1}(exp(f + ln(w)) - 1)` is the MRV (`w`) layer.
 //!
-//! `fold_exp_shifted_difference` is the same ε→0 pattern on the original variable:
+//! `canonical_exp_diff` is the x-layer ε→0 pattern on the original variable:
 //! all shapes reduce to `exp(scale_log) * (exp(ε) - 1)` via [`detect_exp_difference`] + [`emit_exp_difference`].
 
 use std::cmp::Ordering;
@@ -23,22 +26,22 @@ struct ExpDiffForm {
     complement: Option<ExprArc>,
 }
 
-/// Bottom-up `exp` difference factorization (x-layer; used by preprocess).
-pub(crate) fn fold_exp_shifted_difference(expr: &ExprArc) -> ExprArc {
+/// Bottom-up x-layer exp-difference canonical form: `exp(scale_log) * (exp(ε) - 1)`.
+pub(crate) fn canonical_exp_diff(expr: &ExprArc) -> ExprArc {
     let rebuilt = match expr.as_ref() {
-        Expr::Mul(fs) => Expr::mul(fs.iter().map(fold_exp_shifted_difference).collect()),
-        Expr::Add(ts) => Expr::add(ts.iter().map(fold_exp_shifted_difference).collect()),
+        Expr::Mul(fs) => Expr::mul(fs.iter().map(canonical_exp_diff).collect()),
+        Expr::Add(ts) => Expr::add(ts.iter().map(canonical_exp_diff).collect()),
         Expr::Frac(n, d) => Arc::new(Expr::Frac(
-            fold_exp_shifted_difference(n),
-            fold_exp_shifted_difference(d),
+            canonical_exp_diff(n),
+            canonical_exp_diff(d),
         )),
         Expr::Pow(b, e) => Expr::pow(
-            fold_exp_shifted_difference(b),
-            fold_exp_shifted_difference(e),
+            canonical_exp_diff(b),
+            canonical_exp_diff(e),
         ),
         Expr::Func(k, args) => Expr::func(
             *k,
-            args.iter().map(fold_exp_shifted_difference).collect(),
+            args.iter().map(canonical_exp_diff).collect(),
         ),
         _ => Arc::clone(expr),
     };
@@ -1063,7 +1066,7 @@ mod tests {
         let giac_core::Stmt::ExprStmt(e) = stmts.first().unwrap() else {
             panic!();
         };
-        let r = fold_exp_shifted_difference(e);
+        let r = canonical_exp_diff(e);
         let s = format_expr(r.as_ref());
         assert!(
             s.contains("exp(-exp(-x))") || s.contains("exp(-exp(-1*x))"),
@@ -1096,7 +1099,7 @@ mod tests {
             Expr::func(FuncKind::Exp, vec![Expr::sym("x")]),
         ]);
         let e = Expr::add(vec![a, b]);
-        let r = fold_exp_shifted_difference(&e);
+        let r = canonical_exp_diff(&e);
         let s = format_expr(r.as_ref());
         assert!(s.contains("exp(x)") && s.contains("-1"), "got {s}");
     }
@@ -1173,18 +1176,6 @@ mod tests {
     }
 
     #[test]
-    fn debug_ck61_const() {
-        use crate::limit_engine::ck_int_gruntz_fixture::ck_int_61;
-        use crate::limit_engine::preprocess::limit_preprocess_struct;
-        use crate::plugin::xcas_default;
-        let ctx = xcas_default();
-        let var = Ident::new("x");
-        let pre = limit_preprocess_struct(&ck_int_61(), &var);
-        let r = super::super::asymptotic::limit_at_plus_infinity(&pre, &var, &ctx);
-        eprintln!("limit: {r:?} -> {}", r.as_ref().map(|x| format_expr(x.as_ref())).unwrap_or_default());
-    }
-
-    #[test]
     fn fold_ck_int_61_shape() {
         use crate::limit_engine::ck_int_gruntz_fixture::{ck_int_61, exp_inner};
         let var = Ident::new("x");
@@ -1193,7 +1184,7 @@ mod tests {
             exp_inner(),
             Expr::mul(vec![Expr::int(-1), Expr::func(FuncKind::Exp, vec![Expr::sym("x")])]),
         ]);
-        let add_fold = fold_exp_shifted_difference(&add);
+        let add_fold = canonical_exp_diff(&add);
         assert!(
             match_exp_times_exp_minus_one(&add_fold).is_some(),
             "add fold: {}",
@@ -1238,7 +1229,7 @@ mod tests {
         let giac_core::Stmt::ExprStmt(e) = stmts.first().unwrap() else {
             panic!();
         };
-        let folded = fold_exp_shifted_difference(e);
+        let folded = canonical_exp_diff(e);
         let s = format_expr(folded.as_ref());
         assert!(
             match_exp_times_exp_minus_one(&folded).is_some(),

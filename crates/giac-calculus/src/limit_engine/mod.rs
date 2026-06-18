@@ -18,6 +18,7 @@ use bounds::too_heavy_for_expand;
 
 const MAX_LHOPITAL: usize = 8;
 
+mod simplify_util;
 mod asymptotic;
 mod bounds;
 mod exp_diff;
@@ -110,68 +111,8 @@ pub(crate) fn limit_finite_algebraic(
     Err(EvalError::NotImplemented("limit"))
 }
 
-fn try_as_quotient(expr: &ExprArc, var: &Ident) -> Option<(ExprArc, ExprArc)> {
-    let _ = var;
-    match expr.as_ref() {
-        Expr::Frac(num, den) => Some((Arc::clone(num), Arc::clone(den))),
-        Expr::Mul(factors) => {
-            let mut num = Vec::new();
-            let mut den = Vec::new();
-            for f in factors {
-                if is_negative_integer_power(f) {
-                    den.push(positive_integer_power(f)?);
-                } else {
-                    num.push(Arc::clone(f));
-                }
-            }
-            if den.is_empty() {
-                if num.is_empty() {
-                    return None;
-                }
-                let n = if num.len() == 1 {
-                    Arc::clone(&num[0])
-                } else {
-                    Expr::mul(num)
-                };
-                return Some((n, Expr::int(1)));
-            }
-            let n = if num.is_empty() {
-                Expr::int(1)
-            } else if num.len() == 1 {
-                Arc::clone(&num[0])
-            } else {
-                Expr::mul(num)
-            };
-            let d = if den.len() == 1 {
-                Arc::clone(&den[0])
-            } else {
-                Expr::mul(den)
-            };
-            Some((n, d))
-        }
-        _ => None,
-    }
-}
-
-fn is_negative_integer_power(e: &ExprArc) -> bool {
-    matches!(
-        e.as_ref(),
-        Expr::Pow(_, exp) if matches!(exp.as_ref(), Expr::Int(n) if n.is_negative())
-    )
-}
-
-fn positive_integer_power(e: &ExprArc) -> Option<ExprArc> {
-    match e.as_ref() {
-        Expr::Pow(b, exp) => {
-            if let Expr::Int(n) = exp.as_ref() {
-                if n.is_negative() {
-                    return Some(Expr::pow(Arc::clone(b), Arc::new(Expr::Int(-n))));
-                }
-            }
-        }
-        _ => {}
-    }
-    None
+fn try_as_quotient(expr: &ExprArc, _var: &Ident) -> Option<(ExprArc, ExprArc)> {
+    mrv_series_lead::try_as_quotient(expr)
 }
 
 fn is_negative_var_power(e: &ExprArc, var: &Ident) -> bool {

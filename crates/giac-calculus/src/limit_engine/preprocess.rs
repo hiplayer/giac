@@ -13,13 +13,13 @@ use crate::risch::pow2expln;
 
 use super::exp_diff::{
     algebraize_exp_vanishing_products, balance_exp_arguments_frac_var, first_order_exp_vanishing_epsilon,
-    fold_exp_shifted_difference, is_exp_minus_one_factor, simplify_exp_argument_adds,
+    canonical_exp_diff, is_exp_minus_one_factor, simplify_exp_argument_adds,
 };
 use super::mrv_series_lead::{normalize_inverse_sums, unify_top_quotient};
 
 /// MRV / series preprocess: fold + merge quotients (no Gruntz ε rewrite).
 pub(crate) fn limit_preprocess_mrv(expr: &ExprArc, var: &Ident) -> ExprArc {
-    let folded = fold_exp_shifted_difference(expr);
+    let folded = canonical_exp_diff(expr);
     let normalized = fold_exp_zero_linear(
         &merge_exp_quotients(&pow2expln(
             &normalize_sqrt_conjugates(&surd2pow(&folded)),
@@ -27,7 +27,7 @@ pub(crate) fn limit_preprocess_mrv(expr: &ExprArc, var: &Ident) -> ExprArc {
         )),
         var,
     );
-    let refolded = fold_exp_shifted_difference(&normalized);
+    let refolded = canonical_exp_diff(&normalized);
     simplify_exp_argument_adds(&balance_exp_arguments_frac_var(&refolded, var))
 }
 
@@ -36,7 +36,7 @@ pub(crate) fn limit_preprocess_struct(expr: &ExprArc, var: &Ident) -> ExprArc {
     let expr = unify_top_quotient(&normalize_inverse_sums(expr));
     // Fold `exp(A)-exp(B)` while `1/x` is still `Frac(1,x)`; `pow2expln` rewrites to `x^-1`
     // and breaks shared-subterm detection in `detect_exp_difference_add`.
-    let folded = fold_exp_shifted_difference(&expr);
+    let folded = canonical_exp_diff(&expr);
     let normalized = fold_exp_zero_linear(
         &merge_exp_quotients(&pow2expln(
             &normalize_sqrt_conjugates(&surd2pow(&folded)),
@@ -45,7 +45,7 @@ pub(crate) fn limit_preprocess_struct(expr: &ExprArc, var: &Ident) -> ExprArc {
         var,
     );
     // `pow2expln` / `merge_exp_quotients` can expand `exp(A)-exp(B)`; refold before ε rewrite.
-    let refolded = fold_exp_shifted_difference(&normalized);
+    let refolded = canonical_exp_diff(&normalized);
     let epsilon_expanded = first_order_exp_vanishing_epsilon(&refolded, var);
     let simplified = simplify_exp_argument_adds(&epsilon_expanded);
     let algebraized = algebraize_exp_vanishing_products(&simplified, var);
@@ -66,7 +66,7 @@ pub(crate) fn series_preprocess(
     var: &Ident,
     ctx: &Context,
 ) -> Result<ExprArc, EvalError> {
-    let folded = fold_exp_shifted_difference(&expr);
+    let folded = canonical_exp_diff(&expr);
     let normalized = fold_exp_zero_linear(
         &merge_exp_quotients(&pow2expln(
             &normalize_sqrt_conjugates(&surd2pow(&folded)),
@@ -233,9 +233,9 @@ pub(crate) fn fold_exp_zero_linear(expr: &ExprArc, var: &Ident) -> ExprArc {
     }
 }
 
-/// x-layer `exp` difference factor (alias; see `exp_diff::fold_exp_shifted_difference`).
+/// x-layer `exp` difference factor (alias; see `exp_diff::canonical_exp_diff`).
 pub(crate) fn factor_exp_shifted_difference(expr: &ExprArc) -> ExprArc {
-    fold_exp_shifted_difference(expr)
+    canonical_exp_diff(expr)
 }
 
 /// `exp(a)/exp(b) → exp(a-b)` and `exp(a)*exp(b)^-1` (upstream `_pow2exp` companion).
@@ -366,7 +366,7 @@ mod tests {
     #[test]
     fn preprocess_nested_gruntz_exp_diff_factor() {
         use crate::limit_engine::asymptotic::limit_at_plus_infinity;
-        use crate::limit_engine::exp_diff::{fold_exp_shifted_difference, match_exp_times_exp_minus_one};
+        use crate::limit_engine::exp_diff::{canonical_exp_diff, match_exp_times_exp_minus_one};
         let ctx = crate::plugin::xcas_default();
         let var = Ident::new("x");
         let stmts = giac_parse::parse_program(
@@ -377,7 +377,7 @@ mod tests {
         let giac_core::Stmt::ExprStmt(e) = stmts.first().unwrap() else {
             panic!();
         };
-        let folded = fold_exp_shifted_difference(e);
+        let folded = canonical_exp_diff(e);
         let fs = format_expr(folded.as_ref());
         assert!(fs.contains("-1"), "fold step: {fs}");
         let after_pow = merge_exp_quotients(&pow2expln(

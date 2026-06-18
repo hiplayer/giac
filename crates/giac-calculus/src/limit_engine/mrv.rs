@@ -3,10 +3,11 @@
 use std::cmp::Ordering;
 use std::sync::Arc;
 
-use giac_core::{bigint_to_i64, eval, Expr, ExprArc, FuncKind, Ident, Context};
+use giac_core::{bigint_to_i64, Expr, ExprArc, FuncKind, Ident, Context};
 use num_traits::{Signed, ToPrimitive};
 
 use crate::expr_util::depends_on_var;
+use super::simplify_util::{int_pow_growth_sub_rank, is_negative_const_expr as is_neg_const};
 #[derive(Clone, Debug, Default)]
 pub(crate) struct MrvSet {
     pub faster: Vec<ExprArc>,
@@ -176,7 +177,10 @@ fn growth_rank_detailed(e: &ExprArc, var: &Ident, ctx: &Context) -> (Growth, f64
                         .unwrap_or(0.0)
                 }
                 Expr::Pow(base, exp) if !depends_on_var(base, var) && is_var(exp, var) => {
-                    try_const_f64(base).map(|v| v.ln()).unwrap_or(0.0)
+                    int_pow_growth_sub_rank(base)
+                        .map(|r| r as f64)
+                        .or_else(|| try_const_f64(base).map(|v| v.ln()))
+                        .unwrap_or(0.0)
                 }
                 Expr::Pow(base, exp) if is_var(base, var) => match exp.as_ref() {
                     Expr::Func(FuncKind::Ln, args) if args.len() == 1 && is_var(&args[0], var) => {
@@ -439,17 +443,25 @@ pub(crate) fn linear_coeff_in_var(e: &ExprArc, var: &Ident) -> Option<ExprArc> {
             }
             Some(sum)
         }
+        Expr::Frac(n, d) => {
+            if depends_on_var(d, var) {
+                return None;
+            }
+            let cn = linear_coeff_in_var(n, var)?;
+            if super::mrv_w::is_expr_one(d) {
+                Some(cn)
+            } else if !depends_on_var(d, var) {
+                Some(Arc::new(Expr::Frac(cn, Arc::clone(d))))
+            } else {
+                None
+            }
+        }
         _ => None,
     }
 }
 
-pub(crate) fn is_negative_const_expr(e: &ExprArc, ctx: &Context) -> bool {
-    if eval(e.as_ref(), ctx).ok().is_some_and(|v| match v.as_ref() {
-        Expr::Int(n) => n.is_negative(),
-        Expr::Rat(r) => r.is_negative(),
-        Expr::Frac(num, _) => matches!(num.as_ref(), Expr::Int(n) if n.is_negative()),
-        _ => false,
-    }) {
+pub(crate) fn is_negative_const_expr(e: &ExprArc, _ctx: &Context) -> bool {
+    if is_neg_const(e) {
         return true;
     }
     try_const_f64(e).is_some_and(|x| x < 0.0)

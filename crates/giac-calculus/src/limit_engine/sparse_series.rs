@@ -17,8 +17,8 @@ use num_traits::{One, Signed, Zero};
 
 use super::bounds::{MAX_SERIES_DEPTH, MAX_SERIES_EXPANSION_ORDER, MAX_SERIES_ORDER, MAX_SERIES_TERMS};
 use super::mrv_w::{
-    decompose_ln_w_coeff, expr_contains_ln_w, is_expr_one, is_expr_zero as mrv_is_zero, is_mrv_w_var,
-    is_neg_ln_w_expr, mrv_ln_w_expr,
+    decompose_ln_w_coeff, decompose_mrv_coeff, expr_contains_ln_w, is_expr_one, is_expr_zero as mrv_is_zero,
+    is_mrv_w_var, mrv_ln_w_expr, neg_ln_w_expr,
 };
 use super::remove_lnexp::{expr_contains_exp_or_ln, remove_lnexp};
 use crate::integrate::try_as_rational;
@@ -190,7 +190,7 @@ impl SparseSeries {
         }
         let (_, rem) = q.div_rem(&d);
         let mut terms = Vec::new();
-        let lim = order.min(MAX_SERIES_ORDER);
+        let lim = order;
         for k in 0..lim as u64 {
             let exp = base_exp.saturating_add(i32::try_from(k).unwrap_or(i32::MAX));
             let c = coeff_at(&rem, &v, k);
@@ -482,7 +482,7 @@ fn series_at_zero_depth(
 
 fn series_sin(order: usize) -> Result<SparseSeries, EvalError> {
     let mut terms = Vec::new();
-    let lim = order.min(MAX_SERIES_ORDER);
+    let lim = order;
     let mut k = 1usize;
     let mut sign = 1i64;
     let mut fact = 1i64;
@@ -502,7 +502,7 @@ fn series_sin(order: usize) -> Result<SparseSeries, EvalError> {
 
 fn series_cos(order: usize) -> Result<SparseSeries, EvalError> {
     let mut terms = vec![(0, Expr::int(1))];
-    let lim = order.min(MAX_SERIES_ORDER);
+    let lim = order;
     let mut k = 2usize;
     let mut sign = -1i64;
     let mut fact = 1i64;
@@ -544,7 +544,7 @@ fn series_sqrt(
 /// `atan(u) = u - u^3/3 + u^5/5 - ...`
 fn series_atan(order: usize) -> Result<SparseSeries, EvalError> {
     let mut terms = Vec::new();
-    let lim = order.min(MAX_SERIES_ORDER);
+    let lim = order;
     let mut k = 1usize;
     let mut sign = 1i64;
     while k < lim {
@@ -558,7 +558,7 @@ fn series_atan(order: usize) -> Result<SparseSeries, EvalError> {
 /// `atan(1/u) = pi/2 - u + u^3/3 - u^5/5 + ...` for `u → 0+`.
 fn series_atan_of_inv(order: usize) -> Result<SparseSeries, EvalError> {
     let mut terms = vec![(0, Arc::new(Expr::Frac(Expr::sym("pi"), Expr::int(2))))];
-    let lim = order.min(MAX_SERIES_ORDER);
+    let lim = order;
     let mut k = 1usize;
     let mut sign = -1i64;
     while k < lim {
@@ -891,7 +891,7 @@ fn is_series_var(e: &ExprArc, var: &Ident) -> bool {
 
 fn arg_has_symbolic_ln_w(arg: &SparseSeries) -> bool {
     arg.iter_terms()
-        .any(|(_, c)| expr_contains_ln_w(c) || is_neg_ln_w_expr(c))
+        .any(|(_, c)| decompose_mrv_coeff(c).pending_for_series())
 }
 
 /// `(-ln(w))^k` and similar non-Taylor powers stay symbolic in MRV series coeffs.
@@ -911,7 +911,7 @@ fn is_mrv_symbolic_pow(base: &ExprArc, exp: &ExprArc) -> bool {
     if !matches!(exp.as_ref(), Expr::Int(_)) {
         return false;
     }
-    is_neg_ln_w_expr(base)
+    base == &neg_ln_w_expr()
         || matches!(
             base.as_ref(),
             Expr::Func(FuncKind::Ln, args)
@@ -925,6 +925,41 @@ mod tests {
 
     use super::*;
     use crate::plugin::xcas_default;
+
+    #[test]
+    fn series_mrv_w_exp_minus_w_inv_cancel_reveals_sublead() {
+        let ctx = xcas_default();
+        let w = Ident::new(super::super::mrv_w::MRV_W);
+        let w_inv = Expr::pow(super::super::mrv_w::mrv_w_expr(), Expr::int(-1));
+        let inner = Expr::add(vec![
+            Expr::mul(vec![Expr::int(-1), super::super::mrv_w::mrv_ln_w_expr()]),
+            Expr::sym("eps"),
+        ]);
+        let e = Expr::add(vec![
+            Expr::func(FuncKind::Exp, vec![inner]),
+            Expr::mul(vec![Expr::int(-1), w_inv]),
+        ]);
+        let s = series_at_zero(&e, &w, 6, &ctx).unwrap();
+        let terms: Vec<_> = s.iter_terms().collect();
+        assert!(
+            !terms.iter().any(|(e, _)| *e == -1),
+            "w^-1 should cancel, got {:?}",
+            terms
+                .iter()
+                .map(|(e, c)| format!("w^{e} * {}", format_expr(c.as_ref())))
+                .collect::<Vec<_>>()
+        );
+        let (_, lead_c) = s.lead().unwrap();
+        let lead_s = format_expr(lead_c.as_ref());
+        assert!(
+            lead_s.contains("exp") && s.lead().unwrap().0 == 0,
+            "expected w^0 sublead after w^-1 cancel, got {:?}",
+            terms
+                .iter()
+                .map(|(e, c)| format!("w^{e} * {}", format_expr(c.as_ref())))
+                .collect::<Vec<_>>()
+        );
+    }
 
     #[test]
     fn sparse_series_rational_at_zero() {
@@ -956,6 +991,20 @@ mod tests {
         let r = series_at_center(&e, &var, &Expr::int(0), 3, &ctx).unwrap();
         let text = format_expr(r.as_ref());
         assert!(text.contains("x^2") || text.contains("2*x"), "got {text}");
+    }
+
+    #[test]
+    fn series_at_zero_order_escalates_beyond_default_cap() {
+        let ctx = xcas_default();
+        let var = Ident::new("x");
+        let e = Expr::func(FuncKind::Sin, vec![var_to_expr(&var)]);
+        let s5 = series_at_zero(&e, &var, 5, &ctx).unwrap();
+        let s15 =
+            series_at_zero_order(&e, &var, 15, MAX_SERIES_EXPANSION_ORDER, &ctx).unwrap();
+        assert!(
+            s15.iter_terms().count() > s5.iter_terms().count(),
+            "order 15 should yield more sin terms than order 5"
+        );
     }
 
     #[test]

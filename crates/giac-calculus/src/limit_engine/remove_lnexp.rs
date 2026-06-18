@@ -6,17 +6,17 @@
 use std::sync::Arc;
 
 use giac_core::{bigint_to_i64, Context, Expr, ExprArc, FuncKind};
-use giac_simplify::ratnormal;
+use giac_simplify::{normal, ratnormal};
 use num_bigint::BigInt;
 use num_traits::Signed;
 
 use super::exp_diff::{
-    exp_minus_one_epsilon, exp_scale_times_exp_minus_one, fold_exp_shifted_difference,
+    exp_minus_one_epsilon, exp_scale_times_exp_minus_one, canonical_exp_diff,
     is_exp_minus_one_factor,
 };
 use super::mrv_w::{
-    decompose_ln_w_coeff, expr_contains_ln_w, is_expr_one, is_expr_zero, is_mrv_w_var,
-    is_neg_ln_w_expr, is_neg_w_inv, mrv_ln_w_expr, mrv_w_expr,
+    decompose_ln_w_coeff, decompose_mrv_coeff, expr_contains_ln_w, is_expr_one, is_expr_zero,
+    is_mrv_w_var, is_neg_w_inv, mrv_ln_w_expr, mrv_w_expr,
 };
 
 /// Bottom-up `subst` on `ln` / `exp` (giac `remove_lnexp`).
@@ -31,7 +31,10 @@ pub(crate) fn remove_lnexp(expr: &ExprArc, ctx: &Context) -> ExprArc {
     if let Some(rewritten) = try_rewrite_exp_minus_w_inv(&folded, ctx) {
         return remove_lnexp(&rewritten, ctx);
     }
-    folded = fold_exp_shifted_difference(&folded);
+    if let Some(rewritten) = try_rewrite_w_inv_times_exp_minus_one(&folded, ctx) {
+        return remove_lnexp(&rewritten, ctx);
+    }
+    folded = canonical_exp_diff(&folded);
     if let Some(rewritten) = try_rewrite_exp_minus_w_inv(&folded, ctx) {
         return remove_lnexp(&rewritten, ctx);
     }
@@ -124,6 +127,31 @@ fn is_mrv_w_var_symbol(e: &ExprArc) -> bool {
     matches!(e.as_ref(), Expr::Symbol(id) if is_mrv_w_var(id))
 }
 
+/// `w^{-1}*(exp(f)-1)` — peeled CK-61 core; same `f+ln(w)` shift as [`try_rewrite_exp_minus_w_inv`].
+fn try_rewrite_w_inv_times_exp_minus_one(expr: &ExprArc, ctx: &Context) -> Option<ExprArc> {
+    let target = match expr.as_ref() {
+        Expr::Frac(n, d) if is_expr_one(d) => n.as_ref(),
+        other => other,
+    };
+    let Expr::Mul(fs) = target else {
+        return None;
+    };
+    if !fs.iter().any(|f| is_neg_w_inv(f)) {
+        return None;
+    }
+    let em1 = fs.iter().find(|f| is_exp_minus_one_factor(f))?;
+    let f = exp_minus_one_epsilon(em1)?;
+    let shifted = remove_lnexp(
+        &Expr::add(vec![Arc::clone(&f), mrv_ln_w_expr()]),
+        ctx,
+    );
+    if let Some(lead) = lead_after_exp_ln_cancel(&f, &shifted, ctx) {
+        return Some(lead);
+    }
+    let w_inv = Expr::pow(mrv_w_expr(), Expr::int(-1));
+    Some(exp_scale_times_exp_minus_one(w_inv, shifted))
+}
+
 /// `exp(f) - w^{-1} = w^{-1} * (exp(f + ln(w)) - 1)` (MRV / `padd` cancellation).
 fn try_rewrite_exp_minus_w_inv(expr: &ExprArc, ctx: &Context) -> Option<ExprArc> {
     let Expr::Add(ts) = expr.as_ref() else {
@@ -203,10 +231,20 @@ pub(crate) fn divide_lead_coeffs(num: &ExprArc, den: &ExprArc, ctx: &Context) ->
     if is_expr_one(den) {
         return Arc::clone(num);
     }
-    let (kn, rn) = decompose_ln_w_coeff(num);
-    let (kd, rd) = decompose_ln_w_coeff(den);
-    if kn != 0 && kd != 0 && kn == kd {
-        return divide_lead_coeffs(&rn, &rd, ctx);
+    let pn = decompose_mrv_coeff(num);
+    let pd = decompose_mrv_coeff(den);
+    if pn.neg_ln_pow != 0 && pn.neg_ln_pow == pd.neg_ln_pow {
+        return divide_lead_coeffs(&pn.rest, &pd.rest, ctx);
+    }
+    if pn.ln_w_pow != 0 && pn.ln_w_pow == pd.ln_w_pow {
+        return divide_lead_coeffs(&pn.rest, &pd.rest, ctx);
+    }
+    if pn.ln_w_pow != 0 && pd.neg_ln_pow != 0 && pn.ln_w_pow == pd.neg_ln_pow {
+        return divide_lead_coeffs(
+            &Expr::mul(vec![Expr::int(-1), pn.rest.clone()]),
+            &pd.rest,
+            ctx,
+        );
     }
     let product = ratnormal(
         Expr::mul(vec![
@@ -216,7 +254,22 @@ pub(crate) fn divide_lead_coeffs(num: &ExprArc, den: &ExprArc, ctx: &Context) ->
         .as_ref(),
         ctx,
     )
-    .unwrap_or_else(|_| Expr::mul(vec![Arc::clone(num), Expr::pow(Arc::clone(den), Expr::int(-1))]));
+    .unwrap_or_else(|_| {
+        normal(
+            Expr::mul(vec![
+                Arc::clone(num),
+                Expr::pow(Arc::clone(den), Expr::int(-1)),
+            ])
+            .as_ref(),
+            ctx,
+        )
+        .unwrap_or_else(|_| {
+            Expr::mul(vec![
+                Arc::clone(num),
+                Expr::pow(Arc::clone(den), Expr::int(-1)),
+            ])
+        })
+    });
     product
 }
 
@@ -450,6 +503,20 @@ mod tests {
         assert!(
             s.contains("exp(eps)") && s.contains("_mrv_w"),
             "expected w^-1*(exp(eps)-1) style, got {s}"
+        );
+    }
+
+    #[test]
+    fn divide_lead_coeffs_neg_ln_w_inv_cancels() {
+        let ctx = xcas_default();
+        let neg_ln_inv = super::super::mrv_w::neg_ln_w_inv_expr();
+        let num = Expr::mul(vec![neg_ln_inv.clone(), Expr::sym("c")]);
+        let den = Expr::mul(vec![neg_ln_inv, Expr::sym("d")]);
+        let r = divide_lead_coeffs(&num, &den, &ctx);
+        let s = format_expr(r.as_ref());
+        assert!(
+            s.contains("c") && s.contains("d"),
+            "expected c/d after (-ln(w))^-1 cancel, got {s}"
         );
     }
 

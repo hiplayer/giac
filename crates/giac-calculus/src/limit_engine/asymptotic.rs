@@ -24,6 +24,7 @@ use super::mrv::{try_const_f64, vanishes_faster_than_at_plus_infinity};
 use super::mrv_lead_term::limit_unidirectional_plus_infinity;
 use super::mrv_series_lead::{canonicalize_limit_entry, try_as_quotient};
 use super::preprocess::{limit_preprocess_plus_infinity, limit_preprocess_struct};
+use super::simplify_util::simplify_limit_expr;
 use super::sparse_series::series_at_zero_order;
 
 use crate::integrate::try_as_rational;
@@ -836,8 +837,7 @@ fn flatten_mul(expr: &ExprArc) -> Vec<ExprArc> {
 fn normalize_limit_result(expr: &ExprArc, ctx: &Context) -> ExprArc {
     let mut out = collapse_unit_powers(expr);
     for _ in 0..4 {
-        let evaluated = eval(out.as_ref(), ctx).unwrap_or_else(|_| Arc::clone(&out));
-        let normalized = ratnormal(evaluated.as_ref(), ctx).unwrap_or(evaluated);
+        let normalized = simplify_limit_expr(&out, ctx);
         let collapsed = collapse_unit_powers(&normalized);
         if collapsed == out {
             break;
