@@ -4,21 +4,7 @@ use std::sync::Arc;
 
 use giac_core::{Expr, ExprArc, FuncKind, Ident};
 
-fn depends_on_var(e: &ExprArc, var: &Ident) -> bool {
-    match e.as_ref() {
-        Expr::Symbol(id) => id == var,
-        Expr::Int(_) | Expr::Rat(_) => false,
-        Expr::Add(ts) | Expr::Mul(ts) => ts.iter().any(|t| depends_on_var(t, var)),
-        Expr::Pow(b, exp) => depends_on_var(b, var) || depends_on_var(exp, var),
-        Expr::Frac(n, d) => depends_on_var(n, var) || depends_on_var(d, var),
-        Expr::Func(_, args) => args.iter().any(|a| depends_on_var(a, var)),
-        _ => false,
-    }
-}
-
-fn is_const_wrt(e: &ExprArc, var: &Ident) -> bool {
-    !depends_on_var(e, var)
-}
+use crate::expr_util::{depends_on_var, is_const_wrt};
 
 /// `pow2expln(e, x)` — subset of GIAC `subst.cc::pow2expln(e, x)`.
 pub fn pow2expln(expr: &ExprArc, var: &Ident) -> ExprArc {

@@ -5,6 +5,7 @@
 mod diff;
 mod eval_diff;
 mod eval_integrate;
+mod expr_util;
 mod integrate;
 mod integrate_heuristics;
 mod partfrac_integrate;

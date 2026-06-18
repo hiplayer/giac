@@ -22,7 +22,7 @@ use super::mrv_w::{
 };
 use super::remove_lnexp::{expr_contains_exp_or_ln, remove_lnexp};
 use crate::integrate::try_as_rational;
-use crate::risch::depends_on_var;
+use crate::expr_util::depends_on_var;
 
 /// `sum coeff * var^exponent` with integer exponents, sorted ascending.
 #[derive(Clone, Debug, Default)]

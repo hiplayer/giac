@@ -10,6 +10,7 @@ use giac_simplify::ratnormal;
 use num_bigint::BigInt;
 use num_traits::Signed;
 
+use super::exp_diff::{exp_scale_times_exp_minus_one, fold_exp_shifted_difference};
 use super::mrv_w::{
     decompose_ln_w_coeff, expr_contains_ln_w, is_expr_one, is_expr_zero, is_neg_ln_w_expr,
     is_neg_w_inv, mrv_ln_w_expr, mrv_w_expr,
@@ -17,7 +18,7 @@ use super::mrv_w::{
 
 /// Bottom-up `subst` on `ln` / `exp` (giac `remove_lnexp`).
 pub(crate) fn remove_lnexp(expr: &ExprArc, ctx: &Context) -> ExprArc {
-    let folded = fold_children(expr, ctx);
+    let folded = fold_exp_shifted_difference(&fold_children(expr, ctx));
     if let Some(rewritten) = try_rewrite_exp_minus_w_inv(&folded, ctx) {
         return remove_lnexp(&rewritten, ctx);
     }
@@ -49,21 +50,15 @@ fn try_rewrite_exp_minus_w_inv(expr: &ExprArc, ctx: &Context) -> Option<ExprArc>
             continue;
         }
         let f = &args[0];
+        let w_inv = Expr::pow(mrv_w_expr(), Expr::int(-1));
         let shifted = remove_lnexp(
             &Expr::add(vec![Arc::clone(f), mrv_ln_w_expr()]),
             ctx,
         );
-        let w_inv = Expr::pow(mrv_w_expr(), Expr::int(-1));
         if let Some(lead) = lead_after_exp_ln_cancel(f, &shifted, ctx) {
             return Some(lead);
         }
-        return Some(Expr::mul(vec![
-            w_inv,
-            Expr::add(vec![
-                Expr::func(FuncKind::Exp, vec![shifted]),
-                Expr::int(-1),
-            ]),
-        ]));
+        return Some(exp_scale_times_exp_minus_one(w_inv, shifted));
     }
     None
 }

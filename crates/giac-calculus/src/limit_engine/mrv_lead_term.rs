@@ -10,6 +10,7 @@ use giac_core::{
 use giac_simplify::ratnormal;
 use num_traits::{Signed, Zero};
 
+use crate::expr_util::depends_on_var;
 use super::bounds::{
     mrv_limit_eligible, mrv_rewrite_bounded, MAX_SERIES_EXPANSION_ORDER, MAX_SERIES_ORDER,
 };
@@ -45,7 +46,7 @@ pub(crate) fn mrv_lead_term_plus_infinity(
     }
     let set = mrv_at_plus_infinity(&pre, var, ctx);
     if set.is_empty() {
-        if crate::risch::depends_on_var(&pre, var) {
+        if depends_on_var(&pre, var) {
             return Err(EvalError::NotImplemented("limit"));
         }
         return Ok(MrvLeadTerm {
@@ -88,7 +89,7 @@ pub(crate) fn limit_from_mrv_lead_term(
     let mut coeff = Arc::clone(&lead.coeff);
     if contains_ln_w(&coeff) {
         coeff = rewrite_ln_w(&coeff, var);
-        if crate::risch::depends_on_var(&coeff, var) {
+        if depends_on_var(&coeff, var) {
             return Err(EvalError::NotImplemented("limit"));
         }
     }
@@ -115,7 +116,7 @@ pub(crate) fn limit_unidirectional_plus_infinity(
             return Ok(sign_infinity(&eval(lead.coeff.as_ref(), ctx)?));
         }
         let coeff = limit_from_mrv_lead_term(&lead, var, ctx)?;
-        if !crate::risch::depends_on_var(&coeff, var) {
+        if !depends_on_var(&coeff, var) {
             return Ok(coeff);
         }
         e_copy = coeff;

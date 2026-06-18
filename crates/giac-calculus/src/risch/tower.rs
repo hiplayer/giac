@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use giac_core::{Expr, ExprArc, FuncKind, Ident};
 
+use crate::expr_util::depends_on_var;
 use super::pow2expln::pow2expln;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -106,23 +107,6 @@ fn contains_non_elementary_transcendental(e: &ExprArc, var: &Ident) -> bool {
                 || contains_non_elementary_transcendental(d, var)
         }
         Expr::Symbol(_) | Expr::Int(_) | Expr::Rat(_) => false,
-        _ => false,
-    }
-}
-
-fn is_const_wrt(e: &ExprArc, var: &Ident) -> bool {
-    !depends_on_var(e, var)
-}
-
-/// Whether `e` syntactically depends on integration variable `var`.
-pub fn depends_on_var(e: &ExprArc, var: &Ident) -> bool {
-    match e.as_ref() {
-        Expr::Symbol(id) => id == var,
-        Expr::Int(_) | Expr::Rat(_) => false,
-        Expr::Add(ts) | Expr::Mul(ts) => ts.iter().any(|t| depends_on_var(t, var)),
-        Expr::Pow(b, exp) => depends_on_var(b, var) || depends_on_var(exp, var),
-        Expr::Frac(n, d) => depends_on_var(n, var) || depends_on_var(d, var),
-        Expr::Func(_, args) => args.iter().any(|a| depends_on_var(a, var)),
         _ => false,
     }
 }

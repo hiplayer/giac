@@ -4,7 +4,8 @@ mod hermite;
 mod algebraic_rt;
 mod rothstein_trager;
 
-pub use tower::{depends_on_var, risch_tower, rlvarx, RischTowerError};
+pub use tower::{risch_tower, rlvarx, RischTowerError};
+pub use crate::expr_util::depends_on_var;
 pub use pow2expln::pow2expln;
 pub use hermite::{hermite_reduce, HermiteTerm};
 pub use algebraic_rt::{

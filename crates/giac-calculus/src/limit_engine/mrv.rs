@@ -6,7 +6,7 @@ use std::sync::Arc;
 use giac_core::{bigint_to_i64, eval, Expr, ExprArc, FuncKind, Ident, Context};
 use num_traits::{Signed, ToPrimitive};
 
-use crate::risch::depends_on_var;
+use crate::expr_util::depends_on_var;
 #[derive(Clone, Debug, Default)]
 pub(crate) struct MrvSet {
     pub faster: Vec<ExprArc>,

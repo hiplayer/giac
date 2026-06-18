@@ -20,6 +20,7 @@ const MAX_LHOPITAL: usize = 8;
 
 mod asymptotic;
 mod bounds;
+mod exp_diff;
 mod mrv;
 mod mrv_lead_term;
 mod mrv_series_lead;

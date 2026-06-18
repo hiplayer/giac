@@ -11,10 +11,12 @@ use giac_simplify::ratnormal;
 
 use crate::risch::pow2expln;
 
+use super::exp_diff::fold_exp_shifted_difference;
+
 /// Structural preprocessing without `eval` (safe for nested `exp` before limit).
 pub(crate) fn limit_preprocess_struct(expr: &ExprArc, var: &Ident) -> ExprArc {
     fold_exp_zero_linear(
-        &factor_exp_shifted_difference(&merge_exp_quotients(&pow2expln(
+        &fold_exp_shifted_difference(&merge_exp_quotients(&pow2expln(
             &normalize_sqrt_conjugates(&surd2pow(expr)),
             var,
         ))),
@@ -37,7 +39,7 @@ pub(crate) fn series_preprocess(
     ctx: &Context,
 ) -> Result<ExprArc, EvalError> {
     let normalized = fold_exp_zero_linear(
-        &factor_exp_shifted_difference(&merge_exp_quotients(&pow2expln(
+        &fold_exp_shifted_difference(&merge_exp_quotients(&pow2expln(
             &normalize_sqrt_conjugates(&surd2pow(expr)),
             var,
         ))),
@@ -202,111 +204,9 @@ fn fold_exp_zero_linear(expr: &ExprArc, var: &Ident) -> ExprArc {
     }
 }
 
-/// `exp(a)*(exp(b+c)-exp(b)) → exp(a+b)*(exp(c)-1)` (gruntz / nested exp differences).
+/// x-layer `exp` difference factor (alias; see `exp_diff::fold_exp_shifted_difference`).
 pub(crate) fn factor_exp_shifted_difference(expr: &ExprArc) -> ExprArc {
-    match expr.as_ref() {
-        Expr::Mul(fs) => {
-            for (i, j) in [(0, 1), (1, 0)] {
-                if fs.len() == 2 {
-                    if let Some(r) = try_factor_exp_mul_diff_pair(&fs[i], &fs[j]) {
-                        return r;
-                    }
-                }
-            }
-            Expr::mul(fs.iter().map(factor_exp_shifted_difference).collect())
-        }
-        Expr::Add(ts) => Expr::add(ts.iter().map(factor_exp_shifted_difference).collect()),
-        Expr::Frac(n, d) => Arc::new(Expr::Frac(
-            factor_exp_shifted_difference(n),
-            factor_exp_shifted_difference(d),
-        )),
-        Expr::Pow(b, e) => Expr::pow(
-            factor_exp_shifted_difference(b),
-            factor_exp_shifted_difference(e),
-        ),
-        Expr::Func(k, args) => Expr::func(
-            *k,
-            args.iter().map(factor_exp_shifted_difference).collect(),
-        ),
-        _ => Arc::clone(expr),
-    }
-}
-
-fn try_factor_exp_mul_diff_pair(a: &ExprArc, b: &ExprArc) -> Option<ExprArc> {
-    let (ea, diff_terms) = match (a.as_ref(), b.as_ref()) {
-        (Expr::Func(FuncKind::Exp, args), Expr::Add(ts)) if args.len() == 1 && ts.len() == 2 => {
-            (&args[0], ts)
-        }
-        (Expr::Add(ts), Expr::Func(FuncKind::Exp, args)) if ts.len() == 2 && args.len() == 1 => {
-            (&args[0], ts)
-        }
-        _ => return None,
-    };
-    let (pos_arg, neg_arg) = {
-        let (n0, a0) = unwrap_exp_arg(&diff_terms[0])?;
-        let (n1, a1) = unwrap_exp_arg(&diff_terms[1])?;
-        if !n0 && n1 {
-            (a0, a1)
-        } else if n0 && !n1 {
-            (a1, a0)
-        } else {
-            return None;
-        }
-    };
-    let c = expr_remove_add_term(&pos_arg, &neg_arg)?;
-    Some(Expr::mul(vec![
-        Expr::func(
-            FuncKind::Exp,
-            vec![Expr::add(vec![Arc::clone(ea), neg_arg])],
-        ),
-        Expr::add(vec![Expr::func(FuncKind::Exp, vec![c]), Expr::int(-1)]),
-    ]))
-}
-
-fn unwrap_exp_arg(e: &ExprArc) -> Option<(bool, ExprArc)> {
-    match e.as_ref() {
-        Expr::Func(FuncKind::Exp, args) if args.len() == 1 => Some((false, Arc::clone(&args[0]))),
-        Expr::Mul(fs) if fs.len() == 2 => {
-            let (neg, inner) = if matches!(fs[0].as_ref(), Expr::Int(n) if n.is_negative()) {
-                (true, &fs[1])
-            } else if matches!(fs[1].as_ref(), Expr::Int(n) if n.is_negative()) {
-                (true, &fs[0])
-            } else {
-                return None;
-            };
-            let Expr::Func(FuncKind::Exp, args) = inner.as_ref() else {
-                return None;
-            };
-            if args.len() == 1 {
-                Some((neg, Arc::clone(&args[0])))
-            } else {
-                None
-            }
-        }
-        _ => None,
-    }
-}
-
-pub(crate) fn remove_add_term(sum: &ExprArc, term: &ExprArc) -> Option<ExprArc> {
-    expr_remove_add_term(sum, term)
-}
-
-fn expr_remove_add_term(sum: &ExprArc, term: &ExprArc) -> Option<ExprArc> {
-    if sum == term {
-        return Some(Expr::int(0));
-    }
-    let Expr::Add(ts) = sum.as_ref() else {
-        return None;
-    };
-    if !ts.iter().any(|t| t == term) {
-        return None;
-    }
-    let rest: Vec<ExprArc> = ts.iter().filter(|t| *t != term).cloned().collect();
-    Some(match rest.len() {
-        0 => Expr::int(0),
-        1 => Arc::clone(&rest[0]),
-        _ => Expr::add(rest),
-    })
+    fold_exp_shifted_difference(expr)
 }
 
 /// `exp(a)/exp(b) → exp(a-b)` and `exp(a)*exp(b)^-1` (upstream `_pow2exp` companion).
