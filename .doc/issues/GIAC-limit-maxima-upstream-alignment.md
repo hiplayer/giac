@@ -18,21 +18,24 @@ Maxima `tests/rtest_limit*.mac` 中抽取了 14 条 `limit` 用例（`giac-calcu
 
 ## `+∞` 调用顺序（`limit_at_plus_infinity`）
 
-1. **`limit_factored_exp_growth_at_infinity`** — `factor_exp_shifted_difference` 后 `exp(L)*(exp(S)-1)` 抵消（gruntz）
+1. **`limit_exp_diff_preprocessed`** — `exp_diff::try_limit_*_preprocessed` after `limit_preprocess_struct`（P2 临时，见 [GIAC-limit-exp-diff](GIAC-limit-exp-difference-unification.md)）
 2. **`limit_unidirectional_plus_infinity`**（MRV 主路径）
 3. 形状快路径：`limit_var_over_x_pow_ln`、`limit_exp_sum_nth_root`、`limit_poly_over_sqrt`
 4. **`limit_at_plus_infinity_fallback`** — 倒数换元 + 稀疏级数（含 `limit_sqrt_sum_quotient` 处理 preprocess 共轭分式）
 
 **Phase 2 已完成**：删除 `limit_conjugate_sqrt_at_infinity`、`rationalize_sqrt_*` 等共轭形状表；`normalize_sqrt_conjugates` 保留于 preprocess（代数恒等式，非 limit 形状表）。
 
+**`exp` 差分 / gruntz 架构原则**（P1–P3）：见 [GIAC-limit-exp-diff](GIAC-limit-exp-difference-unification.md#设计原则normative)。
+
 ## 主要代码改动
 
 | 模块 | 改动摘要 |
 |------|----------|
-| `preprocess.rs` | `merge_exp_quotients`、`fold_exp_zero_linear`、`factor_exp_shifted_difference`、`limit_preprocess_struct` |
+| `preprocess.rs` | `merge_exp_quotients`、`fold_exp_zero_linear`；`factor_exp_shifted_difference` → `exp_diff` |
+| `exp_diff.rs` | **P1** 共享 `exp` 差分规则；**P2** `try_limit_*_preprocessed` |
 | `mrv.rs` | `Pow(const,var)` 进 MRV；`choose_mrv_w` 支持一般负线性指数；`linear_coeff_in_var` |
 | `mrv_lead_term.rs` | `mrv_limit_eligible`；`limit_unidirectional_plus_infinity`；`omega_tends_to_zero` 扩展 |
-| `asymptotic.rs` | MRV 优先；**已删**共轭形状表；`limit_factored_exp_growth`；`limit_sqrt_sum_quotient`（preprocess 共轭分式） |
+| `asymptotic.rs` | MRV 优先；**已删**共轭形状表；`limit_sqrt_sum_quotient`（preprocess 共轭分式）；调用 `exp_diff` 极限 |
 | `sparse_series.rs` | `atan(1/u)`、`sqrt` 二项级数 |
 | `mod.rs` | `limit_via_reciprocal` 改走 `limit_at_zero_fallback`（避免 atan L'Hôpital 挂起） |
 
@@ -51,7 +54,7 @@ Maxima `tests/rtest_limit*.mac` 中抽取了 14 条 `limit` 用例（`giac-calcu
 | `(1+1/x)*(sqrt(x+1)+1)` @ +∞ | +∞ | ✅ `limit_poly_over_sqrt` |
 | `x*atan(x)/(x+1)` @ +∞ | `pi/2` | ✅ 倒数级数 + `series_atan_of_inv` |
 | `(3^x+5^x)^(1/x)` | 5 | ✅ `limit_exp_sum_nth_root` |
-| gruntz `exp*(exp(...)-exp(...))` | -1 | ✅ `factor_exp_shifted_difference` + 抵消 |
+| gruntz `exp*(exp(...)-exp(...))` | -1 | ✅ `factor_exp_shifted_difference` + 抵消（见 [GIAC-limit-exp-diff](GIAC-limit-exp-difference-unification.md)） |
 | CK-INT-60 比值 | 1 | ❌ 待 `remove_lnexp` / MRV 级数 |
 | gruntz 嵌套 exp 差 | 1 | ❌ 待 216e 级数扩展 |
 
@@ -74,7 +77,7 @@ Maxima `tests/rtest_limit*.mac` 中抽取了 14 条 `limit` 用例（`giac-calcu
 1. **`mrv_compare`**：`ln(a)/ln(b)` 的 MRV 主项比较（`3^x` vs `5^x`、`x^ln(x)` 等）
 2. **`series_div`**：支持含 `pi` 的常数主项（`atan` @ +∞）
 3. **CK-60 比值**：扩展 `remove_lnexp` / peel（无 `exp(x)` 差分形状）
-4. **gruntz 嵌套 exp**：216e 级数路径覆盖更多 `exp` 差分（`exp*(exp(...)-exp(...))` 已通过 preprocess 抵消）
+4. **gruntz 嵌套 exp**：216e 级数路径；统一框架见 [GIAC-limit-exp-diff](GIAC-limit-exp-difference-unification.md)
 
 ## 测试
 
@@ -258,7 +261,7 @@ pub(crate) fn limit_at_plus_infinity(expr, var, ctx) -> Result<ExprArc, EvalErro
 |----|------|
 | `series__SPOL1` @ `lim_point=+inf` | 直接渐近级数，可与 `x=1/u` 二选一或互为 fallback |
 | `mrv_compare` | `3^x` vs `5^x`、`x^ln(x)` 等 |
-| CK-60 / gruntz | 扩展 `remove_lnexp`、216e 级数 |
+| CK-60 / gruntz | 扩展 `remove_lnexp`、216e 级数（[GIAC-limit-exp-diff](GIAC-limit-exp-difference-unification.md)） |
 | `partfrac` @ `+∞` | 替代 `limit_rational_leading` 的代数兜底 |
 
 ---
