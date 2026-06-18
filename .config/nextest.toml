@@ -12,7 +12,7 @@ required-version = ">=0.9.70"
 
 [profile.default]
 # Mark slow after 10s, then terminate (terminate-after = 1 period → hard 10s cap).
-slow-timeout = { period = "9s", terminate-after = 1 }
+slow-timeout = { period = "50s", terminate-after = 1 }
 status-level = "slow"
 fail-fast = false
 

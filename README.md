@@ -43,39 +43,65 @@ Requires **Rust 1.75+** (dependencies pinned for older toolchains).
 
 **Clippy** is required before merge (see [supplement §7](../.doc/rust-migration-supplement.md#7-工程门禁)). Install: `rustup component add clippy`, or on Ubuntu/Debian system rustc: `sudo apt install rust-clippy` (must match `rustc --version`; do **not** `cargo install clippy`).
 
+### Tests — use `cargo test-timeout` (recommended)
+
+The workspace has **800+** tests. Prefer **`cargo test-timeout`** over plain `cargo test --workspace`:
+
+| | `cargo test-timeout` | `cargo test --workspace` |
+|--|----------------------|---------------------------|
+| Runner | [cargo-nextest](https://nexte.st/) (parallel, per-test timeout) | libtest (no per-test kill) |
+| Hung test | Killed after cap; suite continues | Blocks until you Ctrl+C |
+| Full workspace | Typically **~1–2 min** | Often **slower**; one hang = infinite wait |
+| CI / pre-push | **Default** | Subset debug only |
+
+**One-time install** (pin **0.9.85** on rustc 1.75; 0.9.86+ needs rustc 1.91+):
+
 ```bash
-cd giac-rs
-cargo test --workspace      # required (no per-test timeout)
-cargo ci-clippy             # required (-D warnings)
-echo 'sqrt(5)' | cargo run -q --bin giac-cli
+cargo install cargo-nextest --locked --version 0.9.85
 ```
 
-### Test timeout (10s per test)
-
-Hung tests (e.g. infinite loops in `poly_divrem`) are killed after **10 seconds** per test.
-
-**Recommended** — install [cargo-nextest](https://nexte.st/) once (**pin 0.9.85** on rustc 1.75; newer nextest needs 1.91+), then:
+**Run (from `giac-rs/`):**
 
 ```bash
-cargo install cargo-nextest --locked --version 0.9.85   # once; MSRV 1.75
-./scripts/test-with-timeout.sh         # whole workspace
-# or:
 cargo test-timeout                     # alias → nextest run --workspace
+# equivalent:
+./scripts/test-with-timeout.sh
 ```
 
-Config: [`.config/nextest.toml`](.config/nextest.toml) (`slow-timeout = 10s`).
+Timeout policy: [`.config/nextest.toml`](.config/nextest.toml) — default **50s** per test; Gruntz limit cases (CK-INT-60/61) **30s** override.
 
-Without nextest, the script falls back to GNU `timeout` per test (slower). On timeout it prints a **debug command** to re-run the failing test:
+Without nextest, `./scripts/test-with-timeout.sh` falls back to GNU `timeout` **one test at a time** (correct but **much slower** — install nextest).
+
+**Subset / single test** (fast feedback, no timeout wrapper):
+
+```bash
+cargo test -p giac-calculus ck_int_61
+cargo test -p giac-calculus limit::tests::maxima_rtest::gruntz_exp_times_exp_diff_minus_one -- --exact
+```
+
+On nextest timeout, re-run with backtrace:
 
 ```bash
 RUST_BACKTRACE=1 cargo test -p giac-core 'algebra::alg_ext::tests::...' -- --exact --nocapture
 ```
 
-Subset while debugging:
+More detail: [conformance-testing.md §5.1](../.doc/conformance-testing.md#51-单测超时推荐-cargo-test-timeout).
+
+**Minimal pre-push gate:**
+
+```bash
+cd giac-rs
+cargo test-timeout
+cargo ci-clippy
+echo 'sqrt(5)' | cargo run -q --bin giac-cli
+```
+
+Debug overrides:
 
 ```bash
 TEST_PACKAGES="giac-core giac-solve" ./scripts/test-with-timeout.sh
-TEST_TIMEOUT_SECS=30 ./scripts/test-with-timeout.sh   # override cap
+TEST_TIMEOUT_SECS=30 ./scripts/test-with-timeout.sh   # GNU fallback only
+cargo test-timeout-ci                                 # run all tests even after failures
 ```
 
 ### WebAssembly (`giac-wasm`)
