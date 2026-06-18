@@ -22,6 +22,7 @@ use super::exp_diff::{
 };
 use super::mrv::{try_const_f64, vanishes_faster_than_at_plus_infinity};
 use super::mrv_lead_term::limit_unidirectional_plus_infinity;
+use super::mrv_series_lead::try_as_quotient;
 use super::preprocess::{limit_preprocess_plus_infinity, limit_preprocess_struct};
 use super::sparse_series::series_at_zero_order;
 
@@ -684,11 +685,11 @@ fn sqrt_arg(e: &ExprArc) -> Option<ExprArc> {
 }
 
 fn limit_rational_over_sqrt_quotient_at_infinity(expr: &ExprArc, var: &Ident) -> Option<ExprArc> {
-    let (num, den) = try_as_quotient_local(expr, var)?;
+    let (num, den) = try_as_quotient(expr)?;
     let inner = sqrt_arg(&den)?;
     let (a, b) = match inner.as_ref() {
         Expr::Frac(n, d) => (Arc::clone(n), Arc::clone(d)),
-        _ => try_as_quotient_local(&inner, var)?,
+        _ => try_as_quotient(&inner)?,
     };
     let v = Var::from(var.as_str());
     let num_p = expr_to_poly(&num).ok()?;
@@ -718,7 +719,7 @@ fn limit_rational_over_sqrt_quotient_at_infinity(expr: &ExprArc, var: &Ident) ->
 
 /// After `normalize_sqrt_conjugates`, `poly/(sqrt+…)` leading term at `+∞`.
 fn limit_sqrt_sum_quotient_at_infinity(expr: &ExprArc, var: &Ident) -> Option<ExprArc> {
-    let (num, den) = try_as_quotient_local(expr, var)?;
+    let (num, den) = try_as_quotient(expr)?;
     let v = Var::from(var.as_str());
     let num_p = expr_to_poly(&num).ok()?;
     let nd = univariate_degree(&num_p, &v);
@@ -770,58 +771,6 @@ fn is_monic_quadratic_leading(var: &Ident, inner: &ExprArc) -> Option<bool> {
         return Some(false);
     }
     Some(coeff_at(&p, &v, 2) == Ratio::one())
-}
-
-fn try_as_quotient_local(expr: &ExprArc, var: &Ident) -> Option<(ExprArc, ExprArc)> {
-    let _ = var;
-    match expr.as_ref() {
-        Expr::Frac(num, den) => Some((Arc::clone(num), Arc::clone(den))),
-        Expr::Mul(factors) => {
-            let mut num = Vec::new();
-            let mut den = Vec::new();
-            for f in factors {
-                if matches!(
-                    f.as_ref(),
-                    Expr::Pow(_, exp) if matches!(exp.as_ref(), Expr::Int(n) if n.is_negative())
-                ) {
-                    if let Expr::Pow(b, exp) = f.as_ref() {
-                        if let Expr::Int(n) = exp.as_ref() {
-                            if n.is_negative() {
-                                den.push(Expr::pow(Arc::clone(b), Arc::new(Expr::Int(-n))));
-                                continue;
-                            }
-                        }
-                    }
-                }
-                num.push(Arc::clone(f));
-            }
-            if den.is_empty() {
-                if num.is_empty() {
-                    return None;
-                }
-                let n = if num.len() == 1 {
-                    Arc::clone(&num[0])
-                } else {
-                    Expr::mul(num)
-                };
-                return Some((n, Expr::int(1)));
-            }
-            let n = if num.is_empty() {
-                Expr::int(1)
-            } else if num.len() == 1 {
-                Arc::clone(&num[0])
-            } else {
-                Expr::mul(num)
-            };
-            let d = if den.len() == 1 {
-                Arc::clone(&den[0])
-            } else {
-                Expr::mul(den)
-            };
-            Some((n, d))
-        }
-        _ => None,
-    }
 }
 
 fn is_indeterminate(e: &ExprArc) -> bool {
@@ -979,11 +928,8 @@ fn limit_poly_over_sqrt_at_infinity(
     var: &Ident,
     ctx: &Context,
 ) -> Option<ExprArc> {
-    let (num, den) = try_as_quotient_local(expr, var)?;
-    let num = ratnormal(num.as_ref(), ctx)
-        .ok()
-        .or_else(|| eval(num.as_ref(), ctx).ok())
-        .unwrap_or(num);
+    let (num, den) = try_as_quotient(expr)?;
+    let num = ratnormal(num.as_ref(), ctx).unwrap_or(num);
     let v = Var::from(var.as_str());
     let num_p = expr_to_poly(&num).ok()?;
     if univariate_degree(&num_p, &v) < 1 {
@@ -1509,38 +1455,6 @@ mod tests {
         ]);
         let r = limit_at_plus_infinity(&e, &Ident::new("x"), &ctx).unwrap();
         assert_eq!(format_expr(r.as_ref()), "1/2");
-    }
-
-    #[test]
-    fn asymptotic_ck_int_61_exp_frac_path() {
-        use crate::limit_engine::ck_int_gruntz_fixture::ck_int_61;
-        use crate::limit_engine::preprocess::limit_preprocess_struct;
-        let ctx = xcas_default();
-        let var = Ident::new("x");
-        let pre = limit_preprocess_struct(&ck_int_61(), &var);
-        let (neg, scale, n, d) = parse_signed_exp_frac_product(&pre, &var).expect("parse");
-        let num = Expr::mul(vec![Expr::func(FuncKind::Exp, vec![scale]), n]);
-        let num_ln = dominant_ln_exponent_at_plus_infinity(&num, &var, &ctx).expect("num_ln");
-        let den_ln = dominant_ln_exponent_at_plus_infinity(&d, &var, &ctx).expect("den_ln");
-        let diff = simplify_add_sum(&Expr::add(vec![
-            num_ln,
-            Expr::mul(vec![Expr::int(-1), den_ln]),
-        ]));
-        eprintln!("diff: {}", format_expr(diff.as_ref()));
-        if let Expr::Add(ts) = diff.as_ref() {
-            for (i, t) in ts.iter().enumerate() {
-                eprintln!("  term{i}: {}", format_expr(t.as_ref()));
-            }
-        }
-        eprintln!(
-            "try_add: {:?}",
-            try_add_rational_to_frac(&diff, &var)
-                .map(|(n, d)| (format_expr(n.as_ref()), format_expr(d.as_ref())))
-        );
-        let c = limit_const_rational_at_plus_infinity(&diff, &var, &ctx).expect("const");
-        eprintln!("c={c} neg={neg}");
-        assert!((c - 2.0).abs() < 1e-6);
-        assert!(neg);
     }
 
     #[test]

@@ -173,12 +173,7 @@ fn growth_rank_detailed(e: &ExprArc, var: &Ident, ctx: &Context) -> (Growth, f64
                             linear_coeff_in_var(&args[0], var).and_then(|c| try_const_f64(&c))
                         })
                         .or_else(|| try_const_f64(&args[0]))
-                        .unwrap_or_else(|| {
-                            eval(args[0].as_ref(), ctx)
-                                .ok()
-                                .and_then(|v| try_const_f64(&v))
-                                .unwrap_or(0.0)
-                        })
+                        .unwrap_or(0.0)
                 }
                 Expr::Pow(base, exp) if !depends_on_var(base, var) && is_var(exp, var) => {
                     try_const_f64(base).map(|v| v.ln()).unwrap_or(0.0)

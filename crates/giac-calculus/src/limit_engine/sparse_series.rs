@@ -813,20 +813,20 @@ fn merge_term(map: &mut HashMap<i32, ExprArc>, exp: i32, coeff: ExprArc) {
         .or_insert(coeff);
 }
 
+fn simplify_series_coeff(c: &ExprArc, ctx: &Context) -> ExprArc {
+    let base = if expr_contains_exp_or_ln(c) {
+        remove_lnexp(c, ctx)
+    } else {
+        Arc::clone(c)
+    };
+    ratnormal(base.as_ref(), ctx).unwrap_or(base)
+}
+
 fn normalize_map(map: HashMap<i32, ExprArc>, ctx: &Context) -> Result<SparseSeries, EvalError> {
     let mut terms: Vec<(i32, ExprArc)> = map
         .into_iter()
         .filter_map(|(e, c)| {
-            let ev = if expr_contains_exp_or_ln(&c) {
-                let r = remove_lnexp(&c, ctx);
-                ratnormal(r.as_ref(), ctx)
-                    .ok()
-                    .or_else(|| eval(r.as_ref(), ctx).ok())
-            } else {
-                ratnormal(c.as_ref(), ctx)
-                    .ok()
-                    .or_else(|| eval(c.as_ref(), ctx).ok())
-            }?;
+            let ev = simplify_series_coeff(&c, ctx);
             if is_expr_zero(&ev) {
                 None
             } else {

@@ -2,12 +2,12 @@
 
 use std::sync::Arc;
 
-use giac_core::{eval, Context, EvalError, Expr, ExprArc, FuncKind, Ident};
+use giac_core::{bigint_to_i64, Context, EvalError, Expr, ExprArc, FuncKind, Ident};
 use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::{One, Signed};
 
-use giac_simplify::ratnormal;
+use giac_simplify::{normal, ratnormal};
 
 use crate::risch::pow2expln;
 
@@ -15,6 +15,7 @@ use super::exp_diff::{
     algebraize_exp_vanishing_products, balance_exp_arguments_frac_var, first_order_exp_vanishing_epsilon,
     fold_exp_shifted_difference, is_exp_minus_one_factor, simplify_exp_argument_adds,
 };
+use super::mrv_series_lead::{normalize_inverse_sums, unify_top_quotient};
 
 /// MRV / series preprocess: fold + merge quotients (no Gruntz ε rewrite).
 pub(crate) fn limit_preprocess_mrv(expr: &ExprArc, var: &Ident) -> ExprArc {
@@ -32,9 +33,10 @@ pub(crate) fn limit_preprocess_mrv(expr: &ExprArc, var: &Ident) -> ExprArc {
 
 /// Structural preprocessing without `eval` (safe for nested `exp` before limit).
 pub(crate) fn limit_preprocess_struct(expr: &ExprArc, var: &Ident) -> ExprArc {
+    let expr = unify_top_quotient(&normalize_inverse_sums(expr));
     // Fold `exp(A)-exp(B)` while `1/x` is still `Frac(1,x)`; `pow2expln` rewrites to `x^-1`
     // and breaks shared-subterm detection in `detect_exp_difference_add`.
-    let folded = fold_exp_shifted_difference(expr);
+    let folded = fold_exp_shifted_difference(&expr);
     let normalized = fold_exp_zero_linear(
         &merge_exp_quotients(&pow2expln(
             &normalize_sqrt_conjugates(&surd2pow(&folded)),
@@ -64,7 +66,7 @@ pub(crate) fn series_preprocess(
     var: &Ident,
     ctx: &Context,
 ) -> Result<ExprArc, EvalError> {
-    let folded = fold_exp_shifted_difference(expr);
+    let folded = fold_exp_shifted_difference(&expr);
     let normalized = fold_exp_zero_linear(
         &merge_exp_quotients(&pow2expln(
             &normalize_sqrt_conjugates(&surd2pow(&folded)),
@@ -72,8 +74,8 @@ pub(crate) fn series_preprocess(
         )),
         var,
     );
-    let evaluated = eval(normalized.as_ref(), ctx)?;
-    Ok(ratnormal(evaluated.as_ref(), ctx).unwrap_or(evaluated))
+    let rat = ratnormal(normalized.as_ref(), ctx).unwrap_or_else(|_| Arc::clone(&normalized));
+    Ok(normal(rat.as_ref(), ctx).unwrap_or(rat))
 }
 
 /// `sqrt(e) → e^(1/2)` (upstream `surd2pow`).

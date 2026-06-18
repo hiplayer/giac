@@ -217,7 +217,7 @@ pub(crate) fn divide_lead_coeffs(num: &ExprArc, den: &ExprArc, ctx: &Context) ->
         ctx,
     )
     .unwrap_or_else(|_| Expr::mul(vec![Arc::clone(num), Expr::pow(Arc::clone(den), Expr::int(-1))]));
-    giac_core::eval(product.as_ref(), ctx).unwrap_or(product)
+    product
 }
 
 pub(crate) fn expr_contains_exp_or_ln(e: &ExprArc) -> bool {

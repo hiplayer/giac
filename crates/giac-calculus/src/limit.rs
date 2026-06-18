@@ -10,7 +10,7 @@ use num_traits::{Signed, Zero};
 use crate::integrate::try_as_rational;
 use crate::limit_engine::{
     expr_has_nested_exp, limit_finite_algebraic, limit_minus_infinity_algebraic,
-    limit_plus_infinity_algebraic, normalize_expr_quotients,
+    limit_plus_infinity_algebraic, normalize_inverse_sums,
 };
 
 /// `limit(expr, var, point)` — algebraic/trigonometric basics (GIAC-215).
@@ -22,7 +22,7 @@ pub fn eval_limit(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError>
     let point_expr = Arc::clone(&args[2]);
     let point = classify_limit_point(&point_expr)?;
     let expr = if point != LimitPoint::Finite && expr_has_nested_exp(&args[0]) {
-        normalize_expr_quotients(&args[0])
+        normalize_inverse_sums(&args[0])
     } else {
         eval(args[0].as_ref(), ctx)?
     };

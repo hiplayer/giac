@@ -36,7 +36,7 @@ pub(crate) fn expr_has_nested_exp(e: &ExprArc) -> bool {
     bounds::expr_contains_nested_exp(e)
 }
 
-pub(crate) use mrv_series_lead::normalize_expr_quotients;
+pub(crate) use mrv_series_lead::{normalize_expr_quotients, normalize_inverse_sums, unify_top_quotient};
 pub(crate) use asymptotic::{
     asymptotic_series_at_infinity, limit_at_plus_infinity, limit_at_zero_fallback,
     peel_shared_u_inv_in_frac,
@@ -109,6 +109,7 @@ pub(crate) fn limit_finite_algebraic(
 }
 
 fn try_as_quotient(expr: &ExprArc, var: &Ident) -> Option<(ExprArc, ExprArc)> {
+    let _ = var;
     match expr.as_ref() {
         Expr::Frac(num, den) => Some((Arc::clone(num), Arc::clone(den))),
         Expr::Mul(factors) => {
