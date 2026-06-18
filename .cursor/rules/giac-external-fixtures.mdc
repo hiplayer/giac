@@ -1,0 +1,31 @@
+---
+description: 外部测试语料（Maxima/SymPy/Rubi）抽取与启用规则
+globs: giac-rs/tests/conformance/**,.doc/external-test-resources.md
+alwaysApply: false
+---
+
+# 外部 Fixture 规则
+
+见 `.doc/external-test-resources.md`。
+
+## 启用流程
+
+```
+extract → *.draft.json (enabled: false)
+  → 人工审核 line / tags / giac_issue
+  → 部分 enabled: true
+  → cargo test -p giac-conformance --test external_*
+```
+
+**禁止：** 抽取脚本直接写 `enabled: true`（除非 PR 明确 `--force-enable`）。
+
+## 验收
+
+- 外部 fixture 启用后须通过 **T1**（或 entry 声明的 `verify` 模式）
+- **不比** Maxima/SymPy **字面**输出；用 `assert_equiv` / 导数还原等
+- 新 `enabled: true` 须绑定 `giac_issue` 或 phase 里程碑
+- 破坏性 schema 变更 → `extractor_version` +1，更新文档
+
+## Legacy JSON
+
+`phase4_maxima_rtest.rs` 等 legacy 子集：每条 entry **必须**含 `api` 字段。

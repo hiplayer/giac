@@ -1,0 +1,28 @@
+---
+description: 改算法模块前先审计写死规则，优先算法化而非打补丁
+globs: giac-rs/crates/giac-calculus/**,giac-rs/crates/giac-poly/**,giac-rs/crates/giac-solve/**,giac-rs/crates/giac-simplify/**,giac-rs/crates/giac-ode/**,giac-rs/crates/giac-groebner/**
+alwaysApply: false
+---
+
+# 先审计写死规则，再动刀
+
+修改算法模块前，**必须先盘点写死规则并对照通用算法**，禁止未分析就直接为单测/bug 打补丁。
+
+## 执行顺序
+
+1. **盘点写死规则** — 特例表、形状匹配、`if expr looks like …`、常量阈值、仅覆盖少数用例的 fast path。
+2. **对照通用算法** — 查上游 `giac-2.0.0` 对应 `.cc`（见 `.doc/module-division.md`）及 `.doc/issues/GIAC-algorithm-gaps-open.md`、相关子 issue；判断缺口是「算法未移植」还是「真 bug」。
+3. **优先算法化** — 能归入主路径（如 limit 的 MRV/Gruntz、级数 lead term、商式化简、Risch、Hensel）的走主路径；禁止新增 per-case 形状表（见 `GIAC-limit-exp-difference-unification` P3）。
+4. **最后才打补丁** — 仅当确认是独立边界且通用算法短期不可达时，允许最小特例，并注明「为何不能算法化」与替换计划。
+
+## 改代码前必答
+
+| 问题 | 若答「是」则暂停 |
+|------|------------------|
+| 这次修改是否只为让一个 `#[ignore]` / 单测绿？ | 先查是否缺整条算法链 |
+| 是否新增形状/模式特例分支？ | 先查上游是否有对应通用步骤 |
+| 同类表达式是否已有 2+ 个特例？ | 应合并为一条算法，而非第 3 个特例 |
+
+## 一句话
+
+**先问「缺的是哪条算法」，再问「这个 bug 怎么修」。**

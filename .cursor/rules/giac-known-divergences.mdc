@@ -1,0 +1,31 @@
+---
+description: Rust 与 giac golden 偏离时的登记与处理流程
+globs: giac-rs/**,.doc/known-divergences.md
+alwaysApply: false
+---
+
+# 已知偏离处理
+
+Rust 输出与 giac golden **字面不一致**时，先归类再落盘，禁止静默改 golden。
+
+## 何时可偏离 giac
+
+| 情形 | 做法 |
+|------|------|
+| giac bug（崩溃、错答、UB） | 正确算法；返回 `Err` 而非 panic/segfault |
+| 更优算法 | 可替换；须独立验证 |
+| 等价不同形 | `assert_equiv` 或 `canonicalize` 后 diff |
+| 真语义分歧 | 更新 golden + 登记偏离 |
+| 无测试覆盖 | 自订语义，补测试 |
+
+## 处理流程（`.doc/rust-migration-plan.md` §6.4）
+
+1. **发现** — Rust ≠ giac golden，或 giac 崩溃  
+2. **归类** — bug 修复 / 等价不同形 / 真语义分歧  
+3. **验证** — `expand(sub(a,b))=0`、手算、文献、第三方 CAS  
+4. **落盘** — 写入 `.doc/known-divergences.md`（输入、双方输出、理由、验证）  
+5. **更新测试** — 修 golden **或** conformance 走 `assert_equiv` / `KnownDivergence`
+
+## MVP 硬边界
+
+超出返回 `TypeError`，不 UB：`MAX_POLY_EXPONENT = 1024`（`giac-core::limits`）。

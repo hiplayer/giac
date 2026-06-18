@@ -585,7 +585,7 @@ fn cas_tst_first_25_batch() -> Result<(), String> {
 
 | 优先级 | 检查 | 命令 | 通过标准 |
 |--------|------|------|----------|
-| **P0** | 测试 | `cargo test --workspace` | 全绿 |
+| **P0** | 测试 | `cargo test-timeout`（`giac-rs/`；见 [conformance-testing §5.1](conformance-testing.md#51-单测超时推荐-cargo-test-timeout)） | 全绿 |
 | **P0** | **Clippy** | `cargo ci-clippy` | 退出码 0（`-D warnings`） |
 | P1 | Miri（有 `unsafe` 时） | `cargo miri test -p giac-core` | 无 UB |
 | P2 | 覆盖率（核心 crate） | `cargo tarpaulin -p giac-core` | ≥70%（目标，非阻塞 MVP） |
@@ -601,8 +601,10 @@ fn cas_tst_first_25_batch() -> Result<(), String> {
 
 ```bash
 cd giac-rs
-cargo test --workspace
+cargo test-timeout          # 推荐；并行 + 单测超时（需 cargo-nextest）
 cargo ci-clippy
 ```
+
+全量无超时包装（不推荐日常/CI）：`cargo test --workspace`。说明见 [conformance-testing.md §5.1](conformance-testing.md#51-单测超时推荐-cargo-test-timeout) 与 `giac-rs/README.md`。
 
 配置细节：§6.4；unsafe 纪律：[`rust-migration-plan.md` §8](rust-migration-plan.md#8-内存安全与-unsafe-纪律)。

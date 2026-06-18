@@ -1,0 +1,30 @@
+---
+description: GIAC 迁移总原则与文档索引
+alwaysApply: true
+---
+
+# GIAC 项目上下文
+
+Rust 移植 **giac-rs** 对标 **giac-2.0.0**；**测试即规格**（53 CTest / check golden），先达 golden 等价再扩展。
+
+## 核心原则
+
+- **绑定数学语义 + 测试规格**，不绑定 giac C++ 行级实现（见 `.doc/rust-migration-plan.md` §6.4）。
+- **算法可自选**；偏离须验证（`assert_equiv`、属性测试、文献）并登记 `.doc/known-divergences.md`。
+- **giac 有 bug（崩溃/错答/UB）** → Rust 用正确行为，不复现 bug。
+- **查上游算法** → `.doc/module-division.md`（C++ 源分工）；**查缺口** → `.doc/issues/GIAC-algorithm-gaps-open.md`。
+
+## 文档索引
+
+| 主题 | 路径 |
+|------|------|
+| 模块映射 | `.doc/module-division.md` |
+| 算法缺口 | `.doc/issues/GIAC-algorithm-gaps-open.md` |
+| limit 管线 | `.doc/issues/GIAC-limit-layered-pipeline.md` |
+| 测试规格 | `.doc/conformance-testing.md` |
+| 已知偏离 | `.doc/known-divergences.md` |
+| 工程门禁 | `.doc/rust-migration-supplement.md` §6–7 |
+
+## 勿移植
+
+`normalize.cc` / `partfrac.cc` / `factor.cc` / `integrate.cc` 等 **profiler 可执行文件**（仅 `main()`），算法在 `usual.cc`、`sym2poly.cc`、`intg.cc` 等库源文件。

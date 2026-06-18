@@ -190,7 +190,39 @@ pub fn test_context_with_fixed_rng() -> Context {
 5. 逐行 parse → eval → print
 6. normalize → diff golden
 7. 失败时尝试 assert_equiv → 仍失败查 known-divergences.md
+
+### 5.1 单测超时（推荐 `cargo test-timeout`）
+
+单元测试与 conformance 均可能因逻辑死循环挂起。giac-rs 全 workspace **800+** 测，**默认用 `cargo test-timeout`**，不要习惯性跑裸 `cargo test --workspace`。
+
+**为什么更快：**
+
+| | `cargo test-timeout` | `cargo test --workspace` |
+|--|----------------------|---------------------------|
+| 执行器 | cargo-nextest，多核并行 + 单测超时杀进程 | libtest，无单测超时 |
+| 挂死 | 超时后跳过，套件继续 | 整个进程卡死 |
+| 无 nextest 时 | `./scripts/test-with-timeout.sh` 逐测 GNU `timeout`（极慢） | — |
+
+**安装与运行：**
+
+```bash
+cd giac-rs
+cargo install cargo-nextest --locked --version 0.9.85   # rustc 1.75；0.9.86+ 需 1.91
+cargo test-timeout                      # 推荐：workspace 全量
+# 或
+./scripts/test-with-timeout.sh
 ```
+
+超时策略见 `giac-rs/.config/nextest.toml`（默认 **50s**/测；CK-INT-60/61 等 Gruntz 极限 **30s** override）。
+
+**仅调试子集**时用裸 `cargo test`（无超时包装，反馈更快）：
+
+```bash
+cargo test -p giac-calculus ck_int_61
+cargo test -p giac-conformance --test giac_check_integrate giac_check_integrate_ck_int_60
+```
+
+超时后脚本会打印 `RUST_BACKTRACE=1 cargo test -p …` 便于定位；典型根因：`poly_divrem` 索引错误导致 `inv_EXT` 无限循环。
 
 ---
 

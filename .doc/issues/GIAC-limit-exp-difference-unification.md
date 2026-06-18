@@ -2,7 +2,7 @@
 
 **状态:** open  
 **类型:** AFK（实现向）/ 部分 HITL（是否保留 `limit_factored_exp_growth` 快路径直至 MRV 收敛）  
-**相关:** [GIAC-limit-maxima-upstream-alignment](GIAC-limit-maxima-upstream-alignment.md)、[GIAC-216e](GIAC-216e-mrv-series-lead-convergence.md)  
+**相关:** [GIAC-limit-layered-pipeline](GIAC-limit-layered-pipeline.md)、[GIAC-limit-maxima-upstream-alignment](GIAC-limit-maxima-upstream-alignment.md)、[GIAC-216e](GIAC-216e-mrv-series-lead-convergence.md)  
 **代码:** `preprocess::factor_exp_shifted_difference`、`asymptotic::limit_factored_exp_growth_at_infinity`、`remove_lnexp.rs`、`mrv_lead_term.rs`  
 **验收用例:** `maxima_rtest::gruntz_exp_times_exp_diff_minus_one`（✅）；`gruntz_ck_int_60_ratio`、`gruntz_exp_nested_diff`（❌）
 

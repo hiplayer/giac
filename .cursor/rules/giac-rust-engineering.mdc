@@ -1,0 +1,38 @@
+---
+description: giac-rs 错误处理、Clippy、unsafe 与 WASM 约束
+globs: giac-rs/**
+alwaysApply: false
+---
+
+# giac-rs 工程规范
+
+## 错误处理（`.doc/rust-migration-supplement.md` §6）
+
+| 层级 | 策略 |
+|------|------|
+| 公开 API（`eval`, `parse_program`, CLI） | 必须 `Result<_, EvalError>` / `ParseError` |
+| 库内部 | `?` 传播；**禁止**对用户输入 `unwrap` |
+| 可证明不变量 | 极少数 `expect`，须注释 |
+| `#[cfg(test)]` / `tests/` | `unwrap` / `expect` 允许 |
+
+`BigInt` → 有界整数统一经 `giac-core::num_util`（`bigint_to_nonneg_u32` 等）；**禁止**生产路径 `n.to_string().parse().unwrap()`。
+
+`todo!` / `unimplemented!` → 应返回 `EvalError`（见 `clippy.toml` disallowed-macros）。
+
+## PR 必过
+
+```bash
+cd giac-rs && cargo test-timeout && cargo ci-clippy
+```
+
+- 新 crate 须 `[lints] workspace = true`
+- **禁止**随意 `#[allow(clippy::…)]`；勿放宽 workspace **deny** 规则（`unsafe_code` 等）除非 ADR
+- Clippy：`rustup component add clippy` 或 `apt install rust-clippy`；**不要** `cargo install clippy`
+
+## unsafe 与依赖
+
+- 业务 crate **默认 `#![deny(unsafe_code)]`**；仅 `giac-ffi` 允许 FFI
+- **不移植** giac `gen` 引用计数/裸指针语义；共享用 `Arc<Expr>`
+- **WASM**：`wasm32-unknown-unknown` 须可编译；**禁止** C FFI 传递依赖
+- 数值 linalg：**`nalgebra`**；**禁止** `faer`（WASM 不兼容）
+- WASM 场景：**禁止** `rug`（GMP FFI）；用 `num-bigint`

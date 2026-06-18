@@ -3,7 +3,7 @@
 **状态:** closed  
 **类型:** AFK（实现向）/ 部分 HITL（算法选型若需调整 MRV 语义）  
 **Blocked by:** GIAC-216c+（`remove_lnexp` 已接入 `SparseSeries::add` / `normalize_map`）  
-**相关:** GIAC-215 / GIAC-216、`mrv_lead_term.rs`、`sparse_series.rs`、`mrv_series_lead.rs`  
+**相关:** [GIAC-limit-exp-difference-unification](GIAC-limit-exp-difference-unification.md)、[GIAC-limit-layered-pipeline](GIAC-limit-layered-pipeline.md)、[GIAC-limit-maxima-upstream-alignment](GIAC-limit-maxima-upstream-alignment.md)  
 **验收用例:** CK-INT-61；`giac-calculus` `engine_ck_int_61` / `mrv_lead_ck_int_61`
 
 ---

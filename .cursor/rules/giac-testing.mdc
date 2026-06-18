@@ -1,0 +1,42 @@
+---
+description: 测试与 conformance 规范（test-timeout、assert_equiv）
+globs: giac-rs/**,.doc/**
+alwaysApply: false
+---
+
+# 测试与 Conformance
+
+## 默认跑法
+
+giac-rs **800+** 测；全 workspace **用 `cargo test-timeout`**，不要习惯性裸跑 `cargo test --workspace`（挂死会阻塞整个套件）。
+
+```bash
+cd giac-rs
+cargo test-timeout                    # nextest + 单测超时
+cargo test -p giac-calculus foo       # 调试子集可用裸 cargo test
+```
+
+超时：`.config/nextest.toml`（默认 50s；Gruntz CK-INT-60/61 等 30s override）。
+
+## 等价判定
+
+字面 golden 不一致时，优先 **`assert_equiv(a, b, ctx)`**（`normal(a-b)==0`），见 `.doc/conformance-testing.md` §3。
+
+| API | 策略 |
+|-----|------|
+| `integrate` | `diff` 还原被积函数，或 `assert_equiv` |
+| `solve` | 解集代入原方程 |
+| `factor` | 展开乘积等于原式 |
+| `normal` | 默认 `assert_equiv` |
+
+## Golden 归一化
+
+- `giac_check_cas`：浮点 **10 位有效数字** `%.10g`
+- `giac_check_geo`：不稳定绘图 ID → `[ID]` / `,L,`
+- 失败流程：字面 diff → `assert_equiv` → 查 `known-divergences.md`
+
+## MVP 门禁
+
+1. `cargo test-timeout` 全绿  
+2. `cargo ci-clippy` 全绿  
+3. golden 全绿 **或** 偏离已登记并验证
