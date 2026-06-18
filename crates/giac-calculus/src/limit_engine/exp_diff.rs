@@ -202,6 +202,7 @@ fn difference_add_exprs(a: &ExprArc, b: &ExprArc) -> ExprArc {
 }
 
 fn canonical_add_term(t: &ExprArc) -> ExprArc {
+    let t = flatten_mul_expr(t);
     match t.as_ref() {
         Expr::Mul(fs) if fs.len() == 2 && matches!(fs[0].as_ref(), Expr::Int(n) if n.is_one()) => {
             canonical_add_term(&fs[1])
@@ -209,7 +210,7 @@ fn canonical_add_term(t: &ExprArc) -> ExprArc {
         Expr::Mul(fs) if fs.len() == 2 && matches!(fs[1].as_ref(), Expr::Int(n) if n.is_one()) => {
             canonical_add_term(&fs[0])
         }
-        _ => Arc::clone(t),
+        _ => t,
     }
 }
 
@@ -259,54 +260,71 @@ fn rebuild_mul(fs: Vec<ExprArc>) -> ExprArc {
     }
 }
 
-fn distribute_mul_over_add(e: &ExprArc) -> ExprArc {
-    match e.as_ref() {
-        Expr::Mul(fs) => {
-            let expanded: Vec<ExprArc> = fs.iter().map(distribute_mul_over_add).collect();
-            if let Some(i) = expanded
-                .iter()
-                .position(|f| matches!(f.as_ref(), Expr::Add(_)))
-            {
-                let Expr::Add(ts) = expanded[i].as_ref() else {
-                    unreachable!();
-                };
-                let ts: Vec<ExprArc> = ts.iter().cloned().collect();
-                let mut factors = expanded;
-                factors.remove(i);
-                let flat: Vec<ExprArc> = factors
-                    .into_iter()
-                    .flat_map(|f| flatten_mul_factors(&f))
+fn flatten_mul_expr(expr: &ExprArc) -> ExprArc {
+    let factors = flatten_mul_factors(expr);
+    match factors.len() {
+        0 => Expr::int(1),
+        1 => factors.into_iter().next().unwrap(),
+        _ => Expr::mul(factors),
+    }
+}
+
+fn flatten_add_mul_terms(n: &ExprArc) -> ExprArc {
+    match n.as_ref() {
+        Expr::Add(ts) => Expr::add(ts.iter().map(flatten_mul_expr).collect()),
+        _ => flatten_mul_expr(n),
+    }
+}
+
+fn distribute_linear_mul_in_add(n: &ExprArc, var: &Ident) -> ExprArc {
+    let Expr::Add(ts) = n.as_ref() else {
+        return Arc::clone(n);
+    };
+    Expr::add(
+        ts.iter()
+            .map(|t| distribute_linear_mul_term(t, var))
+            .collect(),
+    )
+}
+
+fn distribute_linear_mul_term(t: &ExprArc, var: &Ident) -> ExprArc {
+    if let Expr::Mul(fs) = t.as_ref() {
+        for (i, f) in fs.iter().enumerate() {
+            let Expr::Add(terms) = f.as_ref() else {
+                continue;
+            };
+            for (j, g) in fs.iter().enumerate() {
+                if i == j {
+                    continue;
+                }
+                if linear_coeff_of_var(g, var).is_none() {
+                    continue;
+                }
+                let rest: Vec<ExprArc> = fs
+                    .iter()
+                    .enumerate()
+                    .filter_map(|(k, h)| if k == i || k == j { None } else { Some(Arc::clone(h)) })
                     .collect();
                 return Expr::add(
-                    ts.into_iter()
-                        .map(|t| {
-                            let mut parts = flat.clone();
-                            parts.push(t);
-                            rebuild_mul(parts)
+                    terms
+                        .iter()
+                        .map(|term| {
+                            let mut factors = vec![Arc::clone(g), Arc::clone(term)];
+                            factors.extend(rest.iter().cloned());
+                            flatten_mul_expr(&Expr::mul(factors))
                         })
                         .collect(),
                 );
             }
-            Expr::mul(expanded)
         }
-        Expr::Add(ts) => Expr::add(ts.iter().map(distribute_mul_over_add).collect()),
-        Expr::Frac(n, d) => Arc::new(Expr::Frac(
-            distribute_mul_over_add(n),
-            distribute_mul_over_add(d),
-        )),
-        Expr::Pow(b, exp) => Expr::pow(distribute_mul_over_add(b), distribute_mul_over_add(exp)),
-        Expr::Func(k, args) => Expr::func(
-            *k,
-            args.iter().map(distribute_mul_over_add).collect(),
-        ),
-        _ => Arc::clone(e),
     }
+    flatten_mul_expr(t)
 }
 
-fn simplify_balanced_frac(f: &ExprArc) -> ExprArc {
+fn simplify_balanced_frac(f: &ExprArc, var: &Ident) -> ExprArc {
     match f.as_ref() {
         Expr::Frac(n, d) => Arc::new(Expr::Frac(
-            simplify_add_sum(&distribute_mul_over_add(n)),
+            simplify_add_sum(&flatten_add_mul_terms(&distribute_linear_mul_in_add(n, var))),
             Arc::clone(d),
         )),
         _ => Arc::clone(f),
@@ -358,7 +376,8 @@ pub(crate) fn rewrite_exp_minus_scale_inv(
 }
 
 pub(crate) fn simplify_add_sum(e: &ExprArc) -> ExprArc {
-    let mut terms: Vec<(bool, ExprArc)> = signed_add_terms(e)
+    let e = flatten_add_mul_terms(e);
+    let mut terms: Vec<(bool, ExprArc)> = signed_add_terms(&e)
         .into_iter()
         .map(|(p, t)| (p, canonical_add_term(&t)))
         .collect();
@@ -500,13 +519,16 @@ fn try_balance_frac_minus_var(f: &ExprArc, var: &Ident) -> Option<ExprArc> {
         return None;
     };
     // `N/D + t` with linear `t` → `(N + t·D)/D` (e.g. `inner - x` for CK-INT-60 ratio).
-    Some(simplify_balanced_frac(&Arc::new(Expr::Frac(
-        Expr::add(vec![
-            Arc::clone(n),
-            Expr::mul(vec![var_term, Arc::clone(d)]),
-        ]),
-        Arc::clone(d),
-    ))))
+    Some(simplify_balanced_frac(
+        &Arc::new(Expr::Frac(
+            Expr::add(vec![
+                Arc::clone(n),
+                Expr::mul(vec![var_term, Arc::clone(d)]),
+            ]),
+            Arc::clone(d),
+        )),
+        var,
+    ))
 }
 
 fn linear_coeff_of_var(e: &ExprArc, var: &Ident) -> Option<ExprArc> {
@@ -1164,6 +1186,19 @@ mod tests {
         let pre = crate::limit_engine::preprocess::limit_preprocess_struct(e, &var);
         let r = super::super::asymptotic::limit_at_plus_infinity(&pre, &var, &ctx).unwrap();
         assert_eq!(format_expr(r.as_ref()), "-1");
+    }
+
+    #[test]
+    fn ratio_preprocess_mrv_cancels_opposing_exp_mul() {
+        use crate::limit_engine::ck_int_gruntz_fixture::ratio;
+        use crate::limit_engine::preprocess::limit_preprocess_mrv;
+        let var = Ident::new("x");
+        let pre = limit_preprocess_mrv(&ratio(), &var);
+        let s = format_expr(pre.as_ref());
+        assert!(
+            !s.contains("x*exp(-1*x)+(-1*x)*exp(-1*x)"),
+            "pre={s}"
+        );
     }
 
     #[test]

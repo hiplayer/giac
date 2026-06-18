@@ -12,7 +12,7 @@ const SMALL_PRIMES: &[u64] = &[
     2, 3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47, 53, 59, 61, 67, 71, 73, 79, 83, 89, 97,
 ];
 
-/// Factor `n` into primes: `p1^e1 * p2^e2 * ...`.
+/// **Stable** — factor `n` into primes: `p1^e1 * p2^e2 * ...`.
 pub fn ifactor(n: &BigInt) -> ExprArc {
     if n.is_zero() {
         return Expr::int(0);
@@ -44,7 +44,6 @@ pub fn ifactor(n: &BigInt) -> ExprArc {
             let ni = n.to_u64_digits().1.first().copied().unwrap_or(0);
             if is_probable_prime_u64(ni) {
                 factors.push((n, 1));
-                n = BigInt::one();
                 break;
             }
         }

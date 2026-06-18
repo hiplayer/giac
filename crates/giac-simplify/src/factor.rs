@@ -12,7 +12,9 @@ use crate::ifactor::ifactor;
 use crate::expand::normal;
 use giac_core::{expr_to_poly, poly_to_expr, ratio_to_expr};
 
-/// Full factorization: structural (`Mul`/`Pow`/`Frac`) then polynomial engine.
+/// **Stable (bounded)** — structural (`Mul`/`Pow`/`Frac`) then polynomial factorization.
+///
+/// Multivariate Hensel / sparse fallback gaps are in `giac-poly` (FAC-G1–G3).
 pub fn factor(expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
     factor_expr(expr, ctx)
 }

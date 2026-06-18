@@ -5,13 +5,15 @@ use std::sync::Arc;
 use num_rational::Ratio;
 use num_traits::{One, Zero};
 
-use giac_core::Context;
+use giac_core::{bigint_to_i64, Context};
 use giac_core::EvalError;
 use giac_core::{try_as_algext_data, Expr, ExprArc, FuncKind};
 
+use giac_core::ratio_to_expr;
+
 use crate::expand::normal;
 
-/// Construct `a - b` as an expression tree.
+/// **Stable** — construct `a - b` as an expression tree.
 pub fn sub(a: &Expr, b: &Expr) -> Result<ExprArc, EvalError> {
     Ok(Expr::add(vec![
         Arc::new(a.clone()),
@@ -19,7 +21,7 @@ pub fn sub(a: &Expr, b: &Expr) -> Result<ExprArc, EvalError> {
     ]))
 }
 
-/// True when `normal(e)` simplifies to zero.
+/// **Stable** — true when `normal(e)` simplifies to zero.
 pub fn is_zero(e: &Expr, ctx: &Context) -> Result<bool, EvalError> {
     match e {
         Expr::Rat(r) => return Ok(r.is_zero()),
@@ -32,7 +34,10 @@ pub fn is_zero(e: &Expr, ctx: &Context) -> Result<bool, EvalError> {
     Ok(n.is_zero())
 }
 
-/// True when `a` and `b` are mathematically equivalent under `normal`.
+/// **Stable** — true when `a` and `b` are mathematically equivalent under `normal`.
+///
+/// Pre-normalizes a narrow class of `sqrt` radicals via internal `canonical_radical`;
+/// other AST drift shapes rely on `normal` alone.
 pub fn assert_equiv(a: &Expr, b: &Expr, ctx: &Context) -> Result<bool, EvalError> {
     if a == b {
         return Ok(true);
@@ -58,7 +63,8 @@ pub fn assert_equiv(a: &Expr, b: &Expr, ctx: &Context) -> Result<bool, EvalError
     is_zero(d.as_ref(), ctx)
 }
 
-/// `1/sqrt(n)` → `sqrt(n)/n` so `sqrt(n)/2` and `1/sqrt(n)` share a shape when equal.
+/// Pipeline-private drift absorber for `assert_equiv` only (not a crate-wide `canonical_*` API).
+/// Maps `1/sqrt(n)` → `sqrt(n)/n` so equivalent radical forms share one shape.
 fn canonical_radical(e: &Expr) -> ExprArc {
     match e {
         Expr::Pow(base, exp) => {
@@ -100,23 +106,13 @@ fn canonical_radical(e: &Expr) -> ExprArc {
     }
 }
 
-fn ratio_to_expr(r: &Ratio<num_bigint::BigInt>) -> ExprArc {
-    let n: i64 = r.numer().to_string().parse().unwrap_or(0);
-    let d: i64 = r.denom().to_string().parse().unwrap_or(1);
-    if d == 1 {
-        Expr::int(n)
-    } else {
-        Expr::rat(n, d)
-    }
-}
-
 fn inv_sqrt_to_mul(base: &Expr) -> Option<ExprArc> {
     let args = match base {
         Expr::Func(FuncKind::Sqrt, args) => args,
         _ => return None,
     };
     let n = match args.first()?.as_ref() {
-        Expr::Int(v) => v.to_string().parse::<i64>().ok()?,
+        Expr::Int(v) => bigint_to_i64(v).ok()?,
         _ => return None,
     };
     if n <= 0 {

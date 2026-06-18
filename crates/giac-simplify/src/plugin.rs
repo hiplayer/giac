@@ -10,7 +10,7 @@ use crate::{
     expand, factor, halftan, ifactor, lin, normal, ratnormal, texpand,
 };
 
-/// Default implementation of [`AlgebraPlugin`].
+/// **Stable** — default [`AlgebraPlugin`] wiring all simplify entry points.
 pub struct DefaultAlgebraPlugin;
 
 impl AlgebraPlugin for DefaultAlgebraPlugin {
@@ -47,12 +47,12 @@ impl AlgebraPlugin for DefaultAlgebraPlugin {
     }
 }
 
-/// Install the default algebra plugin on `ctx`.
+/// **Stable** — install [`DefaultAlgebraPlugin`] on `ctx`.
 pub fn install_simplify(ctx: &mut Context) {
     ctx.set_algebra_plugin(Arc::new(DefaultAlgebraPlugin));
 }
 
-/// `giac-core::Context::xcas_default()` with simplification enabled.
+/// **Stable** — `giac-core::Context::xcas_default()` with simplification enabled.
 pub fn xcas_default() -> Context {
     let mut ctx = giac_core::Context::xcas_default();
     install_simplify(&mut ctx);

@@ -14,7 +14,8 @@ use crate::expr_util::depends_on_var;
 use super::bounds::{
     mrv_limit_eligible, mrv_rewrite_bounded, MAX_SERIES_EXPANSION_ORDER, MAX_SERIES_ORDER,
 };
-use super::mrv::{choose_mrv_w, linear_coeff_in_var, mrv_at_plus_infinity};
+use super::mrv::{choose_mrv_w, linear_coeff_in_var, mrv_at_plus_infinity, vanishes_faster_than_at_plus_infinity};
+use super::exp_diff::{simplify_add_sum, unwrap_signed_frac, vanishes_at_plus_infinity};
 use super::simplify_util::{is_negative_const_expr, simplify_limit_expr};
 use super::mrv_w::{
     decompose_ln_w_coeff, decompose_mrv_coeff, expr_contains_ln_w, is_expr_zero as mrv_is_zero,
@@ -32,6 +33,36 @@ pub(crate) struct MrvLeadTerm {
     pub exponent: i32,
 }
 
+/// `exp(f)` with `f → 0` at `+∞` (MRV growth comparison; upstream `mrv_lead_term` constant lead).
+fn mrv_lead_exp_vanishing_plus_infinity(
+    expr: &ExprArc,
+    var: &Ident,
+    ctx: &Context,
+) -> Option<MrvLeadTerm> {
+    let Expr::Func(FuncKind::Exp, args) = expr.as_ref() else {
+        return None;
+    };
+    if args.len() != 1 {
+        return None;
+    }
+    let f = simplify_add_sum(&args[0]);
+    if let Some((n, d)) = unwrap_signed_frac(&f) {
+        if vanishes_faster_than_at_plus_infinity(&n, &d, var, ctx) {
+            return Some(MrvLeadTerm {
+                coeff: Expr::int(1),
+                exponent: 0,
+            });
+        }
+    }
+    if vanishes_at_plus_infinity(&f, var) {
+        return Some(MrvLeadTerm {
+            coeff: Expr::int(1),
+            exponent: 0,
+        });
+    }
+    None
+}
+
 /// giac `mrv_lead_term` at `+infinity` (limit mode, bounded).
 pub(crate) fn mrv_lead_term_plus_infinity(
     expr: &ExprArc,
@@ -43,6 +74,9 @@ pub(crate) fn mrv_lead_term_plus_infinity(
     }
     let pre = limit_preprocess_mrv(expr, var);
     let pre = ratnormal(pre.as_ref(), ctx).unwrap_or(pre);
+    if let Some(lead) = mrv_lead_exp_vanishing_plus_infinity(&pre, var, ctx) {
+        return Ok(lead);
+    }
     let pre = upscale_while_var_in_mrv(&pre, var, ctx);
     let pre = normalize_expr_quotients(&pre);
     if !mrv_limit_eligible(&pre) {
@@ -823,6 +857,8 @@ fn sign_infinity(coeff: &ExprArc) -> ExprArc {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use giac_core::{format_expr, Expr, FuncKind};
 
     use super::*;
@@ -903,6 +939,28 @@ mod tests {
         let s = format_expr(swapped.as_ref());
         assert!(s.contains("_mrv_w") && s.contains("ln(_mrv_w)"), "got {s}");
         assert!(!depends_on_var(&swapped, &var), "x should be eliminated, got {s}");
+    }
+
+    #[test]
+    fn ratio_mrv_lead_exp_vanishing_after_preprocess() {
+        use crate::limit_engine::ck_int_gruntz_fixture::ratio;
+        use crate::limit_engine::preprocess::limit_preprocess_mrv;
+        let ctx = xcas_default();
+        let var = Ident::new("x");
+        let pre = limit_preprocess_mrv(&ratio(), &var);
+        let lead = mrv_lead_exp_vanishing_plus_infinity(&pre, &var, &ctx)
+            .unwrap_or_else(|| panic!("expected vanishing exp lead, pre={}", format_expr(pre.as_ref())));
+        assert_eq!(lead.exponent, 0);
+        assert_eq!(format_expr(lead.coeff.as_ref()), "1");
+    }
+
+    #[test]
+    fn mrv_lead_ck_int_60_ratio() {
+        use crate::limit_engine::ck_int_gruntz_fixture::ratio;
+        let ctx = xcas_default();
+        let var = Ident::new("x");
+        let r = limit_unidirectional_plus_infinity(&ratio(), &var, &ctx).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "1");
     }
 
     #[test]

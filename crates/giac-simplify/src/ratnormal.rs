@@ -9,7 +9,10 @@ use crate::expand::expand;
 use giac_core::{expr_to_poly, poly_to_expr};
 use giac_poly::Poly;
 
-/// Normalize a rational expression to a single fraction in lowest terms.
+/// **Stable** — normalize a rational expression to a single fraction in lowest terms.
+///
+/// Returns `TypeError` for non-rational subtrees (`sin`, `exp`, …). `AlgExt` paths
+/// currently delegate to `eval` (partial; see GIAC-algext-adoption A-03).
 pub fn ratnormal(expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
     if contains_algext(expr) {
         return ratnormal_algext(expr, ctx);
@@ -28,7 +31,7 @@ pub fn ratnormal(expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
     )))
 }
 
-/// Fold `AlgExt` arithmetic; treat extension elements as atomic constants.
+/// **Unstable** — `AlgExt` ratnormal is a stub delegating to `eval` (GIAC-algext-adoption A-03).
 fn ratnormal_algext(expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
     eval(expr, ctx)
 }

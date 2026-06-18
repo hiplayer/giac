@@ -7,7 +7,9 @@ use giac_core::{Context, EvalError, Expr, ExprArc, FuncKind};
 
 use crate::expand::expand;
 
-/// Expand transcendental functions (`sin`, `cos`, `exp`, `ln`) in arguments, then algebraically expand.
+/// **Partial** — expand `sin`/`cos`/`exp`/`ln` arguments, then algebraically expand.
+///
+/// Negative integer multiples of angles return `NotImplemented("texpand sin/cos")`.
 pub fn texpand(expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
     let te = texpand_rec(expr)?;
     expand(te.as_ref(), ctx)
@@ -165,7 +167,9 @@ fn expand_cos_nx(n: i64, x: &ExprArc) -> Result<ExprArc, EvalError> {
     }
 }
 
-/// Half-angle tangent substitution on rational trig expressions.
+/// **Partial** — half-angle tangent substitution on a narrow rational-trig pattern.
+///
+/// Detects `sin(2*x)/(1+cos(2*x))` only; other forms → `NotImplemented("halftan")`.
 pub fn halftan(expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
     if let Some(var) = detect_halftan_tan(expr) {
         return Ok(halftan_half_angle_rational(&var));
@@ -197,7 +201,9 @@ fn tan_half(var: &ExprArc) -> ExprArc {
     Expr::func(FuncKind::Tan, vec![arg])
 }
 
-/// Linearize exponentials: expand `(exp(x)+a)^n` and `exp(a)*exp(b)`.
+/// **Partial** — linearize exponentials: `(exp(x)+1)^2`, `exp(a)*exp(b)`, bounded `exp`-base powers.
+///
+/// General `(exp(x)+a)^n` for `n != 2` is unchanged.
 pub fn lin(expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
     let e = lin_rec(expr)?;
     expand(e.as_ref(), ctx)
@@ -294,7 +300,7 @@ fn integer_multiple(arg: &ExprArc) -> Option<(i64, ExprArc)> {
     }
 }
 
-/// Detect `sin(2*x)/(1+cos(2*x))` and return inner `x`.
+/// Pipeline-private — shape matcher for `halftan` only.
 fn detect_halftan_tan(expr: &Expr) -> Option<ExprArc> {
     let (num, den) = as_frac(expr)?;
     let (two, inner) = sin_double_angle(num.as_ref())?;
@@ -366,6 +372,7 @@ fn cos_double_angle(expr: &Expr) -> Option<i64> {
     }
 }
 
+/// Pipeline-private — handles only `(exp(x)+1)^2` in `lin`.
 fn lin_exp_plus_one_pow(base: &ExprArc, exp: &ExprArc) -> Option<ExprArc> {
     let n = bigint_to_i64(match exp.as_ref() {
         Expr::Int(v) => v,
