@@ -1,9 +1,9 @@
 //! SymPy third-party verification for Phase 1–3 (all conformance scripts).
 
 use giac_conformance::{
-    load_testcas_lines, run_lines, sympy_verify_line, sympy_verify_lines, sympy_verify_script,
-    verify_sympy, ALL_SYMPTY_SCRIPTS, PHASE1_SCRIPTS, PHASE2_SCRIPTS, PHASE3_SCRIPTS,
-    upstream_root, run_line, run_script,
+    assert_sympy_script, assert_sympy_script_lines, assert_testcas_sympy_range, run_line,
+    sympy_verify_line, verify_sympy, ALL_SYMPTY_SCRIPTS, PHASE1_SCRIPTS, PHASE2_SCRIPTS,
+    PHASE3_SCRIPTS, upstream_root, run_script,
 };
 
 #[test]
@@ -12,53 +12,40 @@ fn sympy_available() {
     assert!(script.exists(), "sympy_verify.py required at {}", script.display());
 }
 
-#[test]
-fn phase1_scripts_sympy() -> Result<(), String> {
-    for name in PHASE1_SCRIPTS {
-        let results = sympy_verify_script(name)?;
-        for r in &results {
-            assert!(r.ok, "SymPy failed on {name}: `{}` -> `{}`", r.line, r.output);
+macro_rules! sympy_script_test {
+    ($fn_name:ident, $script:literal, $strict:expr) => {
+        #[test]
+        fn $fn_name() -> Result<(), String> {
+            if $strict {
+                assert_sympy_script($script, |_| false)
+            } else {
+                assert_sympy_script($script, is_known_sympy_gap)
+            }
         }
-    }
-    Ok(())
+    };
 }
 
-#[test]
-fn phase2_scripts_sympy() -> Result<(), String> {
-    for name in PHASE2_SCRIPTS {
-        let results = sympy_verify_script(name)?;
-        for r in &results {
-            if !r.ok && !is_known_sympy_gap(&r.line) {
-                return Err(format!(
-                    "SymPy failed on {name}: `{}` -> `{}`",
-                    r.line, r.output
-                ));
-            }
+sympy_script_test!(phase1_test_cas_basic_sympy, "test_cas_basic", true);
+
+sympy_script_test!(phase2_test_poly_sympy, "test_poly", false);
+sympy_script_test!(phase2_test_poly_ext_sympy, "test_poly_ext", false);
+sympy_script_test!(phase2_test_modular_sympy, "test_modular", false);
+sympy_script_test!(phase2_test_factor_sympy, "test_factor", false);
+sympy_script_test!(phase2_test_groebner_sympy, "test_groebner", false);
+
+macro_rules! phase3_script_test {
+    ($fn_name:ident, $script:literal) => {
+        #[test]
+        fn $fn_name() -> Result<(), String> {
+            assert_sympy_script_lines($script, is_phase3_skip, is_known_sympy_gap)
         }
-    }
-    Ok(())
+    };
 }
 
-#[test]
-fn phase3_scripts_sympy() -> Result<(), String> {
-    for name in PHASE3_SCRIPTS {
-        let path = upstream_root().join("bin").join(name);
-        let lines = giac_conformance::script_lines(&path)?;
-        for line in &lines {
-            if is_phase3_skip(line) {
-                continue;
-            }
-            let got = run_line(line)?;
-            let r = sympy_verify_line(line, &got)?;
-            if !r.ok && !is_known_sympy_gap(line) {
-                return Err(format!(
-                    "SymPy failed on {name}: `{line}` -> `{got}`"
-                ));
-            }
-        }
-    }
-    Ok(())
-}
+phase3_script_test!(phase3_test_linalg_sympy, "test_linalg");
+phase3_script_test!(phase3_test_linalg_ext_sympy, "test_linalg_ext");
+phase3_script_test!(phase3_test_linalg_decomp_sympy, "test_linalg_decomp");
+phase3_script_test!(phase3_test_gauss_ext_sympy, "test_gauss_ext");
 
 #[test]
 fn test_cas_basic_each_line_sympy() -> Result<(), String> {
@@ -75,54 +62,52 @@ fn test_cas_basic_each_line_sympy() -> Result<(), String> {
     Ok(())
 }
 
-#[test]
-fn testcas_first_50_sympy() -> Result<(), String> {
-    let (inputs, _expected) = load_testcas_lines(50)?;
-    let outputs = run_lines(&inputs)?;
-    let results = sympy_verify_lines(&inputs, &outputs)?;
-    let mut failed = Vec::new();
-    let mut skipped = 0usize;
-    for r in &results {
-        if r.ok {
-            continue;
+macro_rules! testcas_sympy_chunk {
+    ($fn_name:ident, $start:expr, $end:expr, $min:expr) => {
+        #[test]
+        fn $fn_name() -> Result<(), String> {
+            assert_testcas_sympy_range($start, $end, is_known_testcas_gap, $min)
         }
-        if is_known_testcas_gap(&r.line) {
-            skipped += 1;
-            eprintln!("skip sympy gap: {} -> {}", r.line, r.output);
-            continue;
-        }
-        failed.push((r.line.clone(), r.output.clone()));
-    }
-    let ok_count = results.iter().filter(|r| r.ok).count();
-    eprintln!(
-        "testcas sympy: {ok_count}/{} ok, {skipped} known gaps, {} failures",
-        results.len(),
-        failed.len()
-    );
-    assert!(
-        ok_count + skipped >= 40,
-        "need >= 40 sympy-verified testcas lines (got {ok_count} ok + {skipped} gaps); failures: {:?}",
-        failed.iter().take(5).collect::<Vec<_>>()
-    );
-    Ok(())
+    };
 }
 
-#[test]
-fn all_bin_scripts_sympy_smoke() -> Result<(), String> {
-    for name in ALL_SYMPTY_SCRIPTS {
-        let path = upstream_root().join("bin").join(name);
-        let outputs = run_script(&path)?;
-        let lines = giac_conformance::script_lines(&path)?;
-        assert_eq!(lines.len(), outputs.len());
-        for (line, out) in lines.iter().zip(outputs.iter()) {
-            let r = sympy_verify_line(line, out)?;
-            if !r.ok && !is_known_sympy_gap(line) && !is_known_testcas_gap(line) {
-                return Err(format!("SymPy: `{line}` -> `{out}`"));
+testcas_sympy_chunk!(testcas_sympy_00_09, 0, 10, 8);
+testcas_sympy_chunk!(testcas_sympy_10_19, 10, 20, 8);
+testcas_sympy_chunk!(testcas_sympy_20_29, 20, 30, 8);
+testcas_sympy_chunk!(testcas_sympy_30_39, 30, 40, 8);
+testcas_sympy_chunk!(testcas_sympy_40_49, 40, 50, 8);
+
+macro_rules! bin_script_smoke {
+    ($fn_name:ident, $script:literal) => {
+        #[test]
+        fn $fn_name() -> Result<(), String> {
+            let path = upstream_root().join("bin").join($script);
+            let outputs = run_script(&path)?;
+            let lines = giac_conformance::script_lines(&path)?;
+            assert_eq!(lines.len(), outputs.len());
+            for (line, out) in lines.iter().zip(outputs.iter()) {
+                let r = sympy_verify_line(line, out)?;
+                if !r.ok && !is_known_sympy_gap(line) && !is_known_testcas_gap(line) {
+                    return Err(format!("SymPy: `{line}` -> `{out}`"));
+                }
             }
+            Ok(())
         }
-    }
-    Ok(())
+    };
 }
+
+bin_script_smoke!(smoke_test_cas_basic_sympy, "test_cas_basic");
+bin_script_smoke!(smoke_test_poly_sympy, "test_poly");
+bin_script_smoke!(smoke_test_poly_ext_sympy, "test_poly_ext");
+bin_script_smoke!(smoke_test_modular_sympy, "test_modular");
+bin_script_smoke!(smoke_test_factor_sympy, "test_factor");
+bin_script_smoke!(smoke_test_groebner_sympy, "test_groebner");
+
+// Compile-time guard: smoke tests cover the same scripts as ALL_SYMPTY_SCRIPTS.
+const _: () = assert!(ALL_SYMPTY_SCRIPTS.len() == 6);
+const _: () = assert!(PHASE1_SCRIPTS.len() == 1);
+const _: () = assert!(PHASE2_SCRIPTS.len() == 5);
+const _: () = assert!(PHASE3_SCRIPTS.len() == 4);
 
 fn is_known_sympy_gap(line: &str) -> bool {
     matches!(line, "roots(x^3-1,x)")

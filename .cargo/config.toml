@@ -1,2 +1,7 @@
+# Workspace-local cargo aliases (see README § Build, test & lint).
+
 [alias]
-ci-clippy = "clippy --workspace --all-targets -- -D warnings"
+# Per-test 10s timeout via nextest (.config/nextest.toml).
+test-timeout = "nextest run --workspace"
+# Same, CI profile: run all tests even after failures.
+test-timeout-ci = "nextest run --workspace --profile ci"

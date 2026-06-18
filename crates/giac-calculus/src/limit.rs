@@ -8,9 +8,9 @@ use num_bigint::BigInt;
 use num_traits::{Signed, Zero};
 
 use crate::integrate::try_as_rational;
-use crate::limit_engine::{expr_has_nested_exp, normalize_expr_quotients};
 use crate::limit_engine::{
-    limit_finite_algebraic, limit_minus_infinity_algebraic, limit_plus_infinity_algebraic,
+    expr_has_nested_exp, limit_finite_algebraic, limit_minus_infinity_algebraic,
+    limit_plus_infinity_algebraic, normalize_expr_quotients,
 };
 
 /// `limit(expr, var, point)` — algebraic/trigonometric basics (GIAC-215).
@@ -491,10 +491,16 @@ mod tests {
     }
 
     #[test]
+    fn limit_ck_int_60_parsed() {
+        use crate::limit_engine::ck_int_gruntz_fixture::lines;
+        let r = eval_parsed_limit(lines::CK_INT_60);
+        assert_eq!(format_expr(r.as_ref()), "+infinity");
+    }
+
+    #[test]
     fn limit_ck_int_61_parsed() {
-        let r = eval_parsed_limit(
-            "limit((exp(x*exp(-x)/(exp(-x)+exp(-2*x^2/(x+1))))-exp(x))/x,x,+infinity)",
-        );
+        use crate::limit_engine::ck_int_gruntz_fixture::lines;
+        let r = eval_parsed_limit(lines::CK_INT_61);
         assert_eq!(format_expr(r.as_ref()), "-exp(2)");
     }
 
@@ -605,19 +611,16 @@ mod tests {
             assert_limit("limit((3^x+5^x)^(1/x),x,+infinity)", "5");
         }
 
-        /// `rtest_limit_gruntz.mac` L98 — CK-INT-60 shape
+        /// `rtest_limit_gruntz.mac` L98 — ratio step before CK-INT-60/61
         #[test]
-        #[ignore = "NotImplemented(limit); ~11s MRV attempt"]
         fn gruntz_ck_int_60_ratio() {
-            assert_limit(
-                "limit(exp(x*exp(-x)/(exp(-x)+exp(-2*x^2/(x+1))))/exp(x),x,+infinity)",
-                "1",
-            );
+            use crate::limit_engine::ck_int_gruntz_fixture::lines;
+            assert_limit(lines::RATIO, "1");
         }
 
         /// `rtest_limit_gruntz.mac` L53
         #[test]
-        #[ignore = "NotImplemented(limit)"]
+        #[ignore = "MRV on factored exp*(exp-1) still NotImplemented for this shape"]
         fn gruntz_exp_nested_diff() {
             assert_limit(
                 "limit(exp(x)*(exp(1/x+exp(-x)+exp(-x^2))-exp(1/x-exp(-exp(x)))),x,+infinity)",

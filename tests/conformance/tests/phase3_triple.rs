@@ -2,7 +2,8 @@
 
 use giac_conformance::{
     phase3_format_diff, phase3_numerical_decomp, phase3_skip, phase3_sympy_gap, run_giac,
-    run_line, script_lines, sympy_equiv, triple_assert_sympy_rs, triple_check_script_filtered, triple_note_format_diffs, giac_binary, verify_sympy,
+    run_line, script_lines, sympy_equiv, triple_assert_sympy_rs, triple_check_script_filtered,
+    triple_note_format_diffs, giac_binary, upstream_root, verify_sympy,
 };
 
 // ── Script-level triple checks ────────────────────────────────────────

@@ -144,10 +144,14 @@ fn try_factor_quadratic_rootof(p: &Poly) -> Option<Vec<ExprArc>> {
     .ok()?
     .into_expr();
     let x = poly_to_expr(&Poly::var(var.clone()));
-    Some(vec![
+    let mut factors = vec![
         Expr::add(vec![x.clone(), Expr::mul(vec![Expr::int(-1), pos])]),
         Expr::add(vec![x, Expr::mul(vec![Expr::int(-1), neg])]),
-    ])
+    ];
+    if !a.is_one() {
+        factors.insert(0, poly_to_expr(&Poly::constant(a)));
+    }
+    Some(factors)
 }
 
 fn poly1_from_univariate(poly: &Poly, var: &giac_poly::Var) -> ExprArc {

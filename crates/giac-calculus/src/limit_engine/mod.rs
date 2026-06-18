@@ -29,6 +29,9 @@ pub(crate) mod preprocess;
 mod remove_lnexp;
 mod sparse_series;
 
+#[cfg(test)]
+pub(crate) mod ck_int_gruntz_fixture;
+
 pub(crate) fn expr_has_nested_exp(e: &ExprArc) -> bool {
     bounds::expr_contains_nested_exp(e)
 }
@@ -49,33 +52,17 @@ pub(crate) fn limit_finite_algebraic(
     point: &ExprArc,
     ctx: &Context,
 ) -> Result<ExprArc, EvalError> {
+    if let Some((num, den)) = try_as_rational(expr, var) {
+        if let Ok(r) = limit_rational_finite(&num, &den, var, point, ctx, 0) {
+            return Ok(r);
+        }
+    }
     if let Ok(v) = subst_eval(expr, var, point, ctx) {
         if is_infinity(&v) {
             return Ok(v);
         }
         if !is_indeterminate(&v) && !contains_zero_negative_power(&v) {
             return Ok(v);
-        }
-    }
-    if let Some((num, den)) = try_as_rational(expr, var) {
-        if let Ok(r) = limit_rational_finite(&num, &den, var, point, ctx, 0) {
-            return Ok(r);
-        }
-    }
-    if !too_heavy_for_expand(expr) {
-        let expanded = expand(expr.as_ref(), ctx)?;
-        if let Ok(v) = subst_eval(&expanded, var, point, ctx) {
-            if is_infinity(&v) {
-                return Ok(v);
-            }
-            if !is_indeterminate(&v) && !contains_zero_negative_power(&v) {
-                return Ok(v);
-            }
-        }
-        if let Some((num, den)) = try_as_rational(&expanded, var) {
-            if let Ok(r) = limit_rational_finite(&num, &den, var, point, ctx, 0) {
-                return Ok(r);
-            }
         }
     }
     let normalized = ratnormal(expr.as_ref(), ctx).ok();
@@ -89,6 +76,22 @@ pub(crate) fn limit_finite_algebraic(
             }
         }
         if let Some((num, den)) = try_as_rational(normalized, var) {
+            if let Ok(r) = limit_rational_finite(&num, &den, var, point, ctx, 0) {
+                return Ok(r);
+            }
+        }
+    }
+    if !too_heavy_for_expand(expr) {
+        let expanded = expand(expr.as_ref(), ctx)?;
+        if let Ok(v) = subst_eval(&expanded, var, point, ctx) {
+            if is_infinity(&v) {
+                return Ok(v);
+            }
+            if !is_indeterminate(&v) && !contains_zero_negative_power(&v) {
+                return Ok(v);
+            }
+        }
+        if let Some((num, den)) = try_as_rational(&expanded, var) {
             if let Ok(r) = limit_rational_finite(&num, &den, var, point, ctx, 0) {
                 return Ok(r);
             }
@@ -389,6 +392,11 @@ fn limit_rational_finite(
         }
         (Ok(_), Ok(d)) if is_zero(d) => pole_infinity(n2, d2, var, point, ctx),
         (Ok(n), Ok(d)) if !is_zero(d) => {
+            if is_zero(n) && depth < MAX_LHOPITAL {
+                let dn = diff(n2, var)?;
+                let dd = diff(d2, var)?;
+                return limit_rational_finite(&dn, &dd, var, point, ctx, depth + 1);
+            }
             if contains_zero_negative_power(n) && depth < MAX_LHOPITAL {
                 let dn = diff(n2, var)?;
                 let dd = diff(d2, var)?;
@@ -704,66 +712,24 @@ mod tests {
     }
 
     #[test]
+    fn engine_ck_int_gruntz_ratio() {
+        use ck_int_gruntz_fixture::ratio;
+        let r = limit_line(ratio(), "x", Expr::sym("+infinity")).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "1");
+    }
+
+    #[test]
     fn engine_ck_int_60() {
-        let inner = Arc::new(Expr::Frac(
-            Expr::mul(vec![
-                Expr::sym("x"),
-                Expr::func(FuncKind::Exp, vec![Expr::mul(vec![Expr::int(-1), Expr::sym("x")])]),
-            ]),
-            Expr::add(vec![
-                Expr::func(FuncKind::Exp, vec![Expr::mul(vec![Expr::int(-1), Expr::sym("x")])]),
-                Expr::func(
-                    FuncKind::Exp,
-                    vec![Expr::mul(vec![
-                        Expr::int(-2),
-                        Arc::new(Expr::Frac(
-                            Expr::pow(Expr::sym("x"), Expr::int(2)),
-                            Expr::add(vec![Expr::sym("x"), Expr::int(1)]),
-                        )),
-                    ])],
-                ),
-            ]),
-        ));
-        let e = Expr::mul(vec![
-            Expr::func(FuncKind::Exp, vec![inner]),
-            Expr::pow(Expr::sym("x"), Expr::int(-1)),
-        ]);
-        let r = limit_line(e, "x", Expr::sym("+infinity")).unwrap();
+        use ck_int_gruntz_fixture::ck_int_60;
+        let r = limit_line(ck_int_60(), "x", Expr::sym("+infinity")).unwrap();
         assert_eq!(format_expr(r.as_ref()), "+infinity");
     }
 
     #[test]
     fn engine_ck_int_61() {
-        let inner = Arc::new(Expr::Frac(
-            Expr::mul(vec![
-                Expr::sym("x"),
-                Expr::func(FuncKind::Exp, vec![Expr::mul(vec![Expr::int(-1), Expr::sym("x")])]),
-            ]),
-            Expr::add(vec![
-                Expr::func(FuncKind::Exp, vec![Expr::mul(vec![Expr::int(-1), Expr::sym("x")])]),
-                Expr::func(
-                    FuncKind::Exp,
-                    vec![Expr::mul(vec![
-                        Expr::int(-2),
-                        Arc::new(Expr::Frac(
-                            Expr::pow(Expr::sym("x"), Expr::int(2)),
-                            Expr::add(vec![Expr::sym("x"), Expr::int(1)]),
-                        )),
-                    ])],
-                ),
-            ]),
-        ));
-        let exp_inner = Expr::func(FuncKind::Exp, vec![inner]);
-        let e = Expr::mul(vec![
-            Expr::add(vec![
-                exp_inner.clone(),
-                Expr::mul(vec![Expr::int(-1), Expr::func(FuncKind::Exp, vec![Expr::sym("x")])]),
-            ]),
-            Expr::pow(Expr::sym("x"), Expr::int(-1)),
-        ]);
-        let r = limit_line(e, "x", Expr::sym("+infinity")).unwrap();
-        let s = format_expr(r.as_ref());
-        assert_eq!(s, "-exp(2)");
+        use ck_int_gruntz_fixture::ck_int_61;
+        let r = limit_line(ck_int_61(), "x", Expr::sym("+infinity")).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "-exp(2)");
     }
 
     #[test]

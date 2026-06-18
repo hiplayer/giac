@@ -4,37 +4,18 @@ use std::fs;
 use std::path::Path;
 
 use giac_conformance::{
-    classify_check_line, load_integrate_check_lines, run_line, run_lines, run_risch_line,
-    sympy_equiv, sympy_verify_lines, giac_check_dir, CheckLineKind,
+    assert_check_integrate_non_integrate_sympy, assert_check_integrate_risch,
+    classify_check_line, load_check_integrate_table, load_integrate_check_lines, run_line,
+    run_lines, sympy_verify_lines, giac_check_dir, CheckLineKind,
 };
-use serde::Deserialize;
 
 #[test]
 fn giac_check_integrate_files_exist() {
     assert!(giac_check_dir().join("testintegrate").exists());
 }
 
-#[derive(Debug, Deserialize)]
-struct CheckIntegrateTable {
-    entries: Vec<CheckIntegrateEntry>,
-}
-
-#[derive(Debug, Deserialize)]
-struct CheckIntegrateEntry {
-    id: String,
-    line: String,
-    kind: String,
-    enabled: bool,
-}
-
-fn check_integrate_table() -> Result<CheckIntegrateTable, String> {
-    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/check_integrate_table.json");
-    let text = fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))?;
-    serde_json::from_str(&text).map_err(|e| format!("json: {e}"))
-}
-
 fn enabled_lines() -> Result<Vec<String>, String> {
-    Ok(check_integrate_table()?
+    Ok(load_check_integrate_table()?
         .entries
         .into_iter()
         .filter(|e| e.enabled)
@@ -44,7 +25,7 @@ fn enabled_lines() -> Result<Vec<String>, String> {
 
 /// Full inventory report (all lines, no assertion). Slow — run with `cargo test -- --ignored`.
 #[test]
-#[ignore = "runs SymPy on all testintegrate lines; use giac_check_integrate_enabled_sympy in CI"]
+#[ignore = "runs SymPy on all testintegrate lines; use per-entry tests in CI"]
 fn giac_check_integrate_full_report() -> Result<(), String> {
     let lines = load_integrate_check_lines()?;
     let mut by_kind = [0usize; 5];
@@ -82,41 +63,64 @@ fn giac_check_integrate_full_report() -> Result<(), String> {
     Ok(())
 }
 
-/// Regression gate on `fixtures/check_integrate_table.json` enabled rows.
-///
-/// Integrate rows: eval only (SymPy `diff` verification can hang on heavy rationals).
-/// Limit / series / other: SymPy T1 as before.
-#[test]
-fn giac_check_integrate_enabled() -> Result<(), String> {
-    let table = check_integrate_table()?;
-    let enabled: Vec<_> = table.entries.iter().filter(|e| e.enabled).collect();
-    assert!(!enabled.is_empty(), "no enabled check_integrate rows");
-
-    let mut sympy_lines = Vec::new();
-    let mut sympy_outputs = Vec::new();
-    for e in enabled {
-        let got = run_line(&e.line)?;
-        if e.kind == "integrate" {
-            continue;
+macro_rules! check_integrate_non_integrate {
+    ($fn_name:ident, $id:literal) => {
+        #[test]
+        fn $fn_name() -> Result<(), String> {
+            assert_check_integrate_non_integrate_sympy($id)
         }
-        sympy_lines.push(e.line.clone());
-        sympy_outputs.push(got);
-    }
-    if sympy_lines.is_empty() {
-        return Ok(());
-    }
-    let results = sympy_verify_lines(&sympy_lines, &sympy_outputs)?;
-    let failures: Vec<_> = results.iter().filter(|r| !r.ok).collect();
-    assert!(
-        failures.is_empty(),
-        "check_integrate SymPy failures (non-integrate): {failures:?}"
-    );
-    Ok(())
+    };
 }
+
+check_integrate_non_integrate!(giac_check_integrate_ck_int_55, "CK-INT-55");
+check_integrate_non_integrate!(giac_check_integrate_ck_int_56, "CK-INT-56");
+check_integrate_non_integrate!(giac_check_integrate_ck_int_57, "CK-INT-57");
+check_integrate_non_integrate!(giac_check_integrate_ck_int_58, "CK-INT-58");
+check_integrate_non_integrate!(giac_check_integrate_ck_int_59, "CK-INT-59");
+check_integrate_non_integrate!(giac_check_integrate_ck_int_60, "CK-INT-60");
+check_integrate_non_integrate!(giac_check_integrate_ck_int_61, "CK-INT-61");
+check_integrate_non_integrate!(giac_check_integrate_ck_int_62, "CK-INT-62");
+check_integrate_non_integrate!(giac_check_integrate_ck_int_63, "CK-INT-63");
+check_integrate_non_integrate!(giac_check_integrate_ck_int_64, "CK-INT-64");
+check_integrate_non_integrate!(giac_check_integrate_ck_int_65, "CK-INT-65");
+check_integrate_non_integrate!(giac_check_integrate_ck_int_66, "CK-INT-66");
+
+macro_rules! check_integrate_risch {
+    ($fn_name:ident, $id:literal) => {
+        #[test]
+        fn $fn_name() -> Result<(), String> {
+            assert_check_integrate_risch($id)
+        }
+    };
+}
+
+check_integrate_risch!(giac_check_risch_ck_int_02, "CK-INT-02");
+check_integrate_risch!(giac_check_risch_ck_int_03, "CK-INT-03");
+check_integrate_risch!(giac_check_risch_ck_int_04, "CK-INT-04");
+check_integrate_risch!(giac_check_risch_ck_int_05, "CK-INT-05");
+check_integrate_risch!(giac_check_risch_ck_int_06, "CK-INT-06");
+check_integrate_risch!(giac_check_risch_ck_int_07, "CK-INT-07");
+check_integrate_risch!(giac_check_risch_ck_int_08, "CK-INT-08");
+check_integrate_risch!(giac_check_risch_ck_int_09, "CK-INT-09");
+check_integrate_risch!(giac_check_risch_ck_int_11, "CK-INT-11");
+check_integrate_risch!(giac_check_risch_ck_int_12, "CK-INT-12");
+check_integrate_risch!(giac_check_risch_ck_int_13, "CK-INT-13");
+check_integrate_risch!(giac_check_risch_ck_int_14, "CK-INT-14");
+check_integrate_risch!(giac_check_risch_ck_int_18, "CK-INT-18");
+check_integrate_risch!(giac_check_risch_ck_int_19, "CK-INT-19");
+check_integrate_risch!(giac_check_risch_ck_int_20, "CK-INT-20");
+check_integrate_risch!(giac_check_risch_ck_int_21, "CK-INT-21");
+check_integrate_risch!(giac_check_risch_ck_int_22, "CK-INT-22");
+check_integrate_risch!(giac_check_risch_ck_int_28, "CK-INT-28");
+check_integrate_risch!(giac_check_risch_ck_int_29, "CK-INT-29");
+check_integrate_risch!(giac_check_risch_ck_int_30, "CK-INT-30");
+check_integrate_risch!(giac_check_risch_ck_int_32, "CK-INT-32");
+check_integrate_risch!(giac_check_risch_ck_int_37, "CK-INT-37");
+check_integrate_risch!(giac_check_risch_ck_int_43, "CK-INT-43");
 
 /// Full SymPy gate including integrate rows — manual only (heavy cases may timeout).
 #[test]
-#[ignore = "integrate SymPy can hang; use giac_check_integrate_enabled in CI"]
+#[ignore = "integrate SymPy can hang; use per-entry tests in CI"]
 fn giac_check_integrate_enabled_sympy() -> Result<(), String> {
     let lines = enabled_lines()?;
     assert!(!lines.is_empty(), "no enabled check_integrate rows");
@@ -130,31 +134,12 @@ fn giac_check_integrate_enabled_sympy() -> Result<(), String> {
     Ok(())
 }
 
-/// `risch(f,x)` agrees with `integrate(f,x)` on enabled integrate rows (GIAC-217).
-#[test]
-fn giac_check_risch_matches_integrate() -> Result<(), String> {
-    let table = check_integrate_table()?;
-    let integrate_lines: Vec<_> = table
-        .entries
-        .iter()
-        .filter(|e| e.enabled && e.kind == "integrate")
-        .map(|e| e.line.as_str())
-        .collect();
-    assert!(!integrate_lines.is_empty());
-    for line in integrate_lines {
-        let int_out = run_line(line)?;
-        let risch_out = run_risch_line(line)?;
-        sympy_equiv(&int_out, &risch_out).map_err(|e| format!("{line}: {e}"))?;
-    }
-    Ok(())
-}
-
-#[derive(Debug, Deserialize)]
+#[derive(Debug, serde::Deserialize)]
 struct IntegrateTable {
     entries: Vec<IntegrateEntry>,
 }
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, serde::Deserialize)]
 struct IntegrateEntry {
     line: String,
     enabled: bool,

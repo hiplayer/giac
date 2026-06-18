@@ -59,8 +59,30 @@ def integrate_derivative_equiv(integrand: Any, result: Any) -> bool:
     return True
 
 
-def giac_to_sympy(s: str) -> sp.Expr:
-    """Best-effort parse of giac-style output into SymPy."""
+def normalize_giac_syntax(s: str) -> str:
+    """Prepare giac-style syntax for SymPy parsing."""
+    s = re.sub(r"\binv\(([^)]+)\)", r"(1/(\1))", s)
+    s = re.sub(r"(-?\d+)\^-(\d+)", r"(\1)**(-\2)", s)
+    return s
+
+
+def parse_rootof_call(num_str: str, poly_str: str) -> sp.Expr:
+    num = [giac_to_sympy_raw(p.strip()) for p in split_top_level(num_str)]
+    coeffs = [giac_to_sympy_raw(p.strip()) for p in split_top_level(poly_str)]
+    deg = len(coeffs) - 1
+    poly = sum(c * x ** (deg - i) for i, c in enumerate(coeffs))
+    p = sp.Poly(sp.expand(poly), x)
+    if len(num) == 2 and num[0] == 1 and num[1] == 0:
+        idx = 0
+    elif len(num) == 2 and num[0] == -1 and num[1] == 0:
+        idx = 1
+    else:
+        idx = 0
+    return sp.RootOf(p, idx)
+
+
+def giac_to_sympy_raw(s: str) -> sp.Expr:
+    """Parse giac output without re-entering rootof preprocessing."""
     s = s.strip()
     if not s:
         raise ValueError("empty output")
@@ -75,14 +97,15 @@ def giac_to_sympy(s: str) -> sp.Expr:
         if not inner.strip():
             return sp.Tuple()
         parts = split_top_level(inner)
-        return sp.Tuple(*[giac_to_sympy(p.strip()) for p in parts])
+        return sp.Tuple(*[giac_to_sympy_raw(p.strip()) for p in parts])
     if s.startswith("matrix") and "[[" in s:
         return giac_matrix(s[6:] if s.startswith("matrix") else s)
     if s.startswith("poly1[") and s.endswith("]"):
         return parse_poly1(s)
     if " mod " in s:
         base, _mod = s.rsplit(" mod ", 1)
-        return giac_to_sympy(base.strip())
+        return giac_to_sympy_raw(base.strip())
+    s = normalize_giac_syntax(s)
     s = re.sub(r"\bi\b", "I", s)
     s = s.replace("^", "**")
     s = re.sub(r"\bln\b", "log", s)
@@ -91,6 +114,47 @@ def giac_to_sympy(s: str) -> sp.Expr:
     s = re.sub(r"(\d)\(", r"\1*(", s)
     s = re.sub(r"\)\(", ")*(", s)
     return sp.sympify(s, locals={"x": x, "y": y, "z": z, "I": sp.I})
+
+
+def giac_to_sympy(s: str) -> sp.Expr:
+    """Best-effort parse of giac-style output into SymPy."""
+    s = s.strip()
+    if "rootof(" in s:
+        return parse_giac_expr_with_rootof(s)
+    return giac_to_sympy_raw(s)
+
+
+def parse_giac_expr_with_rootof(s: str) -> sp.Expr:
+    """Parse expressions containing giac `rootof([..],poly1[..])` factors."""
+    out: list[str] = []
+    i = 0
+    while i < len(s):
+        m = re.match(r"rootof\(\[", s[i:])
+        if not m:
+            out.append(s[i])
+            i += 1
+            continue
+        start = i
+        i += len("rootof(")
+        depth = 1
+        while i < len(s) and depth:
+            if s[i] == "(":
+                depth += 1
+            elif s[i] == ")":
+                depth -= 1
+            i += 1
+        chunk = s[start:i]
+        inner = chunk[len("rootof(") : -1]
+        num_str, poly_part = inner.split(",poly1", 1)
+        num_str = num_str.lstrip("[")
+        if num_str.startswith("["):
+            num_str = num_str[1:]
+        if num_str.endswith("]"):
+            num_str = num_str[:-1]
+        poly_str = poly_part.lstrip("[").rstrip("]")
+        out.append(f"({sp.sstr(parse_rootof_call(num_str, poly_str))})")
+    expr = "".join(out)
+    return giac_to_sympy_raw(expr)
 
 
 def split_top_level(s: str) -> list[str]:
@@ -120,9 +184,9 @@ def giac_matrix(s: str) -> Matrix:
         row = row.strip()
         if row.startswith("[") and row.endswith("]"):
             cells = split_top_level(row[1:-1])
-            data.append([giac_to_sympy(c.strip()) for c in cells])
+            data.append([giac_to_sympy_raw(c.strip()) for c in cells])
         else:
-            data.append([giac_to_sympy(row)])
+            data.append([giac_to_sympy_raw(row)])
     return Matrix(data)
 
 
@@ -389,7 +453,7 @@ def eval_phase1(line: str) -> Any | None:
 
 
 def parse_giac_matrix_expr(s: str) -> Matrix:
-    s = s.strip()
+    s = normalize_giac_syntax(s.strip())
     if s.startswith("matrix"):
         s = s[6:]
     return giac_matrix(s)

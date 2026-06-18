@@ -13,6 +13,7 @@ use giac_core::{exec_stmt, format_expr, Context, Stmt, StmtResult};
 use giac_simplify::assert_equiv;
 use giac_ode::xcas_default;
 use giac_parse::parse_program;
+use serde::Deserialize;
 
 pub use triple_skip::{
     phase2_format_diff, phase2_giac_gap, phase2_sympy_gap, phase3_format_diff,
@@ -642,6 +643,184 @@ pub fn run_lines_with_timeout(
         ctx = result.ctx;
     }
     Ok(out)
+}
+
+/// Assert SymPy verification on every line of a bin script.
+pub fn assert_sympy_script(name: &str, allow_gap: fn(&str) -> bool) -> Result<(), String> {
+    let results = sympy_verify_script(name)?;
+    for r in &results {
+        if r.ok || allow_gap(&r.line) {
+            continue;
+        }
+        return Err(format!(
+            "SymPy failed on {name}: `{}` -> `{}`",
+            r.line, r.output
+        ));
+    }
+    Ok(())
+}
+
+/// SymPy-verify each non-skipped line of a bin script (phase 3 style).
+pub fn assert_sympy_script_lines(
+    name: &str,
+    skip: fn(&str) -> bool,
+    allow_gap: fn(&str) -> bool,
+) -> Result<(), String> {
+    let path = upstream_root().join("bin").join(name);
+    for line in script_lines(&path)? {
+        if skip(&line) {
+            continue;
+        }
+        let got = run_line(&line)?;
+        let r = sympy_verify_line(&line, &got)?;
+        if !r.ok && !allow_gap(&line) {
+            return Err(format!("SymPy failed on {name}: `{line}` -> `{got}`"));
+        }
+    }
+    Ok(())
+}
+
+/// SymPy-verify `testcas` lines in `[start, end)`; failures unless `allow_gap`.
+pub fn assert_testcas_sympy_range(
+    start: usize,
+    end: usize,
+    allow_gap: fn(&str) -> bool,
+    min_verified: usize,
+) -> Result<(), String> {
+    let (inputs, _) = load_testcas_lines(end)?;
+    let inputs: Vec<String> = inputs.into_iter().skip(start).take(end - start).collect();
+    let outputs = run_lines(&inputs)?;
+    let results = sympy_verify_lines(&inputs, &outputs)?;
+    let mut ok = 0usize;
+    let mut skipped = 0usize;
+    let mut failed = Vec::new();
+    for r in &results {
+        if r.ok {
+            ok += 1;
+        } else if allow_gap(&r.line) {
+            skipped += 1;
+        } else {
+            failed.push((r.line.clone(), r.output.clone()));
+        }
+    }
+    assert!(
+        failed.is_empty(),
+        "testcas [{start},{end}) SymPy failures: {:?}",
+        failed.iter().take(5).collect::<Vec<_>>()
+    );
+    assert!(
+        ok + skipped >= min_verified,
+        "testcas [{start},{end}): need >= {min_verified} ok+gap, got {ok} ok + {skipped} gaps"
+    );
+    Ok(())
+}
+
+/// SymPy-verify one upstream factor check line by index (skips `cas_setup`).
+pub fn assert_factor_line_sympy(index: usize, timeout: Duration) -> Result<(), String> {
+    let (inputs, _) = load_factor_check_lines()?;
+    let line = inputs.get(index).ok_or_else(|| {
+        format!(
+            "factor line index {index} out of range ({} lines)",
+            inputs.len()
+        )
+    })?;
+    let outputs = run_lines_with_timeout(std::slice::from_ref(line), timeout)?;
+    let results =
+        sympy_verify_lines_with_timeout(std::slice::from_ref(line), &outputs, timeout)?;
+    assert!(
+        results[0].ok,
+        "SymPy failed on factor check `{}` -> `{}`",
+        results[0].line, results[0].output
+    );
+    Ok(())
+}
+
+/// Triple-check one line from a bin script by line index.
+pub fn triple_check_script_line(
+    name: &str,
+    line_index: usize,
+    skip: fn(&str) -> bool,
+) -> Result<TripleResult, String> {
+    let path = upstream_root().join("bin").join(name);
+    let lines = script_lines(&path)?;
+    let line = lines.get(line_index).ok_or_else(|| {
+        format!(
+            "script {name} line index {line_index} out of range ({} lines)",
+            lines.len()
+        )
+    })?;
+    if skip(line) {
+        return Err(format!("script {name} line {line_index} skipped: `{line}`"));
+    }
+    triple_check(line)
+}
+
+#[derive(Debug, Deserialize)]
+pub struct CheckIntegrateTable {
+    pub entries: Vec<CheckIntegrateEntry>,
+}
+
+#[derive(Debug, Clone, Deserialize)]
+pub struct CheckIntegrateEntry {
+    pub id: String,
+    pub line: String,
+    pub kind: String,
+    pub enabled: bool,
+}
+
+pub fn load_check_integrate_table() -> Result<CheckIntegrateTable, String> {
+    let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/check_integrate_table.json");
+    let text = fs::read_to_string(&path).map_err(|e| format!("read {}: {e}", path.display()))?;
+    serde_json::from_str(&text).map_err(|e| format!("json: {e}"))
+}
+
+pub fn check_integrate_entry(id: &str) -> Result<CheckIntegrateEntry, String> {
+    load_check_integrate_table()?
+        .entries
+        .into_iter()
+        .find(|e| e.id == id)
+        .ok_or_else(|| format!("check_integrate entry {id} not found"))
+}
+
+/// SymPy gate for one enabled non-integrate check_integrate row (limit/series).
+pub fn assert_check_integrate_non_integrate_sympy(id: &str) -> Result<(), String> {
+    let entry = check_integrate_entry(id)?;
+    assert!(entry.enabled, "{id} is not enabled");
+    assert_ne!(
+        entry.kind, "integrate",
+        "{id} is integrate; use assert_check_integrate_risch"
+    );
+    let timeout = check_integrate_line_timeout(id);
+    let got = run_line_with_timeout(&entry.line, timeout)?;
+    let results = sympy_verify_lines_with_timeout(
+        std::slice::from_ref(&entry.line),
+        std::slice::from_ref(&got),
+        timeout,
+    )?;
+    assert!(
+        results[0].ok,
+        "SymPy failed on {id} `{}` -> `{}`",
+        entry.line, got
+    );
+    Ok(())
+}
+
+fn check_integrate_line_timeout(id: &str) -> Duration {
+    match id {
+        // Heavy MRV limits from upstream check/testintegrate.
+        "CK-INT-60" | "CK-INT-61" => Duration::from_secs(30),
+        _ => check_timeout(),
+    }
+}
+
+/// `risch(f,x)` agrees with `integrate(f,x)` for one enabled integrate row.
+pub fn assert_check_integrate_risch(id: &str) -> Result<(), String> {
+    let entry = check_integrate_entry(id)?;
+    assert!(entry.enabled, "{id} is not enabled");
+    assert_eq!(entry.kind, "integrate", "{id} is not integrate");
+    let int_out = run_line(&entry.line)?;
+    let risch_out = run_risch_line(&entry.line)?;
+    sympy_equiv(&int_out, &risch_out).map_err(|e| format!("{id} `{}`: {e}", entry.line))
 }
 
 #[cfg(test)]

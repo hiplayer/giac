@@ -2,7 +2,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use giac_core::{
-    eval, eval_subst_map, bigint_to_i64, Context, EvalError, Expr, ExprArc, Ident,
+    eval, eval_subst_map, bigint_to_i64, Context, EvalError, Expr, ExprArc, FuncKind, Ident,
     RelOp,
 };
 use num_traits::Zero;
@@ -87,10 +87,13 @@ fn taylor_series(
     if order == 0 {
         return Ok(Expr::int(0));
     }
+    if let Ok(r) = taylor_series_diff(f, var, center, order, ctx) {
+        return Ok(r);
+    }
     if let Ok(r) = series_at_center(f, var, center, order, ctx) {
         return Ok(r);
     }
-    taylor_series_diff(f, var, center, order, ctx)
+    Err(EvalError::NotImplemented("series"))
 }
 
 fn taylor_series_diff(
@@ -116,7 +119,8 @@ fn taylor_series_diff(
         return Ok(Expr::int(0));
     }
     let sum = Expr::add(terms);
-    eval(sum.as_ref(), ctx)
+    let sum = eval(sum.as_ref(), ctx)?;
+    giac_simplify::normal(sum.as_ref(), ctx)
 }
 
 fn series_term(coeff: &ExprArc, var: &Ident, center: &ExprArc, k: usize) -> Result<ExprArc, EvalError> {
@@ -148,7 +152,46 @@ fn eval_at(expr: &ExprArc, var: &Ident, center: &ExprArc, ctx: &Context) -> Resu
     let mut subs = HashMap::new();
     subs.insert(var.clone(), Arc::clone(center));
     let subbed = eval_subst_map(expr, &subs)?;
-    eval(subbed.as_ref(), ctx)
+    let v = eval(subbed.as_ref(), ctx)?;
+    fold_elementary(&v, ctx)
+}
+
+fn is_zero_arg(e: &ExprArc) -> bool {
+    matches!(e.as_ref(), Expr::Int(n) if n.is_zero())
+}
+
+fn fold_elementary(e: &ExprArc, ctx: &Context) -> Result<ExprArc, EvalError> {
+    let folded = match e.as_ref() {
+        Expr::Func(FuncKind::Sin, args) if args.len() == 1 && is_zero_arg(&args[0]) => {
+            Expr::int(0)
+        }
+        Expr::Func(FuncKind::Cos, args) if args.len() == 1 && is_zero_arg(&args[0]) => {
+            Expr::int(1)
+        }
+        Expr::Func(FuncKind::Exp, args) if args.len() == 1 && is_zero_arg(&args[0]) => {
+            Expr::int(1)
+        }
+        Expr::Add(ts) => {
+            let mut out = Vec::with_capacity(ts.len());
+            for t in ts {
+                out.push(fold_elementary(t, ctx)?);
+            }
+            Expr::add(out)
+        }
+        Expr::Mul(fs) => {
+            let mut out = Vec::with_capacity(fs.len());
+            for f in fs {
+                out.push(fold_elementary(f, ctx)?);
+            }
+            Expr::mul(out)
+        }
+        Expr::Frac(n, d) => Expr::mul(vec![
+            fold_elementary(n, ctx)?,
+            Expr::pow(fold_elementary(d, ctx)?, Expr::int(-1)),
+        ]),
+        _ => return Ok(Arc::clone(e)),
+    };
+    eval(folded.as_ref(), ctx)
 }
 
 fn is_zero(e: &ExprArc) -> bool {
@@ -313,6 +356,32 @@ mod tests {
         let r = eval(e.as_ref(), &ctx).unwrap();
         let s = format_expr(r.as_ref());
         assert!(s.contains("x"), "got {s}");
+    }
+
+    #[test]
+    fn series_ck_int_65_cos_exp() {
+        let ctx = xcas_default();
+        let e = Expr::func(
+            FuncKind::Series,
+            vec![
+                Expr::mul(vec![
+                    Expr::func(FuncKind::Cos, vec![Expr::sym("x")]),
+                    Expr::func(
+                        FuncKind::Exp,
+                        vec![Expr::add(vec![Expr::mul(vec![Expr::int(2), Expr::sym("x")]), Expr::int(1)])],
+                    ),
+                ]),
+                Expr::sym("x"),
+                Expr::int(0),
+                Expr::int(4),
+            ],
+        );
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        let s = format_expr(r.as_ref());
+        assert!(
+            s.contains("exp(1)"),
+            "expected exp(1) in Taylor series, got {s}"
+        );
     }
 
     #[test]

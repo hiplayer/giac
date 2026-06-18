@@ -45,9 +45,37 @@ Requires **Rust 1.75+** (dependencies pinned for older toolchains).
 
 ```bash
 cd giac-rs
-cargo test --workspace      # required
+cargo test --workspace      # required (no per-test timeout)
 cargo ci-clippy             # required (-D warnings)
 echo 'sqrt(5)' | cargo run -q --bin giac-cli
+```
+
+### Test timeout (10s per test)
+
+Hung tests (e.g. infinite loops in `poly_divrem`) are killed after **10 seconds** per test.
+
+**Recommended** — install [cargo-nextest](https://nexte.st/) once (**pin 0.9.85** on rustc 1.75; newer nextest needs 1.91+), then:
+
+```bash
+cargo install cargo-nextest --locked --version 0.9.85   # once; MSRV 1.75
+./scripts/test-with-timeout.sh         # whole workspace
+# or:
+cargo test-timeout                     # alias → nextest run --workspace
+```
+
+Config: [`.config/nextest.toml`](.config/nextest.toml) (`slow-timeout = 10s`).
+
+Without nextest, the script falls back to GNU `timeout` per test (slower). On timeout it prints a **debug command** to re-run the failing test:
+
+```bash
+RUST_BACKTRACE=1 cargo test -p giac-core 'algebra::alg_ext::tests::...' -- --exact --nocapture
+```
+
+Subset while debugging:
+
+```bash
+TEST_PACKAGES="giac-core giac-solve" ./scripts/test-with-timeout.sh
+TEST_TIMEOUT_SECS=30 ./scripts/test-with-timeout.sh   # override cap
 ```
 
 ### WebAssembly (`giac-wasm`)

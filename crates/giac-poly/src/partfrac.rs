@@ -53,7 +53,7 @@ pub fn partfrac_rational_terms(
     }
 
     if let Ok(terms) = partfrac_by_square_free(&rem, den, var) {
-        return Ok((poly_part, terms));
+        return Ok((poly_part, drop_zero_numerators(terms)));
     }
 
     let factors = factor_into(den).ok_or(PolyError::NotImplemented("partfrac factor"))?;
@@ -76,10 +76,14 @@ pub fn partfrac_rational_terms(
             let coeff = rem.horner(var, &root) / denom_prod;
             terms.push((Poly::constant(coeff), f.clone()));
         }
-        return Ok((poly_part, terms));
+        return Ok((poly_part, drop_zero_numerators(terms)));
     }
     let terms = partfrac_mixed_affine(&rem, &factors, var)?;
-    Ok((poly_part, terms))
+    Ok((poly_part, drop_zero_numerators(terms)))
+}
+
+fn drop_zero_numerators(terms: Vec<(Poly, Poly)>) -> Vec<(Poly, Poly)> {
+    terms.into_iter().filter(|(n, _)| !n.is_zero()).collect()
 }
 
 /// Partial fractions via square-free factorization (GIAC-224).

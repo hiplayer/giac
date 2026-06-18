@@ -3,6 +3,9 @@
 //! An `AlgExtData` is an element of ℚ(α) where α is a root of `min_poly`.
 //! Coefficients are stored as a univariate polynomial in α (high degree first,
 //! giac `poly1` convention).
+//!
+//! Complex algebraic numbers use `Expr::Complex(re, im)` with `re`, `im` in ℚ(α)
+//! (or ℚ); `im` is the coefficient of `i`, i.e. `re + im*i`.
 
 use std::sync::Arc;
 
@@ -133,6 +136,10 @@ impl AlgExtData {
     }
 
     /// Scale by a rational scalar (same `min_poly`).
+    pub fn neg(&self) -> Result<Self, EvalError> {
+        self.mul_rational(&Ratio::from_integer(-BigInt::one()))
+    }
+
     pub fn mul_rational(&self, r: &Ratio<BigInt>) -> Result<Self, EvalError> {
         if r.is_zero() {
             return Ok(Self::zero(self.min_poly.clone()));
@@ -467,6 +474,82 @@ pub fn fold_algext_sum(terms: &[ExprArc]) -> Result<ExprArc, EvalError> {
     }
 }
 
+fn complex_algext_parts(e: &Expr) -> Option<(ExprArc, ExprArc)> {
+    match e {
+        Expr::Complex(re, im) => Some((Arc::clone(re), Arc::clone(im))),
+        Expr::AlgExt(_) => Some((Arc::new(e.clone()), Expr::int(0))),
+        Expr::Int(n) => Some((Arc::new(Expr::Int(n.clone())), Expr::int(0))),
+        Expr::Rat(r) => Some((Arc::new(Expr::Rat(r.clone())), Expr::int(0))),
+        _ => None,
+    }
+}
+
+fn complex_algext_to_expr(re: ExprArc, im: ExprArc) -> Result<ExprArc, EvalError> {
+    if im.is_zero() {
+        Ok(re)
+    } else if re.is_zero() {
+        Ok(Arc::new(Expr::Complex(Expr::int(0), im)))
+    } else {
+        Ok(Arc::new(Expr::Complex(re, im)))
+    }
+}
+
+/// Fold a sum of `Complex(re, im)` with `re`, `im` possibly containing `AlgExt`.
+pub fn fold_complex_algext_sum(terms: &[ExprArc]) -> Result<ExprArc, EvalError> {
+    let mut res_re = Vec::new();
+    let mut res_im = Vec::new();
+    for t in terms {
+        let (re, im) = complex_algext_parts(t.as_ref())
+            .ok_or(EvalError::TypeError("not complex algext sum"))?;
+        if !re.is_zero() {
+            res_re.push(re);
+        }
+        if !im.is_zero() {
+            res_im.push(im);
+        }
+    }
+    let re_sum = match res_re.len() {
+        0 => Expr::int(0),
+        1 => res_re.remove(0),
+        _ => fold_algext_sum(&res_re)?,
+    };
+    let im_sum = match res_im.len() {
+        0 => Expr::int(0),
+        1 => res_im.remove(0),
+        _ => fold_algext_sum(&res_im)?,
+    };
+    complex_algext_to_expr(re_sum, im_sum)
+}
+
+/// Fold a product of complex-algebraic factors `(re + im*i)`.
+pub fn fold_complex_algext_product(factors: &[ExprArc]) -> Result<ExprArc, EvalError> {
+    let mut acc_re = Expr::int(1);
+    let mut acc_im = Expr::int(0);
+    for f in factors {
+        let (re, im) = complex_algext_parts(f.as_ref())
+            .ok_or(EvalError::TypeError("not complex algext product"))?;
+        let (new_re, new_im) = complex_algext_mul_parts(acc_re, acc_im, re, im)?;
+        acc_re = new_re;
+        acc_im = new_im;
+    }
+    complex_algext_to_expr(acc_re, acc_im)
+}
+
+fn complex_algext_mul_parts(
+    ar: ExprArc,
+    ai: ExprArc,
+    br: ExprArc,
+    bi: ExprArc,
+) -> Result<(ExprArc, ExprArc), EvalError> {
+    let ac = fold_algext_product(&[Arc::clone(&ar), Arc::clone(&br)])?;
+    let bd = fold_algext_product(&[Arc::clone(&ai), bi.clone()])?;
+    let ad = fold_algext_product(&[Arc::clone(&ar), bi.clone()])?;
+    let bc = fold_algext_product(&[ai, br])?;
+    let re = fold_algext_sum(&[ac, fold_algext_product(&[Expr::int(-1), bd])?])?;
+    let im = fold_algext_sum(&[ad, bc])?;
+    Ok((re, im))
+}
+
 /// Fold a product that may contain `AlgExt` factors (same `min_poly` only).
 pub fn fold_algext_product(factors: &[ExprArc]) -> Result<ExprArc, EvalError> {
     let mut acc_ext: Option<AlgExtData> = None;
@@ -595,6 +678,24 @@ pub fn algext_square_roots(u: &AlgExtData) -> Result<Vec<AlgExtData>, EvalError>
         }
     }
     Err(EvalError::NotImplemented("alg ext square root"))
+}
+
+/// Square roots of `u` as `AlgExt` (real) or `Complex(0, AlgExt)` (pure imaginary).
+pub fn algext_sqrt_branches(u: &AlgExtData) -> Result<Vec<ExprArc>, EvalError> {
+    if let Ok(real) = algext_square_roots(u) {
+        return Ok(real.into_iter().map(|a| a.into_expr()).collect());
+    }
+    let neg_u = u.neg()?;
+    let betas = algext_square_roots(&neg_u)?;
+    let beta = betas
+        .into_iter()
+        .next()
+        .ok_or(EvalError::NotImplemented("alg ext square root"))?;
+    let neg_beta = beta.neg()?;
+    Ok(vec![
+        Arc::new(Expr::Complex(Expr::int(0), beta.into_expr())),
+        Arc::new(Expr::Complex(Expr::int(0), neg_beta.into_expr())),
+    ])
 }
 
 /// Merge two extension elements into a common field and return their sum (`common_EXT` MVP).
@@ -927,6 +1028,44 @@ mod tests {
         };
         let prod = roots[0].mul(&roots[0]).unwrap();
         assert!(prod.eq_mod(&u_embedded).unwrap());
+    }
+
+    #[test]
+    fn algext_sqrt_of_neg_sqrt2_is_complex() {
+        let min = q_minpoly();
+        let neg_sqrt2 = AlgExtData::from_rootof(
+            &Arc::new(Expr::Seq(vec![Expr::int(-1), Expr::int(0)])),
+            &min,
+        )
+        .unwrap();
+        let branches = algext_sqrt_branches(&neg_sqrt2).unwrap();
+        assert_eq!(branches.len(), 2);
+        for b in &branches {
+            match b.as_ref() {
+                Expr::Complex(re, im) => {
+                    assert!(re.is_zero());
+                    assert!(matches!(im.as_ref(), Expr::AlgExt(_)));
+                }
+                other => panic!("expected Complex(0, AlgExt), got {other:?}"),
+            }
+        }
+    }
+
+    #[test]
+    fn complex_algext_sum_cancels() {
+        let min = q_minpoly();
+        let alpha = AlgExtData::from_rootof(
+            &Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])),
+            &min,
+        )
+        .unwrap();
+        let pos = Arc::new(Expr::Complex(Expr::int(0), alpha.clone().into_expr()));
+        let neg = Arc::new(Expr::Complex(
+            Expr::int(0),
+            alpha.neg().unwrap().into_expr(),
+        ));
+        let sum = fold_complex_algext_sum(&[pos, neg]).unwrap();
+        assert!(sum.is_zero());
     }
 
     #[test]

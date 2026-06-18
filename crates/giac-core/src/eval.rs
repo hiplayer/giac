@@ -26,13 +26,21 @@ pub fn eval(expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
         Expr::Complex(re, im) => {
             let re = eval(re, ctx)?;
             let im = eval(im, ctx)?;
-            let c_re = try_as_complex(re.as_ref(), ctx)
-                .map(|c| c.re)
-                .unwrap_or(Ratio::zero());
-            let c_im = try_as_complex(im.as_ref(), ctx)
-                .map(|c| c.im)
-                .unwrap_or(Ratio::zero());
-            complex_to_expr(c_re, c_im)?
+            match (
+                try_as_complex(re.as_ref(), ctx),
+                try_as_complex(im.as_ref(), ctx),
+            ) {
+                (Some(c_re), Some(c_im)) => complex_to_expr(c_re.re, c_im.im),
+                _ => {
+                    if im.is_zero() {
+                        Ok(re)
+                    } else if re.is_zero() {
+                        Ok(Arc::new(Expr::Complex(Expr::int(0), im)))
+                    } else {
+                        Ok(Arc::new(Expr::Complex(re, im)))
+                    }
+                }
+            }?
         }
         Expr::Seq(items) => {
             let ev: Result<Vec<_>, _> = items.iter().map(|e| eval(e, ctx)).collect();
@@ -129,7 +137,8 @@ fn eval_add(terms: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     match symbolic.len() {
         0 => Ok(Expr::int(0)),
         1 => Ok(Arc::clone(&symbolic[0])),
-        _ => crate::algebra::alg_ext::fold_algext_sum(&symbolic),
+        _ => crate::algebra::alg_ext::fold_complex_algext_sum(&symbolic)
+            .or_else(|_| crate::algebra::alg_ext::fold_algext_sum(&symbolic)),
     }
 }
 
@@ -171,7 +180,8 @@ fn eval_mul(factors: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     match symbolic.len() {
         0 => Ok(Expr::int(1)),
         1 => Ok(Arc::clone(&symbolic[0])),
-        _ => crate::algebra::alg_ext::fold_algext_product(&symbolic),
+        _ => crate::algebra::alg_ext::fold_complex_algext_product(&symbolic)
+            .or_else(|_| crate::algebra::alg_ext::fold_algext_product(&symbolic)),
     }
 }
 
@@ -1062,6 +1072,7 @@ mod tests {
     use super::*;
     use crate::display::format_expr;
     use crate::expr::Expr;
+    use crate::AlgExtData;
 
     fn ctx() -> Context {
         Context::xcas_default()
@@ -1319,6 +1330,34 @@ mod tests {
         assert!(matches!(eval(rel.as_ref(), &ctx).unwrap().as_ref(), Expr::Relation(RelOp::Eq, _, _)));
         let md = Arc::new(Expr::Mod(Expr::int(7), Expr::int(3)));
         assert_eq!(eval(md.as_ref(), &ctx).unwrap(), Expr::int(1));
+    }
+
+    #[test]
+    fn eval_complex_algext_preserved() {
+        let ctx = ctx();
+        let min = Arc::new(Expr::Func(
+            FuncKind::Poly1,
+            vec![Arc::new(Expr::Seq(vec![
+                Expr::int(1),
+                Expr::int(0),
+                Expr::int(-2),
+            ]))],
+        ));
+        let alpha = AlgExtData::from_rootof(
+            &Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])),
+            &min,
+        )
+        .unwrap()
+        .into_expr();
+        let c = Arc::new(Expr::Complex(Expr::int(0), alpha));
+        let r = eval(c.as_ref(), &ctx).unwrap();
+        match r.as_ref() {
+            Expr::Complex(re, im) => {
+                assert!(re.is_zero());
+                assert!(matches!(im.as_ref(), Expr::AlgExt(_)));
+            }
+            other => panic!("expected Complex(0, AlgExt), got {other:?}"),
+        }
     }
 
     #[test]

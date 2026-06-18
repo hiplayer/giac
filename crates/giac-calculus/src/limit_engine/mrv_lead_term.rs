@@ -685,34 +685,10 @@ mod tests {
 
     #[test]
     fn mrv_lead_ck_int_61() {
+        use crate::limit_engine::ck_int_gruntz_fixture::ck_int_61;
         let ctx = xcas_default();
         let var = Ident::new("x");
-        let inner = Arc::new(Expr::Frac(
-            Expr::mul(vec![
-                Expr::sym("x"),
-                Expr::func(FuncKind::Exp, vec![Expr::mul(vec![Expr::int(-1), Expr::sym("x")])]),
-            ]),
-            Expr::add(vec![
-                Expr::func(FuncKind::Exp, vec![Expr::mul(vec![Expr::int(-1), Expr::sym("x")])]),
-                Expr::func(
-                    FuncKind::Exp,
-                    vec![Expr::mul(vec![
-                        Expr::int(-2),
-                        Arc::new(Expr::Frac(
-                            Expr::pow(Expr::sym("x"), Expr::int(2)),
-                            Expr::add(vec![Expr::sym("x"), Expr::int(1)]),
-                        )),
-                    ])],
-                ),
-            ]),
-        ));
-        let e = Expr::mul(vec![
-            Expr::add(vec![
-                Expr::func(FuncKind::Exp, vec![inner]),
-                Expr::mul(vec![Expr::int(-1), Expr::func(FuncKind::Exp, vec![Expr::sym("x")])]),
-            ]),
-            Expr::pow(Expr::sym("x"), Expr::int(-1)),
-        ]);
+        let e = ck_int_61();
         let lead = mrv_lead_term_plus_infinity(&e, &var, &ctx).expect("mrv lead");
         let lim = limit_from_mrv_lead_term(&lead, &var, &ctx).expect("limit from mrv");
         assert_eq!(format_expr(lim.as_ref()), "-exp(2)");

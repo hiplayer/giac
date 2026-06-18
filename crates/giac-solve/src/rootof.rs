@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use giac_core::{algext_square_roots, poly_to_expr, AlgExtData, EvalError, Expr, ExprArc, FuncKind};
+use giac_core::{algext_sqrt_branches, poly_to_expr, AlgExtData, EvalError, Expr, ExprArc, FuncKind};
 use giac_poly::{coeff_at, univariate_degree, Poly, Var};
 use num_rational::Ratio;
 use num_traits::{One, Zero};
@@ -45,8 +45,8 @@ pub fn biquadratic_rootof_roots(poly: &Poly, var: &Var) -> Result<Vec<ExprArc>, 
             Expr::AlgExt(a) => (**a).clone(),
             _ => return Err(EvalError::TypeError("rootof expected")),
         };
-        for t in algext_square_roots(&u_data).unwrap_or_default() {
-            out.push(t.into_expr());
+        for t in algext_sqrt_branches(&u_data)? {
+            out.push(t);
         }
     }
     if out.is_empty() {
@@ -136,6 +136,16 @@ mod tests {
         let s = format_expr(r.as_ref());
         assert!(s.contains("rootof"), "got {s}");
         assert!(s.matches("rootof").count() >= 2, "got {s}");
+        assert!(s.contains("*i") || s.contains("i"), "expected complex roots, got {s}");
+    }
+
+    #[test]
+    fn biquadratic_t_fourth_minus_two_has_four_roots() {
+        let p = x().pow(4).sub(&Poly::constant(num_rational::Ratio::from_integer(
+            num_bigint::BigInt::from(2),
+        )));
+        let rs = biquadratic_rootof_roots(&p, &Var::from("t")).unwrap();
+        assert_eq!(rs.len(), 4);
     }
 
     #[test]

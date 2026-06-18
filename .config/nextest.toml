@@ -1,0 +1,26 @@
+# Per-test timeout for the whole workspace (see scripts/test-with-timeout.sh).
+#
+# Install (MSRV rustc 1.75 — pin nextest; 0.9.86+ needs rustc 1.91):
+#   cargo install cargo-nextest --locked --version 0.9.85
+
+[store]
+dir = "target/nextest"
+
+[nextest-version]
+required-version = ">=0.9.70"
+# MSRV rustc 1.75: install cargo-nextest 0.9.85 (0.9.86+ needs rustc 1.91).
+
+[profile.default]
+# Mark slow after 10s, then terminate (terminate-after = 1 period → hard 10s cap).
+slow-timeout = { period = "9s", terminate-after = 1 }
+status-level = "slow"
+fail-fast = false
+
+[[profile.default.overrides]]
+filter = 'test(engine_ck_int_60) | test(engine_ck_int_61) | test(giac_check_integrate_ck_int_60) | test(giac_check_integrate_ck_int_61) | test(limit_ck_int_60_parsed) | test(limit_ck_int_61_parsed)'
+slow-timeout = { period = "30s", terminate-after = 1 }
+
+[profile.ci]
+inherit = "default"
+# 0.9.85: fail-fast must be bool (map form needs nextest 0.9.89+).
+fail-fast = false

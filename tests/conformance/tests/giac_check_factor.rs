@@ -9,8 +9,8 @@
 use std::time::Duration;
 
 use giac_conformance::{
-    factor_check_paths, load_factor_check_lines, outputs_assert_equiv, run_lines_with_timeout,
-    sympy_equiv, giac_check_dir, sympy_verify_lines_with_timeout, verify_sympy_with_timeout,
+    assert_factor_line_sympy, factor_check_paths, load_factor_check_lines,
+    outputs_assert_equiv, run_lines_with_timeout, sympy_equiv, giac_check_dir,
 };
 
 /// Factor regression lines can exceed the default 10s in debug (bivariate gcd).
@@ -31,31 +31,45 @@ fn factor_check_files_exist() {
     );
 }
 
-#[test]
-fn giac_check_factor_sympy() -> Result<(), String> {
-    let (inputs, _) = load_factor_check_lines()?;
-    let outputs = run_lines_with_timeout(&inputs, FACTOR_LINE_TIMEOUT)?;
-    let results = sympy_verify_lines_with_timeout(&inputs, &outputs, FACTOR_LINE_TIMEOUT)?;
-    for r in &results {
-        assert!(
-            r.ok,
-            "SymPy failed on factor check `{}` -> `{}`",
-            r.line,
-            r.output
-        );
-    }
-    Ok(())
+macro_rules! factor_line_sympy {
+    ($fn_name:ident, $idx:literal) => {
+        #[test]
+        fn $fn_name() -> Result<(), String> {
+            assert_factor_line_sympy($idx, FACTOR_LINE_TIMEOUT)
+        }
+    };
 }
 
-#[test]
-fn giac_check_factor_each_line() -> Result<(), String> {
-    let (inputs, _) = load_factor_check_lines()?;
-    let outputs = run_lines_with_timeout(&inputs, FACTOR_LINE_TIMEOUT)?;
-    for (line, out) in inputs.iter().zip(outputs.iter()) {
-        verify_sympy_with_timeout(line, out, FACTOR_LINE_TIMEOUT)?;
-    }
-    Ok(())
-}
+factor_line_sympy!(factor_sympy_line_00, 0);
+factor_line_sympy!(factor_sympy_line_01, 1);
+factor_line_sympy!(factor_sympy_line_02, 2);
+factor_line_sympy!(factor_sympy_line_03, 3);
+factor_line_sympy!(factor_sympy_line_04, 4);
+factor_line_sympy!(factor_sympy_line_05, 5);
+factor_line_sympy!(factor_sympy_line_06, 6);
+factor_line_sympy!(factor_sympy_line_07, 7);
+factor_line_sympy!(factor_sympy_line_08, 8);
+factor_line_sympy!(factor_sympy_line_09, 9);
+factor_line_sympy!(factor_sympy_line_10, 10);
+factor_line_sympy!(factor_sympy_line_11, 11);
+factor_line_sympy!(factor_sympy_line_12, 12);
+factor_line_sympy!(factor_sympy_line_13, 13);
+factor_line_sympy!(factor_sympy_line_14, 14);
+factor_line_sympy!(factor_sympy_line_15, 15);
+factor_line_sympy!(factor_sympy_line_16, 16);
+factor_line_sympy!(factor_sympy_line_17, 17);
+factor_line_sympy!(factor_sympy_line_18, 18);
+factor_line_sympy!(factor_sympy_line_19, 19);
+factor_line_sympy!(factor_sympy_line_20, 20);
+factor_line_sympy!(factor_sympy_line_21, 21);
+factor_line_sympy!(factor_sympy_line_22, 22);
+factor_line_sympy!(factor_sympy_line_23, 23);
+factor_line_sympy!(factor_sympy_line_24, 24);
+factor_line_sympy!(factor_sympy_line_25, 25);
+factor_line_sympy!(factor_sympy_line_26, 26);
+factor_line_sympy!(factor_sympy_line_27, 27);
+factor_line_sympy!(factor_sympy_line_28, 28);
+factor_line_sympy!(factor_sympy_line_29, 29);
 
 #[test]
 fn giac_check_factor_golden_report() -> Result<(), String> {

@@ -16,7 +16,10 @@ use num_rational::Ratio;
 use num_traits::{One, Signed, Zero};
 
 use super::bounds::{mrv_limit_eligible, too_heavy_for_expand, MAX_SERIES_EXPANSION_ORDER};
-use super::exp_diff::try_limit_exp_times_exp_minus_one_preprocessed;
+use super::exp_diff::{
+    try_limit_exp_finite_exponent_at_plus_infinity, try_limit_exp_over_exp_via_quotient,
+    try_limit_exp_times_exp_minus_one_preprocessed,
+};
 use super::mrv::try_const_f64;
 use super::mrv_lead_term::limit_unidirectional_plus_infinity;
 use super::preprocess::{limit_preprocess_plus_infinity, limit_preprocess_struct};
@@ -35,8 +38,14 @@ pub(crate) fn limit_at_plus_infinity(
     var: &Ident,
     ctx: &Context,
 ) -> Result<ExprArc, EvalError> {
+    if let Some(r) = try_limit_exp_over_exp_via_quotient(expr, var, ctx) {
+        return Ok(normalize_limit_result(&r, ctx));
+    }
     let pre = limit_preprocess_struct(expr, var);
     if let Some(r) = try_limit_exp_times_exp_minus_one_preprocessed(&pre, var, ctx) {
+        return Ok(normalize_limit_result(&r, ctx));
+    }
+    if let Some(r) = try_limit_exp_finite_exponent_at_plus_infinity(&pre, var, ctx) {
         return Ok(normalize_limit_result(&r, ctx));
     }
     if mrv_limit_eligible(expr) {
@@ -1106,33 +1115,9 @@ mod tests {
 
     #[test]
     fn asymptotic_ck_int_61() {
+        use crate::limit_engine::ck_int_gruntz_fixture::ck_int_61;
         let ctx = xcas_default();
-        let inner = Arc::new(Expr::Frac(
-            Expr::mul(vec![
-                Expr::sym("x"),
-                Expr::func(FuncKind::Exp, vec![Expr::mul(vec![Expr::int(-1), Expr::sym("x")])]),
-            ]),
-            Expr::add(vec![
-                Expr::func(FuncKind::Exp, vec![Expr::mul(vec![Expr::int(-1), Expr::sym("x")])]),
-                Expr::func(
-                    FuncKind::Exp,
-                    vec![Expr::mul(vec![
-                        Expr::int(-2),
-                        Arc::new(Expr::Frac(
-                            Expr::pow(Expr::sym("x"), Expr::int(2)),
-                            Expr::add(vec![Expr::sym("x"), Expr::int(1)]),
-                        )),
-                    ])],
-                ),
-            ]),
-        ));
-        let e = Expr::mul(vec![
-            Expr::add(vec![
-                Expr::func(FuncKind::Exp, vec![inner]),
-                Expr::mul(vec![Expr::int(-1), Expr::func(FuncKind::Exp, vec![Expr::sym("x")])]),
-            ]),
-            Expr::pow(Expr::sym("x"), Expr::int(-1)),
-        ]);
+        let e = ck_int_61();
         let r = limit_at_plus_infinity(&e, &Ident::new("x"), &ctx).unwrap();
         assert_eq!(format_expr(r.as_ref()), "-exp(2)");
     }

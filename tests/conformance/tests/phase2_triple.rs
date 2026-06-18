@@ -2,8 +2,8 @@
 
 use giac_conformance::{
     phase2_format_diff, phase2_giac_gap, phase2_sympy_gap, run_giac, run_line, sympy_equiv,
-    triple_assert_sympy_rs, triple_check_script_filtered, triple_note_format_diffs,
-    giac_binary, verify_sympy,
+    triple_assert_sympy_rs, triple_check_script_filtered, triple_check_script_line,
+    triple_note_format_diffs, giac_binary, verify_sympy,
 };
 
 /// Lines from bin/test_poly — giac-rs must pass SymPy; cross-check Giac.
@@ -34,21 +34,36 @@ fn test_poly_ext_triple() -> Result<(), String> {
     Ok(())
 }
 
-#[test]
-fn test_modular_triple() -> Result<(), String> {
-    let results = triple_check_script_filtered("test_modular", |_| false)?;
-    assert_eq!(results.len(), 8);
-    triple_assert_sympy_rs(&results, phase2_sympy_gap)?;
-    for r in &results {
-        if !r.sympy_giac_ok && !phase2_giac_gap(&r.line) {
-            eprintln!(
-                "note: giac failed SymPy on {}: {}",
-                r.line, r.giac
-            );
+macro_rules! test_modular_line_triple {
+    ($fn_name:ident, $idx:literal) => {
+        #[test]
+        fn $fn_name() -> Result<(), String> {
+            let r = triple_check_script_line("test_modular", $idx, |_| false)?;
+            if !r.sympy_rs_ok && !phase2_sympy_gap(&r.line) {
+                return Err(format!(
+                    "giac-rs failed SymPy on {}: {}",
+                    r.line, r.giac_rs
+                ));
+            }
+            if !r.sympy_giac_ok && !phase2_giac_gap(&r.line) {
+                eprintln!(
+                    "note: giac failed SymPy on {}: {}",
+                    r.line, r.giac
+                );
+            }
+            Ok(())
         }
-    }
-    Ok(())
+    };
 }
+
+test_modular_line_triple!(test_modular_line_0_triple, 0);
+test_modular_line_triple!(test_modular_line_1_triple, 1);
+test_modular_line_triple!(test_modular_line_2_triple, 2);
+test_modular_line_triple!(test_modular_line_3_triple, 3);
+test_modular_line_triple!(test_modular_line_4_triple, 4);
+test_modular_line_triple!(test_modular_line_5_triple, 5);
+test_modular_line_triple!(test_modular_line_6_triple, 6);
+test_modular_line_triple!(test_modular_line_7_triple, 7);
 
 #[test]
 fn test_factor_triple() -> Result<(), String> {

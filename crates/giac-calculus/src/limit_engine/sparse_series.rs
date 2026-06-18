@@ -141,6 +141,12 @@ impl SparseSeries {
         self.terms.truncate(MAX_SERIES_TERMS);
     }
 
+    /// User-facing `series(f,x,c,n)` display: keep terms with degree `< order`.
+    pub(crate) fn truncate_display_order(&mut self, order: usize) {
+        self.terms
+            .retain(|(e, _)| *e < 0 || (*e as usize) < order);
+    }
+
     pub(crate) fn map_coeffs<F>(&self, f: F) -> Self
     where
         F: Fn(&ExprArc) -> ExprArc,
@@ -210,7 +216,8 @@ pub(crate) fn series_at_center(
     ctx: &Context,
 ) -> Result<ExprArc, EvalError> {
     if is_expr_zero(center) {
-        let s = series_at_zero(expr, var, order, ctx)?;
+        let mut s = series_at_zero(expr, var, order, ctx)?;
+        s.truncate_display_order(order);
         return series_sparse_to_expr(&s, var, center);
     }
     let t = Ident::new("_series_t");
@@ -218,7 +225,8 @@ pub(crate) fn series_at_center(
     let mut subs = HashMap::new();
     subs.insert(var.clone(), x_sub);
     let shifted = eval_subst_map(expr, &subs)?;
-    let s = series_at_zero(&shifted, &t, order, ctx)?;
+    let mut s = series_at_zero(&shifted, &t, order, ctx)?;
+    s.truncate_display_order(order);
     let delta = Expr::add(vec![
         var_to_expr(var),
         Expr::mul(vec![Expr::int(-1), Arc::clone(center)]),

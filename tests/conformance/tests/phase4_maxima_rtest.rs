@@ -82,30 +82,23 @@ fn phase4_maxima_rtest_all_parse() -> Result<(), String> {
 }
 
 #[test]
-fn phase4_maxima_rtest_enabled_sympy() -> Result<(), String> {
-    let fixture = load_fixture();
-    let enabled: Vec<_> = fixture.entries.iter().filter(|e| e.enabled).collect();
-    if enabled.is_empty() {
-        return Ok(());
-    }
+fn phase4_maxima_rtest_mx_limit_wester_lim_001() -> Result<(), String> {
+    assert_maxima_rtest_entry("MX_LIMIT_WESTER-LIM-001")
+}
 
-    let mut failures = Vec::new();
-    for entry in enabled {
-        let got = match run_line(&entry.line) {
-            Ok(out) => out,
-            Err(e) => {
-                failures.push((entry.id.clone(), entry.line.clone(), e));
-                continue;
-            }
-        };
-        if let Err(e) = verify_sympy(&entry.line, &got) {
-            failures.push((entry.id.clone(), got, e));
-        }
-    }
-    assert!(
-        failures.is_empty(),
-        "maxima rtest SymPy failures: {:?}",
-        failures
-    );
-    Ok(())
+#[test]
+fn phase4_maxima_rtest_mx_limit_wester_lim_002() -> Result<(), String> {
+    assert_maxima_rtest_entry("MX_LIMIT_WESTER-LIM-002")
+}
+
+fn assert_maxima_rtest_entry(id: &str) -> Result<(), String> {
+    let fixture = load_fixture();
+    let entry = fixture
+        .entries
+        .iter()
+        .find(|e| e.id == id)
+        .ok_or_else(|| format!("maxima rtest entry {id} not found"))?;
+    assert!(entry.enabled, "{id} is not enabled");
+    let got = run_line(&entry.line)?;
+    verify_sympy(&entry.line, &got)
 }

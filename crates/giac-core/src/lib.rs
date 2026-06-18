@@ -38,7 +38,8 @@ pub use linalg_plugin::LinalgPlugin;
 pub use ode_plugin::OdePlugin;
 pub use solve_plugin::SolvePlugin;
 pub use algebra::alg_ext::{
-    algext_square_roots, common_ext, contains_algext, try_as_algext_data, AlgExtData,
+    algext_sqrt_branches, algext_square_roots, common_ext, contains_algext, try_as_algext_data,
+    AlgExtData,
     try_rootof_to_algext,
 };
 pub use algebra::poly::{
