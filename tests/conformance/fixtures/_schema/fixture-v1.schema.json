@@ -1,0 +1,100 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://giac-rs.local/fixture-v1.schema.json",
+  "title": "Giac-rs external conformance fixture v1",
+  "type": "object",
+  "required": ["version", "source", "domain", "verify", "entries"],
+  "additionalProperties": false,
+  "properties": {
+    "version": { "const": 1 },
+    "source": {
+      "type": "object",
+      "required": ["name", "license"],
+      "properties": {
+        "name": { "enum": ["maxima", "sympy", "rubi", "fricas", "curated"] },
+        "file": { "type": "string" },
+        "revision": { "type": "string" },
+        "url": { "type": "string", "format": "uri" },
+        "license": { "type": "string" },
+        "extracted_at": { "type": "string", "format": "date" },
+        "extractor": { "type": "string" },
+        "extractor_version": { "type": "string" }
+      }
+    },
+    "domain": {
+      "enum": [
+        "limit",
+        "integrate",
+        "diff",
+        "solve",
+        "taylor",
+        "series",
+        "partfrac",
+        "desolve",
+        "poly",
+        "trig",
+        "other"
+      ]
+    },
+    "verify": {
+      "enum": [
+        "sympy_limit",
+        "integrate_derivative",
+        "diff_inverse",
+        "solve_residual",
+        "partfrac_expand",
+        "desolve_odesol",
+        "parse_only",
+        "literal"
+      ]
+    },
+    "entries": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/entry" }
+    }
+  },
+  "$defs": {
+    "entry": {
+      "type": "object",
+      "required": ["id", "line", "enabled"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "pattern": "^[A-Z]+(-[A-Z]+)+-[0-9]+$" },
+        "line": { "type": "string", "minLength": 1 },
+        "enabled": { "type": "boolean" },
+        "source_ref": { "type": "string" },
+        "upstream_input": { "type": "string" },
+        "expected_hint": { "type": "string" },
+        "expected": { "type": "string" },
+        "tags": {
+          "type": "array",
+          "items": { "type": "string" }
+        },
+        "giac_issue": { "type": "string" },
+        "bin_ref": { "type": "string" },
+        "notes": { "type": "string" },
+        "api": {
+          "type": "string",
+          "enum": [
+            "limit",
+            "integrate",
+            "diff",
+            "solve",
+            "taylor",
+            "series",
+            "partfrac",
+            "desolve",
+            "poly",
+            "trig",
+            "other"
+          ]
+        },
+        "verify": { "type": "string" },
+        "maxima_input": { "type": "string" },
+        "maxima_expected": { "type": "string" },
+        "source_file": { "type": "string" },
+        "source_line": { "type": "integer", "minimum": 1 }
+      }
+    }
+  }
+}

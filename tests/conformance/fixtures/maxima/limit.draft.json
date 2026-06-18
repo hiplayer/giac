@@ -1,0 +1,121 @@
+{
+  "version": 1,
+  "source": {
+    "name": "maxima",
+    "file": "tests/rtest_limit.mac (curated seed)",
+    "url": "https://sourceforge.net/p/maxima/code/ci/master/tree/tests/rtest_limit.mac",
+    "license": "GPL-2.0-or-later",
+    "extracted_at": "2026-06-18",
+    "extractor": "manual/seed",
+    "extractor_version": "0",
+    "notes": "Seed aligned with giac-calculus maxima_rtest (14 cases). Re-run extract_maxima_rtest.py to refresh."
+  },
+  "domain": "limit",
+  "verify": "sympy_limit",
+  "entries": [
+    {
+      "id": "LIM-M-001",
+      "line": "limit(sin(x)/x,x,0)",
+      "enabled": true,
+      "source_ref": "rtest_limit.mac:curated",
+      "expected_hint": "1",
+      "tags": ["finite_point"],
+      "giac_issue": "GIAC-215"
+    },
+    {
+      "id": "LIM-M-002",
+      "line": "limit((1-cos(x))/x^2,x,0)",
+      "enabled": true,
+      "source_ref": "rtest_limit.mac:curated",
+      "expected_hint": "1/2",
+      "tags": ["finite_point"]
+    },
+    {
+      "id": "LIM-M-003",
+      "line": "limit((1+1/n)^n,n,+infinity)",
+      "enabled": false,
+      "expected_hint": "exp(1)",
+      "tags": ["+infinity"]
+    },
+    {
+      "id": "LIM-M-004",
+      "line": "limit(a/n,n,+infinity)",
+      "enabled": false,
+      "expected_hint": "0",
+      "tags": ["+infinity", "parameter"]
+    },
+    {
+      "id": "LIM-M-005",
+      "line": "limit(7^n/8^n,n,+infinity)",
+      "enabled": false,
+      "expected_hint": "0",
+      "tags": ["+infinity", "MRV"]
+    },
+    {
+      "id": "LIM-M-006",
+      "line": "limit(4^n/2^(2*n),n,+infinity)",
+      "enabled": false,
+      "expected_hint": "1",
+      "tags": ["+infinity"]
+    },
+    {
+      "id": "LIM-M-007",
+      "line": "limit(x*(sqrt(1+x^2)-x),x,+infinity)",
+      "enabled": false,
+      "expected_hint": "1/2",
+      "tags": ["+infinity", "sqrt"]
+    },
+    {
+      "id": "LIM-M-008",
+      "line": "limit(x/(x^ln(x)),x,+infinity)",
+      "enabled": false,
+      "expected_hint": "0",
+      "tags": ["+infinity"]
+    },
+    {
+      "id": "LIM-M-009",
+      "line": "limit((1+1/x)*(sqrt(x+1)+1),x,+infinity)",
+      "enabled": false,
+      "expected_hint": "+infinity",
+      "tags": ["+infinity"]
+    },
+    {
+      "id": "LIM-M-010",
+      "line": "limit(x*atan(x)/(x+1),x,+infinity)",
+      "enabled": false,
+      "expected_hint": "pi/2",
+      "tags": ["+infinity"]
+    },
+    {
+      "id": "LIM-M-011",
+      "line": "limit((3^x+5^x)^(1/x),x,+infinity)",
+      "enabled": false,
+      "expected_hint": "5",
+      "tags": ["+infinity"]
+    },
+    {
+      "id": "LIM-M-012",
+      "line": "limit(exp(x)*(exp(1/x-exp(-x))-exp(1/x)),x,+infinity)",
+      "enabled": false,
+      "expected_hint": "-1",
+      "tags": ["gruntz", "+infinity"],
+      "giac_issue": "GIAC-limit-exp-diff"
+    },
+    {
+      "id": "LIM-M-013",
+      "line": "limit(placeholder_ck_int_60,x,+infinity)",
+      "enabled": false,
+      "expected_hint": "1",
+      "tags": ["gruntz", "CK-INT-60"],
+      "notes": "Replace line with exact upstream expr from rtest_gruntz; see GIAC-216e"
+    },
+    {
+      "id": "LIM-M-014",
+      "line": "limit(placeholder_gruntz_nested_exp,x,+infinity)",
+      "enabled": false,
+      "expected_hint": "1",
+      "tags": ["gruntz"],
+      "notes": "Replace line with extracted upstream from rtest_gruntz.mac"
+    }
+  ]
+}

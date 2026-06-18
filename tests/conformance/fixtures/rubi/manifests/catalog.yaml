@@ -1,0 +1,22 @@
+# Rubi integration test catalog (subset indexing)
+# Full suite: ~72k problems — https://rulebasedintegration.org/testProblems.html
+#
+# Each entry maps a Rubi download category to a giac-rs fixture path.
+# Use extract_rubi_problems.py (待实现) with --max for sampling.
+
+categories:
+  - id: timofeev_705
+    rubi_path: "0_Independent_test_suites/11_Timofeev_Problems"
+    fixture: "fixtures/rubi/samples/timofeev_705.draft.json"
+    verify: integrate_derivative
+    max_ci: 50
+    notes: "Nasser Abbasi 2024 report benchmark subset"
+
+  - id: trig_tangent_4_3_11
+    rubi_path: "4_Trig_functions/4.3_Tangent/223_4.3.11"
+    fixture: "fixtures/rubi/samples/trig_4_3_11.draft.json"
+    verify: integrate_derivative
+    max_ci: 20
+
+# PR gate: none enabled by default
+# Nightly: cargo test -p giac-conformance --test external_rubi -- --ignored

@@ -1,0 +1,25 @@
+{
+  "version": 1,
+  "source": {
+    "name": "rubi",
+    "file": "0_Independent_test_suites/11_Timofeev_Problems",
+    "url": "https://rulebasedintegration.org/testProblems.html",
+    "license": "MIT",
+    "extracted_at": "2026-06-18",
+    "extractor": "manual/seed",
+    "extractor_version": "0",
+    "notes": "Sample only; full Timofeev set has 705 problems — use extract_rubi_problems.py"
+  },
+  "domain": "integrate",
+  "verify": "integrate_derivative",
+  "entries": [
+    {
+      "id": "INT-R-001",
+      "line": "integrate(1/(a^2+x^2),x)",
+      "enabled": false,
+      "tags": ["parameter", "algebraic"],
+      "expected_hint": "atan(x/a)/a",
+      "notes": "Timofeev-style; parameter a>0 assumed in SymPy verify"
+    }
+  ]
+}

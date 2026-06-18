@@ -1,0 +1,10 @@
+/* Sample Maxima rtest snippet for local extractor dry-run */
+
+limit(sin(x)/x,x,0);
+1$
+
+limit((1-cos(x))/x^2,x,0);
+1/2$
+
+integrate(x^2,x);
+x^3/3$

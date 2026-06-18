@@ -1,0 +1,5 @@
+# Clone upstream repos here (gitignored). See README.md in this directory.
+
+maxima/
+sympy/
+rubi/

@@ -1,0 +1,31 @@
+{
+  "version": 1,
+  "source": {
+    "name": "sympy",
+    "file": "sympy/series/tests/test_limits.py (curated seed)",
+    "url": "https://github.com/sympy/sympy/blob/master/sympy/series/tests/test_limits.py",
+    "license": "BSD-3-Clause",
+    "extracted_at": "2026-06-18",
+    "extractor": "manual/seed",
+    "extractor_version": "0"
+  },
+  "domain": "limit",
+  "verify": "sympy_limit",
+  "entries": [
+    {
+      "id": "LIM-S-001",
+      "line": "limit(sin(x)/x,x,0)",
+      "enabled": false,
+      "source_ref": "test_limits.py:curated",
+      "upstream_input": "limit(sin(x)/x, x, 0)",
+      "expected_hint": "1"
+    },
+    {
+      "id": "LIM-S-002",
+      "line": "limit((1+1/x)^x,x,+infinity)",
+      "enabled": false,
+      "upstream_input": "limit((1 + 1/x)**x, x, oo)",
+      "expected_hint": "exp(1)"
+    }
+  ]
+}

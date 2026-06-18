@@ -1,0 +1,45 @@
+# Maxima rtest → giac-rs fixture batch jobs
+# Usage: python3 scripts/extract_maxima_rtest.py --manifest scripts/manifests/maxima.yaml
+#
+# Requires: sources/maxima checkout (see sources/README.md)
+
+- input: sources/maxima/tests/rtest_limit.mac
+  domain: limit
+  output: fixtures/maxima/limit.draft.json
+  prefix: LIM-M
+  source_url: https://sourceforge.net/p/maxima/code/ci/master/tree/tests/rtest_limit.mac
+
+- input: sources/maxima/tests/rtest_limit_extra.mac
+  domain: limit
+  output: fixtures/maxima/limit_extra.draft.json
+  prefix: LIM-M
+  start_id: 500
+
+- input: sources/maxima/tests/rtest_integrate.mac
+  domain: integrate
+  output: fixtures/maxima/integrate.draft.json
+  prefix: INT-M
+
+- input: sources/maxima/tests/rtestint.mac
+  domain: integrate
+  output: fixtures/maxima/integrate_int.draft.json
+  prefix: INT-M
+  start_id: 500
+
+- input: sources/maxima/tests/rtest_taylor.mac
+  domain: taylor
+  output: fixtures/maxima/taylor.draft.json
+  prefix: SER-M
+
+- input: sources/maxima/tests/rtest_trig.mac
+  domain: trig
+  output: fixtures/maxima/trig.draft.json
+  prefix: TRG-M
+
+# gruntz path varies by Maxima version; adjust after clone:
+# - input: sources/maxima/share/gruntz/rtest_gruntz.mac
+#   domain: limit
+#   output: fixtures/maxima/gruntz.draft.json
+#   prefix: LIM-M
+#   tag: gruntz
+#   start_id: 900
