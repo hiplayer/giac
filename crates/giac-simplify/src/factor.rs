@@ -5,7 +5,7 @@ use num_rational::Ratio;
 use num_traits::{One, Signed, Zero};
 
 use giac_core::{Context, EvalError, Expr, ExprArc, FuncKind};
-use giac_poly::{factor_into, factor_poly, ratio_perfect_sqrt, univariate_degree, vars_in};
+use giac_poly::{factor_into, factor_poly, ratio_perfect_sqrt, univariate_degree, vars_in, coeff_at};
 use giac_poly::Poly;
 
 use crate::ifactor::ifactor;
@@ -86,6 +86,11 @@ fn factor_poly_form(e: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
                 factors.into_iter().map(|f| poly_to_expr(&f)).collect(),
             ));
         }
+    }
+    if let Some(factors) = try_factor_quadratic_rootof(&p) {
+        return Ok(Expr::mul(factors));
+    }
+    if let Some(factors) = factor_into(&p) {
         if factors.len() == 1 {
             return Ok(poly_to_expr(&factors[0]));
         }
@@ -96,6 +101,62 @@ fn factor_poly_form(e: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
         }
     }
     Ok(poly_to_expr(&factor_poly(&p)))
+}
+
+fn try_factor_quadratic_rootof(p: &Poly) -> Option<Vec<ExprArc>> {
+    let vars = vars_in(p);
+    if vars.len() != 1 {
+        return None;
+    }
+    let var = &vars[0];
+    if univariate_degree(p, var) != 2 {
+        return None;
+    }
+    let mut a = Ratio::zero();
+    let mut b = Ratio::zero();
+    let mut c = Ratio::zero();
+    for (m, coeff) in &p.terms {
+        match m.exp_of(var) {
+            2 => a += coeff,
+            1 => b += coeff,
+            0 => c += coeff,
+            _ => return None,
+        }
+    }
+    if a.is_zero() {
+        return None;
+    }
+    let disc = &b * &b - Ratio::from_integer(BigInt::from(4)) * &a * &c;
+    if disc.is_zero() || ratio_perfect_sqrt(&disc).is_some() {
+        return None;
+    }
+    let minpoly = poly1_from_univariate(p, var);
+    let pos = giac_core::AlgExtData::from_rootof(
+        &Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])),
+        &minpoly,
+    )
+    .ok()?
+    .into_expr();
+    let neg = giac_core::AlgExtData::from_rootof(
+        &Arc::new(Expr::Seq(vec![Expr::int(-1), Expr::int(0)])),
+        &minpoly,
+    )
+    .ok()?
+    .into_expr();
+    let x = poly_to_expr(&Poly::var(var.clone()));
+    Some(vec![
+        Expr::add(vec![x.clone(), Expr::mul(vec![Expr::int(-1), pos])]),
+        Expr::add(vec![x, Expr::mul(vec![Expr::int(-1), neg])]),
+    ])
+}
+
+fn poly1_from_univariate(poly: &Poly, var: &giac_poly::Var) -> ExprArc {
+    let deg = univariate_degree(poly, var);
+    let mut coeffs = Vec::with_capacity((deg + 1) as usize);
+    for e in (0..=deg).rev() {
+        coeffs.push(poly_to_expr(&Poly::constant(coeff_at(poly, var, e))));
+    }
+    Expr::func(FuncKind::Poly1, vec![Arc::new(Expr::Seq(coeffs))])
 }
 
 fn try_factor_quadratic_sqrt(p: &Poly) -> Option<Vec<ExprArc>> {

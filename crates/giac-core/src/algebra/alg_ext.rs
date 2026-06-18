@@ -422,6 +422,11 @@ pub fn fold_algext_sum(terms: &[ExprArc]) -> Result<ExprArc, EvalError> {
                     .find(|(k, _)| k == &a.min_poly)
                 {
                     *acc = acc.add(a)?;
+                } else if groups.len() == 1 {
+                    let (_, acc) = groups.remove(0);
+                    let (_, ae, be) = common_ext(a, &acc)?;
+                    let sum = ae.add(&be)?;
+                    groups.push((sum.min_poly.clone(), sum));
                 } else {
                     groups.push((a.min_poly.clone(), (**a).clone()));
                 }
@@ -557,6 +562,305 @@ pub fn try_as_algext_data(e: &Expr) -> Option<AlgExtData> {
     }
 }
 
+/// Square roots of `u` in an algebraic extension (two branches when defined).
+pub fn algext_square_roots(u: &AlgExtData) -> Result<Vec<AlgExtData>, EvalError> {
+    if u.is_zero() {
+        return Ok(vec![AlgExtData::zero(u.min_poly.clone())]);
+    }
+    let m = rationalize_poly1_expr(&u.min_poly)?;
+    let f = rationalize_poly1_expr(&u.coords)?;
+    let min_s = if f == generator_coords(poly_degree(&m)) {
+        minpoly_at_square(&m)
+    } else {
+        sqrt_minpoly_via_matrix(&f, &m)?
+    };
+    let min_poly = coords_to_expr(&min_s)?;
+    let n = poly_degree(&min_s);
+    let u_embedded = AlgExtData {
+        min_poly: min_poly.clone(),
+        coords: coords_to_expr(&embed_in_square_extension(&f, poly_degree(&m), n))?,
+        root_index: None,
+    };
+    for trial in 0..n {
+        let mut coords = vec![Ratio::zero(); n];
+        coords[n - 1 - trial] = Ratio::one();
+        let beta = AlgExtData {
+            min_poly: min_poly.clone(),
+            coords: coords_to_expr(&coords)?,
+            root_index: None,
+        };
+        if beta.mul(&beta)?.eq_mod(&u_embedded)? {
+            let neg = beta.mul_rational(&Ratio::from_integer(-BigInt::one()))?;
+            return Ok(vec![beta, neg]);
+        }
+    }
+    Err(EvalError::NotImplemented("alg ext square root"))
+}
+
+/// Merge two extension elements into a common field and return their sum (`common_EXT` MVP).
+pub fn common_ext(a: &AlgExtData, b: &AlgExtData) -> Result<(AlgExtData, AlgExtData, AlgExtData), EvalError> {
+    if a.min_poly == b.min_poly {
+        return Ok((
+            AlgExtData {
+                min_poly: a.min_poly.clone(),
+                coords: vec![Expr::int(1)],
+                root_index: None,
+            },
+            a.clone(),
+            b.clone(),
+        ));
+    }
+    let ma = rationalize_poly1_expr(&a.min_poly)?;
+    let mb = rationalize_poly1_expr(&b.min_poly)?;
+    let na = poly_degree(&ma);
+    let nb = poly_degree(&mb);
+    for k in 1i64..=32 {
+        let (min_g, embed_a, embed_b) = match common_ext_primitive_sum(
+            &ma, &mb, &a.coords, &b.coords, k,
+        ) {
+            Ok(v) => v,
+            Err(EvalError::TypeError(_)) => continue,
+            Err(e) => return Err(e),
+        };
+        let min_poly = coords_to_expr(&min_g)?;
+        let gamma = AlgExtData {
+            min_poly: min_poly.clone(),
+            coords: vec![Expr::int(1)],
+            root_index: None,
+        };
+        let ae = AlgExtData {
+            min_poly: min_poly.clone(),
+            coords: embed_a,
+            root_index: None,
+        };
+        let be = AlgExtData {
+            min_poly: min_poly.clone(),
+            coords: embed_b,
+            root_index: None,
+        };
+        let gamma = AlgExtData {
+            min_poly: min_poly.clone(),
+            coords: vec![Expr::int(1)],
+            root_index: None,
+        };
+        let _ = (na, nb, k);
+        return Ok((gamma, ae, be));
+    }
+    Err(EvalError::NotImplemented("common_EXT"))
+}
+
+fn sqrt_minpoly_via_matrix(f: &[Ratio<BigInt>], m: &[Ratio<BigInt>]) -> Result<Vec<Ratio<BigInt>>, EvalError> {
+    let n = poly_degree(m);
+    let mat_u = mult_matrix_of_element(f, m);
+    let mut block = vec![vec![Ratio::zero(); 2 * n]; 2 * n];
+    for i in 0..n {
+        block[i][n + i] = Ratio::one();
+        for j in 0..n {
+            block[n + i][j] = mat_u[i][j].clone();
+        }
+    }
+    Ok(char_poly_matrix(&block))
+}
+
+fn mult_matrix_of_element(u: &[Ratio<BigInt>], m: &[Ratio<BigInt>]) -> Vec<Vec<Ratio<BigInt>>> {
+    let n = poly_degree(m);
+    let mut mat = vec![vec![Ratio::zero(); n]; n];
+    for j in 0..n {
+        let mut basis = vec![Ratio::zero(); n];
+        basis[n - 1 - j] = Ratio::one();
+        let prod = poly_reduce(&poly_mul(u, &basis), m);
+        let prod = pad_to_len(&prod, n);
+        for i in 0..n {
+            mat[i][j] = prod[i].clone();
+        }
+    }
+    mat
+}
+
+fn pad_to_len(v: &[Ratio<BigInt>], n: usize) -> Vec<Ratio<BigInt>> {
+    if v.len() >= n {
+        return v[v.len() - n..].to_vec();
+    }
+    let mut out = vec![Ratio::zero(); n - v.len()];
+    out.extend(v.iter().cloned());
+    out
+}
+
+fn char_poly_matrix(mat: &[Vec<Ratio<BigInt>>]) -> Vec<Ratio<BigInt>> {
+    let n = mat.len();
+    let mut pow = identity_matrix(n);
+    let mut traces = Vec::with_capacity(n);
+    for _ in 0..n {
+        pow = mat_mul(&pow, mat);
+        let tr = (0..n).map(|i| pow[i][i].clone()).fold(Ratio::zero(), |a, b| a + b);
+        traces.push(tr);
+    }
+    newton_char_poly(&traces, n)
+}
+
+fn identity_matrix(n: usize) -> Vec<Vec<Ratio<BigInt>>> {
+    let mut out = vec![vec![Ratio::zero(); n]; n];
+    for i in 0..n {
+        out[i][i] = Ratio::one();
+    }
+    out
+}
+
+fn newton_char_poly(traces: &[Ratio<BigInt>], n: usize) -> Vec<Ratio<BigInt>> {
+    let mut e = vec![Ratio::zero(); n + 1];
+    e[0] = Ratio::one();
+    for k in 1..=n {
+        let mut ek = Ratio::zero();
+        for j in 1..k {
+            ek -= e[j].clone() * traces[k - j - 1].clone();
+        }
+        ek -= traces[k - 1].clone();
+        ek /= Ratio::from_integer(BigInt::from(k as i64));
+        e[k] = ek;
+    }
+    let mut out = vec![Ratio::one(); n + 1];
+    for k in 1..=n {
+        out[k] = if k % 2 == 1 {
+            -e[k].clone()
+        } else {
+            e[k].clone()
+        };
+    }
+    trim_leading_zero(out)
+}
+
+fn mat_mul(a: &[Vec<Ratio<BigInt>>], b: &[Vec<Ratio<BigInt>>]) -> Vec<Vec<Ratio<BigInt>>> {
+    let n = a.len();
+    let mut out = vec![vec![Ratio::zero(); n]; n];
+    for i in 0..n {
+        for j in 0..n {
+            for k in 0..n {
+                out[i][j] += a[i][k].clone() * b[k][j].clone();
+            }
+        }
+    }
+    out
+}
+
+fn kron_left(a: &[Vec<Ratio<BigInt>>], nb: usize) -> Vec<Vec<Ratio<BigInt>>> {
+    let na = a.len();
+    let dim = na * nb;
+    let mut out = vec![vec![Ratio::zero(); dim]; dim];
+    for jb in 0..nb {
+        for ja in 0..na {
+            for ia in 0..na {
+                out[ja + jb * na][ia + jb * na] += a[ja][ia].clone();
+            }
+        }
+    }
+    out
+}
+
+fn common_ext_primitive_sum(
+    ma: &[Ratio<BigInt>],
+    mb: &[Ratio<BigInt>],
+    ca: &[ExprArc],
+    cb: &[ExprArc],
+    k: i64,
+) -> Result<(Vec<Ratio<BigInt>>, Vec<ExprArc>, Vec<ExprArc>), EvalError> {
+    let fa = rationalize_poly1_expr(ca)?;
+    let fb = rationalize_poly1_expr(cb)?;
+    let na = poly_degree(ma);
+    let nb = poly_degree(mb);
+    let gen_a = generator_coords(na);
+    let gen_b = generator_coords(nb);
+    let mat_a = kron_left(&mult_matrix_of_element(&gen_a, ma), nb);
+    let mat_b = kron_left(&mult_matrix_of_element(&gen_b, mb), na);
+    let k_rat = Ratio::from_integer(BigInt::from(k));
+    let dim = na * nb;
+    let mut mat_theta = mat_a.clone();
+    for i in 0..dim {
+        for j in 0..dim {
+            mat_theta[i][j] += k_rat.clone() * mat_b[i][j].clone();
+        }
+    }
+    let min_g = char_poly_matrix(&mat_theta);
+    if poly_degree(&min_g) != dim {
+        return Err(EvalError::TypeError("common_EXT degree mismatch"));
+    }
+    let min_poly = coords_to_expr(&min_g)?;
+    let gamma = AlgExtData {
+        min_poly: min_poly.clone(),
+        coords: vec![Expr::int(1)],
+        root_index: None,
+    };
+    let mut embed_a = vec![Ratio::zero(); dim];
+    for i in 0..na {
+        embed_a[i] = fa[na - 1 - i].clone();
+    }
+    let mut embed_b = vec![Ratio::zero(); dim];
+    for j in 0..nb {
+        embed_b[j * na] = fb[nb - 1 - j].clone();
+    }
+    Ok((
+        min_g,
+        coords_to_expr(&embed_in_gamma(&embed_a, &mat_theta, &gamma)?)?,
+        coords_to_expr(&embed_in_gamma(&embed_b, &mat_theta, &gamma)?)?,
+    ))
+}
+
+fn generator_coords(n: usize) -> Vec<Ratio<BigInt>> {
+    let mut v = vec![Ratio::zero(); n];
+    if n > 0 {
+        v[0] = Ratio::one();
+    }
+    v
+}
+
+fn minpoly_at_square(m: &[Ratio<BigInt>]) -> Vec<Ratio<BigInt>> {
+    let n = poly_degree(m);
+    let mut out = vec![Ratio::zero(); 2 * n + 1];
+    for i in 0..=n {
+        out[2 * i] += m[i].clone();
+    }
+    trim_leading_zero(out)
+}
+
+fn embed_in_square_extension(
+    f: &[Ratio<BigInt>],
+    n_old: usize,
+    n_new: usize,
+) -> Vec<Ratio<BigInt>> {
+    let mut out = vec![Ratio::zero(); n_new];
+    for (i, c) in f.iter().enumerate() {
+        if c.is_zero() {
+            continue;
+        }
+        let exp = 2 * (n_old - 1 - i);
+        if exp < n_new {
+            out[n_new - 1 - exp] += c.clone();
+        }
+    }
+    out
+}
+
+fn embed_in_gamma(
+    v: &[Ratio<BigInt>],
+    mat_theta: &[Vec<Ratio<BigInt>>],
+    gamma: &AlgExtData,
+) -> Result<Vec<Ratio<BigInt>>, EvalError> {
+    let dim = v.len();
+    let ng = poly_degree(&rationalize_poly1_expr(&gamma.min_poly)?);
+    let mut pow = identity_matrix(dim);
+    let mut basis = vec![vec![Ratio::zero(); dim]; dim];
+    for i in 0..dim {
+        basis[i] = pow[i].clone();
+        pow = mat_mul(&pow, mat_theta);
+    }
+    let mut out = vec![Ratio::zero(); ng];
+    for i in 0..dim {
+        for j in 0..dim {
+            out[j] += v[i].clone() * basis[i][j].clone();
+        }
+    }
+    Ok(pad_to_len(&out, ng))
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -601,6 +905,28 @@ mod tests {
         .unwrap();
         let z = pos.add(&neg).unwrap();
         assert!(z.is_zero());
+    }
+
+    #[test]
+    fn algext_sqrt_of_sqrt2() {
+        let min = q_minpoly();
+        let sqrt2 = AlgExtData::from_rootof(
+            &Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])),
+            &min,
+        )
+        .unwrap();
+        let roots = algext_square_roots(&sqrt2).unwrap();
+        assert_eq!(roots.len(), 2);
+        let m = rationalize_poly1_expr(&sqrt2.min_poly).unwrap();
+        let f = rationalize_poly1_expr(&sqrt2.coords).unwrap();
+        let n = poly_degree(&rationalize_poly1_expr(&roots[0].min_poly).unwrap());
+        let u_embedded = AlgExtData {
+            min_poly: roots[0].min_poly.clone(),
+            coords: coords_to_expr(&embed_in_square_extension(&f, poly_degree(&m), n)).unwrap(),
+            root_index: None,
+        };
+        let prod = roots[0].mul(&roots[0]).unwrap();
+        assert!(prod.eq_mod(&u_embedded).unwrap());
     }
 
     #[test]

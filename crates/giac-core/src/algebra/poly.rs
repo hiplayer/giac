@@ -6,15 +6,21 @@ use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::{One, Zero};
 
-use crate::{EvalError, Expr, ExprArc, Ident};
+use crate::{EvalError, Expr, ExprArc, FuncKind, Ident};
 
 fn var(id: &Ident) -> Var {
     Arc::from(id.as_str())
 }
-
-/// Try to convert an expression to a polynomial.
+/// Convert an expression to a polynomial over ℚ in its variables.
+///
+/// Algebraic extension constants (`Expr::AlgExt`, concrete `rootof(...)`) are
+/// not polynomial coefficients; conversion fails with [`EvalError::TypeError`].
 pub fn expr_to_poly(expr: &Expr) -> Result<Poly, EvalError> {
     match expr {
+        Expr::AlgExt(_) => Err(EvalError::TypeError("alg ext not allowed in polynomial")),
+        Expr::Func(FuncKind::RootOf, _) => {
+            Err(EvalError::TypeError("rootof not allowed in polynomial"))
+        }
         Expr::Int(n) => Ok(Poly::constant(Ratio::from_integer(n.clone()))),
         Expr::Rat(r) => Ok(Poly::constant(r.clone())),
         Expr::Symbol(id) => Ok(Poly::var(var(id))),
@@ -145,7 +151,7 @@ fn collect_vars(expr: &Expr, out: &mut Vec<Var>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::Expr;
+    use crate::AlgExtData;
 
     #[test]
     fn gcd_linear_bridge() {
@@ -194,12 +200,24 @@ mod tests {
     }
 
     #[test]
-    fn expr_to_poly_exponent_over_limit() {
-        let over = (crate::limits::MAX_POLY_EXPONENT + 1) as i64;
-        let e = Expr::pow(Expr::sym("x"), Expr::int(over));
+    fn expr_to_poly_rejects_algext() {
+        let min = Arc::new(Expr::Func(
+            FuncKind::Poly1,
+            vec![Arc::new(Expr::Seq(vec![
+                Expr::int(1),
+                Expr::int(0),
+                Expr::int(-2),
+            ]))],
+        ));
+        let e = AlgExtData::from_rootof(
+            &Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])),
+            &min,
+        )
+        .unwrap()
+        .into_expr();
         assert!(matches!(
-            expr_to_poly(&e),
-            Err(EvalError::TypeError("polynomial exponent exceeds limit"))
+            expr_to_poly(e.as_ref()),
+            Err(EvalError::TypeError("alg ext not allowed in polynomial"))
         ));
     }
 }

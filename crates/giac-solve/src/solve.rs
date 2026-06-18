@@ -5,7 +5,7 @@ use num_bigint::BigInt;
 use giac_linalg::eval_linsolve;
 use giac_poly::{roots, PolyError, Var};
 
-use crate::rootof::quadratic_rootof_roots;
+use crate::rootof::{biquadratic_rootof_roots, quadratic_rootof_roots};
 
 /// `solve(equation, var)` or `solve([equations], [vars])`.
 pub fn eval_solve(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
@@ -23,7 +23,8 @@ pub fn eval_solve(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError>
     let v = Var::from(var.as_str());
     let items: Vec<ExprArc> = match roots(&poly, &v) {
         Ok(rs) => rs.into_iter().map(|p| poly_to_expr(&p)).collect(),
-        Err(PolyError::NotImplemented(_)) => quadratic_rootof_roots(&poly, &v)?,
+        Err(PolyError::NotImplemented(_)) => quadratic_rootof_roots(&poly, &v)
+            .or_else(|_| biquadratic_rootof_roots(&poly, &v))?,
         Err(e) => return Err(poly_err(e)),
     };
     eval(Arc::new(Expr::List(items)).as_ref(), ctx)

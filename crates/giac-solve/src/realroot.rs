@@ -1,9 +1,8 @@
 use std::sync::Arc;
 
-use giac_core::{
-    eval, expr_to_poly, poly_to_expr, Context, EvalError, Expr, ExprArc,
-};
+use giac_core::{eval, expr_to_poly, poly_to_expr, Context, EvalError, Expr, ExprArc, FuncKind};
 use giac_poly::{coeff_at, factor_into, univariate_degree, Poly, PolyError, Var};
+use crate::rootof::quadratic_rootof_roots;
 use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::Zero;
@@ -18,17 +17,44 @@ pub fn eval_realroot(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalErr
     if univariate_degree(&poly, &var) == 0 {
         return Err(EvalError::TypeError("constant polynomial"));
     }
-    let roots = rational_real_roots(&poly, &var).map_err(poly_err)?;
+    let roots = algebraic_real_roots(&poly, &var).map_err(poly_err)?;
     let items: Vec<ExprArc> = roots
         .into_iter()
         .map(|(r, m)| {
             Arc::new(Expr::List(vec![
-                poly_to_expr(&Poly::constant(r)),
+                r,
                 Expr::int(i64::try_from(m).unwrap_or(1)),
             ]))
         })
         .collect();
     Ok(Arc::new(Expr::List(items)))
+}
+
+fn algebraic_real_roots(
+    p: &Poly,
+    var: &Var,
+) -> Result<Vec<(ExprArc, usize)>, PolyError> {
+    if let Ok(rational) = rational_real_roots(p, var) {
+        if !rational.is_empty() {
+            return Ok(rational
+                .into_iter()
+                .map(|(r, m)| (poly_to_expr(&Poly::constant(r)), m))
+                .collect());
+        }
+    }
+    if univariate_degree(p, var) == 2 {
+        let rs = quadratic_rootof_roots(p, var).map_err(|e| match e {
+            giac_core::EvalError::NotImplemented(s) => PolyError::NotImplemented(s),
+            giac_core::EvalError::TypeError(s) => PolyError::TypeError(s),
+            _ => PolyError::NotImplemented("realroot"),
+        })?;
+        return Ok(rs.into_iter().map(|r| (r, 1)).collect());
+    }
+    rational_real_roots(p, var).map(|rs| {
+        rs.into_iter()
+            .map(|(r, m)| (poly_to_expr(&Poly::constant(r)), m))
+            .collect()
+    })
 }
 
 fn rational_real_roots(
@@ -79,6 +105,19 @@ mod tests {
 
     use super::*;
     use crate::plugin::xcas_default;
+
+    #[test]
+    fn realroot_x_squared_minus_two() {
+        let ctx = xcas_default();
+        let p = Expr::add(vec![
+            Expr::pow(Expr::sym("x"), Expr::int(2)),
+            Expr::int(-2),
+        ]);
+        let e = Expr::func(FuncKind::Realroot, vec![p]);
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        let s = format_expr(r.as_ref());
+        assert!(s.contains("rootof"), "got {s}");
+    }
 
     #[test]
     fn realroot_x_fourth_minus_one() {
