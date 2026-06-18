@@ -65,4 +65,34 @@ mod tests {
         let s = format_expr(r.as_ref());
         assert!(s.contains("1/2") && s.contains("x^2"), "got {s}");
     }
+
+    #[test]
+    fn eval_limit_via_plugin() {
+        let ctx = xcas_default();
+        let e = Expr::func(
+            FuncKind::Limit,
+            vec![
+                Expr::pow(Expr::sym("x"), Expr::int(-1)),
+                Expr::sym("x"),
+                Expr::sym("+infinity"),
+            ],
+        );
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "0");
+    }
+
+    #[test]
+    fn eval_series_via_plugin() {
+        let ctx = xcas_default();
+        let e = Expr::func(
+            FuncKind::Series,
+            vec![
+                Expr::sym("x"),
+                Expr::sym("x"),
+                Expr::int(0),
+                Expr::int(3),
+            ],
+        );
+        assert!(eval(e.as_ref(), &ctx).is_ok());
+    }
 }

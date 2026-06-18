@@ -39,4 +39,16 @@ mod tests {
         assert!(depends_on_var(&e, &var));
         assert!(is_const_wrt(&Expr::int(2), &var));
     }
+
+    #[test]
+    fn depends_on_var_pow_frac_func() {
+        let var = Ident::new("x");
+        let pow = Expr::pow(Expr::sym("x"), Expr::int(2));
+        let frac: ExprArc = Expr::Frac(Expr::sym("x"), Expr::int(1)).into();
+        let f = Expr::func(giac_core::FuncKind::Sin, vec![Expr::sym("x")]);
+        assert!(depends_on_var(&pow, &var));
+        assert!(depends_on_var(&frac, &var));
+        assert!(depends_on_var(&f, &var));
+        assert!(is_const_wrt(&pow, &Ident::new("y")));
+    }
 }

@@ -24,3 +24,22 @@ use crate::eval_integrate::eval_integrate;
 pub fn eval_risch(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     eval_integrate(args, ctx)
 }
+
+#[cfg(test)]
+mod tests {
+    use giac_core::{eval, Expr, FuncKind};
+
+    use crate::plugin::xcas_default;
+
+    use super::eval_risch;
+
+    #[test]
+    fn eval_risch_delegates_to_integrate() {
+        let ctx = xcas_default();
+        let e = Expr::func(
+            FuncKind::Risch,
+            vec![Expr::sym("x"), Expr::sym("x")],
+        );
+        assert!(eval(e.as_ref(), &ctx).is_ok());
+    }
+}

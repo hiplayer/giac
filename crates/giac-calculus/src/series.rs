@@ -222,4 +222,142 @@ mod tests {
         let s = format_expr(r.as_ref());
         assert!(s.contains("x"), "got {s}");
     }
+
+    #[test]
+    fn series_at_plus_infinity_exp() {
+        let ctx = xcas_default();
+        let e = Expr::func(
+            FuncKind::Series,
+            vec![
+                Expr::func(FuncKind::Exp, vec![Expr::sym("x")]),
+                Expr::sym("x"),
+                Expr::sym("+infinity"),
+                Expr::int(4),
+            ],
+        );
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        let s = format_expr(r.as_ref());
+        assert!(!s.is_empty(), "got {s}");
+    }
+
+    #[test]
+    fn taylor_at_one() {
+        let ctx = xcas_default();
+        let e = Expr::func(
+            FuncKind::Taylor,
+            vec![
+                Expr::pow(Expr::sym("x"), Expr::int(2)),
+                Expr::sym("x"),
+                Expr::int(1),
+                Expr::int(3),
+            ],
+        );
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        let s = format_expr(r.as_ref());
+        assert!(s.contains("x"), "got {s}");
+    }
+
+    #[test]
+    fn series_too_few_args() {
+        let ctx = xcas_default();
+        let e = Expr::func(FuncKind::Series, vec![Expr::sym("x")]);
+        assert!(eval(e.as_ref(), &ctx).is_err());
+    }
+
+    #[test]
+    fn series_order_zero() {
+        let ctx = xcas_default();
+        let e = Expr::func(
+            FuncKind::Series,
+            vec![
+                Expr::sym("x"),
+                Expr::sym("x"),
+                Expr::int(0),
+                Expr::int(0),
+            ],
+        );
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "0");
+    }
+
+    #[test]
+    fn series_two_arg_var_symbol_defaults_center_zero() {
+        let ctx = xcas_default();
+        let e = Expr::func(
+            FuncKind::Series,
+            vec![Expr::sym("x"), Expr::sym("x"), Expr::int(2)],
+        );
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        let s = format_expr(r.as_ref());
+        assert!(s.contains("x"), "got {s}");
+    }
+
+    #[test]
+    fn series_ln_one_plus_x() {
+        let ctx = xcas_default();
+        let e = Expr::func(
+            FuncKind::Series,
+            vec![
+                Expr::func(
+                    FuncKind::Ln,
+                    vec![Expr::add(vec![Expr::int(1), Expr::sym("x")])],
+                ),
+                Arc::new(Expr::Relation(
+                    RelOp::Eq,
+                    Expr::sym("x"),
+                    Expr::int(0),
+                )),
+                Expr::int(4),
+            ],
+        );
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        let s = format_expr(r.as_ref());
+        assert!(s.contains("x"), "got {s}");
+    }
+
+    #[test]
+    fn series_cos_taylor_diff_fallback() {
+        let ctx = xcas_default();
+        let e = Expr::func(
+            FuncKind::Taylor,
+            vec![
+                Expr::func(FuncKind::Cos, vec![Expr::sym("x")]),
+                Expr::sym("x"),
+                Expr::int(0),
+                Expr::int(4),
+            ],
+        );
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        let s = format_expr(r.as_ref());
+        assert!(s.contains("1") || s.contains("x"), "got {s}");
+    }
+
+    #[test]
+    fn series_taylor_at_center_two() {
+        let ctx = xcas_default();
+        let e = Expr::func(
+            FuncKind::Taylor,
+            vec![
+                Expr::pow(Expr::sym("x"), Expr::int(2)),
+                Expr::sym("x"),
+                Expr::int(2),
+                Expr::int(3),
+            ],
+        );
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        let s = format_expr(r.as_ref());
+        assert!(s.contains("x"), "got {s}");
+    }
+
+    #[test]
+    fn eval_series_direct_bad_order() {
+        let ctx = xcas_default();
+        let args = vec![
+            Expr::sym("x"),
+            Expr::sym("x"),
+            Expr::sym("y"),
+            Expr::sym("z"),
+        ];
+        assert!(eval_series(&args, &ctx).is_err());
+    }
 }

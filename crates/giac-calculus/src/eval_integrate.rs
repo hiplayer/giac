@@ -56,4 +56,27 @@ mod tests {
         );
         assert!(eval(e.as_ref(), &ctx).is_ok());
     }
+
+    #[test]
+    fn eval_integrate_wrong_arity() {
+        let ctx = xcas_default();
+        let e = Expr::func(FuncKind::Integrate, vec![Expr::sym("x")]);
+        assert!(eval(e.as_ref(), &ctx).is_err());
+    }
+
+    #[test]
+    fn eval_integrate_definite_x_squared() {
+        let ctx = xcas_default();
+        let e = Expr::func(
+            FuncKind::Integrate,
+            vec![
+                Expr::pow(Expr::sym("x"), Expr::int(2)),
+                Expr::sym("x"),
+                Expr::int(0),
+                Expr::int(1),
+            ],
+        );
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "1/3");
+    }
 }

@@ -765,4 +765,44 @@ mod tests {
         let s = format_expr(r.as_ref());
         assert_eq!(s, "-exp(2)");
     }
+
+    #[test]
+    fn engine_limit_minus_infinity_exp() {
+        let e = Expr::func(FuncKind::Exp, vec![Expr::sym("x")]);
+        let r = limit_line(e, "x", Expr::mul(vec![Expr::int(-1), Expr::sym("infinity")])).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "0");
+    }
+
+    #[test]
+    fn engine_limit_finite_rational_pole_cancel() {
+        let e = Arc::new(Expr::Frac(
+            Expr::add(vec![
+                Expr::pow(Expr::sym("x"), Expr::int(2)),
+                Expr::int(-1),
+            ]),
+            Expr::add(vec![Expr::sym("x"), Expr::int(-1)]),
+        ));
+        let r = limit_line(e, "x", Expr::int(1)).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "2");
+    }
+
+    #[test]
+    fn engine_limit_indeterminate_at_one() {
+        let e = Arc::new(Expr::Frac(
+            Expr::add(vec![
+                Expr::pow(Expr::sym("x"), Expr::int(2)),
+                Expr::mul(vec![Expr::int(-1), Expr::sym("x")]),
+            ]),
+            Expr::add(vec![Expr::sym("x"), Expr::int(-1)]),
+        ));
+        let r = limit_line(e, "x", Expr::int(1)).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "1");
+    }
+
+    #[test]
+    fn engine_limit_minus_infinity_poly() {
+        let e = Expr::pow(Expr::sym("x"), Expr::int(2));
+        let r = limit_line(e, "x", Expr::mul(vec![Expr::int(-1), Expr::sym("infinity")])).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "+infinity");
+    }
 }

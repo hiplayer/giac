@@ -73,4 +73,36 @@ mod tests {
         assert!(s.contains("2*x^2"));
         assert!(s.contains("-z^3") || s.contains("3*z^2"));
     }
+
+    #[test]
+    fn eval_diff_too_few_args() {
+        let ctx = xcas_default();
+        let e = Expr::func(FuncKind::Diff, vec![Expr::sym("x")]);
+        assert!(eval(e.as_ref(), &ctx).is_err());
+    }
+
+    #[test]
+    fn eval_diff_list_multivariate() {
+        let ctx = xcas_default();
+        let e = Expr::func(
+            FuncKind::Diff,
+            vec![
+                Expr::mul(vec![Expr::sym("x"), Expr::sym("y")]),
+                Arc::new(Expr::List(vec![Expr::sym("x"), Expr::sym("y")])),
+            ],
+        );
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        let s = format_expr(r.as_ref());
+        assert!(s.starts_with('['), "got {s}");
+    }
+
+    #[test]
+    fn eval_diff_bad_variable() {
+        let ctx = xcas_default();
+        let e = Expr::func(
+            FuncKind::Diff,
+            vec![Expr::sym("x"), Expr::int(1)],
+        );
+        assert!(eval(e.as_ref(), &ctx).is_err());
+    }
 }

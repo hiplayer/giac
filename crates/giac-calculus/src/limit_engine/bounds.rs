@@ -88,3 +88,70 @@ pub(crate) fn expr_contains_nested_exp(e: &ExprArc) -> bool {
 pub(crate) fn is_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Symbol(id) if id == var)
 }
+
+#[cfg(test)]
+mod tests {
+    use giac_core::{Expr, ExprArc, FuncKind};
+
+    use super::*;
+
+    #[test]
+    fn expr_nodes_and_depth() {
+        let e = Expr::add(vec![Expr::sym("x"), Expr::int(1)]);
+        assert!(expr_nodes(&e) >= 3);
+        assert!(expr_depth(&e) >= 1);
+    }
+
+    #[test]
+    fn mrv_eligibility_flags() {
+        let light = Expr::func(FuncKind::Exp, vec![Expr::sym("x")]);
+        assert!(mrv_series_eligible(&light));
+        assert!(mrv_limit_eligible(&light));
+        assert!(mrv_rewrite_bounded(&light));
+        assert!(!too_heavy_for_expand(&light));
+    }
+
+    #[test]
+    fn nested_exp_detected() {
+        let nested = Expr::func(
+            FuncKind::Exp,
+            vec![Expr::func(FuncKind::Exp, vec![Expr::sym("x")])],
+        );
+        assert!(expr_contains_nested_exp(&nested));
+        assert!(too_heavy_for_expand(&nested) || expr_contains_nested_exp(&nested));
+    }
+
+    #[test]
+    fn is_var_helper() {
+        let var = Ident::new("x");
+        assert!(is_var(&Expr::sym("x"), &var));
+        assert!(!is_var(&Expr::sym("y"), &var));
+    }
+
+    #[test]
+    fn expr_contains_exp_paths() {
+        let exp_x = Expr::func(FuncKind::Exp, vec![Expr::sym("x")]);
+        let add = Expr::add(vec![exp_x.clone(), Expr::int(1)]);
+        let mul = Expr::mul(vec![exp_x.clone(), Expr::sym("y")]);
+        let frac: ExprArc = Expr::Frac(Expr::int(1), exp_x.clone()).into();
+        let pow = Expr::pow(exp_x.clone(), Expr::int(2));
+        assert!(expr_contains_exp(&add));
+        assert!(expr_contains_exp(&mul));
+        assert!(expr_contains_exp(&frac));
+        assert!(expr_contains_exp(&pow));
+        assert!(!expr_contains_exp(&Expr::sym("x")));
+    }
+
+    #[test]
+    fn expr_nodes_relation_branch() {
+        use std::sync::Arc;
+
+        let e = Arc::new(Expr::Relation(
+            giac_core::RelOp::Eq,
+            Expr::sym("x"),
+            Expr::int(0),
+        ));
+        assert_eq!(expr_nodes(&e), 1);
+        assert_eq!(expr_depth(&e), 0);
+    }
+}

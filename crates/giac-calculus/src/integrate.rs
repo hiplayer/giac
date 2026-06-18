@@ -1304,4 +1304,29 @@ mod tests {
             Err(EvalError::NotImplemented(_))
         ));
     }
+
+    #[test]
+    fn integrate_cos_and_sin() {
+        let x = Ident::new("x");
+        let cos_r = integrate(
+            &Expr::func(FuncKind::Cos, vec![Expr::sym("x")]),
+            &x,
+        )
+        .unwrap();
+        assert_eq!(format_expr(cos_r.as_ref()), "sin(x)*1^-1");
+        let sin_r = integrate(
+            &Expr::func(FuncKind::Sin, vec![Expr::sym("x")]),
+            &x,
+        )
+        .unwrap();
+        assert!(format_expr(sin_r.as_ref()).contains("cos(x)"));
+    }
+
+    #[test]
+    fn integrate_x_cubed() {
+        let x = Ident::new("x");
+        let e = Expr::pow(Expr::sym("x"), Expr::int(3));
+        let r = integrate(&e, &x).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "1/4*x^4");
+    }
 }

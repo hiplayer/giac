@@ -919,4 +919,55 @@ mod tests {
         let r = eval(e.as_ref(), &ctx);
         assert!(r.is_ok(), "{:?}", r);
     }
+
+    #[test]
+    fn integrate_x_over_sqrt_xsq_plus_one() {
+        let x = Ident::new("x");
+        let e = Arc::new(Expr::Frac(
+            Expr::sym("x"),
+            Expr::func(
+                FuncKind::Sqrt,
+                vec![Expr::add(vec![
+                    Expr::pow(Expr::sym("x"), Expr::int(2)),
+                    Expr::int(1),
+                ])],
+            ),
+        ));
+        let r = super::try_integrate_heuristic(&e, &x).unwrap().unwrap();
+        let s = format_expr(r.as_ref());
+        assert!(s.contains("sqrt"), "got {s}");
+    }
+
+    #[test]
+    fn integrate_x_times_sqrt_xsq_plus_one() {
+        let x = Ident::new("x");
+        let e = Expr::mul(vec![
+            Expr::sym("x"),
+            Expr::func(
+                FuncKind::Sqrt,
+                vec![Expr::add(vec![
+                    Expr::pow(Expr::sym("x"), Expr::int(2)),
+                    Expr::int(1),
+                ])],
+            ),
+        ]);
+        let r = super::try_integrate_heuristic(&e, &x).unwrap().unwrap();
+        let s = format_expr(r.as_ref());
+        assert!(s.contains("sqrt") || s.contains("x^2"), "got {s}");
+    }
+
+    #[test]
+    fn integrate_x_over_sqrt_x_plus_one() {
+        let x = Ident::new("x");
+        let e = Arc::new(Expr::Frac(
+            Expr::sym("x"),
+            Expr::func(
+                FuncKind::Sqrt,
+                vec![Expr::add(vec![Expr::sym("x"), Expr::int(1)])],
+            ),
+        ));
+        let r = super::try_integrate_heuristic(&e, &x).unwrap().unwrap();
+        let s = format_expr(r.as_ref());
+        assert!(s.contains("sqrt"), "got {s}");
+    }
 }

@@ -960,4 +960,40 @@ mod tests {
         assert_eq!(exp, 0);
         assert_eq!(format_expr(coeff.as_ref()), "pi/2");
     }
+
+    #[test]
+    fn sparse_series_exp_at_zero() {
+        let ctx = xcas_default();
+        let var = Ident::new("x");
+        let e = Expr::func(FuncKind::Exp, vec![var_to_expr(&var)]);
+        let s = series_at_zero(&e, &var, 4, &ctx).unwrap();
+        let out = s.to_expr(&var);
+        let text = format_expr(out.as_ref());
+        assert!(text.contains("1") && text.contains("x"), "got {text}");
+    }
+
+    #[test]
+    fn sparse_series_cos_at_zero() {
+        let ctx = xcas_default();
+        let var = Ident::new("x");
+        let e = Expr::func(FuncKind::Cos, vec![var_to_expr(&var)]);
+        let s = series_at_zero(&e, &var, 4, &ctx).unwrap();
+        let out = s.to_expr(&var);
+        let text = format_expr(out.as_ref());
+        assert!(text.contains("1") || text.contains("x"), "got {text}");
+    }
+
+    #[test]
+    fn sparse_series_one_over_one_plus_x() {
+        let ctx = xcas_default();
+        let var = Ident::new("x");
+        let e = Expr::pow(
+            Expr::add(vec![Expr::int(1), var_to_expr(&var)]),
+            Expr::int(-1),
+        );
+        let s = series_at_zero(&e, &var, 4, &ctx).unwrap();
+        let out = s.to_expr(&var);
+        let text = format_expr(out.as_ref());
+        assert!(!text.is_empty(), "got {text}");
+    }
 }

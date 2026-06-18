@@ -388,4 +388,41 @@ mod tests {
         );
         assert!(s.contains("_mrv_w"), "got {s}");
     }
+
+    #[test]
+    fn fold_add_exp_difference() {
+        let a = Expr::func(FuncKind::Exp, vec![Expr::add(vec![Expr::sym("x"), Expr::int(1)])]);
+        let b = Expr::mul(vec![
+            Expr::int(-1),
+            Expr::func(FuncKind::Exp, vec![Expr::sym("x")]),
+        ]);
+        let e = Expr::add(vec![a, b]);
+        let r = fold_exp_shifted_difference(&e);
+        let s = format_expr(r.as_ref());
+        assert!(s.contains("exp(x)") && s.contains("-1"), "got {s}");
+    }
+
+    #[test]
+    fn limit_preprocessed_gruntz_minus_one() {
+        let ctx = xcas_default();
+        let var = Ident::new("x");
+        let stmts = giac_parse::parse_program(
+            "exp(x)*(exp(1/x-exp(-x))-exp(1/x));",
+            &ctx,
+        )
+        .unwrap();
+        let giac_core::Stmt::ExprStmt(e) = stmts.first().unwrap() else {
+            panic!();
+        };
+        let pre = crate::limit_engine::preprocess::limit_preprocess_struct(e, &var);
+        let r = try_limit_exp_times_exp_minus_one_preprocessed(&pre, &var, &ctx).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "-1");
+    }
+
+    #[test]
+    fn exp_scale_times_exp_minus_one_shape() {
+        let r = exp_scale_times_exp_minus_one(Expr::sym("s"), Expr::sym("eps"));
+        let s = format_expr(r.as_ref());
+        assert!(s.contains("exp(eps)") && s.contains("-1"), "got {s}");
+    }
 }

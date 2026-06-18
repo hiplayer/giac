@@ -215,4 +215,12 @@ mod tests {
         let r = diff(&e, &x());
         assert!(r.is_ok(), "{:?}", r);
     }
+
+    #[test]
+    fn diff_frac_one_over_x() {
+        let e = Expr::Frac(Expr::int(1), Expr::sym("x"));
+        let r = diff_simplified(e.into());
+        let s = format_expr(r.as_ref());
+        assert!(s.contains("-1") && s.contains("x"), "got {s}");
+    }
 }

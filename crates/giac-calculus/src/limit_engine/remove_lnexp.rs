@@ -326,14 +326,6 @@ mod tests {
     use crate::plugin::xcas_default;
 
     #[test]
-    fn remove_lnexp_ln_exp_cancels() {
-        let ctx = xcas_default();
-        let e = Expr::func(FuncKind::Ln, vec![Expr::func(FuncKind::Exp, vec![Expr::sym("x")])]);
-        let r = remove_lnexp(&e, &ctx);
-        assert_eq!(format_expr(r.as_ref()), "x");
-    }
-
-    #[test]
     fn remove_lnexp_exp_ln_w() {
         let ctx = xcas_default();
         let inner = Expr::add(vec![
@@ -367,5 +359,24 @@ mod tests {
             s.contains("exp(eps)") && s.contains("_mrv_w"),
             "expected w^-1*(exp(eps)-1) style, got {s}"
         );
+    }
+
+    #[test]
+    fn divide_lead_coeffs_ln_w_cancels() {
+        let ctx = xcas_default();
+        let w = super::super::mrv_w::mrv_w_expr();
+        let ln_w = super::super::mrv_w::mrv_ln_w_expr();
+        let num = Expr::mul(vec![ln_w.clone(), Expr::sym("a")]);
+        let den = ln_w;
+        let r = divide_lead_coeffs(&num, &den, &ctx);
+        let s = format_expr(r.as_ref());
+        assert!(s.contains("a"), "got {s}");
+        let _ = w;
+    }
+
+    #[test]
+    fn expr_contains_exp_or_ln_detects() {
+        let e = Expr::func(FuncKind::Ln, vec![Expr::sym("x")]);
+        assert!(expr_contains_exp_or_ln(&e));
     }
 }

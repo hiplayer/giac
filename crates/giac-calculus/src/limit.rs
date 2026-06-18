@@ -390,6 +390,13 @@ mod tests {
     use crate::plugin::xcas_default;
 
     #[test]
+    fn eval_limit_too_few_args() {
+        let ctx = xcas_default();
+        let args = vec![Expr::sym("x"), Expr::sym("x")];
+        assert!(eval_limit(&args, &ctx).is_err());
+    }
+
+    #[test]
     fn limit_sin_over_x() {
         let ctx = xcas_default();
         let e = Expr::func(
@@ -624,6 +631,16 @@ mod tests {
         #[test]
         fn rtest_limit_x_atan_x_over_x_plus_1() {
             assert_limit("limit(x*atan(x)/(x+1),x,+infinity)", "pi/2");
+        }
+
+        #[test]
+        fn rtest_limit_minus_infinity_inv_x() {
+            assert_limit("limit(1/x,x,-infinity)", "0");
+        }
+
+        #[test]
+        fn rtest_limit_finite_cancel() {
+            assert_limit("limit((x^2-1)/(x-1),x,1)", "2");
         }
     }
 }
