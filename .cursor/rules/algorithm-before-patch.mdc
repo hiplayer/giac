@@ -1,5 +1,5 @@
 ---
-description: 改算法模块前先审计写死规则，优先算法化而非打补丁
+description: 改算法模块前先审计写死规则，优先算法化；跨模块缺陷回 owning 模块补功能，禁止调用方绕行打补丁
 globs: giac-rs/crates/giac-calculus/**,giac-rs/crates/giac-poly/**,giac-rs/crates/giac-solve/**,giac-rs/crates/giac-simplify/**,giac-rs/crates/giac-ode/**,giac-rs/crates/giac-groebner/**
 alwaysApply: false
 ---
@@ -12,7 +12,7 @@ alwaysApply: false
 
 1. **盘点写死规则** — 特例表、形状匹配、`if expr looks like …`、常量阈值、仅覆盖少数用例的 fast path。
 2. **对照通用算法** — 查上游 `giac-2.0.0` 对应 `.cc`（见 `.doc/module-division.md`）及 `.doc/issues/GIAC-algorithm-gaps-open.md`、相关子 issue；判断缺口是「算法未移植」还是「真 bug」。
-3. **优先算法化** — 能归入主路径（如 limit 的 MRV/Gruntz、级数 lead term、商式化简、Risch、Hensel）的走主路径；禁止新增 per-case 形状表（见 `GIAC-limit-exp-difference-unification` P3）。
+3. **优先算法化** — 能归入主路径（MRV/Gruntz、级数 lead term、商式化简、Risch、Hensel 等）的走主路径；禁止新增 per-case 形状表。
 4. **最后才打补丁** — 仅当确认是独立边界且通用算法短期不可达时，允许最小特例，并注明「为何不能算法化」与替换计划。
 
 ## 改代码前必答
@@ -23,6 +23,39 @@ alwaysApply: false
 | 是否新增形状/模式特例分支？ | 先查上游是否有对应通用步骤 |
 | 同类表达式是否已有 2+ 个特例？ | 应合并为一条算法，而非第 3 个特例 |
 
-## 一句话
+## 管线原则（全算法 crate）
 
-**先问「缺的是哪条算法」，再问「这个 bug 怎么修」。**
+1. **进管线，不旁路** — 新逻辑归入该域已文档化的分层管线（见 `.doc/issues/`、`.doc/cas-long-term-vision.md`），禁止再叠 `try_*` 按形状绕行主路径。
+2. **同理论共享规则表** — 多层处理同一数学结构时，收敛为共享规则表或同一递归遍历，不得各层各维护独立特例。
+3. **快路径有退役条件** — 临时快路径须写明删除条件；禁止为用例扩展快路径覆盖新 case。
+4. **禁止按用例命名** — 不得新增 `limit_gruntz_*`、`integrate_special_*` 等按 golden/check 行命名的函数；只扩展规范规则表与 `canonical_*` 入口。
+5. **规则表优先、兜底在后** — 启发式规则表 → 结构化子算法 → 明确 `Err`/不可解；勿把兜底算法当每条请求的捷径。
+
+域内管线文档（细节在 `.doc/`，不在 Cursor 规则里重复）：
+
+| 域 | 文档 |
+|----|------|
+| limit | `.doc/issues/GIAC-limit-layered-pipeline.md` |
+| integrate | `.doc/cas-long-term-vision.md` §4 |
+
+## 跨模块依赖
+
+在 A 模块工作时，若发现 **B 模块的函数行为不对**（返回值错、化简不完整、比较器误判等）：
+
+1. **禁止**在 A 里写绕行逻辑（重复实现、本地特例、调用前手工修补表达式）来「绕过」B 的缺陷。
+2. **应**回到 B 的 owning 模块，按上游通用算法 **把功能做对**（补全实现、修正语义、加必要测试）。
+3. 只有 B 短期不可改（接口冻结、范围明确不在本次任务）时，才允许在 A 做 **有注释的临时 shim**，并注明替换计划。
+
+| 场景 | ❌ 急着修 bug（绕行） | ✅ 弄好功能 |
+|------|----------------------|-------------|
+| `giac-simplify` 未展开 `(-x)*exp` | 在 `limit_engine` 手写 distribute | 在 simplify / 共享 `exp_diff` 层补通用展开 |
+| `mrv_compare` 对某类 `Add` 误判 | 在 classify 里硬编码该形状 | 修正 `mrv.rs` 的增长比较 |
+| `ratnormal` 不支持含 `exp` 的式子 | 在调用方复制一套有理化 | 明确边界并走级数/MRV 主路径，或扩展有理化适用范围 |
+
+## 表示层 API（配套）
+
+稳定 / 临时（`drift_*`、`shim_*`）/ 管线私有分层，以及 `ExprArc`↔`Poly` 边界：见 [`algorithm-expr-api.mdc`](algorithm-expr-api.mdc) 与 [`.doc/algorithm-expr-api.md`](../../.doc/algorithm-expr-api.md)。
+
+子域 I/O 契约（如 `mrv_w`、`exp_diff`）见 `.doc/*-expr-api.md` 索引表 §4，**不在此写子模块规则**。
+
+缺功能就补功能，别在调用方打补丁。**先问「缺的是哪条算法」，再问「这个 bug 怎么修」。**

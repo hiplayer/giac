@@ -113,14 +113,14 @@ giac-rs conformance 与 triple 测试对齐 `giac-2.0.0/check/`（见 `tests/con
 
 | ID | 能力 | 现状 | 阻塞测试 / 用例 | 跟踪 |
 |----|------|------|-----------------|------|
-| **LIM-G1** | 嵌套 `exp` 差分 @ `+∞` | `NotImplemented("limit")`；fold 可工作，MRV 主路径未通 | `maxima_rtest::gruntz_exp_nested_diff` **`#[ignore]`** | [GIAC-216e](GIAC-216e-mrv-series-lead-convergence.md)、[GIAC-limit-layered-pipeline](GIAC-limit-layered-pipeline.md) G3/G4 |
-| **LIM-G2** | MRV 换元后 `SparseSeries` 主项收敛 | `series_lead_at_zero` 复杂式回退 lead-only 特例 | CK-INT-61 当前绿（特例链）；通用路径未收敛 | [GIAC-216e](GIAC-216e-mrv-series-lead-convergence.md) |
-| **LIM-G3** | `(-ln(w))⁻¹` / `x⁻¹` 换元后的 padd 消去 | 主项系数残留 `ln(w)` | 嵌套 gruntz、部分 CK 类 | 216e §已知实现缺口 |
+| **LIM-G1** | 嵌套 `exp` 差分 @ `+∞` | `gruntz_exp_nested_diff` **enabled**（2026-06-18） | `maxima_rtest::gruntz_exp_nested_diff` | [GIAC-216e](GIAC-216e-mrv-series-lead-convergence.md)、[GIAC-limit-layered-pipeline](GIAC-limit-layered-pipeline.md) G3/G4 |
+| **LIM-G2** | MRV 换元后 `SparseSeries` 主项收敛 | `series_lead_at_zero` 复杂式回退 lead-only 特例 | CK-INT-61 当前绿（特例链）；通用路径未收敛 | [GIAC-216e](GIAC-216e-mrv-series-lead-convergence.md)、[GIAC-limit-mrv-followup](GIAC-limit-mrv-followup.md) |
+| **LIM-G3** | `(-ln(w))⁻¹` / `x⁻¹` 换元后的 padd 消去 | 主项系数残留 `ln(w)` | 嵌套 gruntz、部分 CK 类 | [GIAC-limit-mrv-followup](GIAC-limit-mrv-followup.md) §Phase 1 |
 | **LIM-G4** | upstream ordre 递增 / upscale / spdiv | `try_order` 被 cap，升阶无效 | 慢路径 / 超时风险 | 216e 路线 A |
 | **LIM-G5** | 一般 `-∞` / 双向 / 方向极限 | 部分 `NotImplemented("limit")` | Maxima 子集外 | [GIAC-limit-maxima-upstream-alignment](GIAC-limit-maxima-upstream-alignment.md) |
 | **LIM-G6** | `mrv_compare` 完整比较 | 部分用 `f64` 估值 | `3^x` vs `5^x` 等已绿；更一般式待补 | limit-maxima §后续 |
 
-**Maxima gruntz 14 条：12/14 ✅；仍 ignore 1 条（LIM-G1）。**
+**Maxima gruntz 14 条：14/14 ✅**（LIM-G1 `gruntz_exp_nested_diff` 已绿，2026-06-18）。
 
 **目标管线（勿再加 `try_limit_gruntz_*`）：**
 
@@ -226,8 +226,9 @@ P2  其余
 
 ### Phase B — P0 极限
 
+- [ ] [GIAC-limit-mrv-followup](GIAC-limit-mrv-followup.md) Phase 1–2（LIM-G3/G2）
 - [ ] [GIAC-216e](GIAC-216e-mrv-series-lead-convergence.md) 路线 A 落地
-- [ ] `gruntz_exp_nested_diff` un-ignore
+- [ ] `gruntz_exp_nested_diff` un-ignore（**已完成** 2026-06-18）
 - [ ] [GIAC-limit-layered-pipeline](GIAC-limit-layered-pipeline.md) Phase 3：`try_limit_*` 退役
 
 ### Phase C — P1 factor + 积分

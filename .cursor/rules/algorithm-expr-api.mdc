@@ -1,0 +1,35 @@
+---
+description: 算法 crate 稳定 API vs 临时 drift/shim；表示层边界（Expr/Poly），禁止形式漂移与散落形状匹配
+globs: giac-rs/crates/giac-calculus/**,giac-rs/crates/giac-poly/**,giac-rs/crates/giac-solve/**,giac-rs/crates/giac-simplify/**,giac-rs/crates/giac-ode/**,giac-rs/crates/giac-groebner/**
+alwaysApply: false
+---
+
+# 算法模块表示层 API（通用）
+
+**完整规范：** [`.doc/algorithm-expr-api.md`](../../.doc/algorithm-expr-api.md)  
+**子域 I/O 契约：** 见该文档 §4 索引表链到 `.doc/<module>-expr-api.md`（如 `limit-engine-expr-api.md`、`exp-diff-expr-api.md`）
+
+## 三层分类
+
+| 层 | 命名 | 规则 |
+|----|------|------|
+| **稳定 API** | `canonical_*`, `decompose_*`, `*_expr`, `expr_contains_*` | `pub(crate)`/`pub`；有 I/O 契约与单测 |
+| **临时 API** | `drift_*`（化简 AST 漂移）, `shim_*`（跨模块绕行） | 私有；仅规范入口内；**必须**写退役条件 |
+| **管线私有** | `try_*`, `peel_*`, `*_loop` | 私有；禁止它模块复制 |
+
+## 表示层边界
+
+- **语义在 `ExprArc` 上** → 不要用 `expr_to_poly` 认 `exp`/`ln`/超越函数形态。
+- **`ratnormal` / `normal` / `expand` 之后** → 不假定 AST 不变；先走该域 `canonical_*` 再比较/分解。
+- **多项式运算** → 仅在证明为多项式子类后用 `giac-poly`；结果回 `Expr` 用 `poly_to_expr`。
+
+## 新增函数前
+
+1. 归类稳定 / `drift_` / `shim_` / 管线私有  
+2. 写清输入/输出 **类型**与**输出形态保证**（契约表）  
+3. 漂移只进 `drift_*`；语义只进 owning 模块的 `decompose_*` 或主算法  
+4. 更新 `.doc/algorithm-expr-api.md` §4 索引或对应 `.doc/<module>-expr-api.md`  
+
+## 与 algorithm-before-patch
+
+缺表示层能力 → 回 **owning crate** 补稳定 API，不在调用方散落第三个形状特例。管线旁路与 per-case 命名见 [`algorithm-before-patch.mdc`](algorithm-before-patch.mdc)。

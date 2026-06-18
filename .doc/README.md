@@ -16,6 +16,8 @@
 | [parser-token-map.md](parser-token-map.md) | Token / 优先级 / 多模式 / Context 映射 |
 | [builtin-api-map.md](builtin-api-map.md) | 测试 API → `at_*` → Rust crate |
 | [module-division.md](module-division.md) | C++ 算法源文件分工 |
+| [algorithm-expr-api.md](algorithm-expr-api.md) | **通用** 稳定/临时 API、Expr↔Poly 边界、防形式漂移（Cursor：`algorithm-expr-api.mdc`） |
+| [limit-engine-expr-api.md](limit-engine-expr-api.md) | limit_engine 子域 I/O 契约（`.doc/` 专项，无 per-module Cursor 规则） |
 | [conformance-testing.md](conformance-testing.md) | Golden / assert_equiv；**`cargo test-timeout` 推荐用法** |
 | [GIAC-limit-layered-pipeline](issues/GIAC-limit-layered-pipeline.md) | limit 四层管线落地缺口 |
 | [GIAC-algorithm-gaps-open](issues/GIAC-algorithm-gaps-open.md) | **giac-rs 算法未实现总览**（`#[ignore]` 中 4 项 + NotImplemented 索引） |
