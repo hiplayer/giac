@@ -7,7 +7,7 @@ use num_traits::{One, Zero};
 
 use giac_core::Context;
 use giac_core::EvalError;
-use giac_core::{Expr, ExprArc, FuncKind};
+use giac_core::{try_as_algext_data, Expr, ExprArc, FuncKind};
 
 use crate::expand::normal;
 
@@ -36,6 +36,9 @@ pub fn is_zero(e: &Expr, ctx: &Context) -> Result<bool, EvalError> {
 pub fn assert_equiv(a: &Expr, b: &Expr, ctx: &Context) -> Result<bool, EvalError> {
     if a == b {
         return Ok(true);
+    }
+    if let (Some(ae), Some(be)) = (try_as_algext_data(a), try_as_algext_data(b)) {
+        return ae.eq_mod(&be);
     }
     if let (Expr::Rat(ra), Expr::Rat(rb)) = (a, b) {
         return Ok(ra == rb);
@@ -212,5 +215,52 @@ mod tests {
         let a = Expr::sym("x");
         let b = Expr::add(vec![Expr::sym("x"), Expr::int(1)]);
         assert!(!assert_equiv(a.as_ref(), b.as_ref(), &ctx).unwrap());
+    }
+
+    fn sqrt2_minpoly() -> ExprArc {
+        Arc::new(Expr::Func(
+            FuncKind::Poly1,
+            vec![Arc::new(Expr::Seq(vec![
+                Expr::int(1),
+                Expr::int(0),
+                Expr::int(-2),
+            ]))],
+        ))
+    }
+
+    #[test]
+    fn equiv_algext_same_field() {
+        let ctx = Context::default();
+        let min = sqrt2_minpoly();
+        let pos = giac_core::AlgExtData::from_rootof(
+            &Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])),
+            &min,
+        )
+        .unwrap()
+        .into_expr();
+        let rootof = giac_core::AlgExtData::from_rootof(
+            &Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])),
+            &min,
+        )
+        .unwrap()
+        .to_rootof_expr();
+        assert!(assert_equiv(pos.as_ref(), rootof.as_ref(), &ctx).unwrap());
+    }
+
+    #[test]
+    fn equiv_algext_square_minus_two() {
+        let ctx = Context::default();
+        let min = sqrt2_minpoly();
+        let alpha = giac_core::AlgExtData::from_rootof(
+            &Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])),
+            &min,
+        )
+        .unwrap()
+        .into_expr();
+        let sq_minus_two = Expr::add(vec![
+            Expr::pow(Arc::clone(&alpha), Expr::int(2)),
+            Expr::int(-2),
+        ]);
+        assert!(assert_equiv(sq_minus_two.as_ref(), Expr::int(0).as_ref(), &ctx).unwrap());
     }
 }

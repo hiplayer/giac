@@ -203,6 +203,23 @@ fn eval_pow(base: &ExprArc, exp: &ExprArc, ctx: &Context) -> Result<ExprArc, Eva
         }
     }
 
+    if let (Expr::AlgExt(a), Some(e_u)) = (base.as_ref(), as_nonneg_int(exp.as_ref())) {
+        if e_u == 0 {
+            return Ok(crate::algebra::alg_ext::AlgExtData::one(a.min_poly.clone()).into_expr());
+        }
+        let mut acc = crate::algebra::alg_ext::AlgExtData::one(a.min_poly.clone());
+        let mut base_c = (**a).clone();
+        let mut n = e_u;
+        while n > 0 {
+            if n % 2 == 1 {
+                acc = acc.mul(&base_c)?;
+            }
+            base_c = base_c.mul(&base_c)?;
+            n /= 2;
+        }
+        return Ok(acc.into_expr());
+    }
+
     if let (Some(n), Some(e_u)) = (matrix_nrows(base.as_ref()), as_nonneg_int(exp.as_ref())) {
         let lin = ctx.linalg()?;
         if e_u == 0 {
@@ -227,6 +244,18 @@ fn eval_frac(num: &ExprArc, den: &ExprArc, ctx: &Context) -> Result<ExprArc, Eva
             int_to_i64(n)?,
             int_to_i64(d)?,
         ));
+    }
+    if let Expr::AlgExt(d) = den.as_ref() {
+        if d.is_zero() {
+            return Err(EvalError::DivisionByZero);
+        }
+        let inv = d.inv()?;
+        return match num.as_ref() {
+            Expr::AlgExt(n) => Ok(n.mul(&inv)?.into_expr()),
+            Expr::Int(n) => Ok(inv.mul_rational(&Ratio::from_integer(n.clone()))?.into_expr()),
+            Expr::Rat(r) => Ok(inv.mul_rational(r)?.into_expr()),
+            _ => Err(EvalError::NotImplemented("frac with alg ext denominator")),
+        };
     }
     Ok(Arc::new(Expr::Frac(num, den)))
 }

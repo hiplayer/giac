@@ -3,7 +3,7 @@ use std::sync::Arc;
 use num_bigint::BigInt;
 use num_traits::Zero;
 
-use giac_core::{Context, EvalError, Expr, ExprArc};
+use giac_core::{contains_algext, eval, Context, EvalError, Expr, ExprArc};
 
 use crate::expand::expand;
 use giac_core::{expr_to_poly, poly_to_expr};
@@ -11,6 +11,9 @@ use giac_poly::Poly;
 
 /// Normalize a rational expression to a single fraction in lowest terms.
 pub fn ratnormal(expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
+    if contains_algext(expr) {
+        return ratnormal_algext(expr, ctx);
+    }
     let (num, den) = rational_parts(expr, ctx)?;
     let (num, den) = reduce_fraction(num, den)?;
     if den.is_zero() {
@@ -25,9 +28,18 @@ pub fn ratnormal(expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
     )))
 }
 
+/// Fold `AlgExt` arithmetic; treat extension elements as atomic constants.
+fn ratnormal_algext(expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
+    eval(expr, ctx)
+}
+
 fn rational_parts(expr: &Expr, ctx: &Context) -> Result<(Poly, Poly), EvalError> {
     match expr {
+        Expr::AlgExt(_) => Err(EvalError::TypeError("not a rational expression")),
         Expr::Frac(n, d) => {
+            if contains_algext(n.as_ref()) || contains_algext(d.as_ref()) {
+                return Err(EvalError::TypeError("not a rational expression"));
+            }
             let num = expr_to_poly(n)?;
             let den = expr_to_poly(d)?;
             Ok((num, den))
@@ -219,5 +231,30 @@ mod tests {
         let r = ratnormal(e.as_ref(), &ctx).unwrap();
         let s = format_expr(r.as_ref());
         assert!(s.contains("2") && s.contains("4"));
+    }
+
+    #[test]
+    fn ratnormal_algext_square_minus_two() {
+        let ctx = Context::default();
+        let min = Arc::new(Expr::Func(
+            FuncKind::Poly1,
+            vec![Arc::new(Expr::Seq(vec![
+                Expr::int(1),
+                Expr::int(0),
+                Expr::int(-2),
+            ]))],
+        ));
+        let alpha = giac_core::AlgExtData::from_rootof(
+            &Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])),
+            &min,
+        )
+        .unwrap()
+        .into_expr();
+        let e = Expr::add(vec![
+            Expr::pow(Arc::clone(&alpha), Expr::int(2)),
+            Expr::int(-2),
+        ]);
+        let r = ratnormal(e.as_ref(), &ctx).unwrap();
+        assert!(r.is_zero());
     }
 }

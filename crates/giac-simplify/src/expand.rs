@@ -114,6 +114,9 @@ fn expand_binomial(terms: &[ExprArc], n: u32) -> ExprArc {
 /// Expand then collect into polynomial form.
 pub fn normal(expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
     let expanded = expand(expr, ctx)?;
+    if giac_core::contains_algext(expanded.as_ref()) {
+        return giac_core::eval(expanded.as_ref(), ctx);
+    }
     if let Ok(p) = expr_to_poly(expanded.as_ref()) {
         return Ok(poly_to_expr(&p));
     }

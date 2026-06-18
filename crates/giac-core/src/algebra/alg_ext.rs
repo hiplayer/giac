@@ -104,6 +104,54 @@ impl AlgExtData {
         })
     }
 
+    /// Multiplicative inverse in ℚ(α) (`inv_EXT`).
+    pub fn inv(&self) -> Result<Self, EvalError> {
+        if self.is_zero() {
+            return Err(EvalError::DivisionByZero);
+        }
+        let a = rationalize_poly1_expr(&self.coords)?;
+        let m = rationalize_poly1_expr(&self.min_poly)?;
+        let inv = poly_inv_mod(&a, &m)?;
+        Ok(Self {
+            min_poly: self.min_poly.clone(),
+            coords: coords_to_expr(&inv)?,
+            root_index: None,
+        })
+    }
+
+    /// Same extension field and equal coordinates mod `min_poly`.
+    pub fn eq_mod(&self, other: &Self) -> Result<bool, EvalError> {
+        if self.min_poly != other.min_poly {
+            return Ok(false);
+        }
+        let a = rationalize_poly1_expr(&self.coords)?;
+        let b = rationalize_poly1_expr(&other.coords)?;
+        let m = rationalize_poly1_expr(&self.min_poly)?;
+        Ok(poly_reduce(&poly_sub(&a, &b), &m)
+            .iter()
+            .all(|c| c.is_zero()))
+    }
+
+    /// Scale by a rational scalar (same `min_poly`).
+    pub fn mul_rational(&self, r: &Ratio<BigInt>) -> Result<Self, EvalError> {
+        if r.is_zero() {
+            return Ok(Self::zero(self.min_poly.clone()));
+        }
+        if r.is_one() {
+            return Ok(self.clone());
+        }
+        let m = rationalize_poly1_expr(&self.min_poly)?;
+        let mut coords = rationalize_poly1_expr(&self.coords)?;
+        for c in &mut coords {
+            *c *= r;
+        }
+        Ok(Self {
+            min_poly: self.min_poly.clone(),
+            coords: coords_to_expr(&poly_reduce(&coords, &m))?,
+            root_index: None,
+        })
+    }
+
     pub fn is_zero(&self) -> bool {
         self.coords.iter().all(|c| c.is_zero())
     }
@@ -114,19 +162,33 @@ impl AlgExtData {
 
     /// Giac-compatible `rootof([...], poly1[...])` when representable.
     pub fn to_rootof_expr(&self) -> ExprArc {
-        let num = Arc::new(Expr::Seq(self.coords.clone()));
-        let min = if self.min_poly.len() == 1
-            && matches!(self.min_poly[0].as_ref(), Expr::Func(FuncKind::Poly1, _))
+        let coords = canonical_poly1_expr(&self.coords);
+        let min_poly = canonical_poly1_expr(&self.min_poly);
+        let num = Arc::new(Expr::Seq(coords));
+        let min = if min_poly.len() == 1
+            && matches!(min_poly[0].as_ref(), Expr::Func(FuncKind::Poly1, _))
         {
-            Arc::clone(&self.min_poly[0])
+            Arc::clone(&min_poly[0])
         } else {
             Arc::new(Expr::Func(
                 FuncKind::Poly1,
-                vec![Arc::new(Expr::Seq(self.min_poly.clone()))],
+                vec![Arc::new(Expr::Seq(min_poly))],
             ))
         };
         Expr::func(FuncKind::RootOf, vec![num, min])
     }
+}
+
+/// Trim leading zero coefficients while keeping at least one term.
+fn canonical_poly1_expr(coeffs: &[ExprArc]) -> Vec<ExprArc> {
+    if coeffs.is_empty() {
+        return vec![Expr::int(0)];
+    }
+    let start = coeffs
+        .iter()
+        .position(|c| !c.is_zero())
+        .unwrap_or(coeffs.len() - 1);
+    coeffs[start..].to_vec()
 }
 
 fn ensure_same_field(a: &AlgExtData, b: &AlgExtData) -> Result<(), EvalError> {
@@ -238,6 +300,88 @@ fn poly_mul(a: &[Ratio<BigInt>], b: &[Ratio<BigInt>]) -> Vec<Ratio<BigInt>> {
     trim_leading_zero(out)
 }
 
+fn poly_inv_mod(a: &[Ratio<BigInt>], m: &[Ratio<BigInt>]) -> Result<Vec<Ratio<BigInt>>, EvalError> {
+    let (_, bezout) = poly_ext_gcd(a, m);
+    let inv = poly_reduce(&bezout, m);
+    let check = poly_reduce(&poly_mul(a, &inv), m);
+    if check.len() == 1 && check[0].is_one() {
+        Ok(inv)
+    } else {
+        Err(EvalError::NotImplemented("alg ext inverse"))
+    }
+}
+
+/// Extended GCD for `a`, `b`: returns `(g, s)` with `s*a + t*b = g` (only `s` needed for inv).
+fn poly_ext_gcd(
+    a: &[Ratio<BigInt>],
+    b: &[Ratio<BigInt>],
+) -> (Vec<Ratio<BigInt>>, Vec<Ratio<BigInt>>) {
+    let mut r_prev = trim_leading_zero(b.to_vec());
+    let mut r = trim_leading_zero(a.to_vec());
+    let mut s_prev = vec![Ratio::zero()];
+    let mut s = vec![Ratio::one()];
+    while !r.iter().all(|c| c.is_zero()) {
+        let (q, _) = poly_divrem(&r_prev, &r);
+        let qr = poly_mul(&q, &r);
+        let r_next = poly_sub(&r_prev, &qr);
+        let sr = poly_mul(&q, &s);
+        let s_next = poly_sub(&s_prev, &sr);
+        r_prev = r;
+        r = trim_leading_zero(r_next);
+        s_prev = s;
+        s = s_next;
+    }
+    let g = r_prev;
+    if let Some(lc) = g.first().cloned() {
+        if !lc.is_zero() && lc != Ratio::one() {
+            let inv_lc = Ratio::one() / lc;
+            let scale = |p: &[Ratio<BigInt>]| p.iter().map(|c| c * &inv_lc).collect::<Vec<_>>();
+            return (scale(&g), scale(&s_prev));
+        }
+    }
+    (g, s_prev)
+}
+
+fn poly_divrem(
+    a: &[Ratio<BigInt>],
+    b: &[Ratio<BigInt>],
+) -> (Vec<Ratio<BigInt>>, Vec<Ratio<BigInt>>) {
+    let mut rem = trim_leading_zero(a.to_vec());
+    let b = trim_leading_zero(b.to_vec());
+    if b.iter().all(|c| c.is_zero()) {
+        return (vec![Ratio::zero()], rem);
+    }
+    let db = poly_degree(&b);
+    let da = poly_degree(&rem);
+    if da < db {
+        return (vec![Ratio::zero()], rem);
+    }
+    let lc_b = b.first().cloned().unwrap_or_else(Ratio::one);
+    let orig_da = da;
+    let mut quot = vec![Ratio::zero(); da - db + 1];
+    while poly_degree(&rem) >= db && !rem.iter().all(|c| c.is_zero()) {
+        let dr = poly_degree(&rem);
+        let lc_r = rem.first().cloned().unwrap_or_else(Ratio::zero);
+        if lc_r.is_zero() {
+            rem = trim_leading_zero(rem);
+            continue;
+        }
+        let q = lc_r / lc_b.clone();
+        let qi = orig_da - dr;
+        if qi < quot.len() {
+            quot[qi] = q.clone();
+        }
+        // Subtract q * x^(dr-db) * b: term b[i]*x^(db-i) shifts to degree dr-i → index i.
+        for i in 0..=db {
+            if i < rem.len() {
+                rem[i] -= &q * &b[i];
+            }
+        }
+        rem = trim_leading_zero(rem);
+    }
+    (trim_leading_zero(quot), rem)
+}
+
 /// Reduce `p` modulo monic `m` (high-degree-first, leading coeff of `m` is 1).
 fn poly_reduce(p: &[Ratio<BigInt>], m: &[Ratio<BigInt>]) -> Vec<Ratio<BigInt>> {
     let mut r = p.to_vec();
@@ -257,9 +401,8 @@ fn poly_reduce(p: &[Ratio<BigInt>], m: &[Ratio<BigInt>]) -> Vec<Ratio<BigInt>> {
         let q = r.first().cloned().unwrap_or_else(Ratio::zero)
             / m.first().cloned().unwrap_or_else(Ratio::one);
         for i in 0..=dm {
-            let idx = dr - dm + i;
-            if idx < r.len() {
-                r[idx] -= &q * &m[i];
+            if i < r.len() {
+                r[i] -= &q * &m[i];
             }
         }
     }
@@ -388,6 +531,32 @@ pub fn try_rootof_to_algext(args: &[ExprArc]) -> Result<ExprArc, EvalError> {
     Ok(AlgExtData::from_rootof(&args[0], &args[1])?.into_expr())
 }
 
+/// True when `e` contains an `Expr::AlgExt` leaf.
+pub fn contains_algext(e: &Expr) -> bool {
+    match e {
+        Expr::AlgExt(_) => true,
+        Expr::Add(terms) | Expr::Mul(terms) | Expr::Seq(terms) | Expr::List(terms) => {
+            terms.iter().any(|t| contains_algext(t.as_ref()))
+        }
+        Expr::Frac(n, d) | Expr::Pow(n, d) | Expr::Complex(n, d) | Expr::Mod(n, d) => {
+            contains_algext(n.as_ref()) || contains_algext(d.as_ref())
+        }
+        Expr::Func(_, args) => args.iter().any(|a| contains_algext(a.as_ref())),
+        _ => false,
+    }
+}
+
+/// Parse a concrete `AlgExt` value from `AlgExt` or rational `rootof`.
+pub fn try_as_algext_data(e: &Expr) -> Option<AlgExtData> {
+    match e {
+        Expr::AlgExt(a) => Some((**a).clone()),
+        Expr::Func(FuncKind::RootOf, args) if args.len() == 2 => {
+            AlgExtData::from_rootof(&args[0], &args[1]).ok()
+        }
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -445,5 +614,45 @@ mod tests {
         .to_rootof_expr();
         let s = crate::format_expr(e.as_ref());
         assert!(s.contains("rootof"), "{s}");
+        assert_eq!(s, "rootof([1,0],poly1[1,0,-2])");
+    }
+
+    #[test]
+    fn algext_inv_divides_to_one() {
+        let min = q_minpoly();
+        let alpha = AlgExtData::from_rootof(
+            &Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])),
+            &min,
+        )
+        .unwrap();
+        let inv = alpha.inv().unwrap();
+        let one = alpha.mul(&inv).unwrap();
+        assert!(one.is_one());
+    }
+
+    #[test]
+    fn algext_frac_via_eval() {
+        use crate::{eval, Context};
+        let ctx = Context::default();
+        let min = q_minpoly();
+        let alpha_data = AlgExtData::from_rootof(
+            &Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])),
+            &min,
+        )
+        .unwrap();
+        let alpha = alpha_data.clone().into_expr();
+        let frac = Arc::new(Expr::Frac(Expr::int(2), alpha));
+        let r = eval(frac.as_ref(), &ctx).unwrap();
+        let quotient = match r.as_ref() {
+            Expr::AlgExt(a) => (**a).clone(),
+            other => panic!("expected AlgExt, got {other:?}"),
+        };
+        let prod = quotient.mul(&alpha_data).unwrap();
+        let two = AlgExtData {
+            min_poly: alpha_data.min_poly.clone(),
+            coords: vec![Expr::int(2)],
+            root_index: None,
+        };
+        assert!(prod.eq_mod(&two).unwrap());
     }
 }
