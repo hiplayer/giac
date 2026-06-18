@@ -1,7 +1,12 @@
-//! Asymptotic expansion and limits at `+infinity` (GIAC-216 / `series.cc` subset).
+//! Asymptotic limits at `+infinity` / `0` (algebraic + reciprocal substitution).
 //!
-//! giac uses `mrv_lead_term` for full asymptotics; here we implement a practical
-//! subset via reciprocal substitution `x = 1/u` and Laurent analysis at `u = 0`.
+//! **API 分层：** [`giac-calculus-api-stability.md`](../../../../../.doc/giac-calculus-api-stability.md)
+//!
+//! | 层级 | 内容 |
+//! |------|------|
+//! | **Partial** | `limit_at_plus_infinity_fallback`、`parse_signed_exp_frac_product`（快路径） |
+//! | **Pipeline** | `limit_at_plus_infinity`、`asymptotic_series_at_infinity`、`limit_at_zero_fallback` |
+//! | **Pipeline private** | 有理 lead、倒数换元、Laurent 估值辅助 |
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -34,7 +39,7 @@ const ASYM_U: &str = "_asym_u";
 const MAX_PUMP: i64 = 12;
 const DEFAULT_SERIES_ORDER: usize = 8;
 
-/// Limit as `var → +infinity`: preprocess → algebraic lead → MRV → fallback.
+/// **Pipeline** — `+∞` 极限主编排
 pub(crate) fn limit_at_plus_infinity(
     expr: &ExprArc,
     var: &Ident,
@@ -54,7 +59,7 @@ pub(crate) fn limit_at_plus_infinity(
         .map(|r| normalize_limit_result(&r, ctx))
 }
 
-/// After `limit_preprocess_struct`: classify reduced forms before MRV.
+// **Pipeline private** — limit preprocessed at plus infinity
 fn limit_preprocessed_at_plus_infinity(
     expr: &ExprArc,
     var: &Ident,
@@ -82,7 +87,7 @@ fn limit_preprocessed_at_plus_infinity(
         })
 }
 
-/// `exp(N/D)` with `N/D → 0` at `+∞` after balance → `1`.
+// **Pipeline private** — limit exp of vanishing frac argument
 fn limit_exp_of_vanishing_frac_argument(
     expr: &ExprArc,
     var: &Ident,
@@ -104,7 +109,7 @@ fn limit_exp_of_vanishing_frac_argument(
     None
 }
 
-/// `±exp(L)·n/d` with `exp(L)·n/d → exp(c)` at `+∞` (CK-INT-61 after preprocess).
+// **Pipeline private** — limit exp times frac quotient at plus infinity
 fn limit_exp_times_frac_quotient_at_plus_infinity(
     expr: &ExprArc,
     var: &Ident,
@@ -126,6 +131,7 @@ fn limit_exp_times_frac_quotient_at_plus_infinity(
     eval(out.as_ref(), ctx).ok()
 }
 
+/// **Partial** — 解析带符号 exp/分式积（快路径）; 退役: GIAC-limit-mrv-followup
 pub(crate) fn parse_signed_exp_frac_product(
     expr: &ExprArc,
     var: &Ident,
@@ -177,6 +183,7 @@ pub(crate) fn parse_signed_exp_frac_product(
     Some((neg, scale, n, d))
 }
 
+// **Pipeline private** — cancel var power in mul
 fn cancel_var_power_in_mul(e: &ExprArc, var: &Ident) -> ExprArc {
     let flat = flatten_top_mul(e);
     let mut net: isize = 0;
@@ -208,6 +215,7 @@ fn cancel_var_power_in_mul(e: &ExprArc, var: &Ident) -> ExprArc {
     }
 }
 
+// **Pipeline private** — extract mul sign
 fn extract_mul_sign(e: &ExprArc) -> (bool, ExprArc) {
     match e.as_ref() {
         Expr::Mul(fs) => {
@@ -232,6 +240,7 @@ fn extract_mul_sign(e: &ExprArc) -> (bool, ExprArc) {
     }
 }
 
+// **Pipeline private** — flatten top mul
 fn flatten_top_mul(expr: &ExprArc) -> Vec<ExprArc> {
     match expr.as_ref() {
         Expr::Mul(fs) => fs.iter().flat_map(flatten_top_mul).collect(),
@@ -239,10 +248,12 @@ fn flatten_top_mul(expr: &ExprArc) -> Vec<ExprArc> {
     }
 }
 
+// **Pipeline private** — is limit var
 fn is_limit_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Symbol(id) if id == var)
 }
 
+/// **Partial** — 主导 ln 指数（快路径）; 退役: GIAC-limit-mrv-followup
 pub(crate) fn dominant_ln_exponent_at_plus_infinity(
     e: &ExprArc,
     var: &Ident,
@@ -283,6 +294,7 @@ pub(crate) fn dominant_ln_exponent_at_plus_infinity(
     }
 }
 
+// **Pipeline private** — limit const rational at plus infinity
 fn limit_const_rational_at_plus_infinity(
     e: &ExprArc,
     var: &Ident,
@@ -311,6 +323,7 @@ fn limit_const_rational_at_plus_infinity(
     }
 }
 
+// **Pipeline private** — try add rational to frac
 fn try_add_rational_to_frac(e: &ExprArc, var: &Ident) -> Option<(ExprArc, ExprArc)> {
     let Expr::Add(ts) = e.as_ref() else {
         return None;
@@ -353,6 +366,7 @@ fn try_add_rational_to_frac(e: &ExprArc, var: &Ident) -> Option<(ExprArc, ExprAr
     Some((num, d))
 }
 
+// **Pipeline private** — split mul leading coeff
 fn split_mul_leading_coeff(e: &ExprArc) -> (ExprArc, ExprArc) {
     let flat = flatten_top_mul(e);
     let mut coeff = Expr::int(1);
@@ -371,6 +385,7 @@ fn split_mul_leading_coeff(e: &ExprArc) -> (ExprArc, ExprArc) {
     (coeff, body)
 }
 
+// **Pipeline private** — as frac form
 fn as_frac_form(e: &ExprArc, var: &Ident) -> Option<(ExprArc, ExprArc)> {
     let _ = var;
     if let Expr::Frac(n, d) = e.as_ref() {
@@ -401,6 +416,7 @@ fn as_frac_form(e: &ExprArc, var: &Ident) -> Option<(ExprArc, ExprArc)> {
     Some((Expr::mul(vec![coeff, n_body]), d))
 }
 
+// **Pipeline private** — linear var term
 fn linear_var_term(e: &ExprArc, var: &Ident) -> Option<ExprArc> {
     let flat = flatten_top_mul(e);
     if !flat.iter().any(|f| is_limit_var(f, var)) {
@@ -419,6 +435,7 @@ fn linear_var_term(e: &ExprArc, var: &Ident) -> Option<ExprArc> {
     Some(coeff)
 }
 
+// **Pipeline private** — float to expr
 fn float_to_expr(c: f64) -> Option<ExprArc> {
     if (c - c.round()).abs() < f64::EPSILON {
         Some(Expr::int(c as i64))
@@ -427,6 +444,7 @@ fn float_to_expr(c: f64) -> Option<ExprArc> {
     }
 }
 
+// **Pipeline private** — limit add at plus infinity
 fn limit_add_at_plus_infinity(
     expr: &ExprArc,
     var: &Ident,
@@ -443,6 +461,7 @@ fn limit_add_at_plus_infinity(
     eval(sum.as_ref(), ctx).ok()
 }
 
+// **Pipeline private** — limit term at plus infinity
 fn limit_term_at_plus_infinity(
     expr: &ExprArc,
     var: &Ident,
@@ -465,7 +484,7 @@ fn limit_term_at_plus_infinity(
     })
 }
 
-/// `x = 1/u` then limit at `u = 0` (upstream finite-point substitution for `+infinity`).
+/// **Partial** — MRV 不可用时的 `+∞` fallback; 退役: GIAC-limit-mrv-followup
 pub(crate) fn limit_at_plus_infinity_fallback(
     expr: &ExprArc,
     var: &Ident,
@@ -498,6 +517,7 @@ pub(crate) fn limit_at_plus_infinity_fallback(
     limit_at_zero_fallback(&swapped, &u, ctx)
 }
 
+/// **Pipeline** — `0` 极限 fallback（倒数换元 + 级数）
 pub(crate) fn limit_at_zero_fallback(
     expr: &ExprArc,
     u: &Ident,
@@ -528,7 +548,7 @@ pub(crate) fn limit_at_zero_fallback(
         .map(|r| normalize_limit_result(&r, ctx))
 }
 
-/// `num(u)/den(u)` at `u=0` when `den(0) != 0` and `num` has a series lead term.
+// **Pipeline private** — limit at zero rational lead
 fn limit_at_zero_rational_lead(expr: &ExprArc, u: &Ident, order: usize, ctx: &Context) -> Option<ExprArc> {
     let (num, den) = try_as_rational(expr, u)?;
     let zero = Expr::int(0);
@@ -547,6 +567,7 @@ fn limit_at_zero_rational_lead(expr: &ExprArc, u: &Ident, order: usize, ctx: &Co
     eval(collapse_unit_powers(&quot).as_ref(), ctx).ok()
 }
 
+// **Pipeline private** — collapse unit powers
 fn collapse_unit_powers(e: &ExprArc) -> ExprArc {
     match e.as_ref() {
         Expr::Frac(n, d) if matches!(d.as_ref(), Expr::Int(n) if n.is_one()) => {
@@ -564,11 +585,12 @@ fn collapse_unit_powers(e: &ExprArc) -> ExprArc {
     }
 }
 
+// **Pipeline private** — limit at zero rational lead escalating
 fn limit_at_zero_rational_lead_escalating(expr: &ExprArc, u: &Ident, ctx: &Context) -> Option<ExprArc> {
     series_ordre_escalation(|order| limit_at_zero_rational_lead(expr, u, order, ctx))
 }
 
-/// Leading term of `series_at_zero` as a limit at `u = 0`.
+// **Pipeline private** — limit at zero from series
 fn limit_at_zero_from_series(expr: &ExprArc, u: &Ident, order: usize, ctx: &Context) -> Option<ExprArc> {
     let s = series_at_zero_order(expr, u, order, MAX_SERIES_EXPANSION_ORDER, ctx).ok()?;
     let (exp, coeff) = s.lead()?;
@@ -581,10 +603,12 @@ fn limit_at_zero_from_series(expr: &ExprArc, u: &Ident, order: usize, ctx: &Cont
     eval(coeff.as_ref(), ctx).ok()
 }
 
+// **Pipeline private** — limit at zero from series escalating
 fn limit_at_zero_from_series_escalating(expr: &ExprArc, u: &Ident, ctx: &Context) -> Option<ExprArc> {
     series_ordre_escalation(|order| limit_at_zero_from_series(expr, u, order, ctx))
 }
 
+// **Pipeline private** — series ordre escalation
 fn series_ordre_escalation(mut try_order: impl FnMut(usize) -> Option<ExprArc>) -> Option<ExprArc> {
     let mut ordre = DEFAULT_SERIES_ORDER as f64;
     let cap = MAX_SERIES_EXPANSION_ORDER as f64;
@@ -598,7 +622,7 @@ fn series_ordre_escalation(mut try_order: impl FnMut(usize) -> Option<ExprArc>) 
     None
 }
 
-/// Asymptotic series in `1/var` up to `order` terms (GIAC-216d).
+/// **Pipeline** — `+∞` 渐近级数
 pub(crate) fn asymptotic_series_at_infinity(
     expr: &ExprArc,
     var: &Ident,
@@ -636,7 +660,7 @@ pub(crate) fn asymptotic_series_at_infinity(
     eval(Expr::add(out).as_ref(), ctx)
 }
 
-/// Polynomial degree ratio at `+∞` (equivalent to Laurent after reciprocal; not a shape table).
+// **Pipeline private** — limit rational leading at infinity
 fn limit_rational_leading_at_infinity(
     num: &ExprArc,
     den: &ExprArc,
@@ -662,10 +686,12 @@ fn limit_rational_leading_at_infinity(
     Some(ratio_to_expr(&ratio))
 }
 
+// **Pipeline private** — is var
 fn is_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Symbol(id) if id == var)
 }
 
+// **Pipeline private** — is sqrt
 fn is_sqrt(e: &ExprArc) -> bool {
     matches!(e.as_ref(), Expr::Func(giac_core::FuncKind::Sqrt, args) if args.len() == 1)
         || matches!(e.as_ref(), Expr::Pow(b, exp) if is_half_exponent(exp) && !is_sqrt(b))
@@ -676,6 +702,7 @@ fn is_sqrt(e: &ExprArc) -> bool {
         )
 }
 
+// **Pipeline private** — sqrt arg
 fn sqrt_arg(e: &ExprArc) -> Option<ExprArc> {
     match e.as_ref() {
         Expr::Func(giac_core::FuncKind::Sqrt, args) if args.len() == 1 => {
@@ -691,6 +718,7 @@ fn sqrt_arg(e: &ExprArc) -> Option<ExprArc> {
     }
 }
 
+// **Pipeline private** — limit rational over sqrt quotient at infinity
 fn limit_rational_over_sqrt_quotient_at_infinity(expr: &ExprArc, var: &Ident) -> Option<ExprArc> {
     let (num, den) = try_as_quotient(expr)?;
     let inner = sqrt_arg(&den)?;
@@ -724,7 +752,7 @@ fn limit_rational_over_sqrt_quotient_at_infinity(expr: &ExprArc, var: &Ident) ->
     None
 }
 
-/// After `normalize_sqrt_conjugates`, `poly/(sqrt+…)` leading term at `+∞`.
+// **Pipeline private** — limit sqrt sum quotient at infinity
 fn limit_sqrt_sum_quotient_at_infinity(expr: &ExprArc, var: &Ident) -> Option<ExprArc> {
     let (num, den) = try_as_quotient(expr)?;
     let v = Var::from(var.as_str());
@@ -746,6 +774,7 @@ fn limit_sqrt_sum_quotient_at_infinity(expr: &ExprArc, var: &Ident) -> Option<Ex
     None
 }
 
+// **Pipeline private** — sqrt sum leading linear coeff
 fn sqrt_sum_leading_linear_coeff(den: &ExprArc, var: &Ident) -> Option<Ratio<BigInt>> {
     let Expr::Add(terms) = den.as_ref() else {
         let inner = sqrt_arg(den)?;
@@ -770,6 +799,7 @@ fn sqrt_sum_leading_linear_coeff(den: &ExprArc, var: &Ident) -> Option<Ratio<Big
     Some(total)
 }
 
+// **Pipeline private** — is monic quadratic leading
 fn is_monic_quadratic_leading(var: &Ident, inner: &ExprArc) -> Option<bool> {
     let v = Var::from(var.as_str());
     let p = expr_to_poly(inner).ok()?;
@@ -780,6 +810,7 @@ fn is_monic_quadratic_leading(var: &Ident, inner: &ExprArc) -> Option<bool> {
     Some(coeff_at(&p, &v, 2) == Ratio::one())
 }
 
+// **Pipeline private** — is indeterminate
 fn is_indeterminate(e: &ExprArc) -> bool {
     matches!(
         e.as_ref(),
@@ -787,7 +818,7 @@ fn is_indeterminate(e: &ExprArc) -> bool {
     )
 }
 
-/// `(a/u)/(b/u) → a/b` after `x=1/u` (cancels common `u^-1` factor).
+/// **Pipeline** — 分式中剥离共享 `u^-1`
 pub(crate) fn peel_shared_u_inv_in_frac(expr: &ExprArc, u: &Ident) -> ExprArc {
     let expr = simplify_reciprocal_sqrt(&rewrite_u_inv_sums(expr, u), u);
     let Some((num, den)) = try_as_rational(&expr, u) else {
@@ -799,6 +830,7 @@ pub(crate) fn peel_shared_u_inv_in_frac(expr: &ExprArc, u: &Ident) -> ExprArc {
     Arc::new(Expr::Frac(num, den))
 }
 
+// **Pipeline private** — cancel u factors
 fn cancel_u_factors(expr: &ExprArc, u: &Ident) -> ExprArc {
     let factors = flatten_mul(expr);
     let mut net = 0i64;
@@ -827,6 +859,7 @@ fn cancel_u_factors(expr: &ExprArc, u: &Ident) -> ExprArc {
     }
 }
 
+// **Pipeline private** — flatten mul
 fn flatten_mul(expr: &ExprArc) -> Vec<ExprArc> {
     match expr.as_ref() {
         Expr::Mul(fs) => fs.iter().flat_map(flatten_mul).collect(),
@@ -834,6 +867,7 @@ fn flatten_mul(expr: &ExprArc) -> Vec<ExprArc> {
     }
 }
 
+// **Pipeline private** — normalize limit result
 fn normalize_limit_result(expr: &ExprArc, ctx: &Context) -> ExprArc {
     let mut out = collapse_unit_powers(expr);
     for _ in 0..4 {
@@ -847,6 +881,7 @@ fn normalize_limit_result(expr: &ExprArc, ctx: &Context) -> ExprArc {
     out
 }
 
+// **Pipeline private** — expr to ratio
 fn expr_to_ratio(e: &ExprArc) -> Option<Ratio<BigInt>> {
     match e.as_ref() {
         Expr::Int(n) => Some(Ratio::from_integer(n.clone())),
@@ -864,7 +899,7 @@ fn expr_to_ratio(e: &ExprArc) -> Option<Ratio<BigInt>> {
     }
 }
 
-/// Net power of `u` in a multiplicative form (`u^{-1/2}` etc.).
+// **Pipeline private** — u exponent bound
 fn u_exponent_bound(expr: &ExprArc, u: &Ident) -> Option<Ratio<BigInt>> {
     match expr.as_ref() {
         Expr::Pow(b, e) if is_u_var(b, u) => expr_to_ratio(e),
@@ -885,6 +920,7 @@ fn u_exponent_bound(expr: &ExprArc, u: &Ident) -> Option<Ratio<BigInt>> {
     }
 }
 
+// **Pipeline private** — limit from fractional u valuation
 fn limit_from_fractional_u_valuation(expr: &ExprArc, u: &Ident, ctx: &Context) -> Option<ExprArc> {
     let rat = ratnormal(expr.as_ref(), ctx).unwrap_or_else(|_| Arc::clone(expr));
     let exp = u_exponent_bound(&rat, u)?;
@@ -897,6 +933,7 @@ fn limit_from_fractional_u_valuation(expr: &ExprArc, u: &Ident, ctx: &Context) -
     None
 }
 
+// **Pipeline private** — is inv var
 fn is_inv_var(exp: &ExprArc, var: &Ident) -> bool {
     matches!(
         exp.as_ref(),
@@ -908,7 +945,7 @@ fn is_inv_var(exp: &ExprArc, var: &Ident) -> bool {
     )
 }
 
-/// `x/(x^ln(x)) → 0` at `+∞` (`x^ln(x)` grows faster than any polynomial).
+// **Pipeline private** — limit var over x pow ln
 fn limit_var_over_x_pow_ln(expr: &ExprArc, var: &Ident) -> Option<ExprArc> {
     let (num, den) = try_as_rational(expr, var)?;
     if !is_var(&num, var) {
@@ -928,7 +965,7 @@ fn limit_var_over_x_pow_ln(expr: &ExprArc, var: &Ident) -> Option<ExprArc> {
     }
 }
 
-/// `poly/sqrt(poly)` at `+∞` when numerator degree ≥ 1 (e.g. `(1+x)/(sqrt(x+1)+1)`).
+// **Pipeline private** — limit poly over sqrt at infinity
 fn limit_poly_over_sqrt_at_infinity(
     expr: &ExprArc,
     var: &Ident,
@@ -954,6 +991,7 @@ fn limit_poly_over_sqrt_at_infinity(
     None
 }
 
+// **Pipeline private** — sqrt term in expr
 fn sqrt_term_in_expr(e: &ExprArc) -> Option<ExprArc> {
     if let Some(inner) = sqrt_arg(e) {
         return Some(inner);
@@ -971,7 +1009,7 @@ fn sqrt_term_in_expr(e: &ExprArc) -> Option<ExprArc> {
     None
 }
 
-/// `(a^x + b^x + …)^(1/x) → max(a,b,…)` for positive constants.
+// **Pipeline private** — limit exp sum nth root
 fn limit_exp_sum_nth_root(expr: &ExprArc, var: &Ident) -> Option<ExprArc> {
     let Expr::Pow(base, exp) = expr.as_ref() else {
         return None;
@@ -1004,7 +1042,7 @@ fn limit_exp_sum_nth_root(expr: &ExprArc, var: &Ident) -> Option<ExprArc> {
     }
 }
 
-/// `a + 1/u → (1+u)/u` so [`peel_u_inv_factor`] can cancel `u^-1` in numerators/denominators.
+// **Pipeline private** — rewrite u inv sums
 fn rewrite_u_inv_sums(expr: &ExprArc, u: &Ident) -> ExprArc {
     match expr.as_ref() {
         Expr::Add(ts) if ts.iter().any(|t| is_u_inv(t, u)) => {
@@ -1030,6 +1068,7 @@ fn rewrite_u_inv_sums(expr: &ExprArc, u: &Ident) -> ExprArc {
     }
 }
 
+// **Pipeline private** — peel u inv factor
 fn peel_u_inv_factor(e: &ExprArc, u: &Ident) -> Option<ExprArc> {
     if is_u_inv(e, u) {
         return Some(Expr::int(1));
@@ -1060,6 +1099,7 @@ fn peel_u_inv_factor(e: &ExprArc, u: &Ident) -> Option<ExprArc> {
     }
 }
 
+// **Pipeline private** — is u inv
 fn is_u_inv(e: &ExprArc, u: &Ident) -> bool {
     matches!(
         e.as_ref(),
@@ -1071,10 +1111,12 @@ fn is_u_inv(e: &ExprArc, u: &Ident) -> bool {
     )
 }
 
+// **Pipeline private** — is u var
 fn is_u_var(e: &ExprArc, u: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Symbol(id) if id == u)
 }
 
+// **Pipeline private** — is half exponent
 fn is_half_exponent(exp: &ExprArc) -> bool {
     matches!(exp.as_ref(), Expr::Rat(r) if *r == Ratio::new(1.into(), 2.into()))
         || matches!(
@@ -1085,6 +1127,7 @@ fn is_half_exponent(exp: &ExprArc) -> bool {
         )
 }
 
+// **Pipeline private** — is one plus u inv sq
 fn is_one_plus_u_inv_sq(b: &ExprArc, u: &Ident) -> bool {
     let Expr::Add(ts) = b.as_ref() else {
         return false;
@@ -1093,6 +1136,7 @@ fn is_one_plus_u_inv_sq(b: &ExprArc, u: &Ident) -> bool {
         && ts.iter().any(|t| u_negative_power_degree(t, u) == Some(-2))
 }
 
+// **Pipeline private** — u negative power degree
 fn u_negative_power_degree(e: &ExprArc, u: &Ident) -> Option<i64> {
     match e.as_ref() {
         Expr::Pow(b, exp) if is_u_var(b, u) => match exp.as_ref() {
@@ -1111,7 +1155,7 @@ fn u_negative_power_degree(e: &ExprArc, u: &Ident) -> Option<i64> {
     }
 }
 
-/// `sqrt(1+1/u^2) → sqrt(1+u^2)/u` after reciprocal substitution.
+// **Pipeline private** — simplify reciprocal sqrt
 fn simplify_reciprocal_sqrt(expr: &ExprArc, u: &Ident) -> ExprArc {
     match expr.as_ref() {
         Expr::Pow(b, exp) if is_half_exponent(exp) && is_one_plus_u_inv_sq(b, u) => Expr::mul(vec![
@@ -1151,10 +1195,12 @@ fn simplify_reciprocal_sqrt(expr: &ExprArc, u: &Ident) -> ExprArc {
     }
 }
 
+// **Pipeline private** — is usable limit
 fn is_usable_limit(e: &ExprArc) -> bool {
     !contains_zero_negative_power(e) && !contains_asym_var(e)
 }
 
+// **Pipeline private** — contains asym var
 fn contains_asym_var(e: &ExprArc) -> bool {
     match e.as_ref() {
         Expr::Symbol(id) => id.as_str() == ASYM_U,
@@ -1167,6 +1213,7 @@ fn contains_asym_var(e: &ExprArc) -> bool {
     }
 }
 
+// **Pipeline private** — contains zero negative power
 fn contains_zero_negative_power(expr: &ExprArc) -> bool {
     match expr.as_ref() {
         Expr::Pow(base, exp) => {
@@ -1185,21 +1232,25 @@ fn contains_zero_negative_power(expr: &ExprArc) -> bool {
     }
 }
 
+// **Pipeline private** — reciprocal subst
 fn reciprocal_subst(expr: &ExprArc, var: &Ident, u: &Ident) -> Result<ExprArc, EvalError> {
     let inv = Expr::pow(var_to_expr(u), Expr::int(-1));
     eval_subst_map(expr, &subst_map(var, inv))
 }
 
+// **Pipeline private** — subst map
 fn subst_map(var: &Ident, value: ExprArc) -> HashMap<Ident, ExprArc> {
     let mut m = HashMap::new();
     m.insert(var.clone(), value);
     m
 }
 
+// **Pipeline private** — var to expr
 fn var_to_expr(var: &Ident) -> ExprArc {
     Expr::sym(var.as_str())
 }
 
+// **Pipeline private** — limit from rational laurent
 fn limit_from_rational_laurent(expr: &ExprArc, u: &Ident) -> Option<ExprArc> {
     let (num, den) = try_as_rational(expr, u)?;
     let v = Var::from(u.as_str());
@@ -1217,6 +1268,7 @@ fn limit_from_rational_laurent(expr: &ExprArc, u: &Ident) -> Option<ExprArc> {
     Some(limit_from_laurent_exponent(exp, &ratio))
 }
 
+// **Pipeline private** — valuation at zero
 fn valuation_at_zero(p: &Poly, var: &Var) -> u64 {
     let d = univariate_degree(p, var);
     for k in 0..=d {
@@ -1227,6 +1279,7 @@ fn valuation_at_zero(p: &Poly, var: &Var) -> u64 {
     d + 1
 }
 
+// **Pipeline private** — limit from laurent exponent
 fn limit_from_laurent_exponent(exp: i32, coeff: &Ratio<BigInt>) -> ExprArc {
     if exp > 0 {
         return Expr::int(0);
@@ -1237,6 +1290,7 @@ fn limit_from_laurent_exponent(exp: i32, coeff: &Ratio<BigInt>) -> ExprArc {
     ratio_to_expr(coeff)
 }
 
+// **Pipeline private** — sign infinity
 fn sign_infinity(r: &Ratio<BigInt>) -> ExprArc {
     if r.is_negative() {
         Expr::sym("-infinity")
@@ -1247,6 +1301,7 @@ fn sign_infinity(r: &Ratio<BigInt>) -> ExprArc {
     }
 }
 
+// **Pipeline private** — ratio to expr
 fn ratio_to_expr(r: &Ratio<BigInt>) -> ExprArc {
     if r.is_integer() {
         if let Ok(n) = giac_core::bigint_to_i64(r.numer()) {
@@ -1259,7 +1314,7 @@ fn ratio_to_expr(r: &Ratio<BigInt>) -> ExprArc {
     ))
 }
 
-/// Find `m` so that `u^m * expr` has a finite nonzero limit at `u = 0`, then lift to `x = +∞`.
+// **Pipeline private** — limit from scaled finite
 fn limit_from_scaled_finite(expr: &ExprArc, u: &Ident, ctx: &Context) -> Result<ExprArc, EvalError> {
     let zero = Expr::int(0);
     for m in 0..=MAX_PUMP {
@@ -1286,6 +1341,7 @@ fn limit_from_scaled_finite(expr: &ExprArc, u: &Ident, ctx: &Context) -> Result<
     Err(EvalError::NotImplemented("limit"))
 }
 
+// **Pipeline private** — sign infinity from value
 fn sign_infinity_from_value(v: &ExprArc) -> ExprArc {
     match v.as_ref() {
         Expr::Int(n) if n.is_negative() => Expr::sym("-infinity"),
@@ -1297,6 +1353,7 @@ fn sign_infinity_from_value(v: &ExprArc) -> ExprArc {
     }
 }
 
+// **Pipeline private** — laurent terms at zero
 fn laurent_terms_at_zero(
     expr: &ExprArc,
     u: &Ident,
@@ -1315,6 +1372,7 @@ fn laurent_terms_at_zero(
     taylor_terms_as_laurent(expr, u, order, ctx)
 }
 
+// **Pipeline private** — laurent terms rational
 fn laurent_terms_rational(
     num: &ExprArc,
     den: &ExprArc,
@@ -1365,6 +1423,7 @@ fn laurent_terms_rational(
     Ok(terms)
 }
 
+// **Pipeline private** — taylor terms as laurent
 fn taylor_terms_as_laurent(
     expr: &ExprArc,
     u: &Ident,
@@ -1387,15 +1446,18 @@ fn taylor_terms_as_laurent(
     Ok(terms)
 }
 
+// **Pipeline private** — eval at
 fn eval_at(expr: &ExprArc, var: &Ident, center: &ExprArc, ctx: &Context) -> Result<ExprArc, EvalError> {
     let sub = eval_subst_map(expr, &subst_map(var, Arc::clone(center)))?;
     eval(sub.as_ref(), ctx)
 }
 
+// **Pipeline private** — is zero
 fn is_zero(e: &ExprArc) -> bool {
     matches!(e.as_ref(), Expr::Int(n) if n.is_zero())
 }
 
+// **Pipeline private** — is plus infinity
 fn is_plus_infinity(e: &ExprArc) -> bool {
     matches!(
         e.as_ref(),
@@ -1403,6 +1465,7 @@ fn is_plus_infinity(e: &ExprArc) -> bool {
     )
 }
 
+// **Pipeline private** — is minus infinity
 fn is_minus_infinity(e: &ExprArc) -> bool {
     matches!(e.as_ref(), Expr::Symbol(id) if id.as_str() == "-infinity")
 }
@@ -1487,6 +1550,7 @@ mod tests {
     mod fallback_only {
         use super::*;
 
+// **Pipeline private** — assert fallback
         fn assert_fallback(input: &str, expected: &str) {
             let ctx = xcas_default();
             let var = Ident::new("x");

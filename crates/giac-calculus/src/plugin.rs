@@ -1,4 +1,10 @@
 //! giac-calculus plugin: wires integration/differentiation into `giac-core::Context`.
+//!
+//! See [`.doc/giac-calculus-api-stability.md`](../../../../.doc/giac-calculus-api-stability.md) §2.
+//!
+//! | Tier | 函数 |
+//! |------|------|
+//! | **Stable** | `install_calculus`, `xcas_default`, `DefaultCalculusPlugin` trait hooks |
 
 use std::sync::Arc;
 
@@ -14,33 +20,38 @@ use crate::series::eval_series;
 pub struct DefaultCalculusPlugin;
 
 impl CalculusPlugin for DefaultCalculusPlugin {
+    /// **Stable** — delegate to [`eval_integrate`].
     fn eval_integrate(&self, args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
         eval_integrate(args, ctx)
     }
 
+    /// **Stable** — delegate to [`eval_diff`].
     fn eval_diff(&self, args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
         eval_diff(args, ctx)
     }
 
+    /// **Stable** — delegate to [`eval_limit`].
     fn eval_limit(&self, args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
         eval_limit(args, ctx)
     }
 
+    /// **Stable** — delegate to [`eval_series`].
     fn eval_series(&self, args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
         eval_series(args, ctx)
     }
 
+    /// **Partial** — delegate to [`eval_risch`] (narrow Risch subset).
     fn eval_risch(&self, args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
         eval_risch(args, ctx)
     }
 }
 
-/// Install the default calculus plugin on `ctx`.
+/// **Stable** — install the default calculus plugin on `ctx`.
 pub fn install_calculus(ctx: &mut Context) {
     ctx.set_calculus_plugin(Arc::new(DefaultCalculusPlugin));
 }
 
-/// Full CAS context: linear algebra, solving, simplification, and calculus.
+/// **Stable** — full CAS context: linear algebra, solving, simplification, and calculus.
 pub fn xcas_default() -> Context {
     let mut ctx = giac_solve::xcas_default();
     giac_simplify::install_simplify(&mut ctx);

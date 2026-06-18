@@ -3,6 +3,12 @@
 //! **通用表示层 API 规则：** [`algorithm-expr-api.md`](../../../../../.doc/algorithm-expr-api.md)  
 //! **本模块专项契约：** [`limit-engine-expr-api.md`](../../../../../.doc/limit-engine-expr-api.md)
 //!
+//! | 层级 | 内容 |
+//! |------|------|
+//! | **Stable** | `mrv_*_expr`、`canonical_mrv_coeff`、`decompose_mrv_coeff`、`expr_contains_*` |
+//! | **Temporary** | `drift_*`（仅 `canonical_mrv_coeff` 内；退役 Phase 3A） |
+//! | **Pipeline private** | `decompose_neg_ln_power`、`is_ln_w` 等分解辅助 |
+//!
 //! ## 稳定 API（模块外只应直接使用这些）
 //!
 //! | 前缀 / 类型 | 用途 |
@@ -25,39 +31,43 @@ use num_traits::{One, Signed, Zero};
 
 pub(crate) const MRV_W: &str = "_mrv_w";
 
-// ── 稳定：原子与常量 ─────────────────────────────────────────────────────────
 
+/// **Stable** — 谓词：是否为 `_mrv_w` 符号
 pub(crate) fn is_mrv_w_var(id: &Ident) -> bool {
     id.as_str() == MRV_W
 }
 
+/// **Stable** — 规范原子 `Symbol(_mrv_w)`
 pub(crate) fn mrv_w_expr() -> ExprArc {
     Expr::sym(MRV_W)
 }
 
+/// **Stable** — 规范原子 `Ln(_mrv_w)`
 pub(crate) fn mrv_ln_w_expr() -> ExprArc {
     Expr::func(FuncKind::Ln, vec![mrv_w_expr()])
 }
 
-/// 规范原子：`-ln(w)` ≡ `Mul(-1, Ln(w))`。
+/// **Stable** — 规范原子 `-ln(w)`
 pub(crate) fn neg_ln_w_expr() -> ExprArc {
     Expr::mul(vec![Expr::int(-1), mrv_ln_w_expr()])
 }
 
-/// 规范原子：`(-ln(w))^-1`（换元后 `x^-1` 的像）。
+/// **Stable** — 规范原子 `(-ln(w))^-1`
 pub(crate) fn neg_ln_w_inv_expr() -> ExprArc {
     Expr::pow(neg_ln_w_expr(), Expr::int(-1))
 }
 
+/// **Stable** — 谓词：表达式为常数 1
 pub(crate) fn is_expr_one(e: &ExprArc) -> bool {
     matches!(e.as_ref(), Expr::Int(n) if n.is_one())
 }
 
+/// **Stable** — 谓词：表达式为常数 0
 pub(crate) fn is_expr_zero(e: &ExprArc) -> bool {
     matches!(e.as_ref(), Expr::Int(n) if n.is_zero())
 }
 
-/// `w^-1`（级数 Laurent 变量），不是 `(-ln(w))^-1`。
+/// **Stable** — 谓词：Laurent 因子 `w^-1`（≠ `(-ln w)^-1`）
 pub(crate) fn is_neg_w_inv(e: &ExprArc) -> bool {
     match e.as_ref() {
         Expr::Pow(base, exp)
@@ -81,7 +91,7 @@ pub(crate) fn is_neg_w_inv(e: &ExprArc) -> bool {
     }
 }
 
-/// 指数是否为 `-1`（含 `1/(-1)` 等 `ratnormal` 漂移形式）。
+// **Pipeline private** — is negative unit exp
 fn is_negative_unit_exp(exp: &ExprArc) -> bool {
     match exp.as_ref() {
         Expr::Int(n) => n.is_negative(),
@@ -93,6 +103,7 @@ fn is_negative_unit_exp(exp: &ExprArc) -> bool {
     }
 }
 
+// **Pipeline private** — is negative one like
 fn is_negative_one_like(e: &ExprArc) -> bool {
     matches!(e.as_ref(), Expr::Int(n) if n.is_negative())
         || matches!(
@@ -104,6 +115,7 @@ fn is_negative_one_like(e: &ExprArc) -> bool {
         )
 }
 
+/// **Stable** — 谓词：子树含 `w`
 pub(crate) fn expr_contains_w_var(e: &ExprArc) -> bool {
     match e.as_ref() {
         Expr::Symbol(id) => is_mrv_w_var(id),
@@ -116,6 +128,7 @@ pub(crate) fn expr_contains_w_var(e: &ExprArc) -> bool {
     }
 }
 
+/// **Stable** — 谓词：子树含 `ln(w)`
 pub(crate) fn expr_contains_ln_w(e: &ExprArc) -> bool {
     match e.as_ref() {
         Expr::Func(FuncKind::Ln, args) if args.len() == 1 && expr_contains_w_var(&args[0]) => true,
@@ -128,7 +141,7 @@ pub(crate) fn expr_contains_ln_w(e: &ExprArc) -> bool {
     }
 }
 
-/// 规范后等于 `(-ln(w))^1`（peel 路径分母识别；不是 `(-ln(w))^-1`）。
+/// **Stable** — 谓词：规范后等于 `(-ln(w))^1`
 pub(crate) fn is_neg_ln_first_power(e: &ExprArc) -> bool {
     let e = canonical_mrv_coeff(e);
     if e == neg_ln_w_expr() {
@@ -142,9 +155,8 @@ pub(crate) fn is_neg_ln_first_power(e: &ExprArc) -> bool {
     )
 }
 
-// ── 稳定：规范入口 + 分解 ───────────────────────────────────────────────────
 
-/// 级数/MRV 系数规范化：折回 `neg_ln_w_expr` / `neg_ln_w_inv_expr` 原子。
+/// **Stable** — MRV 系数规范化；唯一漂移收敛入口
 pub(crate) fn canonical_mrv_coeff(expr: &ExprArc) -> ExprArc {
     let folded = match expr.as_ref() {
         Expr::Add(ts) => Expr::add(ts.iter().map(canonical_mrv_coeff).collect()),
@@ -171,18 +183,18 @@ pub(crate) struct MrvCoeffParts {
 }
 
 impl MrvCoeffParts {
-    /// 级数 lead 尚未就绪：仍含 `ln(w)` 或 `(-ln(w))^k` 因子。
+    /// **Stable** — 系数仍含未处理 `ln(w)` / `(-ln(w))^k`
     pub fn pending_for_series(&self) -> bool {
         self.ln_w_pow != 0 || self.neg_ln_pow != 0
     }
 
-    /// 含 `(-ln(w))^-1`（或更高负幂）——需 peel + padd，不能走 `ln(w)→g` 替换。
+    /// **Stable** — 含 `(-ln(w))^-1`（需 peel + padd）
     pub fn has_neg_ln_inv(&self) -> bool {
         self.neg_ln_pow < 0
     }
 }
 
-/// 语义分解：`e ≡ (-ln(w))^neg_ln_pow · (… ln(w) 加法部分 …) · rest`。
+/// **Stable** — 语义分解 `(-ln(w))^k · ln(w) 加法部分 · rest`
 pub(crate) fn decompose_mrv_coeff(e: &ExprArc) -> MrvCoeffParts {
     let e = canonical_mrv_coeff(e);
     let (neg_ln_pow, rest) = decompose_neg_ln_power(&e);
@@ -194,7 +206,7 @@ pub(crate) fn decompose_mrv_coeff(e: &ExprArc) -> MrvCoeffParts {
     }
 }
 
-/// 仅 `ln(w)` 加法基：`(k, rest)` 表示 `k·ln(w) + rest`（`remove_lnexp` / padd 沿用）。
+/// **Stable** — 仅 `k·ln(w)` 加法基分解
 pub(crate) fn decompose_ln_w_coeff(e: &ExprArc) -> (i32, ExprArc) {
     match e.as_ref() {
         Expr::Add(ts) => {
@@ -251,7 +263,7 @@ pub(crate) fn decompose_ln_w_coeff(e: &ExprArc) -> (i32, ExprArc) {
     }
 }
 
-/// 规范系数上 `(-ln(w))^k` 的乘法分解（`k` 可为负）。
+// **Pipeline private** — decompose neg ln power
 fn decompose_neg_ln_power(e: &ExprArc) -> (i32, ExprArc) {
     if is_neg_ln_atom(e) {
         return (1, Expr::int(1));
@@ -303,10 +315,12 @@ fn decompose_neg_ln_power(e: &ExprArc) -> (i32, ExprArc) {
     }
 }
 
+// **Pipeline private** — is neg ln atom
 fn is_neg_ln_atom(e: &ExprArc) -> bool {
     e == &neg_ln_w_expr()
 }
 
+// **Pipeline private** — is ln w
 fn is_ln_w(e: &ExprArc) -> bool {
     matches!(
         e.as_ref(),
@@ -314,6 +328,7 @@ fn is_ln_w(e: &ExprArc) -> bool {
     )
 }
 
+// **Pipeline private** — ln w mul coeff
 fn ln_w_mul_coeff(f: &ExprArc) -> Option<i32> {
     if is_ln_w(f) {
         return Some(1);
@@ -353,6 +368,7 @@ fn ln_w_mul_coeff(f: &ExprArc) -> Option<i32> {
     }
 }
 
+// **Pipeline private** — rest expr
 fn rest_expr(mut parts: Vec<ExprArc>) -> ExprArc {
     if parts.is_empty() {
         Expr::int(1)
@@ -363,9 +379,8 @@ fn rest_expr(mut parts: Vec<ExprArc>) -> ExprArc {
     }
 }
 
-// ── 临时：`drift_*`（仅 canonical_mrv_coeff 内部）────────────────────────────
 
-/// TEMP: 将 `ratnormal` 漂移形式折成规范原子；Phase 3A 后删除。
+// **Temporary** — `drift_fold_ln_atoms` 漂移形识别; 退役: GIAC-limit-mrv-followup Phase 3A
 fn drift_fold_ln_atoms(expr: &ExprArc) -> ExprArc {
     if drift_is_neg_ln_inv_shape(expr) {
         return neg_ln_w_inv_expr();
@@ -384,12 +399,12 @@ fn drift_fold_ln_atoms(expr: &ExprArc) -> ExprArc {
     expr.clone()
 }
 
-/// TEMP: 识别规范或漂移的 `-ln(w)` 形状。
+// **Temporary** — `drift_is_neg_ln_shape` 漂移形识别; 退役: GIAC-limit-mrv-followup Phase 3A
 fn drift_is_neg_ln_shape(e: &ExprArc) -> bool {
     is_neg_ln_atom(e) || drift_is_neg_ln_expanded(e)
 }
 
-/// TEMP: 识别规范或漂移的 `(-ln(w))^-1` 形状。
+// **Temporary** — `drift_is_neg_ln_inv_shape` 漂移形识别; 退役: GIAC-limit-mrv-followup Phase 3A
 fn drift_is_neg_ln_inv_shape(e: &ExprArc) -> bool {
     e == &neg_ln_w_inv_expr()
         || matches!(
@@ -401,6 +416,7 @@ fn drift_is_neg_ln_inv_shape(e: &ExprArc) -> bool {
         || drift_is_neg_ln_inv_expanded(e)
 }
 
+// **Temporary** — `drift_is_neg_ln_expanded` 漂移形识别; 退役: GIAC-limit-mrv-followup Phase 3A
 fn drift_is_neg_ln_expanded(e: &ExprArc) -> bool {
     match e.as_ref() {
         Expr::Mul(fs) if fs.len() == 2 => {
@@ -414,6 +430,7 @@ fn drift_is_neg_ln_expanded(e: &ExprArc) -> bool {
     }
 }
 
+// **Temporary** — `drift_is_neg_ln_inv_expanded` 漂移形识别; 退役: GIAC-limit-mrv-followup Phase 3A
 fn drift_is_neg_ln_inv_expanded(e: &ExprArc) -> bool {
     match e.as_ref() {
         Expr::Pow(base, exp) if matches!(exp.as_ref(), Expr::Int(n) if n.is_negative()) => {
@@ -424,6 +441,7 @@ fn drift_is_neg_ln_inv_expanded(e: &ExprArc) -> bool {
     }
 }
 
+// **Temporary** — `drift_is_negative_one_like` 漂移形识别; 退役: GIAC-limit-mrv-followup Phase 3A
 fn drift_is_negative_one_like(e: &ExprArc) -> bool {
     matches!(e.as_ref(), Expr::Int(n) if n == &-BigInt::from(1))
         || matches!(
@@ -437,6 +455,7 @@ fn drift_is_negative_one_like(e: &ExprArc) -> bool {
         )
 }
 
+// **Temporary** — `drift_is_ln_w_symbol` 漂移形识别; 退役: GIAC-limit-mrv-followup Phase 3A
 fn drift_is_ln_w_symbol(e: &ExprArc) -> bool {
     matches!(
         e.as_ref(),

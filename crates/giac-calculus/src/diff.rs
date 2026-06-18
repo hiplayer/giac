@@ -1,10 +1,19 @@
+//! Symbolic differentiation (`diff`).
+//!
+//! See [`.doc/giac-calculus-api-stability.md`](../../../../.doc/giac-calculus-api-stability.md) §7.
+//!
+//! | Tier | 函数 |
+//! |------|------|
+//! | **Stable** | `diff` |
+//! | **Pipeline private** | `diff_*`, `is_var`, `is_const_wrt` |
+
 use std::sync::Arc;
 
 use giac_core::{
     bigint_to_i64, EvalError, Expr, ExprArc, FuncKind, Ident,
 };
 
-/// Symbolic differentiation (GIAC-113 / `giac-calculus`).
+/// **Stable** — symbolic differentiation (GIAC-113 / `giac-calculus`).
 pub fn diff(expr: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     match expr.as_ref() {
         Expr::Add(terms) => {
@@ -26,6 +35,7 @@ pub fn diff(expr: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     }
 }
 
+// **Pipeline private** — product rule for `Mul`.
 fn diff_mul(factors: &[ExprArc], var: &Ident) -> Result<ExprArc, EvalError> {
     if factors.is_empty() {
         return Ok(Expr::int(0));
@@ -54,6 +64,7 @@ fn diff_mul(factors: &[ExprArc], var: &Ident) -> Result<ExprArc, EvalError> {
     Ok(Expr::add(terms))
 }
 
+// **Pipeline private** — power rule (integer exponent cases).
 fn diff_pow(base: &ExprArc, exp: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     if is_var(base, var) {
         if let Expr::Int(n) = exp.as_ref() {
@@ -85,6 +96,7 @@ fn diff_pow(base: &ExprArc, exp: &ExprArc, var: &Ident) -> Result<ExprArc, EvalE
     Err(EvalError::NotImplemented("diff pow"))
 }
 
+// **Pipeline private** — quotient rule via `Frac`.
 fn diff_quotient(num: &ExprArc, den: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     let np = diff(num, var)?;
     let dp = diff(den, var)?;
@@ -98,6 +110,7 @@ fn diff_quotient(num: &ExprArc, den: &ExprArc, var: &Ident) -> Result<ExprArc, E
     )))
 }
 
+// **Pipeline private** — chain rule for `sin`.
 fn diff_sin(arg: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     Ok(Expr::mul(vec![
         Expr::func(FuncKind::Cos, vec![Arc::clone(arg)]),
@@ -105,6 +118,7 @@ fn diff_sin(arg: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     ]))
 }
 
+// **Pipeline private** — chain rule for `cos`.
 fn diff_cos(arg: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     Ok(Expr::mul(vec![
         Expr::int(-1),
@@ -113,10 +127,12 @@ fn diff_cos(arg: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     ]))
 }
 
+// **Pipeline private** — chain rule for `ln`.
 fn diff_ln(arg: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     Ok(Arc::new(Expr::Frac(diff(arg, var)?, Arc::clone(arg))))
 }
 
+// **Pipeline private** — chain rule for `exp`.
 fn diff_exp(arg: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     Ok(Expr::mul(vec![
         Expr::func(FuncKind::Exp, vec![Arc::clone(arg)]),
@@ -124,6 +140,7 @@ fn diff_exp(arg: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     ]))
 }
 
+// **Pipeline private** — chain rule for `atan`.
 fn diff_atan(arg: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     Ok(Expr::mul(vec![
         diff(arg, var)?,
@@ -134,6 +151,7 @@ fn diff_atan(arg: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     ]))
 }
 
+// **Pipeline private** — chain rule for `tan`.
 fn diff_tan(arg: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     let cos = Expr::func(FuncKind::Cos, vec![Arc::clone(arg)]);
     Ok(Expr::mul(vec![
@@ -142,10 +160,12 @@ fn diff_tan(arg: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     ]))
 }
 
+// **Pipeline private** — syntactic equality with `var`.
 fn is_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Symbol(id) if id == var)
 }
 
+// **Pipeline private** — syntactic constness w.r.t. `var` (local copy).
 fn is_const_wrt(e: &ExprArc, var: &Ident) -> bool {
     match e.as_ref() {
         Expr::Symbol(id) => id != var,

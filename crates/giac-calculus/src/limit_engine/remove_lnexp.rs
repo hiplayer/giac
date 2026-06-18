@@ -1,5 +1,13 @@
 //! Upstream `remove_lnexp` for sparse-series coefficient merging (`series.cc`).
 //!
+//! **API 分层：** [`giac-calculus-api-stability.md`](../../../../../.doc/giac-calculus-api-stability.md)
+//! **专项契约：** [`limit-engine-expr-api.md`](../../../../../.doc/limit-engine-expr-api.md)
+//!
+//! | 层级 | 内容 |
+//! |------|------|
+//! | **Stable** | `remove_lnexp`、`divide_lead_coeffs`、`expr_contains_exp_or_ln` |
+//! | **Pipeline private** | `try_rewrite_*`、`ln_expand0`、`exp_series_*` 等单次改写 |
+//!
 //! `ln_expand`: `ln(exp(f))→f`, product/power/inv rules.
 //! `exp_series`: `exp(a*ln(v)+b) → exp(b)*v^a` when linear in a single `ln(v)`.
 
@@ -19,7 +27,7 @@ use super::mrv_w::{
     is_mrv_w_var, is_neg_w_inv, mrv_ln_w_expr, mrv_w_expr,
 };
 
-/// Bottom-up `subst` on `ln` / `exp` (giac `remove_lnexp`).
+/// **Stable** — 上游 `remove_lnexp`：`ln_expand` + `exp_series`
 pub(crate) fn remove_lnexp(expr: &ExprArc, ctx: &Context) -> ExprArc {
     let mut folded = fold_children(expr, ctx);
     if let Some(rewritten) = try_collapse_w_inv_exp_plus_ln(&folded, ctx) {
@@ -54,7 +62,7 @@ pub(crate) fn remove_lnexp(expr: &ExprArc, ctx: &Context) -> ExprArc {
     }
 }
 
-/// `w^{-1}*(exp(f+ln(w))-1) → exp(f)-w^{-1}` before `exp_series` distorts factors.
+// **Pipeline private** — try collapse w inv exp plus ln
 fn try_collapse_w_inv_exp_plus_ln(expr: &ExprArc, ctx: &Context) -> Option<ExprArc> {
     let Expr::Mul(fs) = expr.as_ref() else {
         return None;
@@ -77,7 +85,7 @@ fn try_collapse_w_inv_exp_plus_ln(expr: &ExprArc, ctx: &Context) -> Option<ExprA
     ]))
 }
 
-/// `w^{-1} * (w*exp(f) - 1) → exp(f) - w^{-1}` (undo bad `exp(f+ln(w))` distribution).
+// **Pipeline private** — try collapse w inv exp shift
 fn try_collapse_w_inv_exp_shift(expr: &ExprArc) -> Option<ExprArc> {
     let Expr::Mul(fs) = expr.as_ref() else {
         return None;
@@ -123,11 +131,12 @@ fn try_collapse_w_inv_exp_shift(expr: &ExprArc) -> Option<ExprArc> {
     ]))
 }
 
+// **Pipeline private** — is mrv w var symbol
 fn is_mrv_w_var_symbol(e: &ExprArc) -> bool {
     matches!(e.as_ref(), Expr::Symbol(id) if is_mrv_w_var(id))
 }
 
-/// `w^{-1}*(exp(f)-1)` — peeled CK-61 core; same `f+ln(w)` shift as [`try_rewrite_exp_minus_w_inv`].
+// **Pipeline private** — try rewrite w inv times exp minus one
 fn try_rewrite_w_inv_times_exp_minus_one(expr: &ExprArc, ctx: &Context) -> Option<ExprArc> {
     let target = match expr.as_ref() {
         Expr::Frac(n, d) if is_expr_one(d) => n.as_ref(),
@@ -152,7 +161,7 @@ fn try_rewrite_w_inv_times_exp_minus_one(expr: &ExprArc, ctx: &Context) -> Optio
     Some(exp_scale_times_exp_minus_one(w_inv, shifted))
 }
 
-/// `exp(f) - w^{-1} = w^{-1} * (exp(f + ln(w)) - 1)` (MRV / `padd` cancellation).
+// **Pipeline private** — try rewrite exp minus w inv
 fn try_rewrite_exp_minus_w_inv(expr: &ExprArc, ctx: &Context) -> Option<ExprArc> {
     let Expr::Add(ts) = expr.as_ref() else {
         return None;
@@ -183,7 +192,7 @@ fn try_rewrite_exp_minus_w_inv(expr: &ExprArc, ctx: &Context) -> Option<ExprArc>
     None
 }
 
-/// Laurent lead at `w=0` after `exp(f)-w^{-1}` cancellation when `f ~ -ln(w)`.
+// **Pipeline private** — lead after exp ln cancel
 fn lead_after_exp_ln_cancel(f: &ExprArc, shifted: &ExprArc, ctx: &Context) -> Option<ExprArc> {
     let (k, rest) = decompose_ln_w_coeff(shifted);
     if k == 0 && !expr_contains_ln_w(&rest) && !is_expr_zero(&rest) {
@@ -195,7 +204,7 @@ fn lead_after_exp_ln_cancel(f: &ExprArc, shifted: &ExprArc, ctx: &Context) -> Op
     second_term_inner_plus_ln_expr(f, ctx)
 }
 
-/// CK-INT-61 style: `inner` a fraction with `inner ~ -ln(w)`; lead of `w^{-1}(exp(inner+ln(w))-1)`.
+// **Pipeline private** — second term inner plus ln expr
 fn second_term_inner_plus_ln_expr(inner: &ExprArc, ctx: &Context) -> Option<ExprArc> {
     let Expr::Frac(_num, den) = inner.as_ref() else {
         return None;
@@ -223,7 +232,7 @@ fn second_term_inner_plus_ln_expr(inner: &ExprArc, ctx: &Context) -> Option<Expr
     ]))
 }
 
-/// Cancel matching `ln(w)` powers in a lead-term ratio (giac `padd` / `remove_lnexp`).
+/// **Stable** — padd 商；同幂 `ln(w)`/`(-ln(w))^k` 相消
 pub(crate) fn divide_lead_coeffs(num: &ExprArc, den: &ExprArc, ctx: &Context) -> ExprArc {
     if matches!(den.as_ref(), Expr::Int(n) if n == &-BigInt::from(1)) {
         return Expr::mul(vec![Expr::int(-1), Arc::clone(num)]);
@@ -273,6 +282,7 @@ pub(crate) fn divide_lead_coeffs(num: &ExprArc, den: &ExprArc, ctx: &Context) ->
     product
 }
 
+/// **Stable** — 粗谓词：子树含 exp 或 ln
 pub(crate) fn expr_contains_exp_or_ln(e: &ExprArc) -> bool {
     match e.as_ref() {
         Expr::Func(FuncKind::Exp | FuncKind::Ln, _) => true,
@@ -285,6 +295,7 @@ pub(crate) fn expr_contains_exp_or_ln(e: &ExprArc) -> bool {
     }
 }
 
+// **Pipeline private** — fold children
 fn fold_children(expr: &ExprArc, ctx: &Context) -> ExprArc {
     match expr.as_ref() {
         Expr::Add(ts) => Expr::add(ts.iter().map(|t| remove_lnexp(t, ctx)).collect()),
@@ -299,6 +310,7 @@ fn fold_children(expr: &ExprArc, ctx: &Context) -> ExprArc {
     }
 }
 
+// **Pipeline private** — ln expand0
 fn ln_expand0(e: &ExprArc) -> ExprArc {
     match e.as_ref() {
         Expr::Func(FuncKind::Exp, args) if args.len() == 1 => Arc::clone(&args[0]),
@@ -321,6 +333,7 @@ fn ln_expand0(e: &ExprArc) -> ExprArc {
     }
 }
 
+// **Pipeline private** — exp series expand
 fn exp_series_expand(arg: &ExprArc, ctx: &Context) -> ExprArc {
     if expr_contains_ln_w(arg) {
         return exp_series_ln_w(arg);
@@ -343,6 +356,7 @@ fn exp_series_expand(arg: &ExprArc, ctx: &Context) -> ExprArc {
     Expr::func(FuncKind::Exp, vec![Arc::clone(arg)])
 }
 
+// **Pipeline private** — exp series ln w
 fn exp_series_ln_w(arg: &ExprArc) -> ExprArc {
     let (k, rest) = decompose_ln_w_coeff(arg);
     if k == 0 {
@@ -361,12 +375,14 @@ fn exp_series_ln_w(arg: &ExprArc) -> ExprArc {
     Expr::mul(vec![exp_rest, w_pow])
 }
 
+// **Pipeline private** — unique ln subexpr
 fn unique_ln_subexpr(e: &ExprArc) -> Option<(ExprArc, ExprArc)> {
     let mut found: Option<(ExprArc, ExprArc)> = None;
     collect_ln(e, &mut found);
     found
 }
 
+// **Pipeline private** — collect ln
 fn collect_ln(e: &ExprArc, found: &mut Option<(ExprArc, ExprArc)>) {
     match e.as_ref() {
         Expr::Func(FuncKind::Ln, args) if args.len() == 1 => {
@@ -424,6 +440,7 @@ fn collect_ln(e: &ExprArc, found: &mut Option<(ExprArc, ExprArc)>) {
     }
 }
 
+// **Pipeline private** — linear decompose wrt
 fn linear_decompose_wrt(e: &ExprArc, ln_expr: &ExprArc) -> (ExprArc, ExprArc) {
     match e.as_ref() {
         Expr::Add(ts) => {
@@ -453,6 +470,7 @@ fn linear_decompose_wrt(e: &ExprArc, ln_expr: &ExprArc) -> (ExprArc, ExprArc) {
     }
 }
 
+// **Pipeline private** — is integer like
 fn is_integer_like(e: &ExprArc) -> bool {
     match e.as_ref() {
         Expr::Int(_) => true,

@@ -1,3 +1,12 @@
+//! `series` / `taylor` eval hook.
+//!
+//! See [`.doc/giac-calculus-api-stability.md`](../../../../.doc/giac-calculus-api-stability.md) §7.
+//!
+//! | Tier | 函数 |
+//! |------|------|
+//! | **Stable** | `eval_series` |
+//! | **Pipeline private** | `taylor_series*`, `parse_series_*`, `series_*`, `fold_elementary`, `factorial` |
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -11,7 +20,7 @@ use crate::diff::diff;
 use crate::limit_engine::{asymptotic_series_at_infinity, series_at_center};
 use crate::limit_engine::preprocess::series_preprocess;
 
-/// `series(f,var,center,order)` / `taylor(f,var,center,order)` (GIAC-216).
+/// **Stable** — `series(f,var,center,order)` / `taylor(f,var,center,order)` (GIAC-216).
 pub fn eval_series(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     if args.len() < 3 {
         return Err(EvalError::TooFewArgs("series"));
@@ -25,6 +34,7 @@ pub fn eval_series(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError
     taylor_series(&f, &var, &center, order, ctx)
 }
 
+// **Pipeline private** — detect `+infinity` center symbol.
 fn is_plus_infinity(e: &ExprArc) -> bool {
     matches!(
         e.as_ref(),
@@ -32,6 +42,7 @@ fn is_plus_infinity(e: &ExprArc) -> bool {
     )
 }
 
+// **Pipeline private** — parse `(var, center, order)` from 2- or 3-arg tails.
 fn parse_series_location(
     args: &[ExprArc],
     ctx: &Context,
@@ -52,6 +63,7 @@ fn parse_series_location(
     }
 }
 
+// **Pipeline private** — `x=0` or `x` alone defaults center to 0.
 fn parse_var_center(e: &ExprArc) -> Result<(Ident, ExprArc), EvalError> {
     match e.as_ref() {
         Expr::Relation(RelOp::Eq, lhs, rhs) => {
@@ -62,6 +74,7 @@ fn parse_var_center(e: &ExprArc) -> Result<(Ident, ExprArc), EvalError> {
     }
 }
 
+// **Pipeline private** — evaluate and coerce series order to `usize`.
 fn series_order_arg(e: &ExprArc, ctx: &Context) -> Result<usize, EvalError> {
     let ev = eval(e.as_ref(), ctx)?;
     match ev.as_ref() {
@@ -70,6 +83,7 @@ fn series_order_arg(e: &ExprArc, ctx: &Context) -> Result<usize, EvalError> {
     }
 }
 
+// **Pipeline private** — extract variable name from `Expr::Symbol`.
 fn ident_from_expr(e: &Expr) -> Result<Ident, EvalError> {
     match e {
         Expr::Symbol(id) => Ok(id.clone()),
@@ -77,6 +91,7 @@ fn ident_from_expr(e: &Expr) -> Result<Ident, EvalError> {
     }
 }
 
+// **Pipeline private** — Taylor at finite center (diff path then `series_at_center`).
 fn taylor_series(
     f: &ExprArc,
     var: &Ident,
@@ -96,6 +111,7 @@ fn taylor_series(
     Err(EvalError::NotImplemented("series"))
 }
 
+// **Pipeline private** — Taylor via repeated differentiation and substitution.
 fn taylor_series_diff(
     f: &ExprArc,
     var: &Ident,
@@ -123,6 +139,7 @@ fn taylor_series_diff(
     giac_simplify::normal(sum.as_ref(), ctx)
 }
 
+// **Pipeline private** — single Taylor term `(coeff/k!) * (x - center)^k`.
 fn series_term(coeff: &ExprArc, var: &Ident, center: &ExprArc, k: usize) -> Result<ExprArc, EvalError> {
     let scaled = if k == 0 {
         Arc::clone(coeff)
@@ -144,10 +161,12 @@ fn series_term(coeff: &ExprArc, var: &Ident, center: &ExprArc, k: usize) -> Resu
     Ok(Expr::mul(vec![scaled, Expr::pow(delta, Expr::int(i64::try_from(k).unwrap_or(0)))]))
 }
 
+// **Pipeline private** — wrap `Ident` as `Expr::Symbol`.
 fn var_to_expr(var: &Ident) -> ExprArc {
     Expr::sym(var.as_str())
 }
 
+// **Pipeline private** — substitute `var ↦ center` and fold elementary values.
 fn eval_at(expr: &ExprArc, var: &Ident, center: &ExprArc, ctx: &Context) -> Result<ExprArc, EvalError> {
     let mut subs = HashMap::new();
     subs.insert(var.clone(), Arc::clone(center));
@@ -156,10 +175,12 @@ fn eval_at(expr: &ExprArc, var: &Ident, center: &ExprArc, ctx: &Context) -> Resu
     fold_elementary(&v, ctx)
 }
 
+// **Pipeline private** — zero-test for substitution argument.
 fn is_zero_arg(e: &ExprArc) -> bool {
     matches!(e.as_ref(), Expr::Int(n) if n.is_zero())
 }
 
+// **Pipeline private** — fold `sin(0)`, `cos(0)`, `exp(0)` at series coefficients.
 fn fold_elementary(e: &ExprArc, ctx: &Context) -> Result<ExprArc, EvalError> {
     let folded = match e.as_ref() {
         Expr::Func(FuncKind::Sin, args) if args.len() == 1 && is_zero_arg(&args[0]) => {
@@ -194,10 +215,12 @@ fn fold_elementary(e: &ExprArc, ctx: &Context) -> Result<ExprArc, EvalError> {
     eval(folded.as_ref(), ctx)
 }
 
+// **Pipeline private** — zero-test for series coefficient.
 fn is_zero(e: &ExprArc) -> bool {
     matches!(e.as_ref(), Expr::Int(n) if n.is_zero())
 }
 
+// **Pipeline private** — integer factorial for Taylor denominators.
 fn factorial(n: usize) -> Result<i64, EvalError> {
     let mut acc = 1_i64;
     for i in 2..=n {

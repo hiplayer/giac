@@ -1,11 +1,18 @@
 //! Quotient normalization for MRV limit preprocessing.
+//!
+//! **API 分层：** [`giac-calculus-api-stability.md`](../../../../../.doc/giac-calculus-api-stability.md)
+//!
+//! | 层级 | 内容 |
+//! |------|------|
+//! | **Pipeline** | `try_as_quotient`、`normalize_*`、`canonicalize_limit_entry` |
+//! | **Pipeline private** | `normalize_inverse_products`、`normalize_inverse_with` |
 
 use std::sync::Arc;
 
 use giac_core::{Expr, ExprArc, FuncKind};
 use num_traits::Signed;
 
-/// Extract `(numerator, denominator)` from `a/b` or `a * b^-1`.
+/// **Pipeline** — 提取 `(numerator, denominator)`
 pub(crate) fn try_as_quotient(expr: &ExprArc) -> Option<(ExprArc, ExprArc)> {
     match expr.as_ref() {
         Expr::Frac(num, den) => Some((Arc::clone(num), Arc::clone(den))),
@@ -52,7 +59,7 @@ pub(crate) fn try_as_quotient(expr: &ExprArc) -> Option<(ExprArc, ExprArc)> {
     }
 }
 
-/// `a/b` and `a*b^-1` share the same Laurent leading term.
+/// **Pipeline** — 商式 Laurent 形态统一
 pub(crate) fn normalize_expr_quotients(expr: &ExprArc) -> ExprArc {
     let normalized = match expr.as_ref() {
         Expr::Add(ts) => Expr::add(ts.iter().map(normalize_expr_quotients).collect()),
@@ -72,7 +79,7 @@ pub(crate) fn normalize_expr_quotients(expr: &ExprArc) -> ExprArc {
     }
 }
 
-/// Top-level `Frac` → `Mul·den^-1` for exp-diff preprocess (parse emits `Frac`, fixtures use `Mul`).
+/// **Pipeline** — 顶层 `Frac` → `Mul·den^-1`
 pub(crate) fn unify_top_quotient(expr: &ExprArc) -> ExprArc {
     if let Expr::Frac(n, d) = expr.as_ref() {
         Expr::mul(vec![
@@ -84,21 +91,22 @@ pub(crate) fn unify_top_quotient(expr: &ExprArc) -> ExprArc {
     }
 }
 
-/// Limit entry canonical form: inverse products → `Frac`, top `Frac` → `Mul` (exp-diff).
+/// **Pipeline** — 极限入口规范形
 pub(crate) fn canonicalize_limit_entry(expr: &ExprArc) -> ExprArc {
     unify_top_quotient(&normalize_inverse_products(expr))
 }
 
-/// `a*(b+c+…)^-1` → `a/(b+c+…)` for preprocess / nested-exp limits.
+/// **Pipeline** — `a*(b+c)^-1` → `a/(b+c)`
 pub(crate) fn normalize_inverse_sums(expr: &ExprArc) -> ExprArc {
     normalize_inverse_with(expr, |b| matches!(b.as_ref(), Expr::Add(_)))
 }
 
-/// `a*f^-1` for any `f` (e.g. `sqrt(…)`) — parse-entry canonicalization only.
+// **Pipeline private** — normalize inverse products
 fn normalize_inverse_products(expr: &ExprArc) -> ExprArc {
     normalize_inverse_with(expr, |_| true)
 }
 
+// **Pipeline private** — normalize inverse with
 fn normalize_inverse_with(
     expr: &ExprArc,
     accept_inverse_base: impl Fn(&ExprArc) -> bool + Copy,

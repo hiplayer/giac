@@ -1,4 +1,11 @@
 //! GIAC-228a/228b: algebraic Rothstein–Trager log part via conjugate root pairing.
+//!
+//! See [`.doc/giac-calculus-api-stability.md`](../../../../../.doc/giac-calculus-api-stability.md) §5.
+//!
+//! | Tier | 函数 |
+//! |------|------|
+//! | **Partial** | `integrate_monic_x4_plus_one`, `try_algebraic_rt_log_part`, `is_monic_x4_plus_one`, `is_monic_even_quartic` |
+//! | **Pipeline private** | factorization, conjugate pairing, sqrt/ratio helpers |
 
 use std::sync::Arc;
 
@@ -21,7 +28,7 @@ struct QuadraticFactor {
     atan_disc: Ratio<BigInt>,
 }
 
-/// Integrate `k/(x^4+1)` via RT conjugate pairing.
+/// **Partial** — integrate `k/(x^4+1)` via RT conjugate pairing. **退役：** `try_algebraic_rt_log_part` general path.
 pub fn integrate_monic_x4_plus_one(k: &Ratio<BigInt>, x: &Ident) -> ExprArc {
     let q = Poly::var("x").pow(4).add(&Poly::one());
     let var = Var::from("x");
@@ -30,7 +37,7 @@ pub fn integrate_monic_x4_plus_one(k: &Ratio<BigInt>, x: &Ident) -> ExprArc {
     integrate_from_pairs(k, &pairs, &factors, x)
 }
 
-/// RT log part when `Res_t` has algebraic conjugate pairs on an even monic quartic.
+/// **Partial** — RT log part when `Res_t` has algebraic conjugate pairs on an even monic quartic. **退役：** unified RT resultant handler.
 pub fn try_algebraic_rt_log_part(
     numer: &Poly,
     factor: &Poly,
@@ -68,12 +75,14 @@ pub fn try_algebraic_rt_log_part(
     Some(integrate_from_pairs(&k, &pairs, &factors, x))
 }
 
+/// **Partial** — monic quartic `x^4+1` shape predicate.
 pub fn is_monic_x4_plus_one(p: &Poly, var: &Var) -> bool {
     is_monic_even_quartic(p, var)
         && coeff_at(p, var, 2).is_zero()
         && coeff_at(p, var, 0) == Ratio::one()
 }
 
+/// **Partial** — monic even quartic shape predicate (odd coefficients zero).
 pub fn is_monic_even_quartic(p: &Poly, var: &Var) -> bool {
     if univariate_degree(p, var) != 4 {
         return false;
@@ -83,6 +92,7 @@ pub fn is_monic_even_quartic(p: &Poly, var: &Var) -> bool {
         && coeff_at(p, var, 1).is_zero()
 }
 
+// **Pipeline private** — factor monic even quartic into two quadratics.
 fn even_quartic_quadratic_factors(q: &Poly, var: &Var, x: &Ident) -> Option<Vec<QuadraticFactor>> {
     if !is_monic_even_quartic(q, var) {
         return None;
@@ -113,6 +123,7 @@ fn even_quartic_quadratic_factors(q: &Poly, var: &Var, x: &Ident) -> Option<Vec<
     ])
 }
 
+// **Pipeline private** — linear coefficient from `√(u²)` rational or surd.
 fn linear_sqrt_coeff_expr(u_sq: &Ratio<BigInt>) -> Option<ExprArc> {
     if let Some(r) = ratio_perfect_sqrt(u_sq) {
         return Some(ratio_to_expr(&r));
@@ -127,6 +138,7 @@ fn linear_sqrt_coeff_expr(u_sq: &Ratio<BigInt>) -> Option<ExprArc> {
     ]))
 }
 
+// **Pipeline private** — split rational into outer coeff and inner radicand.
 fn sqrt_rational_coeff_radicand(r: &Ratio<BigInt>) -> (Ratio<BigInt>, u64) {
     if let Some(s) = ratio_perfect_sqrt(r) {
         return (s, 1);
@@ -141,6 +153,7 @@ fn sqrt_rational_coeff_radicand(r: &Ratio<BigInt>) -> (Ratio<BigInt>, u64) {
     (coeff, rad)
 }
 
+// **Pipeline private** — extract perfect-square factor from integer.
 fn extract_sqrt_factor_bigint(n: &BigInt) -> (BigInt, BigInt) {
     let mut outer = BigInt::one();
     let mut inner = n.abs();
@@ -164,6 +177,7 @@ fn extract_sqrt_factor_bigint(n: &BigInt) -> (BigInt, BigInt) {
     (outer, inner)
 }
 
+// **Pipeline private** — negate linear expression coefficient.
 fn negate_linear_expr(e: &ExprArc) -> ExprArc {
     match e.as_ref() {
         Expr::Rat(r) => ratio_to_expr(&(-r.clone())),
@@ -183,6 +197,7 @@ fn negate_linear_expr(e: &ExprArc) -> ExprArc {
     }
 }
 
+// **Pipeline private** — build `x² + b·x + c` expression.
 fn quadratic_expr(x: &ExprArc, b_lin: &ExprArc, c: &Ratio<BigInt>) -> ExprArc {
     Expr::add(vec![
         Expr::pow(x.clone(), Expr::int(2)),
@@ -191,11 +206,13 @@ fn quadratic_expr(x: &ExprArc, b_lin: &ExprArc, c: &Ratio<BigInt>) -> ExprArc {
     ])
 }
 
+// **Pipeline private** — align conjugate pairs with quadratic factors.
 fn sort_pairs_and_factors(pairs: &mut [giac_poly::ConjugatePair], factors: &mut [QuadraticFactor]) {
     pairs.sort_by(|a, b| alpha_re_key(&a.alpha).cmp(&alpha_re_key(&b.alpha)));
     factors.sort_by(|a, b| b_lin_sign_key(&a.b_lin).cmp(&b_lin_sign_key(&b.b_lin)));
 }
 
+// **Pipeline private** — sort key from linear `b` coefficient sign.
 fn b_lin_sign_key(b_lin: &ExprArc) -> (i8, String) {
     let sign = match b_lin.as_ref() {
         Expr::Rat(r) if r.is_negative() => 1,
@@ -208,6 +225,7 @@ fn b_lin_sign_key(b_lin: &ExprArc) -> (i8, String) {
     (sign, format!("{:?}", b_lin))
 }
 
+// **Pipeline private** — sort key from conjugate root real part.
 fn alpha_re_key(a: &AlgebraicRt) -> (i8, Ratio<BigInt>, Ratio<BigInt>) {
     let sign = if a.re > Ratio::zero() || a.re_b > Ratio::zero() {
         0
@@ -217,6 +235,7 @@ fn alpha_re_key(a: &AlgebraicRt) -> (i8, Ratio<BigInt>, Ratio<BigInt>) {
     (sign, a.re.clone(), a.re_b.clone())
 }
 
+// **Pipeline private** — sum log/atan contributions from conjugate pairs.
 fn integrate_from_pairs(
     k: &Ratio<BigInt>,
     pairs: &[giac_poly::ConjugatePair],
@@ -230,6 +249,7 @@ fn integrate_from_pairs(
     Expr::add(parts)
 }
 
+// **Pipeline private** — hard-coded conjugate pairs for `x^4+1`.
 fn default_x4_plus_one_pairs() -> Vec<giac_poly::ConjugatePair> {
     vec![
         giac_poly::ConjugatePair {
@@ -253,7 +273,7 @@ fn default_x4_plus_one_pairs() -> Vec<giac_poly::ConjugatePair> {
     ]
 }
 
-/// `Re(α)·ln|G| + 2·Im(α)·atan((2x+b)/√(4c-b²))`.
+// **Pipeline private** — `Re(α)·ln|G| + 2·Im(α)·atan((2x+b)/√(4c-b²))`.
 fn conjugate_pair_log_contribution(
     k: &Ratio<BigInt>,
     alpha: &AlgebraicRt,
@@ -278,6 +298,7 @@ fn conjugate_pair_log_contribution(
     Expr::add(vec![ln_term, atan_term])
 }
 
+// **Pipeline private** — real part of algebraic root as expression.
 fn alpha_re_expr(a: &AlgebraicRt) -> ExprArc {
     let mut parts = Vec::new();
     if !a.re.is_zero() {
@@ -296,6 +317,7 @@ fn alpha_re_expr(a: &AlgebraicRt) -> ExprArc {
     }
 }
 
+// **Pipeline private** — imaginary part of algebraic root as expression.
 fn alpha_im_expr(a: &AlgebraicRt) -> ExprArc {
     let mut parts = Vec::new();
     if !a.im_a.is_zero() {
@@ -314,6 +336,7 @@ fn alpha_im_expr(a: &AlgebraicRt) -> ExprArc {
     }
 }
 
+// **Pipeline private** — `√r` as expression (perfect square or surd ratio).
 fn sqrt_ratio_expr(r: &Ratio<BigInt>) -> ExprArc {
     if r.is_zero() {
         return Expr::int(0);
@@ -339,6 +362,7 @@ fn sqrt_ratio_expr(r: &Ratio<BigInt>) -> ExprArc {
     ))
 }
 
+// **Pipeline private** — perfect rational square root if exists.
 fn ratio_perfect_sqrt(r: &Ratio<BigInt>) -> Option<Ratio<BigInt>> {
     if r.is_zero() {
         return Some(Ratio::zero());
@@ -348,6 +372,7 @@ fn ratio_perfect_sqrt(r: &Ratio<BigInt>) -> Option<Ratio<BigInt>> {
     Some(Ratio::new(sn, sd))
 }
 
+// **Pipeline private** — integer perfect square root via binary search.
 fn integer_perfect_sqrt(n: &BigInt) -> Option<BigInt> {
     if n.is_negative() {
         return None;
@@ -369,6 +394,7 @@ fn integer_perfect_sqrt(n: &BigInt) -> Option<BigInt> {
     None
 }
 
+// **Pipeline private** — `Ratio<BigInt>` to `ExprArc`.
 fn ratio_to_expr(r: &Ratio<BigInt>) -> ExprArc {
     if *r.denom() == BigInt::one() {
         bigint_to_i64(r.numer())

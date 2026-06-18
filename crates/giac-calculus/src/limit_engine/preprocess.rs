@@ -1,4 +1,13 @@
 //! Limit preprocessing before MRV (GIAC-216d / `limit_symbolic_preprocess` subset).
+//!
+//! **API 分层：** [`giac-calculus-api-stability.md`](../../../../../.doc/giac-calculus-api-stability.md)
+//! **专项契约：** [`limit-engine-expr-api.md`](../../../../../.doc/limit-engine-expr-api.md)、[`exp-diff-expr-api.md`](../../../../../.doc/exp-diff-expr-api.md)
+//!
+//! | 层级 | 内容 |
+//! |------|------|
+//! | **Stable** | `factor_exp_shifted_difference`（→ `canonical_exp_diff`） |
+//! | **Pipeline** | `limit_preprocess_*`、`merge_exp_quotients`、`surd2pow` 等 |
+//! | **Pipeline private** | `sqrt` 共轭与分式辅助 |
 
 use std::sync::Arc;
 
@@ -17,7 +26,7 @@ use super::exp_diff::{
 };
 use super::mrv_series_lead::{normalize_inverse_sums, unify_top_quotient};
 
-/// MRV / series preprocess: fold + merge quotients (no Gruntz ε rewrite).
+/// **Pipeline** — MRV 路径预处理（无 Gruntz ε 改写）
 pub(crate) fn limit_preprocess_mrv(expr: &ExprArc, var: &Ident) -> ExprArc {
     let folded = canonical_exp_diff(expr);
     let normalized = fold_exp_zero_linear(
@@ -31,7 +40,7 @@ pub(crate) fn limit_preprocess_mrv(expr: &ExprArc, var: &Ident) -> ExprArc {
     simplify_exp_argument_adds(&balance_exp_arguments_frac_var(&refolded, var))
 }
 
-/// Structural preprocessing without `eval` (safe for nested `exp` before limit).
+/// **Pipeline** — 结构预处理（含 ε 展开；勿用于 MRV peel 前）
 pub(crate) fn limit_preprocess_struct(expr: &ExprArc, var: &Ident) -> ExprArc {
     let expr = unify_top_quotient(&normalize_inverse_sums(expr));
     // Fold `exp(A)-exp(B)` while `1/x` is still `Frac(1,x)`; `pow2expln` rewrites to `x^-1`
@@ -52,7 +61,7 @@ pub(crate) fn limit_preprocess_struct(expr: &ExprArc, var: &Ident) -> ExprArc {
     simplify_exp_argument_adds(&balance_exp_arguments_frac_var(&algebraized, var))
 }
 
-/// `pow2expln` and light normalization before series / limit asymptotics.
+/// **Pipeline** — `+∞` 预处理编排
 pub(crate) fn limit_preprocess_plus_infinity(
     expr: &ExprArc,
     var: &Ident,
@@ -61,6 +70,7 @@ pub(crate) fn limit_preprocess_plus_infinity(
     series_preprocess(expr, var, ctx)
 }
 
+/// **Pipeline** — 级数路径预处理
 pub(crate) fn series_preprocess(
     expr: &ExprArc,
     var: &Ident,
@@ -78,7 +88,7 @@ pub(crate) fn series_preprocess(
     Ok(normal(rat.as_ref(), ctx).unwrap_or(rat))
 }
 
-/// `sqrt(e) → e^(1/2)` (upstream `surd2pow`).
+/// **Pipeline** — `sqrt` → 有理指数
 pub(crate) fn surd2pow(expr: &ExprArc) -> ExprArc {
     match expr.as_ref() {
         Expr::Func(FuncKind::Sqrt, args) if args.len() == 1 => {
@@ -93,6 +103,7 @@ pub(crate) fn surd2pow(expr: &ExprArc) -> ExprArc {
     }
 }
 
+// **Pipeline private** — is half exponent
 fn is_half_exponent(exp: &ExprArc) -> bool {
     matches!(exp.as_ref(), Expr::Rat(r) if *r == Ratio::new(1.into(), 2.into()))
         || matches!(
@@ -103,6 +114,7 @@ fn is_half_exponent(exp: &ExprArc) -> bool {
         )
 }
 
+// **Pipeline private** — sqrt operand
 fn sqrt_operand(e: &ExprArc) -> Option<ExprArc> {
     match e.as_ref() {
         Expr::Func(FuncKind::Sqrt, a) if a.len() == 1 => Some(surd2pow(&a[0])),
@@ -111,6 +123,7 @@ fn sqrt_operand(e: &ExprArc) -> Option<ExprArc> {
     }
 }
 
+// **Pipeline private** — negated inner
 fn negated_inner(e: &ExprArc) -> Option<ExprArc> {
     match e.as_ref() {
         Expr::Mul(fs) if fs.len() == 2 => {
@@ -126,7 +139,7 @@ fn negated_inner(e: &ExprArc) -> Option<ExprArc> {
     None
 }
 
-/// Algebraic identity `sqrt(A)-sqrt(B) → (A-B)/(sqrt(A)+sqrt(B))` (not limit-specific shapes).
+// **Pipeline private** — try sqrt difference frac
 fn try_sqrt_difference_frac(pos_sqrt: &ExprArc, neg_term: &ExprArc) -> Option<ExprArc> {
     let a = sqrt_operand(pos_sqrt)?;
     let neg_inner = negated_inner(neg_term)?;
@@ -137,7 +150,7 @@ fn try_sqrt_difference_frac(pos_sqrt: &ExprArc, neg_term: &ExprArc) -> Option<Ex
     )))
 }
 
-/// `sqrt(A)-X → (A-X^2)/(sqrt(A)+X)`.
+// **Pipeline private** — try sqrt minus x frac
 fn try_sqrt_minus_x_frac(sqrt_t: &ExprArc, x_term: &ExprArc) -> Option<ExprArc> {
     let a = sqrt_operand(sqrt_t)?;
     let x_pos = negated_inner(x_term).unwrap_or_else(|| Arc::clone(x_term));
@@ -150,6 +163,7 @@ fn try_sqrt_minus_x_frac(sqrt_t: &ExprArc, x_term: &ExprArc) -> Option<ExprArc> 
     )))
 }
 
+// **Pipeline private** — combine mul with frac
 fn combine_mul_with_frac(var_factor: &ExprArc, frac: &ExprArc) -> Option<ExprArc> {
     let Expr::Frac(n, d) = frac.as_ref() else {
         return None;
@@ -160,7 +174,7 @@ fn combine_mul_with_frac(var_factor: &ExprArc, frac: &ExprArc) -> Option<ExprArc
     )))
 }
 
-/// Conjugate-style sqrt rewrites for general series/MRV (upstream normalization, not shape tables).
+/// **Pipeline** — 共轭有理化 `sqrt` 差分
 pub(crate) fn normalize_sqrt_conjugates(expr: &ExprArc) -> ExprArc {
     match expr.as_ref() {
         Expr::Add(terms) if terms.len() == 2 => {
@@ -203,7 +217,7 @@ pub(crate) fn normalize_sqrt_conjugates(expr: &ExprArc) -> ExprArc {
     }
 }
 
-/// `exp(c*var)` with `c = 0` → `1` (e.g. `4^n/2^(2n)` after `merge_exp_quotients`).
+/// **Pipeline** — `exp(0·x+…)` 线性折叠
 pub(crate) fn fold_exp_zero_linear(expr: &ExprArc, var: &Ident) -> ExprArc {
     match expr.as_ref() {
         Expr::Func(FuncKind::Exp, args) if args.len() == 1 => {
@@ -233,12 +247,12 @@ pub(crate) fn fold_exp_zero_linear(expr: &ExprArc, var: &Ident) -> ExprArc {
     }
 }
 
-/// x-layer `exp` difference factor (alias; see `exp_diff::canonical_exp_diff`).
+/// **Stable** — 转发 `canonical_exp_diff`
 pub(crate) fn factor_exp_shifted_difference(expr: &ExprArc) -> ExprArc {
     canonical_exp_diff(expr)
 }
 
-/// `exp(a)/exp(b) → exp(a-b)` and `exp(a)*exp(b)^-1` (upstream `_pow2exp` companion).
+/// **Pipeline** — 合并 exp 商式
 pub(crate) fn merge_exp_quotients(expr: &ExprArc) -> ExprArc {
     match expr.as_ref() {
         Expr::Frac(num, den) => {

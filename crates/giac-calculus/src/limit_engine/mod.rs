@@ -1,3 +1,12 @@
+//! Limit engine orchestration (`limit_engine` crate submodule).
+//!
+//! **API 分层：** [`giac-calculus-api-stability.md`](../../../../../.doc/giac-calculus-api-stability.md)
+//!
+//! | 层级 | 内容 |
+//! |------|------|
+//! | **Pipeline** | `limit_*_algebraic`、`expr_has_nested_exp` |
+//! | **Pipeline private** | L'Hôpital、有理商、倒数换元辅助 |
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -33,6 +42,7 @@ mod sparse_series;
 #[cfg(test)]
 pub(crate) mod ck_int_gruntz_fixture;
 
+/// **Pipeline** — 嵌套 exp 检测（委托 bounds）
 pub(crate) fn expr_has_nested_exp(e: &ExprArc) -> bool {
     bounds::expr_contains_nested_exp(e)
 }
@@ -49,6 +59,7 @@ pub(crate) use mrv_lead_term::{
 };
 pub(crate) use sparse_series::{series_at_center, series_at_zero, SparseSeries};
 
+/// **Pipeline** — 有限点代数极限
 pub(crate) fn limit_finite_algebraic(
     expr: &ExprArc,
     var: &Ident,
@@ -111,10 +122,12 @@ pub(crate) fn limit_finite_algebraic(
     Err(EvalError::NotImplemented("limit"))
 }
 
+// **Pipeline private** — try as quotient
 fn try_as_quotient(expr: &ExprArc, _var: &Ident) -> Option<(ExprArc, ExprArc)> {
     mrv_series_lead::try_as_quotient(expr)
 }
 
+// **Pipeline private** — is negative var power
 fn is_negative_var_power(e: &ExprArc, var: &Ident) -> bool {
     matches!(
         e.as_ref(),
@@ -124,6 +137,7 @@ fn is_negative_var_power(e: &ExprArc, var: &Ident) -> bool {
     )
 }
 
+// **Pipeline private** — positive var power
 fn positive_var_power(e: &ExprArc, var: &Ident) -> Option<ExprArc> {
     match e.as_ref() {
         Expr::Pow(b, exp) if is_var(b, var) => {
@@ -138,6 +152,7 @@ fn positive_var_power(e: &ExprArc, var: &Ident) -> Option<ExprArc> {
     None
 }
 
+// **Pipeline private** — limit quotient plus infinity
 fn limit_quotient_plus_infinity(
     num: &ExprArc,
     den: &ExprArc,
@@ -185,6 +200,7 @@ fn limit_quotient_plus_infinity(
     Err(EvalError::NotImplemented("limit"))
 }
 
+// **Pipeline private** — limit plus infinity quick
 fn limit_plus_infinity_quick(expr: &ExprArc, var: &Ident, ctx: &Context) -> Result<ExprArc, EvalError> {
     if let Ok(r) = limit_at_plus_infinity(expr, var, ctx) {
         return Ok(r);
@@ -210,6 +226,7 @@ fn limit_plus_infinity_quick(expr: &ExprArc, var: &Ident, ctx: &Context) -> Resu
     Err(EvalError::NotImplemented("limit"))
 }
 
+// **Pipeline private** — try as quotient add shared power
 fn try_as_quotient_add_shared_power(expr: &ExprArc, var: &Ident) -> Option<(ExprArc, ExprArc)> {
     let Expr::Add(terms) = expr.as_ref() else {
         return None;
@@ -228,6 +245,7 @@ fn try_as_quotient_add_shared_power(expr: &ExprArc, var: &Ident) -> Option<(Expr
     Some((Expr::add(num_terms), den?))
 }
 
+// **Pipeline private** — limit quotient finite
 fn limit_quotient_finite(
     expr: &ExprArc,
     var: &Ident,
@@ -242,6 +260,7 @@ fn limit_quotient_finite(
     limit_rational_finite(&num, &den, var, point, ctx, depth)
 }
 
+/// **Pipeline** — `+∞` 代数极限
 pub(crate) fn limit_plus_infinity_algebraic(
     expr: &ExprArc,
     var: &Ident,
@@ -287,10 +306,12 @@ pub(crate) fn limit_plus_infinity_algebraic(
     limit_via_reciprocal(expr, var, ctx)
 }
 
+// **Pipeline private** — is var
 fn is_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Symbol(id) if id == var)
 }
 
+/// **Pipeline** — `-∞` 代数极限
 pub(crate) fn limit_minus_infinity_algebraic(
     expr: &ExprArc,
     var: &Ident,
@@ -301,6 +322,7 @@ pub(crate) fn limit_minus_infinity_algebraic(
     limit_plus_infinity_algebraic(&swapped, var, ctx)
 }
 
+// **Pipeline private** — limit rational finite
 fn limit_rational_finite(
     num: &ExprArc,
     den: &ExprArc,
@@ -358,6 +380,7 @@ fn limit_rational_finite(
     }
 }
 
+// **Pipeline private** — cancel rational pole
 fn cancel_rational_pole(
     frac: ExprArc,
     var: &Ident,
@@ -408,6 +431,7 @@ fn cancel_rational_pole(
     )))
 }
 
+// **Pipeline private** — limit rational infinity
 fn limit_rational_infinity(
     num: &ExprArc,
     den: &ExprArc,
@@ -435,12 +459,14 @@ fn limit_rational_infinity(
     Ok(sign_infinity(ratio))
 }
 
+// **Pipeline private** — leading ratio
 fn leading_ratio(num: &Poly, den: &Poly, var: &Var) -> Ratio<BigInt> {
     let nd = univariate_degree(num, var);
     let dd = univariate_degree(den, var);
     coeff_at(num, var, nd) / coeff_at(den, var, dd)
 }
 
+// **Pipeline private** — sign infinity
 fn sign_infinity(r: Ratio<BigInt>) -> ExprArc {
     if r.is_negative() {
         Expr::sym("-infinity")
@@ -449,6 +475,7 @@ fn sign_infinity(r: Ratio<BigInt>) -> ExprArc {
     }
 }
 
+// **Pipeline private** — ratio to expr
 fn ratio_to_expr(r: &Ratio<BigInt>) -> ExprArc {
     if r.is_integer() {
         if let Ok(n) = giac_core::bigint_to_i64(r.numer()) {
@@ -461,6 +488,7 @@ fn ratio_to_expr(r: &Ratio<BigInt>) -> ExprArc {
     ))
 }
 
+// **Pipeline private** — pole infinity
 fn pole_infinity(
     _num: &ExprArc,
     _den: &ExprArc,
@@ -471,6 +499,7 @@ fn pole_infinity(
     Ok(Expr::sym("+infinity"))
 }
 
+// **Pipeline private** — limit via reciprocal
 fn limit_via_reciprocal(expr: &ExprArc, var: &Ident, ctx: &Context) -> Result<ExprArc, EvalError> {
     if too_heavy_for_expand(expr) {
         return Err(EvalError::NotImplemented("limit"));
@@ -483,11 +512,13 @@ fn limit_via_reciprocal(expr: &ExprArc, var: &Ident, ctx: &Context) -> Result<Ex
     limit_at_zero_fallback(&normalized, &t, ctx)
 }
 
+// **Pipeline private** — subst eval
 fn subst_eval(expr: &ExprArc, var: &Ident, point: &ExprArc, ctx: &Context) -> Result<ExprArc, EvalError> {
     let sub = eval_subst_map(expr, &subst_map(var, Arc::clone(point)))?;
     eval(sub.as_ref(), ctx)
 }
 
+// **Pipeline private** — expr contains exp
 fn expr_contains_exp(expr: &ExprArc) -> bool {
     match expr.as_ref() {
         Expr::Func(FuncKind::Exp, _) => true,
@@ -500,24 +531,29 @@ fn expr_contains_exp(expr: &ExprArc) -> bool {
     }
 }
 
+// **Pipeline private** — subst map
 fn subst_map(var: &Ident, value: ExprArc) -> HashMap<Ident, ExprArc> {
     let mut m = HashMap::new();
     m.insert(var.clone(), value);
     m
 }
 
+// **Pipeline private** — var to expr
 fn var_to_expr(var: &Ident) -> ExprArc {
     Expr::sym(var.as_str())
 }
 
+// **Pipeline private** — is zero
 fn is_zero(e: &ExprArc) -> bool {
     matches!(e.as_ref(), Expr::Int(n) if n.is_zero())
 }
 
+// **Pipeline private** — is one
 fn is_one(e: &ExprArc) -> bool {
     matches!(e.as_ref(), Expr::Int(n) if n == &BigInt::from(1))
 }
 
+// **Pipeline private** — is plus infinity
 fn is_plus_infinity(e: &ExprArc) -> bool {
     matches!(
         e.as_ref(),
@@ -525,14 +561,17 @@ fn is_plus_infinity(e: &ExprArc) -> bool {
     )
 }
 
+// **Pipeline private** — is minus infinity
 fn is_minus_infinity(e: &ExprArc) -> bool {
     matches!(e.as_ref(), Expr::Symbol(id) if id.as_str() == "-infinity")
 }
 
+// **Pipeline private** — is infinity
 fn is_infinity(e: &ExprArc) -> bool {
     is_plus_infinity(e) || is_minus_infinity(e)
 }
 
+// **Pipeline private** — contains zero negative power
 fn contains_zero_negative_power(expr: &ExprArc) -> bool {
     match expr.as_ref() {
         Expr::Pow(base, exp) => {
@@ -551,6 +590,7 @@ fn contains_zero_negative_power(expr: &ExprArc) -> bool {
     }
 }
 
+// **Pipeline private** — is indeterminate
 fn is_indeterminate(e: &ExprArc) -> bool {
     match e.as_ref() {
         Expr::Frac(num, den) => is_zero(num) && is_zero(den),
@@ -566,6 +606,7 @@ mod tests {
     use super::*;
     use crate::plugin::xcas_default;
 
+// **Pipeline private** — limit line
     fn limit_line(expr: ExprArc, var: &str, pt: ExprArc) -> Result<ExprArc, EvalError> {
         let ctx = xcas_default();
         let v = Ident::new(var);
@@ -583,6 +624,7 @@ mod tests {
         MinusInfinity,
     }
 
+// **Pipeline private** — classify test point
     fn classify_test_point(e: &ExprArc) -> Result<TestPoint, EvalError> {
         match e.as_ref() {
             Expr::Symbol(id) if id.as_str() == "+infinity" || id.as_str() == "infinity" => {

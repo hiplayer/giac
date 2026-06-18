@@ -3,6 +3,13 @@
 //! **通用表示层 API 规则：** [`algorithm-expr-api.md`](../../../../../.doc/algorithm-expr-api.md)  
 //! **本模块专项契约：** [`exp-diff-expr-api.md`](../../../../../.doc/exp-diff-expr-api.md)
 //!
+//! | 层级 | 内容 |
+//! |------|------|
+//! | **Stable** | `canonical_exp_diff`、`exp_scale_times_exp_minus_one`、`match_exp_times_exp_minus_one`、`is_exp_minus_one_factor` |
+//! | **Partial** | `first_order_exp_vanishing_epsilon`、`classify_*`（快路径）、`algebraize_exp_vanishing_products` |
+//! | **Pipeline** | `simplify_add_sum`、`balance_exp_arguments_frac_var` 等预处理子步骤 |
+//! | **Pipeline private** | `detect_exp_difference*`、`flatten_mul_*`、内部改写遍历 |
+//!
 //! Upstream `remove_lnexp` (`series.cc`) applies `ln_expand` / `exp_series` on coefficients;
 //! the identity `exp(f) - w^{-1} = w^{-1}(exp(f + ln(w)) - 1)` is the MRV (`w`) layer.
 //!
@@ -26,7 +33,7 @@ struct ExpDiffForm {
     complement: Option<ExprArc>,
 }
 
-/// Bottom-up x-layer exp-difference canonical form: `exp(scale_log) * (exp(ε) - 1)`.
+/// **Stable** — x-layer exp-difference canonical form;唯一漂移收敛入口
 pub(crate) fn canonical_exp_diff(expr: &ExprArc) -> ExprArc {
     let rebuilt = match expr.as_ref() {
         Expr::Mul(fs) => Expr::mul(fs.iter().map(canonical_exp_diff).collect()),
@@ -50,7 +57,7 @@ pub(crate) fn canonical_exp_diff(expr: &ExprArc) -> ExprArc {
         .unwrap_or(rebuilt)
 }
 
-/// `scale * (exp(ε) - 1)` — common target form (P1).
+/// **Stable** — 规范构造器 `scale·(exp(ε)-1)`（Add 形）
 pub(crate) fn exp_scale_times_exp_minus_one(scale: ExprArc, epsilon: ExprArc) -> ExprArc {
     Expr::mul(vec![
         scale,
@@ -58,6 +65,7 @@ pub(crate) fn exp_scale_times_exp_minus_one(scale: ExprArc, epsilon: ExprArc) ->
     ])
 }
 
+// **Pipeline private** — emit exp difference
 fn emit_exp_difference(form: ExpDiffForm) -> ExprArc {
     let core = exp_scale_times_exp_minus_one(
         Expr::func(FuncKind::Exp, vec![form.scale_log]),
@@ -69,7 +77,7 @@ fn emit_exp_difference(form: ExpDiffForm) -> ExprArc {
     }
 }
 
-/// Detect `exp(scale_log) * (exp(ε) - 1)` on an already-folded expression tree.
+// **Pipeline private** — detect exp difference
 fn detect_exp_difference(expr: &ExprArc) -> Option<ExpDiffForm> {
     match expr.as_ref() {
         Expr::Mul(_) => detect_exp_difference_mul(&flatten_mul_factors(expr)),
@@ -78,6 +86,7 @@ fn detect_exp_difference(expr: &ExprArc) -> Option<ExpDiffForm> {
     }
 }
 
+// **Pipeline private** — flatten mul factors
 fn flatten_mul_factors(expr: &ExprArc) -> Vec<ExprArc> {
     match expr.as_ref() {
         Expr::Mul(fs) => {
@@ -91,6 +100,7 @@ fn flatten_mul_factors(expr: &ExprArc) -> Vec<ExprArc> {
     }
 }
 
+// **Pipeline private** — detect exp difference mul
 fn detect_exp_difference_mul(factors: &[ExprArc]) -> Option<ExpDiffForm> {
     let mut expanded = Vec::new();
     for f in factors {
@@ -149,6 +159,7 @@ fn detect_exp_difference_mul(factors: &[ExprArc]) -> Option<ExpDiffForm> {
     })
 }
 
+// **Pipeline private** — flatten mul from vec
 fn flatten_mul_from_vec(factors: Vec<ExprArc>) -> Vec<ExprArc> {
     let mut out = Vec::new();
     for f in factors {
@@ -161,6 +172,7 @@ fn flatten_mul_from_vec(factors: Vec<ExprArc>) -> Vec<ExprArc> {
     out
 }
 
+// **Pipeline private** — sum exp logs
 fn sum_exp_logs(logs: Vec<ExprArc>) -> ExprArc {
     match logs.len() {
         0 => Expr::int(0),
@@ -169,8 +181,7 @@ fn sum_exp_logs(logs: Vec<ExprArc>) -> ExprArc {
     }
 }
 
-/// `exp(A) - exp(B) → exp(B) * (exp(ε) - 1)` with `ε = A - B`.
-/// When `B` is an add subterm of `A`, `remove_add_term` keeps `ε` compact (L1 / gruntz).
+// **Pipeline private** — detect exp difference add
 fn detect_exp_difference_add(a: &ExprArc, b: &ExprArc) -> Option<ExpDiffForm> {
     let (pos_arg, neg_arg) = exp_signed_pair(a, b)?;
     let epsilon = remove_add_term(&pos_arg, &neg_arg)
@@ -182,6 +193,7 @@ fn detect_exp_difference_add(a: &ExprArc, b: &ExprArc) -> Option<ExpDiffForm> {
     })
 }
 
+// **Pipeline private** — difference add exprs
 fn difference_add_exprs(a: &ExprArc, b: &ExprArc) -> ExprArc {
     let mut terms: Vec<(bool, ExprArc)> = signed_add_terms(a)
         .into_iter()
@@ -201,6 +213,7 @@ fn difference_add_exprs(a: &ExprArc, b: &ExprArc) -> ExprArc {
     rebuild_signed_add(terms)
 }
 
+// **Pipeline private** — canonical add term
 fn canonical_add_term(t: &ExprArc) -> ExprArc {
     let t = flatten_mul_expr(t);
     match t.as_ref() {
@@ -214,6 +227,7 @@ fn canonical_add_term(t: &ExprArc) -> ExprArc {
     }
 }
 
+// **Pipeline private** — signed add terms
 fn signed_add_terms(e: &ExprArc) -> Vec<(bool, ExprArc)> {
     match e.as_ref() {
         Expr::Add(ts) => ts.iter().flat_map(signed_add_terms).collect(),
@@ -236,6 +250,7 @@ fn signed_add_terms(e: &ExprArc) -> Vec<(bool, ExprArc)> {
     }
 }
 
+// **Pipeline private** — peel unit negative factor
 fn peel_unit_negative_factor(fs: &[ExprArc]) -> Option<ExprArc> {
     let pos = fs
         .iter()
@@ -252,6 +267,7 @@ fn peel_unit_negative_factor(fs: &[ExprArc]) -> Option<ExprArc> {
     })
 }
 
+// **Pipeline private** — rebuild mul
 fn rebuild_mul(fs: Vec<ExprArc>) -> ExprArc {
     match fs.len() {
         0 => Expr::int(1),
@@ -260,6 +276,7 @@ fn rebuild_mul(fs: Vec<ExprArc>) -> ExprArc {
     }
 }
 
+// **Pipeline private** — flatten mul expr
 fn flatten_mul_expr(expr: &ExprArc) -> ExprArc {
     let factors = flatten_mul_factors(expr);
     match factors.len() {
@@ -269,6 +286,7 @@ fn flatten_mul_expr(expr: &ExprArc) -> ExprArc {
     }
 }
 
+// **Pipeline private** — flatten add mul terms
 fn flatten_add_mul_terms(n: &ExprArc) -> ExprArc {
     match n.as_ref() {
         Expr::Add(ts) => Expr::add(ts.iter().map(flatten_mul_expr).collect()),
@@ -276,6 +294,7 @@ fn flatten_add_mul_terms(n: &ExprArc) -> ExprArc {
     }
 }
 
+// **Pipeline private** — distribute linear mul in add
 fn distribute_linear_mul_in_add(n: &ExprArc, var: &Ident) -> ExprArc {
     let Expr::Add(ts) = n.as_ref() else {
         return Arc::clone(n);
@@ -287,6 +306,7 @@ fn distribute_linear_mul_in_add(n: &ExprArc, var: &Ident) -> ExprArc {
     )
 }
 
+// **Pipeline private** — distribute linear mul term
 fn distribute_linear_mul_term(t: &ExprArc, var: &Ident) -> ExprArc {
     if let Expr::Mul(fs) = t.as_ref() {
         for (i, f) in fs.iter().enumerate() {
@@ -321,6 +341,7 @@ fn distribute_linear_mul_term(t: &ExprArc, var: &Ident) -> ExprArc {
     flatten_mul_expr(t)
 }
 
+// **Pipeline private** — simplify balanced frac
 fn simplify_balanced_frac(f: &ExprArc, var: &Ident) -> ExprArc {
     match f.as_ref() {
         Expr::Frac(n, d) => Arc::new(Expr::Frac(
@@ -331,6 +352,7 @@ fn simplify_balanced_frac(f: &ExprArc, var: &Ident) -> ExprArc {
     }
 }
 
+// **Pipeline private** — rebuild signed add
 fn rebuild_signed_add(mut terms: Vec<(bool, ExprArc)>) -> ExprArc {
     terms.retain(|(_, t)| !matches!(t.as_ref(), Expr::Int(n) if n.is_zero()));
     if terms.is_empty() {
@@ -353,6 +375,7 @@ fn rebuild_signed_add(mut terms: Vec<(bool, ExprArc)>) -> ExprArc {
     }
 }
 
+// **Pipeline private** — exp signed pair
 fn exp_signed_pair(a: &ExprArc, b: &ExprArc) -> Option<(ExprArc, ExprArc)> {
     let (n0, a0) = unwrap_exp_arg(a)?;
     let (n1, a1) = unwrap_exp_arg(b)?;
@@ -365,7 +388,7 @@ fn exp_signed_pair(a: &ExprArc, b: &ExprArc) -> Option<(ExprArc, ExprArc)> {
     }
 }
 
-/// `exp(f) - scale^{-1} → scale^{-1} * (exp(f + ln(scale)) - 1)` (w-layer / MRV).
+/// **Pipeline** — 特定 `exp(-s/x)` 倒数改写
 pub(crate) fn rewrite_exp_minus_scale_inv(
     f: &ExprArc,
     scale_inv: ExprArc,
@@ -375,6 +398,7 @@ pub(crate) fn rewrite_exp_minus_scale_inv(
     exp_scale_times_exp_minus_one(scale_inv, shifted)
 }
 
+/// **Pipeline** — 合并同类 Add 项
 pub(crate) fn simplify_add_sum(e: &ExprArc) -> ExprArc {
     let e = flatten_add_mul_terms(e);
     let mut terms: Vec<(bool, ExprArc)> = signed_add_terms(&e)
@@ -402,7 +426,7 @@ pub(crate) fn simplify_add_sum(e: &ExprArc) -> ExprArc {
     rebuild_signed_add(terms)
 }
 
-/// Cancel opposing addends inside `exp` arguments (e.g. `x+1/x-x` → `1/x`).
+/// **Pipeline** — 合并 exp 参数中的加法
 pub(crate) fn simplify_exp_argument_adds(expr: &ExprArc) -> ExprArc {
     match expr.as_ref() {
         Expr::Func(FuncKind::Exp, args) if args.len() == 1 => Expr::func(
@@ -437,7 +461,7 @@ pub(crate) fn simplify_exp_argument_adds(expr: &ExprArc) -> ExprArc {
     }
 }
 
-/// `exp(N/D ± x)` → `exp((N ∓ x·D)/D)` inside `exp` args (CK-INT-60 ratio balance).
+/// **Pipeline** — 平衡分式指数与 `-var`
 pub(crate) fn balance_exp_arguments_frac_var(expr: &ExprArc, var: &Ident) -> ExprArc {
     match expr.as_ref() {
         Expr::Func(FuncKind::Exp, args) if args.len() == 1 => {
@@ -472,6 +496,7 @@ pub(crate) fn balance_exp_arguments_frac_var(expr: &ExprArc, var: &Ident) -> Exp
     }
 }
 
+// **Pipeline private** — balance frac minus var
 fn balance_frac_minus_var(f: &ExprArc, var: &Ident) -> ExprArc {
     if let Some(balanced) = try_balance_frac_minus_var(f, var) {
         return balanced;
@@ -492,6 +517,7 @@ fn balance_frac_minus_var(f: &ExprArc, var: &Ident) -> ExprArc {
     }
 }
 
+// **Pipeline private** — try balance frac minus var
 fn try_balance_frac_minus_var(f: &ExprArc, var: &Ident) -> Option<ExprArc> {
     let Expr::Add(ts) = f.as_ref() else {
         return None;
@@ -531,6 +557,7 @@ fn try_balance_frac_minus_var(f: &ExprArc, var: &Ident) -> Option<ExprArc> {
     ))
 }
 
+// **Pipeline private** — linear coeff of var
 fn linear_coeff_of_var(e: &ExprArc, var: &Ident) -> Option<ExprArc> {
     if is_var(e, var) {
         return Some(Expr::int(1));
@@ -555,7 +582,7 @@ fn linear_coeff_of_var(e: &ExprArc, var: &Ident) -> Option<ExprArc> {
     None
 }
 
-/// Classify `exp(f)` at `+∞`: `0`, `1`, or `None`.
+/// **Partial** — +∞ 无符号 exp 增长分类（快路径）; 退役: GIAC-limit-mrv-followup
 pub(crate) fn classify_exp_at_plus_infinity(
     f: &ExprArc,
     var: &Ident,
@@ -576,7 +603,7 @@ pub(crate) fn classify_exp_at_plus_infinity(
     None
 }
 
-/// `±num/den` or `num/den` for vanishing-ratio checks after preprocess.
+/// **Stable** — 提取 `(sign, inner)` 供 +∞ 分类
 pub(crate) fn unwrap_signed_frac(e: &ExprArc) -> Option<(ExprArc, ExprArc)> {
     if let Expr::Frac(n, d) = e.as_ref() {
         return Some((Arc::clone(n), Arc::clone(d)));
@@ -603,7 +630,7 @@ pub(crate) fn unwrap_signed_frac(e: &ExprArc) -> Option<(ExprArc, ExprArc)> {
     None
 }
 
-/// Signed `exp(f)` at `+∞`.
+/// **Partial** — +∞ 带符号分式积 exp 增长分类（快路径）; 退役: GIAC-limit-mrv-followup
 pub(crate) fn classify_signed_exp_at_plus_infinity(
     expr: &ExprArc,
     var: &Ident,
@@ -614,6 +641,7 @@ pub(crate) fn classify_signed_exp_at_plus_infinity(
         .map(|v| if neg { Expr::mul(vec![Expr::int(-1), v]) } else { v })
 }
 
+// **Pipeline private** — exp argument tends to negative infinity
 fn exp_argument_tends_to_negative_infinity(f: &ExprArc, var: &Ident) -> bool {
     let f = simplify_add_sum(f);
     if let Some(c) = super::mrv::linear_coeff_in_var(&f, var) {
@@ -629,6 +657,7 @@ fn exp_argument_tends_to_negative_infinity(f: &ExprArc, var: &Ident) -> bool {
     })
 }
 
+// **Pipeline private** — is positive var power ge2
 fn is_positive_var_power_ge2(e: &ExprArc, var: &Ident) -> bool {
     match e.as_ref() {
         Expr::Pow(b, exp) if is_var(b, var) => {
@@ -648,6 +677,7 @@ fn is_positive_var_power_ge2(e: &ExprArc, var: &Ident) -> bool {
     }
 }
 
+// **Pipeline private** — is neg exp of positive growth
 fn is_neg_exp_of_positive_growth(e: &ExprArc, var: &Ident) -> bool {
     match e.as_ref() {
         Expr::Func(FuncKind::Exp, args) if args.len() == 1 => {
@@ -665,6 +695,7 @@ fn is_neg_exp_of_positive_growth(e: &ExprArc, var: &Ident) -> bool {
     }
 }
 
+// **Pipeline private** — exp arg grows at plus infinity
 fn exp_arg_grows_at_plus_infinity(e: &ExprArc, var: &Ident) -> bool {
     match e.as_ref() {
         Expr::Func(FuncKind::Exp, args) if args.len() == 1 => {
@@ -680,7 +711,7 @@ fn exp_arg_grows_at_plus_infinity(e: &ExprArc, var: &Ident) -> bool {
     }
 }
 
-/// `exp(L) * ε` with `ε = c*exp(g)` → `c*exp(L+g)`; `exp(L)*Add(…)` → `Add(exp(L)*…)`.
+/// **Partial** — `exp(f)·L` 代数化; 退役: GIAC-limit-exp-difference-unification
 pub(crate) fn algebraize_exp_vanishing_products(expr: &ExprArc, var: &Ident) -> ExprArc {
     let rebuilt = match expr.as_ref() {
         Expr::Add(ts) => Expr::add(
@@ -714,6 +745,7 @@ pub(crate) fn algebraize_exp_vanishing_products(expr: &ExprArc, var: &Ident) -> 
     rebuilt
 }
 
+// **Pipeline private** — algebraize exp mul factors
 fn algebraize_exp_mul_factors(factors: &[ExprArc]) -> ExprArc {
     let flat = flatten_mul_factors_slice(factors);
     let product = rebuild_mul(flat.clone());
@@ -774,6 +806,7 @@ fn algebraize_exp_mul_factors(factors: &[ExprArc]) -> ExprArc {
     }
 }
 
+// **Pipeline private** — algebraize exp log pair
 fn algebraize_exp_log_pair(log: &ExprArc, factor: &ExprArc) -> ExprArc {
     if let Some((neg, g)) = unwrap_exp_arg(factor) {
         let merged = simplify_add_sum(&Expr::add(vec![Arc::clone(log), g]));
@@ -791,6 +824,7 @@ fn algebraize_exp_log_pair(log: &ExprArc, factor: &ExprArc) -> ExprArc {
     }
 }
 
+// **Pipeline private** — flatten mul factors slice
 fn flatten_mul_factors_slice(factors: &[ExprArc]) -> Vec<ExprArc> {
     let mut out = Vec::new();
     for f in factors {
@@ -802,7 +836,7 @@ fn flatten_mul_factors_slice(factors: &[ExprArc]) -> Vec<ExprArc> {
     out
 }
 
-/// Gruntz first-order (P1): `exp(ε)-1 ~ ε` when `ε→0` at `+∞`.
+/// **Partial** — Gruntz ε 展开（破坏 MRV peel 所需 `exp(·)-1` 形）; 退役: GIAC-limit-mrv-followup
 pub(crate) fn first_order_exp_vanishing_epsilon(expr: &ExprArc, var: &Ident) -> ExprArc {
     if let Some(form) = detect_exp_difference(expr) {
         let epsilon = balance_epsilon_expr(&form.epsilon, var);
@@ -846,10 +880,12 @@ pub(crate) fn first_order_exp_vanishing_epsilon(expr: &ExprArc, var: &Ident) -> 
     }
 }
 
+/// **Stable** — 识别 `exp(scale)·(exp(ε)-1)` 分解
 pub(crate) fn match_exp_times_exp_minus_one(expr: &ExprArc) -> Option<(ExprArc, ExprArc)> {
     detect_exp_difference(expr).map(|form| (form.scale_log, form.epsilon))
 }
 
+/// **Stable** — 提取 `exp(arg)` / `-exp(arg)` 的参数
 pub(crate) fn unwrap_exp_arg(e: &ExprArc) -> Option<(bool, ExprArc)> {
     match e.as_ref() {
         Expr::Func(FuncKind::Exp, args) if args.len() == 1 => Some((false, Arc::clone(&args[0]))),
@@ -874,6 +910,7 @@ pub(crate) fn unwrap_exp_arg(e: &ExprArc) -> Option<(bool, ExprArc)> {
     }
 }
 
+// **Pipeline private** — exp func arg
 fn exp_func_arg(e: &ExprArc) -> Option<ExprArc> {
     match e.as_ref() {
         Expr::Func(FuncKind::Exp, args) if args.len() == 1 => Some(Arc::clone(&args[0])),
@@ -881,15 +918,17 @@ fn exp_func_arg(e: &ExprArc) -> Option<ExprArc> {
     }
 }
 
+/// **Stable** — 若因子为 `exp(ε)-1` 则返回 ε
 pub(crate) fn exp_minus_one_epsilon(e: &ExprArc) -> Option<ExprArc> {
     exp_minus_one_inner_arg(e)
 }
 
-/// `exp(ε) - 1` factor (not mergeable with sibling `exp` terms).
+/// **Stable** — 谓词：是否为 `exp(ε)-1` 因子（只认 Add 形）
 pub(crate) fn is_exp_minus_one_factor(e: &ExprArc) -> bool {
     exp_minus_one_inner_arg(e).is_some()
 }
 
+// **Pipeline private** — exp minus one inner arg
 fn exp_minus_one_inner_arg(e: &ExprArc) -> Option<ExprArc> {
     let Expr::Add(ts) = e.as_ref() else {
         return None;
@@ -910,6 +949,7 @@ fn exp_minus_one_inner_arg(e: &ExprArc) -> Option<ExprArc> {
     exp_func_arg(pos)
 }
 
+// **Pipeline private** — remove add term
 fn remove_add_term(sum: &ExprArc, term: &ExprArc) -> Option<ExprArc> {
     if sum == term {
         return Some(Expr::int(0));
@@ -928,11 +968,12 @@ fn remove_add_term(sum: &ExprArc, term: &ExprArc) -> Option<ExprArc> {
     })
 }
 
+/// **Stable** — 谓词：`e→0` 当 `var→+∞`
 pub(crate) fn vanishes_at_plus_infinity(e: &ExprArc, var: &Ident) -> bool {
     epsilon_vanishes_at_plus_infinity(e, var)
 }
 
-/// True when `e → 0` at `+∞` (for Gruntz ε in `exp(ε)-1 ~ ε`).
+/// **Stable** — 谓词：ε 级小量（Gruntz 预处理）
 pub(crate) fn epsilon_vanishes_at_plus_infinity(e: &ExprArc, var: &Ident) -> bool {
     let balanced = balance_epsilon_expr(e, var);
     match balanced.as_ref() {
@@ -962,14 +1003,17 @@ pub(crate) fn epsilon_vanishes_at_plus_infinity(e: &ExprArc, var: &Ident) -> boo
     }
 }
 
+// **Pipeline private** — balance epsilon expr
 fn balance_epsilon_expr(e: &ExprArc, var: &Ident) -> ExprArc {
     try_balance_frac_minus_var(e, var).unwrap_or_else(|| Arc::clone(e))
 }
 
+// **Pipeline private** — is var
 fn is_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Symbol(id) if id == var)
 }
 
+// **Pipeline private** — exp inner vanishes at plus infinity
 fn exp_inner_vanishes_at_plus_infinity(arg: &ExprArc, var: &Ident) -> bool {
     if super::mrv::linear_coeff_in_var(arg, var)
         .and_then(|c| super::mrv::try_const_f64(&c))
@@ -1007,7 +1051,9 @@ fn exp_inner_vanishes_at_plus_infinity(arg: &ExprArc, var: &Ident) -> bool {
     }
 }
 
+// **Pipeline private** — exp of neg exp growth
 fn exp_of_neg_exp_growth(e: &ExprArc, var: &Ident) -> bool {
+// **Pipeline private** — arg grows
     fn arg_grows(f: &ExprArc, var: &Ident) -> bool {
         match f.as_ref() {
             Expr::Func(FuncKind::Exp, args) if args.len() == 1 => {
@@ -1033,7 +1079,7 @@ fn exp_of_neg_exp_growth(e: &ExprArc, var: &Ident) -> bool {
     }
 }
 
-/// `-x^n` as `Mul(-1, Pow(x,n))` inside an `exp` argument.
+// **Pipeline private** — is negated var power mul
 fn is_negated_var_power_mul(e: &ExprArc, var: &Ident) -> bool {
     match e.as_ref() {
         Expr::Mul(fs) if fs.len() == 2 => {
@@ -1050,6 +1096,7 @@ fn is_negated_var_power_mul(e: &ExprArc, var: &Ident) -> bool {
     }
 }
 
+// **Pipeline private** — is neg var exp
 fn is_neg_var_exp(e: &ExprArc, var: &Ident) -> bool {
     matches!(
         e.as_ref(),

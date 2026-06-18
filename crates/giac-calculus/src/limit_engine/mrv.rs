@@ -1,4 +1,12 @@
 //! Most rapidly varying (MRV) set at `+infinity` (GIAC-216b / `series.cc` subset).
+//!
+//! **API 分层：** [`giac-calculus-api-stability.md`](../../../../../.doc/giac-calculus-api-stability.md)
+//! **专项契约：** [`limit-engine-expr-api.md`](../../../../../.doc/limit-engine-expr-api.md)
+//!
+//! | 层级 | 内容 |
+//! |------|------|
+//! | **Stable** | `mrv_at_plus_infinity`、`mrv_compare`、`vanishes_faster_than_*`、`choose_mrv_w` |
+//! | **Pipeline private** | `collect_mrv`、`growth_rank*`、`merge_mrv_pair` 等遍历/合并 |
 
 use std::cmp::Ordering;
 use std::sync::Arc;
@@ -16,10 +24,12 @@ pub(crate) struct MrvSet {
 }
 
 impl MrvSet {
+    // **Pipeline private** — MRV 集合是否为空
     pub(crate) fn is_empty(&self) -> bool {
         self.faster.is_empty()
     }
 
+    // **Pipeline private** — 合并两个 MRV 集合
     pub(crate) fn merge(&mut self, other: &MrvSet, var: &Ident, ctx: &Context) {
         for (f, c) in other.faster.iter().zip(other.coeff_ln.iter()) {
             merge_mrv_pair(self, Arc::clone(f), Arc::clone(c), var, ctx);
@@ -32,7 +42,7 @@ impl MrvSet {
     }
 }
 
-/// Build the MRV set for `expr` as `var → +infinity`.
+/// **Stable** — 构建 `+∞` MRV 集合
 pub(crate) fn mrv_at_plus_infinity(expr: &ExprArc, var: &Ident, ctx: &Context) -> MrvSet {
     let mut set = MrvSet::default();
     if !depends_on_var(expr, var) {
@@ -45,6 +55,7 @@ pub(crate) fn mrv_at_plus_infinity(expr: &ExprArc, var: &Ident, ctx: &Context) -
     set
 }
 
+// **Pipeline private** — collect mrv
 fn collect_mrv(expr: &ExprArc, var: &Ident, set: &mut MrvSet, ctx: &Context) {
     if !depends_on_var(expr, var) {
         return;
@@ -97,7 +108,7 @@ fn collect_mrv(expr: &ExprArc, var: &Ident, set: &mut MrvSet, ctx: &Context) {
     }
 }
 
-/// True when `n/d → 0` at `+∞` using growth comparison only (no `eval` fallback).
+/// **Stable** — 谓词：`n/d→0` at `+∞`
 pub(crate) fn ratio_tends_to_zero_at_plus_infinity(
     n: &ExprArc,
     d: &ExprArc,
@@ -106,7 +117,7 @@ pub(crate) fn ratio_tends_to_zero_at_plus_infinity(
     vanishes_faster_than_at_plus_infinity(n, d, var, &Context::default())
 }
 
-/// True when `a/b → 0` at `+∞` (upstream `mrv_compare` on `lna/lnb` subset).
+/// **Stable** — 谓词：`a/b→0` at `+∞`
 pub(crate) fn vanishes_faster_than_at_plus_infinity(
     a: &ExprArc,
     b: &ExprArc,
@@ -124,7 +135,7 @@ pub(crate) fn vanishes_faster_than_at_plus_infinity(
     }
 }
 
-/// Compare growth at `+∞` (upstream `mrv_compare` subset).
+/// **Stable** — `+∞` 增长比较（上游 `mrv_compare` 子集）
 pub(crate) fn mrv_compare(a: &ExprArc, b: &ExprArc, var: &Ident, ctx: &Context) -> Ordering {
     let (ga, sa) = growth_rank_detailed(a, var, ctx);
     let (gb, sb) = growth_rank_detailed(b, var, ctx);
@@ -134,6 +145,7 @@ pub(crate) fn mrv_compare(a: &ExprArc, b: &ExprArc, var: &Ident, ctx: &Context) 
     }
 }
 
+// **Pipeline private** — growth rank detailed
 fn growth_rank_detailed(e: &ExprArc, var: &Ident, ctx: &Context) -> (Growth, f64) {
     match e.as_ref() {
         Expr::Add(ts) => ts
@@ -198,7 +210,7 @@ fn growth_rank_detailed(e: &ExprArc, var: &Ident, ctx: &Context) -> (Growth, f64
     }
 }
 
-/// `a^var / b^var` with positive constants `a,b` → `0`, `1`, or `+∞`.
+/// **Stable** — 常数底幂商在 `+∞` 的极限
 pub(crate) fn limit_const_pow_quotient_at_plus_infinity(
     expr: &ExprArc,
     var: &Ident,
@@ -230,7 +242,7 @@ pub(crate) fn limit_const_pow_quotient_at_plus_infinity(
     Some(Expr::sym("+infinity"))
 }
 
-/// Leading linear coefficient of a rational at `+∞` (e.g. `-2x²/(x+1) → -2x`).
+// **Pipeline private** — asymptotic linear coeff at plus infinity
 fn asymptotic_linear_coeff_at_plus_infinity(
     e: &ExprArc,
     var: &Ident,
@@ -272,7 +284,7 @@ fn asymptotic_linear_coeff_at_plus_infinity(
     }
 }
 
-/// Leading coefficient of the highest-degree term in `var`.
+// **Pipeline private** — leading coeff in var
 fn leading_coeff_in_var(e: &ExprArc, var: &Ident) -> Option<f64> {
     let deg = add_degree_in_var(e, var);
     match e.as_ref() {
@@ -310,7 +322,7 @@ fn leading_coeff_in_var(e: &ExprArc, var: &Ident) -> Option<f64> {
     }
 }
 
-/// Limit of `n/d` at `+∞` when the ratio tends to a constant.
+/// **Stable** — 有理/常数 lead 在 `+∞`
 pub(crate) fn limit_rational_const_at_plus_infinity(
     n: &ExprArc,
     d: &ExprArc,
@@ -331,6 +343,7 @@ pub(crate) fn limit_rational_const_at_plus_infinity(
     None
 }
 
+// **Pipeline private** — add degree in var
 fn add_degree_in_var(e: &ExprArc, var: &Ident) -> isize {
     match e.as_ref() {
         Expr::Pow(b, exp) if is_var(b, var) => match exp.as_ref() {
@@ -345,6 +358,7 @@ fn add_degree_in_var(e: &ExprArc, var: &Ident) -> isize {
     }
 }
 
+// **Pipeline private** — merge mrv pair
 fn merge_mrv_pair(set: &mut MrvSet, elem: ExprArc, coeff_ln: ExprArc, var: &Ident, ctx: &Context) {
     if set.faster.is_empty() {
         set.faster.push(elem);
@@ -380,6 +394,7 @@ enum Growth {
     ExpExp,
 }
 
+// **Pipeline private** — growth rank
 fn growth_rank(e: &ExprArc, var: &Ident) -> Growth {
     if !depends_on_var(e, var) {
         return Growth::Const;
@@ -415,6 +430,7 @@ fn growth_rank(e: &ExprArc, var: &Ident) -> Growth {
     }
 }
 
+/// **Stable** — 提取 `var` 的线性系数（含 Frac 指数）
 pub(crate) fn linear_coeff_in_var(e: &ExprArc, var: &Ident) -> Option<ExprArc> {
     match e.as_ref() {
         Expr::Symbol(id) if id == var => Some(Expr::int(1)),
@@ -460,6 +476,7 @@ pub(crate) fn linear_coeff_in_var(e: &ExprArc, var: &Ident) -> Option<ExprArc> {
     }
 }
 
+/// **Stable** — 符号负常数谓词
 pub(crate) fn is_negative_const_expr(e: &ExprArc, _ctx: &Context) -> bool {
     if is_neg_const(e) {
         return true;
@@ -467,6 +484,7 @@ pub(crate) fn is_negative_const_expr(e: &ExprArc, _ctx: &Context) -> bool {
     try_const_f64(e).is_some_and(|x| x < 0.0)
 }
 
+/// **Stable** — 尝试将表达式读为 `f64` 常数
 pub(crate) fn try_const_f64(e: &ExprArc) -> Option<f64> {
     match e.as_ref() {
         Expr::Int(n) => bigint_to_i64(n).ok().map(|x| x as f64),
@@ -502,7 +520,7 @@ pub(crate) fn try_const_f64(e: &ExprArc) -> Option<f64> {
     }
 }
 
-/// Pick `w = exp(g)` going to `0` at `+infinity` and express `x` via `w`.
+/// **Stable** — 从 MRV 集选取换元 `w`
 pub(crate) fn choose_mrv_w(
     set: &MrvSet,
     var: &Ident,
@@ -555,6 +573,7 @@ pub(crate) fn choose_mrv_w(
     best.map(|(w, x)| (Arc::clone(w), x))
 }
 
+// **Pipeline private** — is neg linear
 fn is_neg_linear(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Mul(fs) if fs.len() == 2
         && matches!(fs[0].as_ref(), Expr::Int(n) if n.is_negative())
@@ -564,6 +583,7 @@ fn is_neg_linear(e: &ExprArc, var: &Ident) -> bool {
         && is_var(&fs[0], var))
 }
 
+// **Pipeline private** — is neg scaled linear
 fn is_neg_scaled_linear(e: &ExprArc, var: &Ident) -> bool {
     linear_coeff(e, var).is_some_and(|(a, _)| {
         matches!(a.as_ref(), Expr::Int(n) if n.is_negative())
@@ -571,6 +591,7 @@ fn is_neg_scaled_linear(e: &ExprArc, var: &Ident) -> bool {
     })
 }
 
+// **Pipeline private** — linear coeff
 fn linear_coeff(e: &ExprArc, var: &Ident) -> Option<(ExprArc, ExprArc)> {
     match e.as_ref() {
         Expr::Mul(fs) if fs.len() == 2 => {
@@ -603,6 +624,7 @@ fn linear_coeff(e: &ExprArc, var: &Ident) -> Option<(ExprArc, ExprArc)> {
     }
 }
 
+// **Pipeline private** — expr size
 fn expr_size(e: &ExprArc) -> usize {
     match e.as_ref() {
         Expr::Int(_) | Expr::Rat(_) | Expr::Symbol(_) => 1,
@@ -614,10 +636,12 @@ fn expr_size(e: &ExprArc) -> usize {
     }
 }
 
+// **Pipeline private** — is var
 fn is_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Symbol(id) if id == var)
 }
 
+// **Pipeline private** — var to expr
 fn var_to_expr(var: &Ident) -> ExprArc {
     Expr::sym(var.as_str())
 }

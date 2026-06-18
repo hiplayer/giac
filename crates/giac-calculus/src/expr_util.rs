@@ -1,8 +1,14 @@
 //! Shared expression utilities (variable dependence, etc.).
+//!
+//! See [`.doc/giac-calculus-api-stability.md`](../../../../.doc/giac-calculus-api-stability.md) §6.
+//!
+//! | Tier | 函数 |
+//! |------|------|
+//! | **Stable** | `depends_on_var`, `is_const_wrt` |
 
 use giac_core::{Expr, ExprArc, Ident};
 
-/// Whether `e` syntactically depends on `var`.
+/// **Stable** — whether `e` syntactically depends on `var`.
 pub fn depends_on_var(e: &ExprArc, var: &Ident) -> bool {
     match e.as_ref() {
         Expr::Symbol(id) => id == var,
@@ -19,7 +25,7 @@ pub fn depends_on_var(e: &ExprArc, var: &Ident) -> bool {
     }
 }
 
-/// Whether `e` is constant with respect to `var` (syntactic).
+/// **Stable** — whether `e` is constant with respect to `var` (syntactic).
 pub fn is_const_wrt(e: &ExprArc, var: &Ident) -> bool {
     !depends_on_var(e, var)
 }

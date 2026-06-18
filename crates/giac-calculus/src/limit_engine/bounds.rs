@@ -1,4 +1,11 @@
 //! Expression size / depth guards — avoid expand/series blowups on heavy exp forms.
+//!
+//! **API 分层：** [`giac-calculus-api-stability.md`](../../../../../.doc/giac-calculus-api-stability.md)
+//!
+//! | 层级 | 内容 |
+//! |------|------|
+//! | **Pipeline** | `expr_nodes`/`expr_depth`、MRV 资格门禁、`expr_contains_*` |
+//! | **Pipeline private** | （本模块无私有 `fn`） |
 
 use giac_core::{Expr, ExprArc, FuncKind, Ident};
 
@@ -9,6 +16,7 @@ pub(crate) const MAX_SERIES_TERMS: usize = 24;
 pub(crate) const MAX_SERIES_DEPTH: usize = 32;
 pub(crate) const MAX_EXPAND_NODES: usize = 256;
 
+/// **Pipeline** — 表达式节点计数
 pub(crate) fn expr_nodes(e: &ExprArc) -> usize {
     match e.as_ref() {
         Expr::Int(_) | Expr::Rat(_) | Expr::Symbol(_) => 1,
@@ -20,6 +28,7 @@ pub(crate) fn expr_nodes(e: &ExprArc) -> usize {
     }
 }
 
+/// **Pipeline** — 表达式深度
 pub(crate) fn expr_depth(e: &ExprArc) -> usize {
     match e.as_ref() {
         Expr::Int(_) | Expr::Rat(_) | Expr::Symbol(_) => 0,
@@ -33,26 +42,29 @@ pub(crate) fn expr_depth(e: &ExprArc) -> usize {
     }
 }
 
+/// **Pipeline** — expand 过重门禁
 pub(crate) fn too_heavy_for_expand(e: &ExprArc) -> bool {
     expr_nodes(e) > MAX_EXPAND_NODES || expr_contains_nested_exp(e)
 }
 
+/// **Pipeline** — MRV 级数资格检查
 pub(crate) fn mrv_series_eligible(e: &ExprArc) -> bool {
     expr_contains_exp(e)
         && expr_nodes(e) <= MAX_EXPAND_NODES
         && expr_depth(e) <= MAX_SERIES_DEPTH
 }
 
-/// Limit at `+infinity` via `mrv_lead_term` (upstream `unidirectional_limit`); broader than series-only gate.
+/// **Pipeline** — MRV 极限资格检查
 pub(crate) fn mrv_limit_eligible(e: &ExprArc) -> bool {
     expr_nodes(e) <= MAX_EXPAND_NODES && expr_depth(e) <= MAX_SERIES_DEPTH
 }
 
-/// MRV rewrite is bounded when the rewritten tree stays under the node cap.
+/// **Pipeline** — MRV 换元后节点上限检查
 pub(crate) fn mrv_rewrite_bounded(e: &ExprArc) -> bool {
     expr_nodes(e) <= MAX_EXPAND_NODES
 }
 
+/// **Pipeline** — 子树含 exp
 pub(crate) fn expr_contains_exp(e: &ExprArc) -> bool {
     match e.as_ref() {
         Expr::Func(FuncKind::Exp, _) => true,
@@ -65,7 +77,9 @@ pub(crate) fn expr_contains_exp(e: &ExprArc) -> bool {
     }
 }
 
+/// **Pipeline** — 子树含嵌套 exp
 pub(crate) fn expr_contains_nested_exp(e: &ExprArc) -> bool {
+// **Pipeline private** — walk
     fn walk(e: &ExprArc, in_exp: bool) -> bool {
         match e.as_ref() {
             Expr::Func(FuncKind::Exp, args) => {
@@ -85,6 +99,7 @@ pub(crate) fn expr_contains_nested_exp(e: &ExprArc) -> bool {
     walk(e, false)
 }
 
+/// **Pipeline** — 谓词：表达式是否为给定变量符号
 pub(crate) fn is_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Symbol(id) if id == var)
 }

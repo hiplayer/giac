@@ -1,3 +1,12 @@
+//! Partial-fraction and Hermite integration for rational denominators.
+//!
+//! See [`.doc/giac-calculus-api-stability.md`](../../../../.doc/giac-calculus-api-stability.md) §7.
+//!
+//! | Tier | 函数 |
+//! |------|------|
+//! | **Stable** | `integrate_one_over_quadratic`, `integrate_const_over_rational` |
+//! | **Pipeline private** | `integrate_*`, `den_*`, `hermite_*`, `ratio_*`, `sqrt_*`, `poly_err` |
+
 use std::sync::Arc;
 
 use giac_core::{bigint_to_i64, expr_to_poly, poly_to_expr, EvalError, Expr, ExprArc, FuncKind, Ident};
@@ -15,7 +24,7 @@ use num_traits::{One, Signed, Zero};
 
 use crate::integrate::{integrate, ln_abs_expr, var_to_expr};
 
-/// ∫ 1/(ax²+bx+c) dx for constant-coefficient denominator (degree 1 or 2).
+/// **Stable** — ∫ 1/(ax²+bx+c) dx for constant-coefficient denominator (degree 1 or 2).
 pub fn integrate_one_over_quadratic(den: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     let v = Var::from(var.as_str());
     let den_p = expr_to_poly(den)?;
@@ -49,6 +58,7 @@ pub fn integrate_one_over_quadratic(den: &ExprArc, var: &Ident) -> Result<ExprAr
     }
 }
 
+// **Pipeline private** — integrate rational via partial fractions.
 fn integrate_rational_partfrac(
     num: &Poly,
     den: &Poly,
@@ -72,6 +82,7 @@ fn integrate_rational_partfrac(
     Ok(Expr::add(parts))
 }
 
+/// **Stable** — ∫ num/den dx for rational expressions (Hermite, Rothstein–Trager, partfrac).
 pub fn integrate_const_over_rational(
     num: &ExprArc,
     den: &ExprArc,
@@ -100,6 +111,7 @@ pub fn integrate_const_over_rational(
     integrate_rational_partfrac(&num_p, &den_p, var)
 }
 
+// **Pipeline private** — detect `base^exp` denominator with `exp >= 2`.
 fn den_perfect_power_expr(den: &ExprArc) -> Option<(ExprArc, usize)> {
     match den.as_ref() {
         Expr::Pow(base, exp) => {
@@ -117,6 +129,7 @@ fn den_perfect_power_expr(den: &ExprArc) -> Option<(ExprArc, usize)> {
     }
 }
 
+// **Pipeline private** — sign correction for Hermite quadratic factors.
 fn hermite_factor_sign(factor: &Poly, var: &Var) -> Ratio<BigInt> {
     if coeff_at(factor, var, 0) < Ratio::zero() {
         Ratio::from_integer((-1).into())
@@ -125,6 +138,7 @@ fn hermite_factor_sign(factor: &Poly, var: &Var) -> Ratio<BigInt> {
     }
 }
 
+// **Pipeline private** — integrate via Hermite reduction on repeated quadratics.
 fn integrate_with_hermite(
     num: &Poly,
     base: &Poly,
@@ -154,6 +168,7 @@ fn integrate_with_hermite(
     Ok(Expr::add(parts))
 }
 
+// **Pipeline private** — integrate one Hermite reduction term.
 fn integrate_hermite_term(t: &HermiteTerm, var: &Var, x: &Ident) -> Result<ExprArc, EvalError> {
     let scale = Ratio::from_integer(BigInt::from(t.power as i64));
     let sign = hermite_factor_sign(&t.factor, var);
@@ -171,6 +186,7 @@ fn integrate_hermite_term(t: &HermiteTerm, var: &Var, x: &Ident) -> Result<ExprA
     )))
 }
 
+// **Pipeline private** — integrate one partial-fraction term.
 fn integrate_rational_term(
     numer: &Poly,
     factor: &Poly,
@@ -214,7 +230,7 @@ fn integrate_rational_term(
     Err(EvalError::NotImplemented("integrate partfrac"))
 }
 
-/// ∫ c / g^n dx for linear `g` and n >= 2.
+// **Pipeline private** — ∫ c / g^n dx for linear `g` and n >= 2.
 fn integrate_const_over_power(
     factor: &Poly,
     coeff: &Ratio<BigInt>,
@@ -237,7 +253,7 @@ fn integrate_const_over_power(
     Ok(Expr::mul(vec![ratio_to_expr(&scaled), integrand]))
 }
 
-/// ∫ P(x)/g^n dx for `g = c·(ax+b)^n`.
+// **Pipeline private** — ∫ P(x)/g^n dx for `g = c·(ax+b)^n`.
 fn integrate_polynomial_over_linear_power(
     numer: &Poly,
     factor: &Poly,
@@ -296,6 +312,7 @@ fn integrate_polynomial_over_linear_power(
     Ok(Expr::add(parts))
 }
 
+// **Pipeline private** — raise a rational to an integer power.
 fn ratio_pow(r: &Ratio<BigInt>, n: u64) -> Ratio<BigInt> {
     let mut out = Ratio::one();
     for _ in 0..n {
@@ -304,6 +321,7 @@ fn ratio_pow(r: &Ratio<BigInt>, n: u64) -> Ratio<BigInt> {
     out
 }
 
+// **Pipeline private** — ∫ rational over irreducible or repeated quadratic.
 fn integrate_over_quadratic(
     numer: &Poly,
     factor: &Poly,
@@ -377,7 +395,7 @@ fn integrate_over_quadratic(
     Ok(Expr::add(parts))
 }
 
-/// ∫ (B·t+C)/(a·t²+b·t+c) dt when the quadratic has real roots (disc > 0).
+// **Pipeline private** — ∫ (B·t+C)/(a·t²+b·t+c) dt when the quadratic has real roots (disc > 0).
 fn integrate_over_quadratic_real_roots(
     b_lin: &Ratio<BigInt>,
     c_lin: &Ratio<BigInt>,
@@ -418,12 +436,14 @@ fn integrate_over_quadratic_real_roots(
     ]))
 }
 
+// **Pipeline private** — exact square root of a perfect-square rational.
 fn ratio_sqrt(r: &Ratio<BigInt>) -> Result<Ratio<BigInt>, EvalError> {
     let sn = integer_sqrt(r.numer()).ok_or_else(|| EvalError::NotImplemented("integrate partfrac"))?;
     let sd = integer_sqrt(r.denom()).ok_or_else(|| EvalError::NotImplemented("integrate partfrac"))?;
     Ok(Ratio::new(sn, sd))
 }
 
+// **Pipeline private** — integer square root by binary search.
 fn integer_sqrt(n: &BigInt) -> Option<BigInt> {
     if n.is_negative() {
         return None;
@@ -445,6 +465,7 @@ fn integer_sqrt(n: &BigInt) -> Option<BigInt> {
     None
 }
 
+// **Pipeline private** — build `sqrt(r)` as `Expr` (exact or nested `sqrt`).
 fn sqrt_ratio_expr(r: &Ratio<BigInt>) -> Result<ExprArc, EvalError> {
     if r.is_negative() {
         return Err(EvalError::TypeError("negative under sqrt"));
@@ -475,6 +496,7 @@ fn sqrt_ratio_expr(r: &Ratio<BigInt>) -> Result<ExprArc, EvalError> {
     Ok(Expr::mul(parts))
 }
 
+// **Pipeline private** — convert `Ratio<BigInt>` to `ExprArc`.
 fn ratio_to_expr(r: &Ratio<BigInt>) -> ExprArc {
     if r.is_integer() {
         Expr::int(
@@ -487,6 +509,7 @@ fn ratio_to_expr(r: &Ratio<BigInt>) -> ExprArc {
     }
 }
 
+// **Pipeline private** — map `PolyError` to `EvalError`.
 fn poly_err(e: PolyError) -> EvalError {
     match e {
         PolyError::NotImplemented(s) => EvalError::NotImplemented(s),

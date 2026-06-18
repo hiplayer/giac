@@ -1,5 +1,14 @@
 //! Sparse series in one variable (GIAC-216a / `sparse_poly1` subset).
 //!
+//! **API 分层：** [`giac-calculus-api-stability.md`](../../../../../.doc/giac-calculus-api-stability.md)
+//! **专项契约：** [`limit-engine-expr-api.md`](../../../../../.doc/limit-engine-expr-api.md)
+//!
+//! | 层级 | 内容 |
+//! |------|------|
+//! | **Stable** | `series_at_zero`、`series_at_zero_order`、`series_spdiv_one` |
+//! | **Pipeline** | `series_at_center` |
+//! | **Pipeline private** | `series_exp_mrv*`、`series_div`、系数规范化辅助 |
+//!
 //! Bounded: no `expand`, capped term count, no Taylor on heavy `exp` forms.
 
 use std::collections::HashMap;
@@ -31,6 +40,7 @@ pub(crate) struct SparseSeries {
 }
 
 impl SparseSeries {
+    /// **Pipeline** — constant
     pub(crate) fn constant(c: ExprArc) -> Self {
         if is_expr_zero(&c) {
             return Self::default();
@@ -40,22 +50,27 @@ impl SparseSeries {
         }
     }
 
+    /// **Pipeline** — is zero
     pub(crate) fn is_zero(&self) -> bool {
         self.terms.is_empty()
     }
 
+    /// **Pipeline** — lead
     pub(crate) fn lead(&self) -> Option<(i32, ExprArc)> {
         self.terms.first().map(|(e, c)| (*e, Arc::clone(c)))
     }
 
+    /// **Pipeline** — term count
     pub(crate) fn term_count(&self) -> usize {
         self.terms.len()
     }
 
+    /// **Pipeline** — iter terms
     pub(crate) fn iter_terms(&self) -> impl Iterator<Item = (i32, &ExprArc)> + '_ {
         self.terms.iter().map(|(e, c)| (*e, c))
     }
 
+    /// **Pipeline** — to expr
     pub(crate) fn to_expr(&self, var: &Ident) -> ExprArc {
         if self.terms.is_empty() {
             return Expr::int(0);
@@ -78,6 +93,7 @@ impl SparseSeries {
         Expr::add(parts)
     }
 
+    /// **Pipeline** — add
     pub(crate) fn add(&self, other: &Self, ctx: &Context) -> Result<Self, EvalError> {
         let mut map: HashMap<i32, ExprArc> = HashMap::new();
         for (e, c) in &self.terms {
@@ -89,6 +105,7 @@ impl SparseSeries {
         normalize_map(map, ctx)
     }
 
+    /// **Pipeline** — mul with cap
     pub(crate) fn mul_with_cap(
         &self,
         other: &Self,
@@ -121,14 +138,17 @@ impl SparseSeries {
         Ok(s)
     }
 
+    /// **Pipeline** — mul
     pub(crate) fn mul(&self, other: &Self, max_order: usize, ctx: &Context) -> Result<Self, EvalError> {
         self.mul_with_cap(other, max_order, MAX_SERIES_ORDER, ctx)
     }
 
+    // **Pipeline private** — truncate to order
     fn truncate_to_order(&mut self, max_order: usize) {
         self.truncate_to_order_cap(max_order.min(MAX_SERIES_ORDER));
     }
 
+    // **Pipeline private** — truncate to order cap
     fn truncate_to_order_cap(&mut self, max_order: usize) {
         self.terms.sort_by(|a, b| a.0.cmp(&b.0));
         self.terms.retain(|(e, _)| {
@@ -141,12 +161,13 @@ impl SparseSeries {
         self.terms.truncate(MAX_SERIES_TERMS);
     }
 
-    /// User-facing `series(f,x,c,n)` display: keep terms with degree `< order`.
+    /// **Pipeline** — truncate display order
     pub(crate) fn truncate_display_order(&mut self, order: usize) {
         self.terms
             .retain(|(e, _)| *e < 0 || (*e as usize) < order);
     }
 
+    /// **Pipeline** — map coeffs
     pub(crate) fn map_coeffs<F>(&self, f: F) -> Self
     where
         F: Fn(&ExprArc) -> ExprArc,
@@ -160,6 +181,7 @@ impl SparseSeries {
         }
     }
 
+    /// **Pipeline** — from rational laurent
     pub(crate) fn from_rational_laurent(
         num: &ExprArc,
         den: &ExprArc,
@@ -207,7 +229,7 @@ impl SparseSeries {
     }
 }
 
-/// Taylor series of `expr` in `var` about `center` (GIAC-216d).
+/// **Pipeline** — 通用中心级数展开
 pub(crate) fn series_at_center(
     expr: &ExprArc,
     var: &Ident,
@@ -249,6 +271,7 @@ pub(crate) fn series_at_center(
     eval(Expr::add(out).as_ref(), ctx)
 }
 
+// **Pipeline private** — series sparse to expr
 fn series_sparse_to_expr(
     s: &SparseSeries,
     var: &Ident,
@@ -281,7 +304,7 @@ fn series_sparse_to_expr(
     }
 }
 
-/// Taylor/Laurent series of `expr` in `var` at `var = 0` (bounded).
+/// **Stable** — `w=0` 稀疏级数（MRV 系数域）
 pub(crate) fn series_at_zero(
     expr: &ExprArc,
     var: &Ident,
@@ -291,7 +314,7 @@ pub(crate) fn series_at_zero(
     series_at_zero_order(expr, var, order, MAX_SERIES_ORDER, ctx)
 }
 
-/// MRV/limit path: allow `order_cap` up to [`MAX_SERIES_EXPANSION_ORDER`].
+/// **Stable** — 指定阶数的 `w=0` 级数
 pub(crate) fn series_at_zero_order(
     expr: &ExprArc,
     var: &Ident,
@@ -304,7 +327,7 @@ pub(crate) fn series_at_zero_order(
     series_at_zero_depth(expr, var, order, order_cap, 0, ctx)
 }
 
-/// giac `spdiv(sparse_poly1(1), p)` for MRV lead extraction.
+/// **Stable** — 级数升阶除法 `spdiv(·,1)`
 pub(crate) fn series_spdiv_one(
     den: &SparseSeries,
     order: usize,
@@ -320,6 +343,7 @@ pub(crate) fn series_spdiv_one(
     )
 }
 
+// **Pipeline private** — series at zero depth
 fn series_at_zero_depth(
     expr: &ExprArc,
     var: &Ident,
@@ -480,6 +504,7 @@ fn series_at_zero_depth(
     }
 }
 
+// **Pipeline private** — series sin
 fn series_sin(order: usize) -> Result<SparseSeries, EvalError> {
     let mut terms = Vec::new();
     let lim = order;
@@ -500,6 +525,7 @@ fn series_sin(order: usize) -> Result<SparseSeries, EvalError> {
     Ok(SparseSeries { terms })
 }
 
+// **Pipeline private** — series cos
 fn series_cos(order: usize) -> Result<SparseSeries, EvalError> {
     let mut terms = vec![(0, Expr::int(1))];
     let lim = order;
@@ -518,6 +544,7 @@ fn series_cos(order: usize) -> Result<SparseSeries, EvalError> {
     Ok(SparseSeries { terms })
 }
 
+// **Pipeline private** — series sqrt
 fn series_sqrt(
     arg: &SparseSeries,
     order: usize,
@@ -541,7 +568,7 @@ fn series_sqrt(
     Ok(acc)
 }
 
-/// `atan(u) = u - u^3/3 + u^5/5 - ...`
+// **Pipeline private** — series atan
 fn series_atan(order: usize) -> Result<SparseSeries, EvalError> {
     let mut terms = Vec::new();
     let lim = order;
@@ -555,7 +582,7 @@ fn series_atan(order: usize) -> Result<SparseSeries, EvalError> {
     Ok(SparseSeries { terms })
 }
 
-/// `atan(1/u) = pi/2 - u + u^3/3 - u^5/5 + ...` for `u → 0+`.
+// **Pipeline private** — series atan of inv
 fn series_atan_of_inv(order: usize) -> Result<SparseSeries, EvalError> {
     let mut terms = vec![(0, Arc::new(Expr::Frac(Expr::sym("pi"), Expr::int(2))))];
     let lim = order;
@@ -569,6 +596,7 @@ fn series_atan_of_inv(order: usize) -> Result<SparseSeries, EvalError> {
     Ok(SparseSeries { terms })
 }
 
+// **Pipeline private** — is inv series var
 fn is_inv_series_var(e: &ExprArc, var: &Ident) -> bool {
     match e.as_ref() {
         Expr::Pow(b, exp)
@@ -583,7 +611,7 @@ fn is_inv_series_var(e: &ExprArc, var: &Ident) -> bool {
     }
 }
 
-/// `exp(arg)` when `arg` may contain `k*ln(w)` in the constant term (MRV series).
+// **Pipeline private** — series exp mrv
 fn series_exp_mrv(
     arg: &SparseSeries,
     order: usize,
@@ -602,6 +630,7 @@ fn series_exp_mrv(
     series_exp_mrv_positive(arg, order, order_cap, ctx)
 }
 
+// **Pipeline private** — shift series exponents
 fn shift_series_exponents(s: &SparseSeries, delta: i32) -> SparseSeries {
     SparseSeries {
         terms: s
@@ -612,6 +641,7 @@ fn shift_series_exponents(s: &SparseSeries, delta: i32) -> SparseSeries {
     }
 }
 
+// **Pipeline private** — series exp mrv positive
 fn series_exp_mrv_positive(
     arg: &SparseSeries,
     order: usize,
@@ -653,6 +683,7 @@ fn series_exp_mrv_positive(
         .mul_with_cap(&taylor, order, order_cap, ctx)?)
 }
 
+// **Pipeline private** — series ln mrv
 fn series_ln_mrv(arg: &SparseSeries, order: usize, ctx: &Context) -> Result<SparseSeries, EvalError> {
     let (min_e, lead_c) = arg.lead().ok_or(EvalError::NotImplemented("series"))?;
     if min_e > 0 {
@@ -697,6 +728,7 @@ fn series_ln_mrv(arg: &SparseSeries, order: usize, ctx: &Context) -> Result<Spar
     Err(EvalError::NotImplemented("series"))
 }
 
+// **Pipeline private** — series exp
 fn series_exp(
     arg: &SparseSeries,
     order: usize,
@@ -724,6 +756,7 @@ fn series_exp(
     Ok(acc)
 }
 
+// **Pipeline private** — series pow int
 fn series_pow_int(
     base: &SparseSeries,
     n: i64,
@@ -760,6 +793,7 @@ fn series_pow_int(
     Ok(acc)
 }
 
+// **Pipeline private** — series div
 fn series_div(
     num: &SparseSeries,
     den: &SparseSeries,
@@ -770,6 +804,7 @@ fn series_div(
     num.mul_with_cap(&series_inv(den, order, order_cap, ctx)?, order, order_cap, ctx)
 }
 
+// **Pipeline private** — series inv
 fn series_inv(
     den: &SparseSeries,
     order: usize,
@@ -807,12 +842,14 @@ fn series_inv(
     Ok(acc)
 }
 
+// **Pipeline private** — merge term
 fn merge_term(map: &mut HashMap<i32, ExprArc>, exp: i32, coeff: ExprArc) {
     map.entry(exp)
         .and_modify(|c| *c = Expr::add(vec![Arc::clone(c), Arc::clone(&coeff)]))
         .or_insert(coeff);
 }
 
+// **Pipeline private** — simplify series coeff
 fn simplify_series_coeff(c: &ExprArc, ctx: &Context) -> ExprArc {
     let base = if expr_contains_exp_or_ln(c) {
         remove_lnexp(c, ctx)
@@ -822,6 +859,7 @@ fn simplify_series_coeff(c: &ExprArc, ctx: &Context) -> ExprArc {
     ratnormal(base.as_ref(), ctx).unwrap_or(base)
 }
 
+// **Pipeline private** — normalize map
 fn normalize_map(map: HashMap<i32, ExprArc>, ctx: &Context) -> Result<SparseSeries, EvalError> {
     let mut terms: Vec<(i32, ExprArc)> = map
         .into_iter()
@@ -841,6 +879,7 @@ fn normalize_map(map: HashMap<i32, ExprArc>, ctx: &Context) -> Result<SparseSeri
     Ok(SparseSeries { terms })
 }
 
+// **Pipeline private** — valuation at zero
 fn valuation_at_zero(p: &Poly, var: &Var) -> u64 {
     let d = univariate_degree(p, var);
     for k in 0..=d {
@@ -851,6 +890,7 @@ fn valuation_at_zero(p: &Poly, var: &Var) -> u64 {
     d + 1
 }
 
+// **Pipeline private** — ratio to expr
 fn ratio_to_expr(r: &Ratio<BigInt>) -> ExprArc {
     if r.is_integer() {
         if let Ok(n) = giac_core::bigint_to_i64(r.numer()) {
@@ -863,10 +903,12 @@ fn ratio_to_expr(r: &Ratio<BigInt>) -> ExprArc {
     ))
 }
 
+// **Pipeline private** — bigint to i64
 fn bigint_to_i64(n: &BigInt) -> Result<i64, EvalError> {
     giac_core::bigint_to_i64(n).map_err(|_| EvalError::TypeError("int"))
 }
 
+// **Pipeline private** — factorial
 fn factorial(n: usize) -> Result<i64, EvalError> {
     let mut acc = 1_i64;
     for i in 2..=n {
@@ -877,24 +919,28 @@ fn factorial(n: usize) -> Result<i64, EvalError> {
     Ok(acc)
 }
 
+// **Pipeline private** — var to expr
 fn var_to_expr(var: &Ident) -> ExprArc {
     Expr::sym(var.as_str())
 }
 
+// **Pipeline private** — is expr zero
 fn is_expr_zero(e: &ExprArc) -> bool {
     matches!(e.as_ref(), Expr::Int(n) if n.is_zero())
 }
 
+// **Pipeline private** — is series var
 fn is_series_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Symbol(id) if id == var)
 }
 
+// **Pipeline private** — arg has symbolic ln w
 fn arg_has_symbolic_ln_w(arg: &SparseSeries) -> bool {
     arg.iter_terms()
         .any(|(_, c)| decompose_mrv_coeff(c).pending_for_series())
 }
 
-/// `(-ln(w))^k` and similar non-Taylor powers stay symbolic in MRV series coeffs.
+// **Pipeline private** — is half exponent
 fn is_half_exponent(exp: &ExprArc) -> bool {
     use num_bigint::BigInt;
     use num_rational::Ratio;
@@ -907,6 +953,7 @@ fn is_half_exponent(exp: &ExprArc) -> bool {
         )
 }
 
+// **Pipeline private** — is mrv symbolic pow
 fn is_mrv_symbolic_pow(base: &ExprArc, exp: &ExprArc) -> bool {
     if !matches!(exp.as_ref(), Expr::Int(_)) {
         return false;

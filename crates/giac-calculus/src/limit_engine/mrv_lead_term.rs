@@ -1,4 +1,12 @@
 //! `mrv_lead_term` and limit from MRV series (GIAC-216c / GIAC-216e).
+//!
+//! **API 分层：** [`giac-calculus-api-stability.md`](../../../../../.doc/giac-calculus-api-stability.md)
+//! **专项契约：** [`limit-engine-expr-api.md`](../../../../../.doc/limit-engine-expr-api.md)
+//!
+//! | 层级 | 内容 |
+//! |------|------|
+//! | **Stable** | `mrv_lead_term_plus_infinity`、`limit_from_mrv_lead_term`、`limit_unidirectional_plus_infinity` |
+//! | **Pipeline private** | `peel_neg_ln_w_inv`、`rewrite_in_mrv_w`、`mrv_series_lead_loop*` |
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -33,7 +41,7 @@ pub(crate) struct MrvLeadTerm {
     pub exponent: i32,
 }
 
-/// `exp(f)` with `f → 0` at `+∞` (MRV growth comparison; upstream `mrv_lead_term` constant lead).
+// **Pipeline private** — mrv lead exp vanishing plus infinity
 fn mrv_lead_exp_vanishing_plus_infinity(
     expr: &ExprArc,
     var: &Ident,
@@ -63,7 +71,7 @@ fn mrv_lead_exp_vanishing_plus_infinity(
     None
 }
 
-/// giac `mrv_lead_term` at `+infinity` (limit mode, bounded).
+/// **Stable** — MRV lead 管线入口（`+∞`）
 pub(crate) fn mrv_lead_term_plus_infinity(
     expr: &ExprArc,
     var: &Ident,
@@ -129,6 +137,7 @@ pub(crate) fn mrv_lead_term_plus_infinity(
     )
 }
 
+/// **Stable** — 由 `MrvLeadTerm` 求极限
 pub(crate) fn limit_from_mrv_lead_term(
     lead: &MrvLeadTerm,
     var: &Ident,
@@ -154,7 +163,7 @@ pub(crate) fn limit_from_mrv_lead_term(
     Ok(coeff)
 }
 
-/// upstream `unidirectional_limit` at `+infinity`: `mrv_lead_term` then recurse on coeff.
+/// **Stable** — 单向 `+∞` 极限（递归 lead）
 pub(crate) fn limit_unidirectional_plus_infinity(
     expr: &ExprArc,
     var: &Ident,
@@ -181,7 +190,7 @@ pub(crate) fn limit_unidirectional_plus_infinity(
     Err(EvalError::NotImplemented("limit"))
 }
 
-/// Replace `exp(±x)` with `w`/`w^-1` and `x` with `-ln(w)` when `omega = exp(-x)`.
+// **Pipeline private** — subst symbol
 fn subst_symbol(expr: &ExprArc, from: &Ident, to: &ExprArc) -> ExprArc {
     match expr.as_ref() {
         Expr::Symbol(id) if id == from => Arc::clone(to),
@@ -197,7 +206,7 @@ fn subst_symbol(expr: &ExprArc, from: &Ident, to: &ExprArc) -> ExprArc {
     }
 }
 
-/// giac `upscale`: `ln(x)→x`, `x→exp(x)` while `x` remains in the MRV set.
+// **Pipeline private** — upscale while var in mrv
 fn upscale_while_var_in_mrv(expr: &ExprArc, var: &Ident, ctx: &Context) -> ExprArc {
     let ln_x = Expr::func(FuncKind::Ln, vec![Expr::sym(var.as_str())]);
     let exp_x = Expr::func(FuncKind::Exp, vec![Expr::sym(var.as_str())]);
@@ -213,6 +222,7 @@ fn upscale_while_var_in_mrv(expr: &ExprArc, var: &Ident, ctx: &Context) -> ExprA
     out
 }
 
+// **Pipeline private** — omega neg linear coeff
 fn omega_neg_linear_coeff(omega: &ExprArc, var: &Ident) -> Option<ExprArc> {
     let Expr::Func(FuncKind::Exp, args) = omega.as_ref() else {
         return None;
@@ -228,6 +238,7 @@ fn omega_neg_linear_coeff(omega: &ExprArc, var: &Ident) -> Option<ExprArc> {
     }
 }
 
+// **Pipeline private** — neg ln w from omega
 fn neg_ln_w_from_omega(omega_lin: ExprArc, w_expr: ExprArc) -> ExprArc {
     if matches!(omega_lin.as_ref(), Expr::Int(n) if n == &-num_bigint::BigInt::from(1)) {
         return super::mrv_w::neg_ln_w_expr();
@@ -238,6 +249,7 @@ fn neg_ln_w_from_omega(omega_lin: ExprArc, w_expr: ExprArc) -> ExprArc {
     ])
 }
 
+// **Pipeline private** — linear inner coeff only
 fn linear_inner_coeff_only(inner: &ExprArc, var: &Ident) -> Option<ExprArc> {
     let c = linear_coeff_in_var(inner, var)?;
     let mut map = HashMap::new();
@@ -250,6 +262,7 @@ fn linear_inner_coeff_only(inner: &ExprArc, var: &Ident) -> Option<ExprArc> {
     }
 }
 
+// **Pipeline private** — rewrite in mrv w
 fn rewrite_in_mrv_w(
     expr: &ExprArc,
     var: &Ident,
@@ -317,10 +330,12 @@ fn rewrite_in_mrv_w(
     }
 }
 
+// **Pipeline private** — expr eq
 fn expr_eq(a: &ExprArc, b: &ExprArc) -> bool {
     a == b
 }
 
+// **Pipeline private** — is exp neg var
 fn is_exp_neg_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(
         e.as_ref(),
@@ -328,6 +343,7 @@ fn is_exp_neg_var(e: &ExprArc, var: &Ident) -> bool {
     )
 }
 
+// **Pipeline private** — is exp pos var
 fn is_exp_pos_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(
         e.as_ref(),
@@ -335,6 +351,7 @@ fn is_exp_pos_var(e: &ExprArc, var: &Ident) -> bool {
     )
 }
 
+// **Pipeline private** — is neg var
 fn is_neg_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(
         e.as_ref(),
@@ -344,6 +361,7 @@ fn is_neg_var(e: &ExprArc, var: &Ident) -> bool {
     )
 }
 
+// **Pipeline private** — rewrite ln w
 fn rewrite_ln_w(expr: &ExprArc, var: &Ident) -> ExprArc {
     if expr_contains_ln_w(expr) {
         let (k, rest) = decompose_ln_w_coeff(expr);
@@ -377,6 +395,7 @@ fn rewrite_ln_w(expr: &ExprArc, var: &Ident) -> ExprArc {
     }
 }
 
+// **Pipeline private** — g from omega
 fn g_from_omega(omega: &ExprArc, var: &Ident, w: &Ident, ctx: &Context) -> ExprArc {
     match omega.as_ref() {
         Expr::Func(FuncKind::Exp, args) if args.len() == 1 => {
@@ -386,6 +405,7 @@ fn g_from_omega(omega: &ExprArc, var: &Ident, w: &Ident, ctx: &Context) -> ExprA
     }
 }
 
+// **Pipeline private** — omega tends to zero at plus inf
 fn omega_tends_to_zero_at_plus_inf(omega: &ExprArc, var: &Ident, ctx: &Context) -> bool {
     if omega_neg_linear_coeff(omega, var).is_some() {
         return true;
@@ -402,6 +422,7 @@ fn omega_tends_to_zero_at_plus_inf(omega: &ExprArc, var: &Ident, ctx: &Context) 
     }
 }
 
+// **Pipeline private** — is neg var linear
 fn is_neg_var_linear(e: &ExprArc, var: &Ident) -> bool {
     matches!(
         e.as_ref(),
@@ -411,12 +432,14 @@ fn is_neg_var_linear(e: &ExprArc, var: &Ident) -> bool {
     )
 }
 
+// **Pipeline private** — subst w inv
 fn subst_w_inv(expr: &ExprArc, w: &Ident) -> Result<ExprArc, EvalError> {
     let mut m = HashMap::new();
     m.insert(w.clone(), Expr::pow(Expr::sym(w.as_str()), Expr::int(-1)));
     eval_subst_map(expr, &m)
 }
 
+// **Pipeline private** — is ln w
 fn is_ln_w(e: &ExprArc) -> bool {
     matches!(
         e.as_ref(),
@@ -425,6 +448,7 @@ fn is_ln_w(e: &ExprArc) -> bool {
     )
 }
 
+// **Pipeline private** — subst ln w expr
 fn subst_ln_w_expr(expr: &ExprArc, replacement: &ExprArc) -> ExprArc {
     if is_ln_w(expr) {
         return Arc::clone(replacement);
@@ -447,6 +471,7 @@ fn subst_ln_w_expr(expr: &ExprArc, replacement: &ExprArc) -> ExprArc {
     }
 }
 
+// **Pipeline private** — collect ln exprs
 fn collect_ln_exprs(expr: &ExprArc, out: &mut Vec<ExprArc>) {
     if is_ln_w(expr) {
         out.push(Arc::clone(expr));
@@ -475,7 +500,7 @@ fn collect_ln_exprs(expr: &ExprArc, out: &mut Vec<ExprArc>) {
     }
 }
 
-/// upstream `ln(exp(g)^k*...) -> k*g + ln(...)` when MRV element is `exp`.
+// **Pipeline private** — rewrite ln exp in f
 fn rewrite_ln_exp_in_f(
     f: &ExprArc,
     w: &Ident,
@@ -526,6 +551,7 @@ fn rewrite_ln_exp_in_f(
     Ok(out)
 }
 
+// **Pipeline private** — subst expr once
 fn subst_expr_once(expr: &ExprArc, from: &ExprArc, to: &ExprArc) -> ExprArc {
     if expr == from {
         return Arc::clone(to);
@@ -546,6 +572,7 @@ fn subst_expr_once(expr: &ExprArc, from: &ExprArc, to: &ExprArc) -> ExprArc {
     }
 }
 
+// **Pipeline private** — peel neg ln w inv
 fn peel_neg_ln_w_inv(expr: &ExprArc, _w: &Ident) -> Option<(ExprArc, ExprArc)> {
     let inv = neg_ln_w_inv_expr();
     let neg_ln = neg_ln_w_expr();
@@ -591,6 +618,7 @@ fn peel_neg_ln_w_inv(expr: &ExprArc, _w: &Ident) -> Option<(ExprArc, ExprArc)> {
     Some((core, inv))
 }
 
+// **Pipeline private** — combine lead with ln inv
 fn combine_lead_with_ln_inv(
     lead: &MrvLeadTerm,
     ln_inv: &ExprArc,
@@ -610,19 +638,22 @@ fn combine_lead_with_ln_inv(
     }
 }
 
+// **Pipeline private** — is series coeff undef
 fn is_series_coeff_undef(c: &ExprArc) -> bool {
     matches!(c.as_ref(), Expr::Undefined) || decompose_mrv_coeff(c).ln_w_pow != 0
 }
 
+// **Pipeline private** — normalize series coeff
 fn normalize_series_coeff(c: &ExprArc, ctx: &Context) -> ExprArc {
     simplify_limit_expr(&remove_lnexp(c, ctx), ctx)
 }
 
+// **Pipeline private** — pnormal series
 fn pnormal_series(p: &SparseSeries, ctx: &Context) -> SparseSeries {
     p.map_coeffs(|c| ratnormal(c.as_ref(), ctx).unwrap_or_else(|_| Arc::clone(c)))
 }
 
-/// upstream `series_lead_at_zero` / `mrv_lead_term` ordre loop at `w = 0`.
+/// **Stable** — `w=0` 级数 lead
 pub(crate) fn series_lead_at_zero(
     f: &ExprArc,
     w: &Ident,
@@ -635,7 +666,7 @@ pub(crate) fn series_lead_at_zero(
     mrv_series_lead_loop_inner(f, w, g, dont_invert, begin_ordre, var, ctx)
 }
 
-/// upstream `mrv_lead_term` ordre loop: `series__SPOL1`, `ln(w)→±g`, `spdiv`.
+// **Pipeline private** — mrv series lead loop
 fn mrv_series_lead_loop(
     swapped: &ExprArc,
     w: &Ident,
@@ -697,6 +728,7 @@ fn mrv_series_lead_loop(
     mrv_series_lead_loop_inner(&f, w, g, dont_invert, begin_ordre, var, ctx)
 }
 
+// **Pipeline private** — lead from peeled core
 fn lead_from_peeled_core(
     core: &ExprArc,
     ln_inv: &ExprArc,
@@ -744,6 +776,7 @@ fn lead_from_peeled_core(
     Ok(combine_lead_with_ln_inv(&lead, ln_inv, ctx))
 }
 
+// **Pipeline private** — mrv series lead loop inner
 fn mrv_series_lead_loop_inner(
     f: &ExprArc,
     w: &Ident,
@@ -817,6 +850,7 @@ fn mrv_series_lead_loop_inner(
     Err(EvalError::NotImplemented("series"))
 }
 
+// **Pipeline private** — lead coeff ready
 fn lead_coeff_ready(coeff: &ExprArc, var: &Ident, w: &Ident) -> bool {
     let parts = decompose_mrv_coeff(coeff);
     if parts.pending_for_series() {
@@ -828,6 +862,7 @@ fn lead_coeff_ready(coeff: &ExprArc, var: &Ident, w: &Ident) -> bool {
     !expr_contains_w_var(&parts.rest) && !depends_on_w(&parts.rest, w)
 }
 
+// **Pipeline private** — depends on w
 fn depends_on_w(e: &ExprArc, w: &Ident) -> bool {
     match e.as_ref() {
         Expr::Symbol(id) => id == w,
@@ -840,10 +875,12 @@ fn depends_on_w(e: &ExprArc, w: &Ident) -> bool {
     }
 }
 
+// **Pipeline private** — is var
 fn is_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Symbol(id) if id == var)
 }
 
+// **Pipeline private** — sign infinity
 fn sign_infinity(coeff: &ExprArc) -> ExprArc {
     match coeff.as_ref() {
         Expr::Int(n) if n.is_negative() => Expr::sym("-infinity"),

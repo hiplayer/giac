@@ -1,8 +1,17 @@
+//! `diff` / `derive` eval hook.
+//!
+//! See [`.doc/giac-calculus-api-stability.md`](../../../../.doc/giac-calculus-api-stability.md) §2, §7.
+//!
+//! | Tier | 函数 |
+//! |------|------|
+//! | **Stable** | `eval_diff` |
+
 use giac_core::{Context, EvalError, Expr, ExprArc};
 use std::sync::Arc;
 
 use crate::diff::diff;
 
+/// **Stable** — evaluate `diff(expr, var)` or multivariate `derive(expr, [vars…])`.
 pub fn eval_diff(args: &[ExprArc], _ctx: &Context) -> Result<ExprArc, EvalError> {
     if args.len() != 2 {
         return Err(EvalError::TooFewArgs("diff"));

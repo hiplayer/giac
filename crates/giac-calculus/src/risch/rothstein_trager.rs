@@ -1,4 +1,11 @@
 //! GIAC-228: Rothstein–Trager algorithm for logarithmic part of ∫ N/Q dx.
+//!
+//! See [`.doc/giac-calculus-api-stability.md`](../../../../../.doc/giac-calculus-api-stability.md) §5.
+//!
+//! | Tier | 函数 |
+//! |------|------|
+//! | **Partial** | `rothstein_trager_integrate`, `try_algebraic_rt_even_quartic`, `try_integrate_x4_plus_one` |
+//! | **Pipeline private** | `poly_err`, `ratio_to_expr` |
 
 use std::sync::Arc;
 
@@ -17,7 +24,7 @@ use super::algebraic_rt::{is_monic_even_quartic, try_algebraic_rt_log_part};
 
 const RT_PARAM: &str = "__rt";
 
-/// Algebraic RT for monic even quartics with constant numerator.
+/// **Partial** — algebraic RT for monic even quartics with constant numerator. **退役：** merge into full RT pipeline.
 pub fn try_algebraic_rt_even_quartic(
     numer: &Poly,
     factor: &Poly,
@@ -33,7 +40,7 @@ pub fn try_algebraic_rt_even_quartic(
     try_algebraic_rt_log_part(numer, factor, var, x, &res_t, &t)
 }
 
-/// `∫ k/(x^4+1) dx` via algebraic RT conjugate pairing.
+/// **Partial** — `∫ k/(x^4+1) dx` via algebraic RT conjugate pairing. **退役：** general even-quartic RT.
 pub fn try_integrate_x4_plus_one(
     numer: &Poly,
     factor: &Poly,
@@ -43,7 +50,7 @@ pub fn try_integrate_x4_plus_one(
     try_algebraic_rt_even_quartic(numer, factor, var, x)
 }
 
-/// Integrate `numer / factor` when `factor` is square-free and partfrac failed.
+/// **Partial** — integrate `numer / factor` when `factor` is square-free and partfrac failed. **退役：** full Rothstein–Trager with algebraic extensions.
 pub fn rothstein_trager_integrate(
     numer: &Poly,
     factor: &Poly,
@@ -84,6 +91,7 @@ pub fn rothstein_trager_integrate(
     Ok(Expr::add(parts))
 }
 
+// **Pipeline private** — map `PolyError` to `EvalError`.
 fn poly_err(e: PolyError) -> EvalError {
     match e {
         PolyError::NotImplemented(s) => EvalError::NotImplemented(s),
@@ -92,6 +100,7 @@ fn poly_err(e: PolyError) -> EvalError {
     }
 }
 
+// **Pipeline private** — `Ratio<BigInt>` to `ExprArc`.
 fn ratio_to_expr(r: &Ratio<BigInt>) -> ExprArc {
     if *r.denom() == BigInt::one() {
         bigint_to_i64(r.numer())

@@ -1,3 +1,13 @@
+//! Basic symbolic integration (`integrate`).
+//!
+//! See [`.doc/giac-calculus-api-stability.md`](../../../../.doc/giac-calculus-api-stability.md) §4.
+//!
+//! | Tier | 函数 |
+//! |------|------|
+//! | **Stable** | `integrate`, `integrate_frac`, `try_as_rational`, `ln_abs_expr`, `var_to_expr`, `is_var`, `is_const_wrt`, `is_exp_of_var` |
+//! | **Partial** | `try_integrate_*` 启发式规则 |
+//! | **Pipeline private** | `integrate_*`, `is_*`, 分部 / 换元辅助 |
+
 use std::sync::Arc;
 
 use num_bigint::BigInt;
@@ -8,7 +18,7 @@ use giac_core::{
 };
 use giac_simplify::expand;
 
-/// Basic integration rules (Phase 1 / GIAC-110 subset).
+/// **Stable** — basic integration rules (Phase 1 / GIAC-110 subset).
 ///
 /// ## Supported
 ///
@@ -59,6 +69,7 @@ pub fn integrate(expr: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     }
 }
 
+/// **Stable** — normalize `Expr` to `(num, den)` rational form.
 pub(crate) fn try_as_rational(expr: &ExprArc, var: &Ident) -> Option<(ExprArc, ExprArc)> {
     let _ = var;
     match expr.as_ref() {
@@ -119,6 +130,7 @@ pub(crate) fn try_as_rational(expr: &ExprArc, var: &Ident) -> Option<(ExprArc, E
     }
 }
 
+/// **Stable** — integrate rational `num/den` w.r.t. `var`.
 pub(crate) fn integrate_frac(num: &ExprArc, den: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     if is_exp_of_var(num, var) {
         if let Some(r) = try_integrate_exp_over_linear_exp(num, den, var) {
@@ -157,6 +169,7 @@ pub(crate) fn integrate_frac(num: &ExprArc, den: &ExprArc, var: &Ident) -> Resul
     Err(EvalError::NotImplemented("integrate frac"))
 }
 
+// **Pipeline private** — integrate reciprocal.
 fn integrate_reciprocal(den: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     if is_var(den, var) {
         return Ok(ln_abs(var));
@@ -183,6 +196,7 @@ fn integrate_reciprocal(den: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError
     Err(EvalError::NotImplemented("integrate reciprocal"))
 }
 
+// **Pipeline private** — integrate func.
 fn integrate_func(
     kind: FuncKind,
     args: &[ExprArc],
@@ -223,6 +237,7 @@ fn integrate_func(
     }
 }
 
+// **Pipeline private** — linear coefficient.
 fn linear_coefficient(e: &ExprArc, var: &Ident) -> Option<ExprArc> {
     if is_var(e, var) {
         return Some(Expr::int(1));
@@ -250,6 +265,7 @@ fn linear_coefficient(e: &ExprArc, var: &Ident) -> Option<ExprArc> {
     None
 }
 
+// **Pipeline private** — affine var coeff.
 fn affine_var_coeff(e: &ExprArc, var: &Ident) -> Option<ExprArc> {
     match e.as_ref() {
         Expr::Symbol(id) if id == var => Some(Expr::int(1)),
@@ -284,6 +300,7 @@ fn affine_var_coeff(e: &ExprArc, var: &Ident) -> Option<ExprArc> {
     }
 }
 
+// **Pipeline private** — is tan of var.
 fn is_tan_of_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(
         e.as_ref(),
@@ -291,6 +308,7 @@ fn is_tan_of_var(e: &ExprArc, var: &Ident) -> bool {
     )
 }
 
+/// **Partial** — heuristic `try_integrate_tan_plus_tan_cubed`; **退役：** Risch / partfrac.
 pub(crate) fn try_integrate_tan_plus_tan_cubed(terms: &[ExprArc], var: &Ident) -> Option<ExprArc> {
     if terms.len() != 2 {
         return None;
@@ -319,6 +337,7 @@ pub(crate) fn try_integrate_tan_plus_tan_cubed(terms: &[ExprArc], var: &Ident) -
     ]))
 }
 
+/// **Partial** — heuristic `try_integrate_exp_over_linear_exp`; **退役：** Risch / partfrac.
 pub(crate) fn try_integrate_exp_over_linear_exp(a: &ExprArc, b: &ExprArc, var: &Ident) -> Option<ExprArc> {
     let (exp_x, den) = if is_exp_of_var(a, var) {
         (a, b)
@@ -334,6 +353,7 @@ pub(crate) fn try_integrate_exp_over_linear_exp(a: &ExprArc, b: &ExprArc, var: &
     ]))
 }
 
+/// **Partial** — heuristic `try_integrate_exp_over_one_plus_exp2`; **退役：** Risch / partfrac.
 pub(crate) fn try_integrate_exp_over_one_plus_exp2(
     exp_x: &ExprArc,
     den: &ExprArc,
@@ -363,6 +383,7 @@ pub(crate) fn try_integrate_exp_over_one_plus_exp2(
     }
 }
 
+// **Pipeline private** — is exp of double x.
 fn is_exp_of_double_x(e: &ExprArc, var: &Ident) -> bool {
     matches!(
         e.as_ref(),
@@ -374,6 +395,7 @@ fn is_exp_of_double_x(e: &ExprArc, var: &Ident) -> bool {
     )
 }
 
+// **Pipeline private** — is exp x squared.
 fn is_exp_x_squared(exp_x: &ExprArc, e: &ExprArc) -> bool {
     matches!(
         e.as_ref(),
@@ -381,7 +403,8 @@ fn is_exp_x_squared(exp_x: &ExprArc, e: &ExprArc) -> bool {
     )
 }
 
-/// ∫ 1/cos(x)² dx = tan(x).
+/// **Partial** — heuristic `try_integrate_one_over_cos_squared`; **退役：** Risch / partfrac.
+/// **Partial** — ∫ 1/cos(x)² dx = tan(x). **退役：** Risch / partfrac.
 pub(crate) fn try_integrate_one_over_cos_squared(
     num: &ExprArc,
     den: &ExprArc,
@@ -407,6 +430,7 @@ pub(crate) fn try_integrate_one_over_cos_squared(
     Some(Expr::func(FuncKind::Tan, vec![arg]))
 }
 
+/// **Partial** — heuristic `try_integrate_sin_over_cos_sq_frac`; **退役：** Risch / partfrac.
 pub(crate) fn try_integrate_sin_over_cos_sq_frac(
     num: &ExprArc,
     den: &ExprArc,
@@ -428,6 +452,7 @@ pub(crate) fn try_integrate_sin_over_cos_sq_frac(
     Some(Expr::pow(Arc::clone(cosx), Expr::int(-1)))
 }
 
+// **Pipeline private** — const plus const times exp.
 fn const_plus_const_times_exp(
     den: &ExprArc,
     exp_x: &ExprArc,
@@ -469,6 +494,7 @@ fn const_plus_const_times_exp(
     Some((c, d))
 }
 
+// **Pipeline private** — is sin double angle.
 fn is_sin_double_angle(e: &ExprArc, var: &Ident) -> bool {
     matches!(
         e.as_ref(),
@@ -477,6 +503,7 @@ fn is_sin_double_angle(e: &ExprArc, var: &Ident) -> bool {
     )
 }
 
+/// **Partial** — heuristic `try_integrate_sin2x_cos`; **退役：** Risch / partfrac.
 fn try_integrate_sin2x_cos(a: &ExprArc, b: &ExprArc, var: &Ident) -> Option<ExprArc> {
     let (sin2x, cosx) = if is_sin_double_angle(a, var) && is_cos_of_var(b, var) {
         (a, b)
@@ -493,6 +520,7 @@ fn try_integrate_sin2x_cos(a: &ExprArc, b: &ExprArc, var: &Ident) -> Option<Expr
     ]))
 }
 
+/// **Partial** — heuristic `try_integrate_var_shifted_sqrt`; **退役：** Risch / partfrac.
 fn try_integrate_var_shifted_sqrt(a: &ExprArc, b: &ExprArc, var: &Ident) -> Option<ExprArc> {
     let (k, inner) = var_times_x_squared_plus_const(a, var)?;
     let sqrt_base = shifted_sqrt_base(b, var)?;
@@ -506,6 +534,7 @@ fn try_integrate_var_shifted_sqrt(a: &ExprArc, b: &ExprArc, var: &Ident) -> Opti
     ]))
 }
 
+// **Pipeline private** — var times x squared plus const.
 fn var_times_x_squared_plus_const(e: &ExprArc, var: &Ident) -> Option<(ExprArc, ExprArc)> {
     if is_var(e, var) {
         return Some((Expr::int(1), Expr::add(vec![
@@ -527,6 +556,7 @@ fn var_times_x_squared_plus_const(e: &ExprArc, var: &Ident) -> Option<(ExprArc, 
     None
 }
 
+// **Pipeline private** — shifted sqrt base.
 fn shifted_sqrt_base(e: &ExprArc, var: &Ident) -> Option<ExprArc> {
     let base = match e.as_ref() {
         Expr::Pow(b, exp) => {
@@ -558,6 +588,7 @@ fn shifted_sqrt_base(e: &ExprArc, var: &Ident) -> Option<ExprArc> {
     }
 }
 
+/// **Partial** — heuristic `try_integrate_sin_over_cos_squared`; **退役：** Risch / partfrac.
 fn try_integrate_sin_over_cos_squared(a: &ExprArc, b: &ExprArc, var: &Ident) -> Option<ExprArc> {
     let (sinx, cos_inv_sq) = if is_sin_of_var(a, var) {
         (a, b)
@@ -581,6 +612,7 @@ fn try_integrate_sin_over_cos_squared(a: &ExprArc, b: &ExprArc, var: &Ident) -> 
     ]))
 }
 
+/// **Partial** — heuristic `try_integrate_tanh_exp_form`; **退役：** Risch / partfrac.
 pub(crate) fn try_integrate_tanh_exp_form(a: &ExprArc, b: &ExprArc, var: &Ident) -> Option<ExprArc> {
     if !is_exp_minus_exp_neg(a, var) || !is_exp_plus_exp_neg(b, var) {
         return None;
@@ -594,6 +626,7 @@ pub(crate) fn try_integrate_tanh_exp_form(a: &ExprArc, b: &ExprArc, var: &Ident)
     Some(ln_abs_expr(sum))
 }
 
+// **Pipeline private** — is exp minus exp neg.
 fn is_exp_minus_exp_neg(e: &ExprArc, var: &Ident) -> bool {
     let Expr::Add(ts) = e.as_ref() else {
         return false;
@@ -610,7 +643,8 @@ fn is_exp_minus_exp_neg(e: &ExprArc, var: &Ident) -> bool {
     pos && neg
 }
 
-/// `Some(true)` for `+exp(x)`, `Some(false)` for `-exp(x)` / `exp(-x)` terms.
+// **Pipeline private** — exp term sign.
+// **Pipeline private** — `Some(true)` for `+exp(x)`, `Some(false)` for `-exp(x)` / `exp(-x)` terms.
 fn exp_term_sign(e: &ExprArc, var: &Ident) -> Option<bool> {
     if is_exp_of_var(e, var) {
         return Some(true);
@@ -635,6 +669,7 @@ fn exp_term_sign(e: &ExprArc, var: &Ident) -> Option<bool> {
     None
 }
 
+// **Pipeline private** — is exp neg of var.
 fn is_exp_neg_of_var(e: &ExprArc, var: &Ident) -> bool {
     if let Expr::Pow(base, exp) = e.as_ref() {
         if matches!(exp.as_ref(), Expr::Int(n) if n == &-BigInt::from(1)) {
@@ -665,10 +700,12 @@ fn is_exp_neg_of_var(e: &ExprArc, var: &Ident) -> bool {
     false
 }
 
+// **Pipeline private** — is exp plus exp neg.
 fn is_exp_plus_exp_neg(e: &ExprArc, var: &Ident) -> bool {
     is_exp_minus_exp_neg(e, var)
 }
 
+// **Pipeline private** — integrate sin squared.
 fn integrate_sin_squared(var: &Ident) -> ExprArc {
     let x = var_to_expr(var);
     Expr::add(vec![
@@ -680,6 +717,7 @@ fn integrate_sin_squared(var: &Ident) -> ExprArc {
     ])
 }
 
+// **Pipeline private** — integrate cos squared.
 fn integrate_cos_squared(var: &Ident) -> ExprArc {
     let x = var_to_expr(var);
     Expr::add(vec![
@@ -691,6 +729,7 @@ fn integrate_cos_squared(var: &Ident) -> ExprArc {
     ])
 }
 
+// **Pipeline private** — integrate sin cos product.
 fn integrate_sin_cos_product(var: &Ident) -> ExprArc {
     let x = var_to_expr(var);
     Expr::mul(vec![
@@ -699,6 +738,7 @@ fn integrate_sin_cos_product(var: &Ident) -> ExprArc {
     ])
 }
 
+// **Pipeline private** — integrate x ln.
 fn integrate_x_ln(var: &Ident) -> ExprArc {
     let x = var_to_expr(var);
     Expr::add(vec![
@@ -711,6 +751,7 @@ fn integrate_x_ln(var: &Ident) -> ExprArc {
     ])
 }
 
+/// **Partial** — heuristic `try_integrate_exp_trig`; **退役：** Risch / partfrac.
 fn try_integrate_exp_trig(a: &ExprArc, b: &ExprArc, var: &Ident) -> Option<ExprArc> {
     if is_exp_of_var(a, var) && is_sin_of_var(b, var) {
         return Some(integrate_exp_sin(var));
@@ -727,6 +768,7 @@ fn try_integrate_exp_trig(a: &ExprArc, b: &ExprArc, var: &Ident) -> Option<ExprA
     None
 }
 
+// **Pipeline private** — integrate exp sin.
 fn integrate_exp_sin(var: &Ident) -> ExprArc {
     let x = var_to_expr(var);
     let exp_x = Expr::func(FuncKind::Exp, vec![x.clone()]);
@@ -743,6 +785,7 @@ fn integrate_exp_sin(var: &Ident) -> ExprArc {
     ])
 }
 
+// **Pipeline private** — integrate exp cos.
 fn integrate_exp_cos(var: &Ident) -> ExprArc {
     let x = var_to_expr(var);
     let exp_x = Expr::func(FuncKind::Exp, vec![x.clone()]);
@@ -756,10 +799,12 @@ fn integrate_exp_cos(var: &Ident) -> ExprArc {
     ])
 }
 
+/// **Stable** — detect `exp(var)` form.
 pub(crate) fn is_exp_of_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Func(FuncKind::Exp, args) if args.len() == 1 && is_var(&args[0], var))
 }
 
+// **Pipeline private** — integrate mul.
 fn integrate_mul(factors: &[ExprArc], var: &Ident) -> Result<ExprArc, EvalError> {
     if factors.len() == 1 {
         return integrate(&factors[0], var);
@@ -868,6 +913,7 @@ fn integrate_mul(factors: &[ExprArc], var: &Ident) -> Result<ExprArc, EvalError>
     }
 }
 
+// **Pipeline private** — count var factors.
 fn count_var_factors(e: &Expr, var: &Ident) -> usize {
     match e {
         Expr::Mul(fs) => fs.iter().filter(|f| !is_const_wrt(f, var)).count(),
@@ -879,6 +925,7 @@ fn count_var_factors(e: &Expr, var: &Ident) -> usize {
     }
 }
 
+// **Pipeline private** — integrate pow.
 fn integrate_pow(base: &ExprArc, exp: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     if matches!(exp.as_ref(), Expr::Int(n) if n == &-BigInt::from(1)) {
         return integrate_reciprocal(base, var);
@@ -928,10 +975,12 @@ fn integrate_pow(base: &ExprArc, exp: &ExprArc, var: &Ident) -> Result<ExprArc, 
     Err(EvalError::NotImplemented("integrate pow"))
 }
 
+// **Pipeline private** — is x squared.
 fn is_x_squared(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Pow(b, exp) if is_var(b, var) && matches!(exp.as_ref(), Expr::Int(n) if n == &BigInt::from(2)))
 }
 
+// **Pipeline private** — is x squared plus const.
 fn is_x_squared_plus_const(den: &ExprArc, var: &Ident) -> bool {
     match den.as_ref() {
         Expr::Add(terms) if terms.len() == 2 => {
@@ -942,6 +991,7 @@ fn is_x_squared_plus_const(den: &ExprArc, var: &Ident) -> bool {
     }
 }
 
+// **Pipeline private** — var coefficient.
 fn var_coefficient(e: &ExprArc, var: &Ident) -> Option<ExprArc> {
     match e.as_ref() {
         Expr::Symbol(id) if id == var => Some(Expr::int(1)),
@@ -958,6 +1008,7 @@ fn var_coefficient(e: &ExprArc, var: &Ident) -> Option<ExprArc> {
     }
 }
 
+/// **Partial** — heuristic `try_integrate_var_over_quadratic_squared`; **退役：** Risch / partfrac.
 fn try_integrate_var_over_quadratic_squared(
     factors: &[ExprArc],
     var: &Ident,
@@ -986,38 +1037,47 @@ fn try_integrate_var_over_quadratic_squared(
     None
 }
 
+// **Pipeline private** — ln abs.
 fn ln_abs(var: &Ident) -> ExprArc {
     ln_abs_expr(var_to_expr(var))
 }
 
+/// **Stable** — build `ln(abs(arg))` expression.
 pub(crate) fn ln_abs_expr(arg: ExprArc) -> ExprArc {
     Expr::func(FuncKind::Ln, vec![Expr::func(FuncKind::Abs, vec![arg])])
 }
 
+/// **Stable** — integration variable as `ExprArc`.
 pub(crate) fn var_to_expr(var: &Ident) -> ExprArc {
     Expr::sym(var.as_str())
 }
 
+// **Pipeline private** — is sin of var.
 fn is_sin_of_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Func(FuncKind::Sin, args) if args.len() == 1 && is_var(&args[0], var))
 }
 
+// **Pipeline private** — is cos of var.
 fn is_cos_of_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Func(FuncKind::Cos, args) if args.len() == 1 && is_var(&args[0], var))
 }
 
+// **Pipeline private** — is ln of var.
 fn is_ln_of_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Func(FuncKind::Ln, args) if args.len() == 1 && is_var(&args[0], var))
 }
 
+/// **Stable** — symbol equals integration variable.
 pub(crate) fn is_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Symbol(id) if id == var)
 }
 
+// **Pipeline private** — is one.
 fn is_one(e: &ExprArc) -> bool {
     e.is_one()
 }
 
+/// **Stable** — expression constant w.r.t. variable.
 pub(crate) fn is_const_wrt(e: &ExprArc, var: &Ident) -> bool {
     match e.as_ref() {
         Expr::Symbol(id) => id != var,

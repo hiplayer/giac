@@ -1,3 +1,12 @@
+//! `limit` eval hook and known-limit fast paths.
+//!
+//! See [`.doc/giac-calculus-api-stability.md`](../../../../.doc/giac-calculus-api-stability.md) §7.
+//!
+//! | Tier | 函数 |
+//! |------|------|
+//! | **Stable** | `eval_limit` |
+//! | **Pipeline private** | `limit_*`, `try_known_limit*`, `classify_limit_point`, `is_*` shape detectors |
+
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -13,7 +22,7 @@ use crate::limit_engine::{
     limit_minus_infinity_algebraic, limit_plus_infinity_algebraic, normalize_inverse_sums,
 };
 
-/// `limit(expr, var, point)` — algebraic/trigonometric basics (GIAC-215).
+/// **Stable** — `limit(expr, var, point)` (GIAC-215).
 pub fn eval_limit(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     if args.len() != 3 {
         return Err(EvalError::TooFewArgs("limit"));
@@ -41,6 +50,7 @@ enum LimitPoint {
     MinusInfinity,
 }
 
+// **Pipeline private** — classify limit point as finite / ±∞.
 fn classify_limit_point(e: &ExprArc) -> Result<LimitPoint, EvalError> {
     match e.as_ref() {
         Expr::Symbol(id) if id.as_str() == "infinity" || id.as_str() == "+infinity" => {
@@ -59,6 +69,7 @@ fn classify_limit_point(e: &ExprArc) -> Result<LimitPoint, EvalError> {
     }
 }
 
+// **Pipeline private** — extract variable name from `Expr::Symbol`.
 fn ident_from_expr(e: &Expr) -> Result<Ident, EvalError> {
     match e {
         Expr::Symbol(id) => Ok(id.clone()),
@@ -66,6 +77,7 @@ fn ident_from_expr(e: &Expr) -> Result<Ident, EvalError> {
     }
 }
 
+// **Pipeline private** — dispatch to known limits or `limit_engine` algebraic paths.
 fn limit_expr(
     expr: &ExprArc,
     var: &Ident,
@@ -83,6 +95,7 @@ fn limit_expr(
     }
 }
 
+// **Pipeline private** — table lookup for limits needing evaluated point.
 fn try_known_limit(
     expr: &ExprArc,
     var: &Ident,
@@ -102,6 +115,7 @@ fn try_known_limit(
     try_known_limit_pointless(expr, var, point)
 }
 
+// **Pipeline private** — table lookup for point-independent classic limits.
 fn try_known_limit_pointless(expr: &ExprArc, var: &Ident, point: LimitPoint) -> Option<ExprArc> {
     if point != LimitPoint::Finite {
         if is_one_plus_one_over_x_power_x(expr, var) {
@@ -118,6 +132,7 @@ fn try_known_limit_pointless(expr: &ExprArc, var: &Ident, point: LimitPoint) -> 
     None
 }
 
+// **Pipeline private** — direct substitution at finite point (legacy path).
 fn limit_finite(expr: &ExprArc, var: &Ident, point: &ExprArc, ctx: &Context) -> Result<ExprArc, EvalError> {
     let pt = eval(point.as_ref(), ctx)?;
     let mut subs = HashMap::new();
@@ -125,6 +140,7 @@ fn limit_finite(expr: &ExprArc, var: &Ident, point: &ExprArc, ctx: &Context) -> 
     eval(eval_subst_map(expr, &subs)?.as_ref(), ctx)
 }
 
+// **Pipeline private** — elementary +∞ limits (legacy path).
 fn limit_plus_infinity(expr: &ExprArc, var: &Ident, ctx: &Context) -> Result<ExprArc, EvalError> {
     if let Expr::Pow(base, exp) = expr.as_ref() {
         if is_one_plus_reciprocal_var(base, var) && is_var(exp, var) {
@@ -140,6 +156,7 @@ fn limit_plus_infinity(expr: &ExprArc, var: &Ident, ctx: &Context) -> Result<Exp
     Err(EvalError::NotImplemented("limit"))
 }
 
+// **Pipeline private** — detect `sin(x)/x` at 0.
 fn is_sin_over_x(expr: &ExprArc, var: &Ident) -> bool {
     match expr.as_ref() {
         Expr::Frac(num, den) => is_sin_of_var(num, var) && is_var_or_inverse(den, var),
@@ -151,6 +168,7 @@ fn is_sin_over_x(expr: &ExprArc, var: &Ident) -> bool {
     }
 }
 
+// **Pipeline private** — `x` or `x^{-1}`.
 fn is_var_or_inverse(e: &ExprArc, var: &Ident) -> bool {
     is_var(e, var)
         || matches!(
@@ -159,6 +177,7 @@ fn is_var_or_inverse(e: &ExprArc, var: &Ident) -> bool {
         )
 }
 
+// **Pipeline private** — detect `(1-cos(x))/x^2` at 0.
 fn is_one_minus_cos_over_x_squared(expr: &ExprArc, var: &Ident) -> bool {
     if is_one_minus_cos_frac(expr, var) {
         return true;
@@ -178,6 +197,7 @@ fn is_one_minus_cos_over_x_squared(expr: &ExprArc, var: &Ident) -> bool {
     }
 }
 
+// **Pipeline private** — frac form of `(1-cos(x))/x^2`.
 fn is_one_minus_cos_frac(expr: &ExprArc, var: &Ident) -> bool {
     match expr.as_ref() {
         Expr::Frac(num, den) => {
@@ -188,6 +208,7 @@ fn is_one_minus_cos_frac(expr: &ExprArc, var: &Ident) -> bool {
     }
 }
 
+// **Pipeline private** — detect `1 - cos(x)`.
 fn is_one_minus_cos_expr(e: &ExprArc, var: &Ident) -> bool {
     matches!(
         e.as_ref(),
@@ -202,6 +223,7 @@ fn is_one_minus_cos_expr(e: &ExprArc, var: &Ident) -> bool {
     )
 }
 
+// **Pipeline private** — `x^2` or `x^{-2}`.
 fn is_var_or_inverse_squared(e: &ExprArc, var: &Ident) -> bool {
     if matches!(e.as_ref(), Expr::Pow(b, exp) if is_var(b, var) && matches!(exp.as_ref(), Expr::Int(n) if n == &BigInt::from(2) || n == &-BigInt::from(2)))
     {
@@ -214,6 +236,7 @@ fn is_var_or_inverse_squared(e: &ExprArc, var: &Ident) -> bool {
     )
 }
 
+// **Pipeline private** — detect `(1+1/x)^x` at +∞.
 fn is_one_plus_one_over_x_power_x(expr: &ExprArc, var: &Ident) -> bool {
     match expr.as_ref() {
         Expr::Pow(base, exp) => is_one_plus_reciprocal_var(base, var) && is_var(exp, var),
@@ -221,6 +244,7 @@ fn is_one_plus_one_over_x_power_x(expr: &ExprArc, var: &Ident) -> bool {
     }
 }
 
+// **Pipeline private** — detect `1 + 1/x` base.
 fn is_one_plus_reciprocal_var(e: &ExprArc, var: &Ident) -> bool {
     match e.as_ref() {
         Expr::Add(terms) if terms.len() == 2 => {
@@ -239,30 +263,37 @@ fn is_one_plus_reciprocal_var(e: &ExprArc, var: &Ident) -> bool {
     }
 }
 
+// **Pipeline private** — syntactic equality with `var`.
 fn is_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Symbol(id) if id == var)
 }
 
+// **Pipeline private** — detect `sin(var)`.
 fn is_sin_of_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Func(FuncKind::Sin, args) if args.len() == 1 && is_var(&args[0], var))
 }
 
+// **Pipeline private** — detect `ln(var)`.
 fn is_ln_of_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Func(FuncKind::Ln, args) if args.len() == 1 && is_var(&args[0], var))
 }
 
+// **Pipeline private** — detect `var^2`.
 fn is_x_squared(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Pow(b, exp) if is_var(b, var) && matches!(exp.as_ref(), Expr::Int(n) if n == &BigInt::from(2)))
 }
 
+// **Pipeline private** — zero test.
 fn is_zero(e: &ExprArc) -> bool {
     matches!(e.as_ref(), Expr::Int(n) if n.is_zero())
 }
 
+// **Pipeline private** — one test.
 fn is_one(e: &ExprArc) -> bool {
     e.is_one()
 }
 
+// **Pipeline private** — detect `sin(var)^2`.
 fn is_sin_squared(e: &ExprArc, var: &Ident) -> bool {
     matches!(
         e.as_ref(),
@@ -271,10 +302,12 @@ fn is_sin_squared(e: &ExprArc, var: &Ident) -> bool {
     )
 }
 
+// **Pipeline private** — detect `var^3`.
 fn is_x_cubed(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Pow(b, exp) if is_var(b, var) && matches!(exp.as_ref(), Expr::Int(n) if n == &BigInt::from(3)))
 }
 
+// **Pipeline private** — detect `ln(1+var)`.
 fn is_ln_one_plus_var(e: &ExprArc, var: &Ident) -> bool {
     match e.as_ref() {
         Expr::Func(FuncKind::Ln, args) if args.len() == 1 => match args[0].as_ref() {
@@ -287,6 +320,7 @@ fn is_ln_one_plus_var(e: &ExprArc, var: &Ident) -> bool {
     }
 }
 
+// **Pipeline private** — CK-INT-55 composite limit shape at 0.
 fn is_one_minus_cos_sin2_over_x3_ln1_plus_x(expr: &ExprArc, var: &Ident) -> bool {
     let (num, den) = match try_as_rational(expr, var) {
         Some(p) => p,
@@ -311,6 +345,7 @@ fn is_one_minus_cos_sin2_over_x3_ln1_plus_x(expr: &ExprArc, var: &Ident) -> bool
         && dfs.iter().any(|f| is_ln_one_plus_var(f, var))
 }
 
+// **Pipeline private** — CK-INT-59 pole limit shape at 1.
 fn is_one_minus_2x_over_quadratic_pole(expr: &ExprArc, var: &Ident) -> bool {
     let (num, den) = match try_as_rational(expr, var) {
         Some(p) => p,
@@ -319,6 +354,7 @@ fn is_one_minus_2x_over_quadratic_pole(expr: &ExprArc, var: &Ident) -> bool {
     is_one_minus_kx(&num, var, 2) && is_x_squared_plus_x_minus_two(&den, var)
 }
 
+// **Pipeline private** — detect `1 - k*var`.
 fn is_one_minus_kx(e: &ExprArc, var: &Ident, k: i64) -> bool {
     let Expr::Add(ts) = e.as_ref() else {
         return false;
@@ -344,6 +380,7 @@ fn is_one_minus_kx(e: &ExprArc, var: &Ident, k: i64) -> bool {
     c == 1 && vx == -k
 }
 
+// **Pipeline private** — extract integer coefficient of `var` in a product.
 fn int_coeff_times_var(e: &ExprArc, var: &Ident) -> Option<i64> {
     let Expr::Mul(fs) = e.as_ref() else {
         return None;
@@ -364,6 +401,7 @@ fn int_coeff_times_var(e: &ExprArc, var: &Ident) -> Option<i64> {
     None
 }
 
+// **Pipeline private** — detect `var^2 + var - 2`.
 fn is_x_squared_plus_x_minus_two(e: &ExprArc, var: &Ident) -> bool {
     let Expr::Add(ts) = e.as_ref() else {
         return false;

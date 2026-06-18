@@ -1,4 +1,12 @@
 //! GIAC-225: `intg.cc` heuristic subset (sqrt substitution, trig fractions).
+//!
+//! See [`.doc/giac-calculus-api-stability.md`](../../../../.doc/giac-calculus-api-stability.md) §4.
+//!
+//! | Tier | 函数 |
+//! |------|------|
+//! | **Pipeline** | `try_integrate_heuristic` |
+//! | **Partial** | `try_integrate_*` 规则表（启发式；逐步迁入 Risch/partfrac） |
+//! | **Pipeline private** | Chebyshev / Weierstrass / sqrt 形状检测辅助 |
 
 use std::sync::Arc;
 
@@ -15,7 +23,7 @@ use crate::integrate::{
     try_integrate_tanh_exp_form, is_exp_of_var, try_integrate_tan_plus_tan_cubed,
 };
 
-/// Top-level sqrt / trig-fraction hooks before generic `integrate` dispatch.
+/// **Pipeline** — top-level sqrt / trig-fraction hooks before generic `integrate` dispatch.
 pub fn try_integrate_heuristic(expr: &ExprArc, var: &Ident) -> Option<Result<ExprArc, EvalError>> {
     if let Some((num, den)) = try_as_rational(expr, var) {
         if let Some(r) = try_integrate_trig_deriv_ratio(&num, &den, var) {
@@ -69,7 +77,7 @@ pub fn try_integrate_heuristic(expr: &ExprArc, var: &Ident) -> Option<Result<Exp
     None
 }
 
-/// ∫ sin(k·x)/sin(x) dx via Chebyshev U_{k-1}(cos x) (GIAC-225).
+/// **Partial** — ∫ sin(k·x)/sin(x) dx via Chebyshev U_{k-1}(cos x) (GIAC-225). **退役：** Risch / partfrac.
 fn try_integrate_sin_kx_over_sin_x(
     num: &ExprArc,
     den: &ExprArc,
@@ -94,7 +102,7 @@ fn try_integrate_sin_kx_over_sin_x(
     crate::integrate::integrate(&integrand, var).ok()
 }
 
-/// ∫ sin^m(x)·cos^n(x) dx by power reduction when m,n ≥ 1 (GIAC-225).
+/// **Partial** — ∫ sin^m(x)·cos^n(x) dx by power reduction when m,n ≥ 1 (GIAC-225). **退役：** Risch / partfrac.
 fn try_integrate_trig_power_product(
     expr: &ExprArc,
     var: &Ident,
@@ -113,6 +121,7 @@ fn try_integrate_trig_power_product(
     Some(crate::integrate::integrate(&expanded, var))
 }
 
+// **Pipeline private** — trig power exponents.
 fn trig_power_exponents(expr: &ExprArc, var: &Ident) -> Option<(u64, u64)> {
     match expr.as_ref() {
         Expr::Mul(fs) => {
@@ -141,7 +150,8 @@ fn trig_power_exponents(expr: &ExprArc, var: &Ident) -> Option<(u64, u64)> {
     }
 }
 
-/// `(is_sin, exponent)` for `sin(x)^n` / `cos(x)^n`.
+// **Pipeline private** — trig power factor.
+// **Pipeline private** — `(is_sin, exponent)` for `sin(x)^n` / `cos(x)^n`.
 fn trig_power_factor(e: &ExprArc, var: &Ident) -> Option<(bool, u64)> {
     let (base, n) = match e.as_ref() {
         Expr::Pow(b, exp) => {
@@ -165,6 +175,7 @@ fn trig_power_factor(e: &ExprArc, var: &Ident) -> Option<(bool, u64)> {
     }
 }
 
+// **Pipeline private** — integrate sin sq cos 4th.
 fn integrate_sin_sq_cos_4th(var: &Ident) -> Result<ExprArc, EvalError> {
     let x = var_to_expr(var);
     Ok(Expr::add(vec![
@@ -184,6 +195,7 @@ fn integrate_sin_sq_cos_4th(var: &Ident) -> Result<ExprArc, EvalError> {
     ]))
 }
 
+// **Pipeline private** — expand trig power product.
 fn expand_trig_power_product(m: u64, n: u64, var: &Ident) -> ExprArc {
     if m == 0 && n == 0 {
         return Expr::int(1);
@@ -226,6 +238,7 @@ fn expand_trig_power_product(m: u64, n: u64, var: &Ident) -> ExprArc {
     }
 }
 
+// **Pipeline private** — sin squared half angle.
 fn sin_squared_half_angle(var: &Ident) -> ExprArc {
     Expr::mul(vec![
         Expr::rat(1, 2),
@@ -242,6 +255,7 @@ fn sin_squared_half_angle(var: &Ident) -> ExprArc {
     ])
 }
 
+// **Pipeline private** — cos squared half angle.
 fn cos_squared_half_angle(var: &Ident) -> ExprArc {
     Expr::mul(vec![
         Expr::rat(1, 2),
@@ -255,6 +269,7 @@ fn cos_squared_half_angle(var: &Ident) -> ExprArc {
     ])
 }
 
+// **Pipeline private** — sin multiple of var.
 fn sin_multiple_of_var(e: &ExprArc, var: &Ident) -> Option<i64> {
     match e.as_ref() {
         Expr::Func(FuncKind::Sin, args) if args.len() == 1 => {
@@ -264,6 +279,7 @@ fn sin_multiple_of_var(e: &ExprArc, var: &Ident) -> Option<i64> {
     }
 }
 
+// **Pipeline private** — linear coefficient int.
 fn linear_coefficient_int(e: &ExprArc, var: &Ident) -> Option<i64> {
     if is_var(e, var) {
         return Some(1);
@@ -285,7 +301,8 @@ fn linear_coefficient_int(e: &ExprArc, var: &Ident) -> Option<i64> {
     None
 }
 
-/// Chebyshev U_n(cos x): sin((n+1)x)/sin(x).
+// **Pipeline private** — chebyshev u cos expr.
+// **Pipeline private** — Chebyshev U_n(cos x): sin((n+1)x)/sin(x).
 fn chebyshev_u_cos_expr(n: usize, var: &Ident) -> ExprArc {
     let cos_x = Expr::func(FuncKind::Cos, vec![var_to_expr(var)]);
     match n {
@@ -312,7 +329,7 @@ fn chebyshev_u_cos_expr(n: usize, var: &Ident) -> ExprArc {
     }
 }
 
-/// ∫ (a·sin + b·cos)'/(a·sin + b·cos) dx = ln|a·sin + b·cos| when numerator is d(den)/dx.
+/// **Partial** — ∫ (a·sin + b·cos)'/(a·sin + b·cos) dx = ln|a·sin + b·cos| when numerator is d(den)/dx. **退役：** Risch / partfrac.
 fn try_integrate_trig_deriv_ratio(
     num: &ExprArc,
     den: &ExprArc,
@@ -326,7 +343,7 @@ fn try_integrate_trig_deriv_ratio(
     None
 }
 
-/// ∫ k·x/√(x²+c) dx = √(x²+c) when k=2.
+/// **Partial** — ∫ k·x/√(x²+c) dx = √(x²+c) when k=2. **退役：** Risch / partfrac.
 fn try_integrate_var_over_sqrt_xsq_plus_c(
     num: &ExprArc,
     den: &ExprArc,
@@ -341,7 +358,7 @@ fn try_integrate_var_over_sqrt_xsq_plus_c(
     ]))
 }
 
-/// ∫ x/√(x+a) dx = (2/3)(x+a)^(3/2) - 2√(x+a).
+/// **Partial** — ∫ x/√(x+a) dx = (2/3)(x+a)^(3/2) - 2√(x+a). **退役：** Risch / partfrac.
 fn try_integrate_x_over_sqrt_affine(
     num: &ExprArc,
     den: &ExprArc,
@@ -360,7 +377,7 @@ fn try_integrate_x_over_sqrt_affine(
     ]))
 }
 
-/// ∫ x·√(a+x²) dx = (a+x²)^(3/2)/3.
+/// **Partial** — ∫ x·√(a+x²) dx = (a+x²)^(3/2)/3. **退役：** Risch / partfrac.
 fn try_integrate_x_times_sqrt_quadratic(expr: &ExprArc, var: &Ident) -> Option<ExprArc> {
     let factors = match expr.as_ref() {
         Expr::Mul(fs) if fs.len() == 2 => fs,
@@ -391,7 +408,7 @@ fn try_integrate_x_times_sqrt_quadratic(expr: &ExprArc, var: &Ident) -> Option<E
     ]))
 }
 
-/// ∫ (k·sin(2x)+c)/cos(2x) dx = −c/(2k)·ln|c−k·sin(2x)| (GIAC-normalized).
+/// **Partial** — ∫ (k·sin(2x)+c)/cos(2x) dx = −c/(2k)·ln|c−k·sin(2x)| (GIAC-normalized). **退役：** Risch / partfrac.
 fn try_integrate_sin2x_affine_over_cos2x(
     num: &ExprArc,
     den: &ExprArc,
@@ -415,6 +432,7 @@ fn try_integrate_sin2x_affine_over_cos2x(
     ]))
 }
 
+// **Pipeline private** — sin double angle expr.
 fn sin_double_angle_expr(var: &Ident) -> ExprArc {
     Expr::func(
         FuncKind::Sin,
@@ -422,6 +440,7 @@ fn sin_double_angle_expr(var: &Ident) -> ExprArc {
     )
 }
 
+// **Pipeline private** — is cos sin double angle expr.
 fn is_cos_sin_double_angle_expr(e: &ExprArc, var: &Ident) -> bool {
     matches!(
         e.as_ref(),
@@ -429,6 +448,7 @@ fn is_cos_sin_double_angle_expr(e: &ExprArc, var: &Ident) -> bool {
     )
 }
 
+// **Pipeline private** — sin double angle affine coeffs.
 fn sin_double_angle_affine_coeffs(e: &ExprArc, var: &Ident) -> Option<(i64, i64)> {
     match e.as_ref() {
         Expr::Func(FuncKind::Sin, args) if args.len() == 1 && is_sin_double_angle(&args[0], var) => {
@@ -468,7 +488,8 @@ fn sin_double_angle_affine_coeffs(e: &ExprArc, var: &Ident) -> Option<(i64, i64)
     }
 }
 
-/// Rational function of sin(x), cos(x) via t = tan(x/2).
+// **Pipeline private** — expr contains sin or cos.
+// **Pipeline private** — detect `sin`/`cos` subexpressions.
 fn expr_contains_sin_or_cos(e: &ExprArc) -> bool {
     match e.as_ref() {
         Expr::Func(FuncKind::Sin | FuncKind::Cos, _) => true,
@@ -480,6 +501,7 @@ fn expr_contains_sin_or_cos(e: &ExprArc) -> bool {
     }
 }
 
+/// **Partial** — heuristic `try_integrate_trig_rational_half_angle`; **退役：** Risch / partfrac.
 fn try_integrate_trig_rational_half_angle(
     num: &ExprArc,
     den: &ExprArc,
@@ -512,6 +534,7 @@ fn try_integrate_trig_rational_half_angle(
     Some(replace_symbol(&inner, &t, &back))
 }
 
+// **Pipeline private** — weierstrass sin.
 fn weierstrass_sin(t: &Ident) -> ExprArc {
     let tv = var_to_expr(t);
     let t2 = Expr::pow(tv.clone(), Expr::int(2));
@@ -522,6 +545,7 @@ fn weierstrass_sin(t: &Ident) -> ExprArc {
     ])
 }
 
+// **Pipeline private** — weierstrass cos.
 fn weierstrass_cos(t: &Ident) -> ExprArc {
     let tv = var_to_expr(t);
     let t2 = Expr::pow(tv.clone(), Expr::int(2));
@@ -531,6 +555,7 @@ fn weierstrass_cos(t: &Ident) -> ExprArc {
     ])
 }
 
+// **Pipeline private** — weierstrass dx dt.
 fn weierstrass_dx_dt(t: &Ident) -> ExprArc {
     let tv = var_to_expr(t);
     Expr::mul(vec![
@@ -539,6 +564,7 @@ fn weierstrass_dx_dt(t: &Ident) -> ExprArc {
     ])
 }
 
+// **Pipeline private** — sin kx in t.
 fn sin_kx_in_t(k: i64, sin_x: &ExprArc, cos_x: &ExprArc) -> ExprArc {
     if k <= 0 {
         return Expr::int(0);
@@ -554,6 +580,7 @@ fn sin_kx_in_t(k: i64, sin_x: &ExprArc, cos_x: &ExprArc) -> ExprArc {
     ])
 }
 
+// **Pipeline private** — cos kx in t.
 fn cos_kx_in_t(k: i64, sin_x: &ExprArc, cos_x: &ExprArc) -> ExprArc {
     if k <= 0 {
         return Expr::int(1);
@@ -569,6 +596,7 @@ fn cos_kx_in_t(k: i64, sin_x: &ExprArc, cos_x: &ExprArc) -> ExprArc {
     ])
 }
 
+// **Pipeline private** — replace trig with t.
 fn replace_trig_with_t(
     e: &ExprArc,
     var: &Ident,
@@ -612,6 +640,7 @@ fn replace_trig_with_t(
     }
 }
 
+// **Pipeline private** — replace symbol.
 fn replace_symbol(e: &ExprArc, sym: &Ident, repl: &ExprArc) -> ExprArc {
     match e.as_ref() {
         Expr::Symbol(id) if id == sym => Arc::clone(repl),
@@ -629,6 +658,7 @@ fn replace_symbol(e: &ExprArc, sym: &Ident, repl: &ExprArc) -> ExprArc {
     }
 }
 
+// **Pipeline private** — is trig rational in x.
 fn is_trig_rational_in_x(e: &ExprArc, var: &Ident) -> bool {
     match e.as_ref() {
         Expr::Int(_) | Expr::Rat(_) => true,
@@ -647,6 +677,7 @@ fn is_trig_rational_in_x(e: &ExprArc, var: &Ident) -> bool {
     }
 }
 
+// **Pipeline private** — sin cos coeffs.
 fn sin_cos_coeffs(e: &ExprArc, var: &Ident) -> Option<(i64, i64)> {
     let (s, c, extra) = trig_affine_parts(e, var)?;
     if extra {
@@ -655,6 +686,7 @@ fn sin_cos_coeffs(e: &ExprArc, var: &Ident) -> Option<(i64, i64)> {
     Some((s, c))
 }
 
+// **Pipeline private** — trig affine parts.
 fn trig_affine_parts(e: &ExprArc, var: &Ident) -> Option<(i64, i64, bool)> {
     match e.as_ref() {
         Expr::Func(FuncKind::Sin, args) if args.len() == 1 && is_var(&args[0], var) => {
@@ -710,6 +742,7 @@ fn trig_affine_parts(e: &ExprArc, var: &Ident) -> Option<(i64, i64, bool)> {
     }
 }
 
+// **Pipeline private** — sqrt radicand.
 fn sqrt_radicand(e: &ExprArc) -> Option<ExprArc> {
     match e.as_ref() {
         Expr::Pow(base, exp) => {
@@ -726,6 +759,7 @@ fn sqrt_radicand(e: &ExprArc) -> Option<ExprArc> {
     }
 }
 
+// **Pipeline private** — int const term.
 fn int_const_term(e: &ExprArc) -> Option<i64> {
     match e.as_ref() {
         Expr::Int(n) => bigint_to_i64(n).ok(),
@@ -744,6 +778,7 @@ fn int_const_term(e: &ExprArc) -> Option<i64> {
     }
 }
 
+// **Pipeline private** — const term of xsq plus const.
 fn const_term_of_xsq_plus_const(inner: &ExprArc, var: &Ident) -> Option<i64> {
     let Expr::Add(ts) = inner.as_ref() else {
         return None;
@@ -766,6 +801,7 @@ fn const_term_of_xsq_plus_const(inner: &ExprArc, var: &Ident) -> Option<i64> {
     }
 }
 
+// **Pipeline private** — const term of x plus const.
 fn const_term_of_x_plus_const(inner: &ExprArc, var: &Ident) -> Option<i64> {
     let Expr::Add(ts) = inner.as_ref() else {
         if is_var(inner, var) {
@@ -791,6 +827,7 @@ fn const_term_of_x_plus_const(inner: &ExprArc, var: &Ident) -> Option<i64> {
     }
 }
 
+// **Pipeline private** — is x squared.
 fn is_x_squared(e: &ExprArc, var: &Ident) -> bool {
     matches!(
         e.as_ref(),
@@ -798,6 +835,7 @@ fn is_x_squared(e: &ExprArc, var: &Ident) -> bool {
     )
 }
 
+// **Pipeline private** — is sin double angle.
 fn is_sin_double_angle(inner: &ExprArc, var: &Ident) -> bool {
     match inner.as_ref() {
         Expr::Mul(fs) if fs.len() == 2 => {
@@ -810,10 +848,12 @@ fn is_sin_double_angle(inner: &ExprArc, var: &Ident) -> bool {
     }
 }
 
+// **Pipeline private** — is cos double angle.
 fn is_cos_double_angle(inner: &ExprArc, var: &Ident) -> bool {
     is_sin_double_angle(inner, var)
 }
 
+// **Pipeline private** — var coefficient int.
 fn var_coefficient_int(e: &ExprArc, var: &Ident) -> Option<i64> {
     if is_var(e, var) {
         return Some(1);

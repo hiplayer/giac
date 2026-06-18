@@ -1,4 +1,11 @@
 //! GIAC-226: elementary extension tower (`risch_tower` / `rlvarx` subset).
+//!
+//! See [`.doc/giac-calculus-api-stability.md`](../../../../../.doc/giac-calculus-api-stability.md) §5.
+//!
+//! | Tier | 函数 |
+//! |------|------|
+//! | **Stable** | `rlvarx`, `risch_tower` |
+//! | **Pipeline private** | `collect_rlvarx`, `is_exp_or_ln`, `contains_non_elementary_transcendental`, `extension_rank` |
 
 use std::sync::Arc;
 
@@ -12,7 +19,7 @@ pub enum RischTowerError {
     NotElementary,
 }
 
-/// Logarithmic / exponential extension variables in `expr` that depend on `var`.
+/// **Stable** — logarithmic / exponential extension variables in `expr` that depend on `var`.
 pub fn rlvarx(expr: &ExprArc, var: &Ident) -> Vec<ExprArc> {
     let mut out = Vec::new();
     collect_rlvarx(expr, var, &mut out);
@@ -21,7 +28,7 @@ pub fn rlvarx(expr: &ExprArc, var: &Ident) -> Vec<ExprArc> {
     out
 }
 
-/// Returns the tower (most complex extension first) when `expr` is elementary over `var`.
+/// **Stable** — returns the tower (most complex extension first) when `expr` is elementary over `var`.
 pub fn risch_tower(expr: &ExprArc, var: &Ident) -> Result<Vec<ExprArc>, RischTowerError> {
     let normalized = pow2expln(expr, var);
     if contains_non_elementary_transcendental(&normalized, var) {
@@ -38,6 +45,7 @@ pub fn risch_tower(expr: &ExprArc, var: &Ident) -> Result<Vec<ExprArc>, RischTow
     Ok(tower)
 }
 
+// **Pipeline private** — collect `exp`/`ln` extension atoms depending on `var`.
 fn collect_rlvarx(expr: &ExprArc, var: &Ident, out: &mut Vec<ExprArc>) {
     if !depends_on_var(expr, var) {
         return;
@@ -78,6 +86,7 @@ fn collect_rlvarx(expr: &ExprArc, var: &Ident, out: &mut Vec<ExprArc>) {
     }
 }
 
+// **Pipeline private** — `exp` or `ln` top-level form.
 fn is_exp_or_ln(e: &ExprArc) -> bool {
     matches!(
         e.as_ref(),
@@ -85,6 +94,7 @@ fn is_exp_or_ln(e: &ExprArc) -> bool {
     )
 }
 
+// **Pipeline private** — detect non-elementary transcendentals (e.g. trig).
 fn contains_non_elementary_transcendental(e: &ExprArc, var: &Ident) -> bool {
     if !depends_on_var(e, var) {
         return false;
@@ -111,16 +121,19 @@ fn contains_non_elementary_transcendental(e: &ExprArc, var: &Ident) -> bool {
     }
 }
 
+// **Pipeline private** — symbol equals integration variable.
 fn is_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Symbol(id) if id == var)
 }
 
+// **Pipeline private** — append extension atom if not already present.
 fn push_unique(out: &mut Vec<ExprArc>, e: ExprArc) {
     if !out.iter().any(|x| x == &e) {
         out.push(e);
     }
 }
 
+// **Pipeline private** — nesting depth for tower ordering.
 fn extension_rank(e: &ExprArc) -> usize {
     match e.as_ref() {
         Expr::Symbol(_) => 0,

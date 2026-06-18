@@ -1,5 +1,11 @@
 //! Shared CK-INT-60/61 Gruntz limit shapes from upstream `check/testintegrate` L61–62.
 //!
+//! **API 分层：** [`giac-calculus-api-stability.md`](../../../../../.doc/giac-calculus-api-stability.md)
+//!
+//! | 层级 | 内容 |
+//! |------|------|
+//! | **Pipeline private** | `inner`/`exp_inner`/`ratio`/`ck_int_60`/`ck_int_61` 测试 fixture |
+//!
 //! Decomposed as:
 //! - **ratio** — `exp(inner)/exp(x) → 1` (Maxima `rtest_limit_gruntz.mac` L98)
 //! - **CK-INT-60** — `exp(inner)/x → +infinity`
@@ -10,7 +16,7 @@ use std::sync::Arc;
 
 use giac_core::{Expr, ExprArc, FuncKind};
 
-/// `x*exp(-x) / (exp(-x) + exp(-2*x^2/(x+1)))`
+/// **Pipeline private** — CK-INT Gruntz 内层 fixture: `x*exp(-x)/(exp(-x)+exp(-2*x^2/(x+1)))`
 #[cfg(test)]
 pub(crate) fn inner() -> ExprArc {
     Arc::new(Expr::Frac(
@@ -34,12 +40,13 @@ pub(crate) fn inner() -> ExprArc {
     ))
 }
 
+/// **Pipeline private** — CK-INT `exp(inner)` fixture
 #[cfg(test)]
 pub(crate) fn exp_inner() -> ExprArc {
     Expr::func(FuncKind::Exp, vec![inner()])
 }
 
-/// `limit(exp(inner)/exp(x), x, +infinity) = 1`
+/// **Pipeline private** — CK-INT ratio fixture: `limit(exp(inner)/exp(x),x,+∞)=1`
 #[cfg(test)]
 pub(crate) fn ratio() -> ExprArc {
     Arc::new(Expr::Frac(
@@ -48,7 +55,7 @@ pub(crate) fn ratio() -> ExprArc {
     ))
 }
 
-/// CK-INT-60: `limit(exp(inner)/x, x, +infinity) = +infinity`
+/// **Pipeline private** — CK-INT-60 fixture: `limit(exp(inner)/x,x,+∞)=+∞`
 #[cfg(test)]
 pub(crate) fn ck_int_60() -> ExprArc {
     Expr::mul(vec![
@@ -57,7 +64,7 @@ pub(crate) fn ck_int_60() -> ExprArc {
     ])
 }
 
-/// CK-INT-61: `limit((exp(inner)-exp(x))/x, x, +infinity) = -exp(2)`
+/// **Pipeline private** — CK-INT-61 fixture: `limit((exp(inner)-exp(x))/x,x,+∞)=-exp(2)`
 #[cfg(test)]
 pub(crate) fn ck_int_61() -> ExprArc {
     Expr::mul(vec![

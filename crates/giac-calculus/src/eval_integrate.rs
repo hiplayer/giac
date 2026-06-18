@@ -1,9 +1,18 @@
+//! `integrate` eval hook (indefinite and definite).
+//!
+//! See [`.doc/giac-calculus-api-stability.md`](../../../../.doc/giac-calculus-api-stability.md) §2, §4.
+//!
+//! | Tier | 函数 |
+//! |------|------|
+//! | **Stable** | `eval_integrate` |
+
 use std::collections::HashMap;
 
 use giac_core::{eval, eval_subst_map, Context, EvalError, Expr, ExprArc};
 
 use crate::integrate::integrate;
 
+/// **Stable** — evaluate `integrate(f, x)` or definite `integrate(f, x, a, b)`.
 pub fn eval_integrate(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     if args.len() != 2 && args.len() != 4 {
         return Err(EvalError::TooFewArgs("integrate"));

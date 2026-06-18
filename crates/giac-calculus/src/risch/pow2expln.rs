@@ -1,4 +1,10 @@
 //! Rewrite `base^exp` with non-constant exponent as `exp(exp*ln(base))` (GIAC `pow2expln`).
+//!
+//! See [`.doc/giac-calculus-api-stability.md`](../../../../../.doc/giac-calculus-api-stability.md) §5.
+//!
+//! | Tier | 函数 |
+//! |------|------|
+//! | **Stable** | `pow2expln` |
 
 use std::sync::Arc;
 
@@ -6,7 +12,7 @@ use giac_core::{Expr, ExprArc, FuncKind, Ident};
 
 use crate::expr_util::{depends_on_var, is_const_wrt};
 
-/// `pow2expln(e, x)` — subset of GIAC `subst.cc::pow2expln(e, x)`.
+/// **Stable** — `pow2expln(e, x)`; subset of GIAC `subst.cc::pow2expln(e, x)`.
 pub fn pow2expln(expr: &ExprArc, var: &Ident) -> ExprArc {
     match expr.as_ref() {
         Expr::Pow(base, exp) => {
