@@ -11,11 +11,13 @@
 | [test-inventory.md](test-inventory.md) | 全部 51 个测试输入文件清单 |
 | [gaps.md](gaps.md) | 尚未覆盖或覆盖薄弱的功能域 |
 | [rust-migration-plan.md](rust-migration-plan.md) | Giac → Rust 主迁移方案 |
+| [cas-long-term-vision.md](cas-long-term-vision.md) | CAS 长远愿景（数学边界、能力分层、参数化语义） |
 | [rust-migration-supplement.md](rust-migration-supplement.md) | 移植补充分析（依赖、文法、功能全景） |
 | [parser-token-map.md](parser-token-map.md) | Token / 优先级 / 多模式 / Context 映射 |
 | [builtin-api-map.md](builtin-api-map.md) | 测试 API → `at_*` → Rust crate |
 | [module-division.md](module-division.md) | C++ 算法源文件分工 |
 | [conformance-testing.md](conformance-testing.md) | Golden / assert_equiv / 随机 seed |
+| [external-test-resources.md](external-test-resources.md) | Maxima / SymPy / Rubi 外部 fixture 与抽取脚本 |
 | [known-divergences.md](known-divergences.md) | Rust 与 giac 已知偏离登记 |
 
 ## 测试体系概览

@@ -191,3 +191,11 @@ pub fn test_context_with_fixed_rng() -> Context {
 6. normalize → diff golden
 7. 失败时尝试 assert_equiv → 仍失败查 known-divergences.md
 ```
+
+---
+
+## 6. 外部开源语料
+
+Maxima / SymPy / Rubi 等第三方测试的目录布局、JSON schema、`extract_maxima_rtest.py` 规范见 **[external-test-resources.md](external-test-resources.md)**。
+
+giac-rs 路径：`giac-rs/tests/conformance/fixtures/{maxima,sympy,rubi}/`。

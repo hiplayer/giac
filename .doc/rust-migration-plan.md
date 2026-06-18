@@ -2,6 +2,8 @@
 
 基于当前 **53 个 CTest / ~220 种 API / 19 个功能域**（见 `functional-coverage.md`）界定迁移范围。原则：**测试即规格**，先达到现有 golden 回归等价，再扩展未覆盖功能。
 
+> **长远愿景：** 数学边界、初等函数能力分层、参数 A/B/C/D 语义见 [cas-long-term-vision.md](cas-long-term-vision.md)。本文 Phase 0–5 对应彼处 **Phase A（基线）**。
+
 ---
 
 ## 1. 范围界定
