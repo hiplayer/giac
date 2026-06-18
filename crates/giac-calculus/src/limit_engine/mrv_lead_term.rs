@@ -107,6 +107,9 @@ pub(crate) fn limit_unidirectional_plus_infinity(
     var: &Ident,
     ctx: &Context,
 ) -> Result<ExprArc, EvalError> {
+    if let Some(r) = super::mrv::limit_const_pow_quotient_at_plus_infinity(expr, var) {
+        return Ok(r);
+    }
     let mut e_copy = Arc::clone(expr);
     for _ in 0..8 {
         let lead = mrv_lead_term_plus_infinity(&e_copy, var, ctx)?;

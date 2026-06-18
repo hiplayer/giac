@@ -22,7 +22,7 @@ use super::exp_diff::{
 };
 use super::mrv::{try_const_f64, vanishes_faster_than_at_plus_infinity};
 use super::mrv_lead_term::limit_unidirectional_plus_infinity;
-use super::mrv_series_lead::try_as_quotient;
+use super::mrv_series_lead::{canonicalize_limit_entry, try_as_quotient};
 use super::preprocess::{limit_preprocess_plus_infinity, limit_preprocess_struct};
 use super::sparse_series::series_at_zero_order;
 
@@ -472,6 +472,12 @@ pub(crate) fn limit_at_plus_infinity_fallback(
 ) -> Result<ExprArc, EvalError> {
     if too_heavy_for_expand(expr) {
         return Err(EvalError::NotImplemented("limit"));
+    }
+    let canon = canonicalize_limit_entry(expr);
+    if let Some(r) = limit_rational_over_sqrt_quotient_at_infinity(&canon, var)
+        .or_else(|| limit_poly_over_sqrt_at_infinity(&canon, var, ctx))
+    {
+        return Ok(normalize_limit_result(&r, ctx));
     }
     let pre = limit_preprocess_plus_infinity(expr, var, ctx)?;
     if let Some((num, den)) = try_as_rational(&pre, var) {

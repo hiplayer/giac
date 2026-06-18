@@ -194,6 +194,38 @@ fn growth_rank_detailed(e: &ExprArc, var: &Ident, ctx: &Context) -> (Growth, f64
     }
 }
 
+/// `a^var / b^var` with positive constants `a,b` → `0`, `1`, or `+∞`.
+pub(crate) fn limit_const_pow_quotient_at_plus_infinity(
+    expr: &ExprArc,
+    var: &Ident,
+) -> Option<ExprArc> {
+    let (num, den) = super::mrv_series_lead::try_as_quotient(expr)?;
+    let Expr::Pow(nb, ne) = num.as_ref() else {
+        return None;
+    };
+    let Expr::Pow(db, de) = den.as_ref() else {
+        return None;
+    };
+    if !matches!(ne.as_ref(), Expr::Symbol(id) if id == var) {
+        return None;
+    }
+    if !matches!(de.as_ref(), Expr::Symbol(id) if id == var) {
+        return None;
+    }
+    let nc = try_const_f64(nb)?;
+    let dc = try_const_f64(db)?;
+    if nc <= 0.0 || dc <= 0.0 {
+        return None;
+    }
+    if (nc - dc).abs() < f64::EPSILON {
+        return Some(Expr::int(1));
+    }
+    if nc < dc {
+        return Some(Expr::int(0));
+    }
+    Some(Expr::sym("+infinity"))
+}
+
 /// Leading linear coefficient of a rational at `+∞` (e.g. `-2x²/(x+1) → -2x`).
 fn asymptotic_linear_coeff_at_plus_infinity(
     e: &ExprArc,

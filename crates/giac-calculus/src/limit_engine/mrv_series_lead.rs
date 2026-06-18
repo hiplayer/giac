@@ -84,43 +84,82 @@ pub(crate) fn unify_top_quotient(expr: &ExprArc) -> ExprArc {
     }
 }
 
-/// `a*(b+c+…)^-1` → `a/(b+c+…)` so merge/fold see fixture-shaped denominators.
+/// Limit entry canonical form: inverse products → `Frac`, top `Frac` → `Mul` (exp-diff).
+pub(crate) fn canonicalize_limit_entry(expr: &ExprArc) -> ExprArc {
+    unify_top_quotient(&normalize_inverse_products(expr))
+}
+
+/// `a*(b+c+…)^-1` → `a/(b+c+…)` for preprocess / nested-exp limits.
 pub(crate) fn normalize_inverse_sums(expr: &ExprArc) -> ExprArc {
+    normalize_inverse_with(expr, |b| matches!(b.as_ref(), Expr::Add(_)))
+}
+
+/// `a*f^-1` for any `f` (e.g. `sqrt(…)`) — parse-entry canonicalization only.
+fn normalize_inverse_products(expr: &ExprArc) -> ExprArc {
+    normalize_inverse_with(expr, |_| true)
+}
+
+fn normalize_inverse_with(
+    expr: &ExprArc,
+    accept_inverse_base: impl Fn(&ExprArc) -> bool + Copy,
+) -> ExprArc {
     match expr.as_ref() {
-        Expr::Add(ts) => Expr::add(ts.iter().map(normalize_inverse_sums).collect()),
+        Expr::Add(ts) => Expr::add(
+            ts.iter()
+                .map(|t| normalize_inverse_with(t, accept_inverse_base))
+                .collect(),
+        ),
         Expr::Mul(fs) => {
-            let parts: Vec<ExprArc> = fs.iter().map(normalize_inverse_sums).collect();
+            let parts: Vec<ExprArc> = fs
+                .iter()
+                .map(|f| normalize_inverse_with(f, accept_inverse_base))
+                .collect();
             let mut num = Vec::new();
-            let mut den = None;
+            let mut den = Vec::new();
             for f in &parts {
                 if let Expr::Pow(b, e) = f.as_ref() {
                     if matches!(e.as_ref(), Expr::Int(n) if n.is_negative())
-                        && matches!(b.as_ref(), Expr::Add(_))
+                        && accept_inverse_base(b)
                     {
-                        den = Some(Arc::clone(b));
-                        continue;
+                        if let Expr::Int(n) = e.as_ref() {
+                            den.push(Arc::clone(b));
+                            continue;
+                        }
                     }
                 }
                 num.push(Arc::clone(f));
             }
-            if let Some(d) = den {
-                let n = if num.is_empty() {
-                    Expr::int(1)
-                } else if num.len() == 1 {
-                    num.into_iter().next().unwrap()
-                } else {
-                    Expr::mul(num)
-                };
-                return Arc::new(Expr::Frac(n, d));
+            if den.is_empty() {
+                return Expr::mul(parts);
             }
-            Expr::mul(parts)
+            let n = if num.is_empty() {
+                Expr::int(1)
+            } else if num.len() == 1 {
+                num.into_iter().next().unwrap()
+            } else {
+                Expr::mul(num)
+            };
+            let d = if den.len() == 1 {
+                den.into_iter().next().unwrap()
+            } else {
+                Expr::mul(den)
+            };
+            Arc::new(Expr::Frac(n, d))
         }
-        Expr::Pow(b, e) => Expr::pow(normalize_inverse_sums(b), normalize_inverse_sums(e)),
+        Expr::Pow(b, e) => Expr::pow(
+            normalize_inverse_with(b, accept_inverse_base),
+            normalize_inverse_with(e, accept_inverse_base),
+        ),
         Expr::Frac(n, d) => Arc::new(Expr::Frac(
-            normalize_inverse_sums(n),
-            normalize_inverse_sums(d),
+            normalize_inverse_with(n, accept_inverse_base),
+            normalize_inverse_with(d, accept_inverse_base),
         )),
-        Expr::Func(k, args) => Expr::func(*k, args.iter().map(normalize_inverse_sums).collect()),
+        Expr::Func(k, args) => Expr::func(
+            *k,
+            args.iter()
+                .map(|a| normalize_inverse_with(a, accept_inverse_base))
+                .collect(),
+        ),
         _ => Arc::clone(expr),
     }
 }

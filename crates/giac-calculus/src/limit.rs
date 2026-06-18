@@ -9,8 +9,8 @@ use num_traits::{Signed, Zero};
 
 use crate::integrate::try_as_rational;
 use crate::limit_engine::{
-    expr_has_nested_exp, limit_finite_algebraic, limit_minus_infinity_algebraic,
-    limit_plus_infinity_algebraic, normalize_inverse_sums,
+    canonicalize_limit_entry, expr_has_nested_exp, limit_finite_algebraic,
+    limit_minus_infinity_algebraic, limit_plus_infinity_algebraic, normalize_inverse_sums,
 };
 
 /// `limit(expr, var, point)` — algebraic/trigonometric basics (GIAC-215).
@@ -21,10 +21,15 @@ pub fn eval_limit(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError>
     let var = ident_from_expr(&args[1])?;
     let point_expr = Arc::clone(&args[2]);
     let point = classify_limit_point(&point_expr)?;
-    let expr = if point != LimitPoint::Finite && expr_has_nested_exp(&args[0]) {
-        normalize_inverse_sums(&args[0])
+    let raw = if point != LimitPoint::Finite && expr_has_nested_exp(&args[0]) {
+        Arc::clone(&args[0])
     } else {
         eval(args[0].as_ref(), ctx)?
+    };
+    let expr = match point {
+        LimitPoint::PlusInfinity if expr_has_nested_exp(&raw) => normalize_inverse_sums(&raw),
+        LimitPoint::PlusInfinity => canonicalize_limit_entry(&raw),
+        _ => raw,
     };
     limit_expr(&expr, &var, point, &point_expr, ctx)
 }
