@@ -180,6 +180,14 @@ fn factor_sqff_over_coeff_ring_ctx(
                 }
             }
         }
+        for (main_var, aux_var) in [(var, other), (other, var)] {
+            if let Some(f) = super::unitary::try_unitary_factor_bivariate(g, main_var, aux_var) {
+                let set = FactorSet::from_polys(f, MainVar::new(main_var.clone()));
+                if set.product_equals(g) {
+                    return Ok(set);
+                }
+            }
+        }
     }
     if others.len() >= 2 {
         let tower = ctx.as_poly_factor_tower();
@@ -192,6 +200,14 @@ fn factor_sqff_over_coeff_ring_ctx(
             let aux_refs: Vec<&Var> = others.iter().collect();
             if super::eval::looks_irreducible_by_good_eval(g, var, &aux_refs) {
                 return Ok(FactorSet::irreducible(g.clone(), main.clone()));
+            }
+        }
+        let mut all_vars = vec![var.clone()];
+        all_vars.extend(others.iter().cloned());
+        if let Some(f) = super::unitary::try_unitary_factor(g, &all_vars) {
+            let set = FactorSet::from_polys(f, main.clone());
+            if set.product_equals(g) {
+                return Ok(set);
             }
         }
     }

@@ -12,7 +12,8 @@ use num_traits::{One, Signed, Zero};
 
 use crate::monomial::Var;
 use crate::nested::{
-    CoeffRingPoly, EmbedFactorDraft, EmbedMonomial, MainVar, TnEmbed, UnivariateIn,
+    CoeffRingPoly, DilationMap, EmbedFactorDraft, EmbedMonomial, MainVar, PrimitivePart, TnEmbed,
+    UnivariateIn, dilate_aux, undilate_aux,
 };
 use crate::poly::Poly;
 use crate::resultant::{coeff_at, univariate_degree};
@@ -1406,29 +1407,12 @@ fn exact_quo_wrt(p: &Poly, factor: &Poly, main: MainVar) -> Option<Poly> {
 
 // **Pipeline private** — substitute `aux -> factor * aux`
 fn dilate_poly(p: &Poly, aux: &Var, factor: i64) -> Poly {
-    if factor == 1 {
-        return p.clone();
-    }
-    let sub = if factor == -1 {
-        Poly::var(aux.clone()).neg()
-    } else {
-        Poly::var(aux.clone()).mul_scalar(&Ratio::from_integer(BigInt::from(factor)))
-    };
-    substitute_poly(p, aux, &sub)
+    dilate_aux(p, aux, factor)
 }
 
 // **Pipeline private** — undo dilation: `factor*aux -> aux`
 fn undilate_poly(p: &Poly, aux: &Var, factor: i64) -> Poly {
-    if factor == 1 {
-        return p.clone();
-    }
-    let inv = Ratio::from_integer(BigInt::from(1)) / Ratio::from_integer(BigInt::from(factor.abs()));
-    let sub = if factor == -1 {
-        Poly::var(aux.clone()).neg()
-    } else {
-        Poly::var(aux.clone()).mul_scalar(&inv)
-    };
-    substitute_poly(p, aux, &sub)
+    undilate_aux(p, aux, factor)
 }
 
 // **Pipeline private** — upstream random dilation fallback (deterministic seeds)
@@ -1438,21 +1422,13 @@ fn try_dilation_sparse_bi(
     aux_a: &Var,
     aux_b: &Var,
 ) -> Option<Vec<Poly>> {
-    const DILATIONS: [(i64, i64); 4] = [(2, -1), (-1, 2), (2, 2), (-1, -1)];
-    for (da, db) in DILATIONS {
-        let mut dilated = dilate_poly(p, aux_a, da);
-        dilated = dilate_poly(&dilated, aux_b, db);
+    for (da, db) in DilationMap::PRESETS {
+        let map = DilationMap::pair(da, db, aux_a.clone(), aux_b.clone());
+        let dilated = map.apply(p);
         let Some(facs) = try_sparse_factor_bi_two_aux_inner(&dilated, main, aux_a, aux_b, false) else {
             continue;
         };
-        let undilated: Vec<Poly> = facs
-            .iter()
-            .map(|f| {
-                let mut u = undilate_poly(f, aux_b, db);
-                u = undilate_poly(&u, aux_a, da);
-                u
-            })
-            .collect();
+        let undilated: Vec<Poly> = facs.iter().map(|f| map.undo(f)).collect();
         if undilated.iter().fold(Poly::one(), |acc, q| acc.mul(q)) == *p {
             return Some(undilated);
         }
@@ -1503,7 +1479,7 @@ fn try_sparse_factor_bi_single_n(
     let emb = embed.clone().with_n(n);
     let pt_emb = emb.embed(p);
     let main = emb.main.as_var();
-    let pt = primitive_part_wrt(pt_emb.as_poly(), main).ok()?;
+    let pt = PrimitivePart::wrt(pt_emb.as_poly(), main).ok()?.as_poly().clone();
     if pt.is_one() || emb.view_t(&pt).degree() == 0 {
         return None;
     }
@@ -1542,100 +1518,7 @@ fn try_sparse_factor_bi_single_n(
 
 /// **Partial** — Heuristic factorization via large eval + `pzadic` lift (FAC-G1/G3).
 pub fn try_heuristic_factor_bivariate(p: &Poly, main: &Var, other: &Var) -> Option<Vec<Poly>> {
-    let dy = univariate_degree(p, other);
-    if dy == 0 || univariate_degree(p, main) == 0 {
-        return None;
-    }
-    let norm = linfnorm(p);
-    let mut base = BigInt::from(2) * norm.numer().abs() + BigInt::from(2);
-    if !norm.denom().is_one() {
-        base += norm.denom().abs();
-    }
-
-    for _try in 0..12 {
-        let ev = substitute_poly(
-            p,
-            other,
-            &Poly::constant(Ratio::from_integer(base.clone())),
-        );
-        let mut facs = factor_univariate_flat(&ev, main).ok()?;
-        if !normalize_univariate_factors(&mut facs, main, &ev) {
-            base += BigInt::one();
-            continue;
-        }
-        if facs.len() <= 1 {
-            base += BigInt::one();
-            continue;
-        }
-        let lifted: Vec<Poly> = facs
-            .iter()
-            .map(|f| pzadic_lift(f, main, other, &base))
-            .collect();
-        let main_var = MainVar::new(main.clone());
-        let mut rest = p.clone();
-        let mut out = Vec::new();
-        for f in &lifted {
-            let factor = UnivariateIn::new(f, main_var.clone());
-            if factor.divides(&rest) {
-                let q = factor.exact_quo_dividing(&rest).ok()?;
-                out.push(f.clone());
-                rest = q;
-            }
-        }
-        if (rest.is_one() || rest.is_zero()) && out.len() >= 2 {
-            return Some(out);
-        }
-        base = base * BigInt::from(73794) / BigInt::from(27011) + BigInt::one();
-    }
-    None
-}
-
-// **Pipeline private** — max |coeff| of `p`
-fn linfnorm(p: &Poly) -> Ratio<BigInt> {
-    p.terms
-        .values()
-        .map(|c| c.abs())
-        .max()
-        .unwrap_or_else(Ratio::zero)
-}
-
-// **Pipeline private** — upstream `pzadic`: base-`n` digit expansion of coeffs → powers of `other`
-fn pzadic_lift(f: &Poly, main: &Var, other: &Var, base: &BigInt) -> Poly {
-    let b = base.abs();
-    if b.is_zero() {
-        return f.clone();
-    }
-    let mut out = Poly::zero();
-    let d = univariate_degree(f, main);
-    for e in 0..=d {
-        let c = coeff_at(f, main, e);
-        if c.is_zero() {
-            continue;
-        }
-        let mut num = c.numer().clone();
-        let den = c.denom().clone();
-        let mut j = 0u64;
-        loop {
-            let denom_step = den.clone() * b.clone();
-            let r = (&num % &denom_step + &denom_step) % &denom_step;
-            let digit = &r / den.clone();
-            if !digit.is_zero() {
-                let rc = Ratio::new(digit, den.clone());
-                let term = term_with_var(&Poly::constant(rc), main, e)
-                    .mul(&Poly::var(other.clone()).pow(j));
-                out = out.add(&term);
-            }
-            num = (num - r) / b.clone();
-            if num.is_zero() {
-                break;
-            }
-            j += 1;
-            if j > 128 {
-                break;
-            }
-        }
-    }
-    out
+    super::unitary::try_unitary_factor_bivariate(p, main, other)
 }
 
 #[cfg(test)]
@@ -1762,7 +1645,7 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "FAC-G1: pzadic heuristic needs integer-only path + division guard"]
+    #[ignore = "superseded by unitary::unitary_factor_line25_l22_y3"]
     fn heuristic_factors_line22() {
         let p = l22_poly();
         let f = try_heuristic_factor_bivariate(&p, &Var::from("x"), &Var::from("y"))

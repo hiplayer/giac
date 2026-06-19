@@ -9,6 +9,7 @@ use num_rational::Ratio;
 use num_traits::{One, Signed, Zero};
 
 use crate::monomial::{Monomial, Var};
+use crate::nested::MultivariatePoly;
 use crate::poly::Poly;
 use crate::resultant::{coeff_at, univariate_degree};
 
@@ -68,7 +69,7 @@ pub fn extract_var_power_factors(p: &Poly) -> (Poly, Vec<Poly>) {
     for (v, e) in &powers {
         divisor = divisor.mul(&Poly::var(v.clone()).pow(*e));
     }
-    let (rest, rem) = p.div_rem(&divisor);
+    let (rest, rem) = MultivariatePoly::new(p.clone()).div_rem(&divisor);
     if !rem.is_zero() {
         return (p.clone(), Vec::new());
     }

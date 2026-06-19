@@ -19,7 +19,8 @@ mod ops;
 mod partfrac;
 
 pub use nested::{
-    BivariateEmbed, CoeffRingPoly, MainVar, TnEmbed, UnivariateIn, UnivariateOver, UnivariatePoly,
+    BivariateEmbed, CoeffRingPoly, FlatUni, MainVar, MultivariatePoly, PrimitivePart, TnEmbed,
+    UnivariateIn, UnivariateOver, UnivariatePoly,
 };
 pub use factor::GoodEval;
 pub use error::{PolyError, PolyResult};

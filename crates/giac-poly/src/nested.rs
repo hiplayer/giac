@@ -129,10 +129,6 @@ impl<'a> UnivariateIn<'a> {
     ///
     /// Divisor [`Self`] must be independent of `aux` (Hensel lift step). Uses
     /// [`univariate_div_rem_wrt`], **not** [`Poly::div_rem`].
-    /// **Stable (crate-internal)** — `(q, r)` with `rem = q*self + r` in ℚ[aux][main].
-    ///
-    /// Divisor [`Self`] must be independent of `aux` (Hensel lift step). Uses
-    /// [`univariate_div_rem_wrt`], **not** [`Poly::div_rem`].
     pub fn div_rem_wrt_aux_indep(
         &self,
         rem: &Poly,
@@ -174,6 +170,221 @@ impl UnivariatePoly {
     pub fn as_view(&self) -> UnivariateIn<'_> {
         UnivariateIn::new(&self.poly, self.main.clone())
     }
+}
+
+/// ℚ[var] flat univariate polynomial — **only** factor subpath that may use classic `div_rem`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct FlatUni {
+    poly: Poly,
+    var: MainVar,
+}
+
+impl FlatUni {
+    /// **Stable** — view `poly` as univariate in `var` over ℚ.
+    pub fn new(poly: Poly, var: impl Into<MainVar>) -> Self {
+        Self {
+            poly,
+            var: var.into(),
+        }
+    }
+
+    /// **Stable** — construct when `poly` is genuinely univariate in `var`.
+    pub fn try_new(poly: Poly, var: &Var) -> Option<Self> {
+        if !is_flat_univariate_in(&poly, var) {
+            return None;
+        }
+        Some(Self::new(poly, MainVar::new(var.clone())))
+    }
+
+    /// **Stable** — underlying polynomial (explicit downgrade).
+    pub fn as_poly(&self) -> &Poly {
+        &self.poly
+    }
+
+    /// **Stable** — consume and return inner [`Poly`].
+    pub fn into_poly(self) -> Poly {
+        self.poly
+    }
+
+    /// **Stable** — main variable.
+    pub fn var(&self) -> &MainVar {
+        &self.var
+    }
+
+    /// **Stable** — Euclidean `(q, r)` in ℚ[var] via [`univariate_div_rem_wrt`].
+    pub fn div_rem(&self, divisor: &Self) -> (Poly, Poly) {
+        univariate_div_rem_wrt(
+            &self.poly,
+            &divisor.poly,
+            self.var.as_var(),
+        )
+    }
+
+    /// **Stable** — whether `divisor` divides `self` in ℚ[var].
+    pub fn divides(&self, divisor: &Self) -> bool {
+        self.div_rem(divisor).1.is_zero()
+    }
+
+    /// **Stable** — exact quotient `self / divisor` when remainder is zero.
+    pub fn exact_quo(&self, divisor: &Self) -> Option<Poly> {
+        let (q, r) = self.div_rem(divisor);
+        if r.is_zero() {
+            Some(q)
+        } else {
+            None
+        }
+    }
+}
+
+/// Multivariate polynomial in the erased display ring — explicit home for leading-monomial `div_rem`.
+#[derive(Clone, Debug, PartialEq)]
+pub struct MultivariatePoly(pub Poly);
+
+impl MultivariatePoly {
+    /// **Stable** — wrap a general sparse polynomial.
+    pub fn new(poly: Poly) -> Self {
+        Self(poly)
+    }
+
+    /// **Stable** — underlying [`Poly`] (explicit downgrade).
+    pub fn as_poly(&self) -> &Poly {
+        &self.0
+    }
+
+    /// **Stable** — consume and return inner [`Poly`].
+    pub fn into_inner(self) -> Poly {
+        self.0
+    }
+
+    /// **Stable** — multivariate leading-monomial division (display / heuristic contexts only).
+    pub fn div_rem(&self, divisor: &Poly) -> (Poly, Poly) {
+        self.0.div_rem(divisor)
+    }
+}
+
+/// `primitive_part_wrt(p, var)` tagged as ℚ[others][var].
+#[derive(Clone, Debug, PartialEq)]
+pub struct PrimitivePart {
+    poly: Poly,
+    wrt: MainVar,
+}
+
+impl PrimitivePart {
+    /// **Stable** — `p / content_wrt(p, var)` in ℚ[others][var].
+    pub fn wrt(p: &Poly, var: &Var) -> PolyResult<Self> {
+        let pp = primitive_part_wrt_impl(p, var);
+        if pp.is_zero() && !p.is_zero() {
+            return Err(crate::error::PolyError::TypeError("zero primitive part"));
+        }
+        Ok(Self {
+            poly: pp,
+            wrt: MainVar::new(var.clone()),
+        })
+    }
+
+    /// **Stable** — primitive part polynomial.
+    pub fn as_poly(&self) -> &Poly {
+        &self.poly
+    }
+
+    /// **Stable** — variable the part is primitive w.r.t.
+    pub fn main_var(&self) -> &MainVar {
+        &self.wrt
+    }
+
+    /// **Stable** — consume into `(poly, main)`.
+    pub fn into_inner(self) -> (Poly, MainVar) {
+        (self.poly, self.wrt)
+    }
+}
+
+/// sparse_bi auxiliary dilation `aux ↦ factor * aux` with undo.
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) struct DilationMap {
+    pub aux_a: Var,
+    pub aux_b: Var,
+    pub da: i64,
+    pub db: i64,
+}
+
+impl DilationMap {
+    /// **Stable (crate-internal)** — upstream deterministic dilation presets.
+    pub const PRESETS: [(i64, i64); 4] = [(2, -1), (-1, 2), (2, 2), (-1, -1)];
+
+    pub(crate) fn pair(da: i64, db: i64, aux_a: Var, aux_b: Var) -> Self {
+        Self {
+            aux_a,
+            aux_b,
+            da,
+            db,
+        }
+    }
+
+    pub(crate) fn apply(&self, p: &Poly) -> Poly {
+        let mut out = dilate_one(p, &self.aux_a, self.da);
+        dilate_one(&out, &self.aux_b, self.db)
+    }
+
+    pub(crate) fn undo(&self, p: &Poly) -> Poly {
+        let mut out = undilate_one(p, &self.aux_b, self.db);
+        undilate_one(&out, &self.aux_a, self.da)
+    }
+}
+
+fn is_flat_univariate_in(p: &Poly, var: &Var) -> bool {
+    p.terms
+        .keys()
+        .all(|m| m.iter().all(|(v, _)| v == var))
+}
+
+/// **Pipeline private** — substitute `sub_var ↦ sub_poly` (coefficients may depend on other vars).
+pub(crate) fn substitute_wrt(p: &Poly, sub_var: &Var, sub_poly: &Poly) -> Poly {
+    let d = univariate_degree(p, sub_var);
+    let mut out = Poly::zero();
+    for e in 0..=d {
+        let c = coeff_wrt_impl(p, sub_var, e);
+        if c.is_zero() {
+            continue;
+        }
+        out = out.add(&c.mul(&sub_poly.pow(e)));
+    }
+    out
+}
+
+fn dilate_one(p: &Poly, aux: &Var, factor: i64) -> Poly {
+    if factor == 1 {
+        return p.clone();
+    }
+    let sub = if factor == -1 {
+        Poly::var(aux.clone()).neg()
+    } else {
+        Poly::var(aux.clone()).mul_scalar(&Ratio::from_integer(BigInt::from(factor)))
+    };
+    substitute_wrt(p, aux, &sub)
+}
+
+fn undilate_one(p: &Poly, aux: &Var, factor: i64) -> Poly {
+    if factor == 1 {
+        return p.clone();
+    }
+    let inv = Ratio::from_integer(BigInt::from(1))
+        / Ratio::from_integer(BigInt::from(factor.abs()));
+    let sub = if factor == -1 {
+        Poly::var(aux.clone()).neg()
+    } else {
+        Poly::var(aux.clone()).mul_scalar(&inv)
+    };
+    substitute_wrt(p, aux, &sub)
+}
+
+/// **Stable (crate-internal)** — single-aux dilation `aux ↦ factor * aux`.
+pub(crate) fn dilate_aux(p: &Poly, aux: &Var, factor: i64) -> Poly {
+    dilate_one(p, aux, factor)
+}
+
+/// **Stable (crate-internal)** — undo single-aux dilation.
+pub(crate) fn undilate_aux(p: &Poly, aux: &Var, factor: i64) -> Poly {
+    undilate_one(p, aux, factor)
 }
 
 /// `eval_tn` embedding for sparse_bi: `aux[i] ↦ t^{n[i]}`.
@@ -314,12 +525,11 @@ impl EmbedFactorDraft {
             aux_b,
             &self.aux_exps,
         );
-        let pp = primitive_part_wrt_impl(&recon, main);
-        if pp.is_zero() {
-            None
-        } else {
-            Some(UnivariatePoly::new(pp, self.embed.main.clone()))
-        }
+        let pp = PrimitivePart::wrt(&recon, main)
+            .ok()
+            .map(|t| t.poly)
+            .filter(|pp| !pp.is_zero())?;
+        Some(UnivariatePoly::new(pp, self.embed.main.clone()))
     }
 }
 
@@ -445,6 +655,53 @@ mod tests {
     use super::*;
     use crate::monomial::Var;
     use num_traits::One;
+
+    #[test]
+    fn flat_uni_div_rem_vs_multivariate_div_rem() {
+        let x = Poly::var("x");
+        let p = x.pow(3).sub(&Poly::one());
+        let lin = x.sub(&Poly::one());
+        let flat = FlatUni::new(p.clone(), MainVar::new("x"));
+        let div = FlatUni::new(lin.clone(), MainVar::new("x"));
+        let (_, r) = flat.div_rem(&div);
+        assert!(r.is_zero());
+        let q = flat.exact_quo(&div).expect("quotient");
+        assert_eq!(q.mul(&lin), p);
+    }
+
+    #[test]
+    fn primitive_part_wrt_tags_main() {
+        let x = Poly::var("x");
+        let y = Poly::var("y");
+        let p = x.mul(&y).add(&x.pow(2));
+        let pp = PrimitivePart::wrt(&p, &Var::from("x")).expect("pp");
+        assert_eq!(pp.main_var().as_var(), &Var::from("x"));
+        assert!(!pp.as_poly().is_zero());
+    }
+
+    #[test]
+    fn dilation_map_apply_undo() {
+        let x = Poly::var("x");
+        let y = Poly::var("y");
+        let z = Poly::var("z");
+        let p = x.add(&y).add(&z);
+        let map = DilationMap::pair(2, -1, Var::from("y"), Var::from("z"));
+        let dil = map.apply(&p);
+        let back = map.undo(&dil);
+        assert_eq!(back, p);
+    }
+
+    #[test]
+    fn multivariate_poly_div_rem_extract_powers() {
+        let x = Poly::var("x");
+        let y = Poly::var("y");
+        let p = x.pow(2).mul(&y);
+        let divisor = x.mul(&y);
+        let mv = MultivariatePoly::new(p.clone());
+        let (rest, rem) = mv.div_rem(&divisor);
+        assert!(rem.is_zero());
+        assert_eq!(rest, x);
+    }
 
     #[test]
     fn coeff_ring_gcd_divides_both() {

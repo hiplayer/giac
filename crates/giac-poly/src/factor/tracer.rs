@@ -129,4 +129,33 @@ mod tests {
     fn testfactor_line24_x6_minus_y6() {
         assert_factors(&x().pow(6).sub(&y().pow(6)), 4);
     }
+
+    /// Synthetic gate: bilinear product — unitaryfactor path (sparse/hensel also succeed).
+    #[test]
+    fn testfactor_unitary_bilinear_gate() {
+        let p = x()
+            .add(&y())
+            .sub(&Poly::one())
+            .mul(&x().sub(&y()).sub(&Poly::one()));
+        assert_factors(&p, 2);
+    }
+
+    /// Hensel-fail gate (line 25 target): L22+y^3 — needs quadratic coeff lift (TODO).
+    #[test]
+    #[ignore = "FAC-G1: L22+y^3 needs quadratic PzadicLift; wire after coeff-interp"]
+    fn testfactor_line25_unitaryfactor_gate() {
+        let f1 = Poly::constant(Ratio::from_integer(3.into()))
+            .mul(&x())
+            .sub(&y().pow(2))
+            .add(&y())
+            .sub(&Poly::constant(Ratio::from_integer(5.into())));
+        let f2 = x()
+            .mul(&y())
+            .add(&Poly::constant(Ratio::from_integer(3.into())).mul(&x()))
+            .sub(&y().pow(2))
+            .sub(&Poly::one())
+            .add(&y().pow(3));
+        let p = f1.mul(&f2);
+        assert_factors(&p, 2);
+    }
 }

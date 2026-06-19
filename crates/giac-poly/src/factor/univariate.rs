@@ -11,6 +11,7 @@ use num_traits::{One, Zero};
 use crate::error::{PolyError, PolyResult};
 use crate::monomial::Var;
 use crate::poly::Poly;
+use crate::nested::{FlatUni, MainVar};
 use crate::resultant::{coeff_at, univariate_degree};
 use crate::univariate::{eval_univariate_at, square_free_factorization};
 
@@ -184,14 +185,16 @@ fn factor_power_pairs_core(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>
             }
         };
         let lin = linear_poly(var, &root);
+        let lin_u = FlatUni::new(lin.clone(), MainVar::new(var.clone()));
         let mut mult = 0usize;
         loop {
-            let (_, r) = rest.div_rem(&lin);
+            let flat = FlatUni::new(rest.clone(), MainVar::new(var.clone()));
+            let (_, r) = flat.div_rem(&lin_u);
             if !r.is_zero() {
                 break;
             }
             mult += 1;
-            rest = rest.div_rem(&lin).0;
+            rest = flat.exact_quo(&lin_u).expect("exact quotient");
         }
         if mult == 0 {
             return Err(PolyError::NotImplemented("factor"));
@@ -231,7 +234,9 @@ pub(crate) fn find_rational_root(p: &Poly, var: &Var) -> Option<Ratio<BigInt>> {
                 let r = Ratio::new(&p_cand * pn, &q_cand * qn);
                 if eval_univariate_at(p, var, &r).is_zero() {
                     let lin = linear_poly(var, &r);
-                    if p.div_rem(&lin).1.is_zero() {
+                    let flat = FlatUni::new(p.clone(), MainVar::new(var.clone()));
+                    let lin_u = FlatUni::new(lin, MainVar::new(var.clone()));
+                    if flat.div_rem(&lin_u).1.is_zero() {
                         return Some(r);
                     }
                 }
@@ -352,11 +357,13 @@ fn try_factor_two_cubics(p: &Poly, var: &Var) -> Option<Vec<Poly>> {
         for a1 in -bound..=bound {
             for a0 in -bound..=bound {
                 let f = monic_cubic_poly(var, a2, a1, a0);
-                let (_, r) = p_m.div_rem(&f);
+                let flat = FlatUni::new(p_m.clone(), MainVar::new(var.clone()));
+                let f_u = FlatUni::new(f.clone(), MainVar::new(var.clone()));
+                let (_, r) = flat.div_rem(&f_u);
                 if !r.is_zero() {
                     continue;
                 }
-                let g = p_m.div_rem(&f).0;
+                let g = flat.exact_quo(&f_u).expect("quotient");
                 if univariate_degree(&g, var) != 3 {
                     continue;
                 }

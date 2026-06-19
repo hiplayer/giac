@@ -10,6 +10,7 @@ use num_traits::{One, Zero};
 use crate::error::{PolyError, PolyResult};
 use crate::monomial::Var;
 use crate::poly::Poly;
+use crate::nested::{FlatUni, MainVar};
 use crate::resultant::{coeff_at, univariate_degree};
 
 use super::util::is_univariate_in;
@@ -40,19 +41,20 @@ pub fn cyclotomic_poly(n: u64, var: &Var) -> PolyResult<Poly> {
         return Ok(Poly::var(var.clone()).sub(&Poly::one()));
     }
     let x = Poly::var(var.clone());
-    let mut phi = x.pow(n).sub(&Poly::one());
+    let mut phi = FlatUni::new(x.pow(n).sub(&Poly::one()), MainVar::new(var.clone()));
     for d in divisors_u64(n) {
         if d == n {
             continue;
         }
         let sub = cyclotomic_poly(d, var)?;
-        let (_, r) = phi.div_rem(&sub);
+        let sub_u = FlatUni::new(sub, MainVar::new(var.clone()));
+        let (_, r) = phi.div_rem(&sub_u);
         if !r.is_zero() {
             return Err(PolyError::NotImplemented("cyclotomic division"));
         }
-        phi = phi.div_rem(&sub).0;
+        phi = FlatUni::new(phi.exact_quo(&sub_u).expect("quotient"), MainVar::new(var.clone()));
     }
-    Ok(phi)
+    Ok(phi.into_poly())
 }
 
 /// **Partial** — `x^n - 1 = ∏_{d|n} Φ_d(x)`.

@@ -4,7 +4,7 @@
 //! [`crate::nested::UnivariateIn`] (`.divides`, `.div_rem_wrt_aux_indep`) — not [`Poly::div_rem`].
 //!
 //! **Upstream:** `gausspol.cc` / `ezgcd.cc` — `do_factor_hensel`, `factor`.
-//! **缺口:** FAC-G2 一般参系数塔；`unitaryfactor` / `pzadic` 有界启发式待接入。
+//! **缺口:** FAC-G2 一般参系数塔；`unitaryfactor` 二元 MVP 已接入 `poly_uni`（`factor/unitary.rs`）。
 //!
 //! | Tier | 入口 |
 //! |------|------|
@@ -17,6 +17,7 @@
 mod tower;
 mod ctx;
 mod eval;
+mod unitary;
 mod cyclotomic;
 mod fpx;
 mod fpx_uni;
