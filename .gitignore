@@ -5,3 +5,8 @@ obj/
 session.tex
 giac-rs
 giac/giac_stable.tgz
+
+# giac-2.0.0 build artifacts (must not be versioned; libgiac.a/icas exceed GitHub limits)
+giac/giac-2.0.0/src/.libs/
+giac/giac-2.0.0/src/*.o
+giac/giac-2.0.0/src/icas
