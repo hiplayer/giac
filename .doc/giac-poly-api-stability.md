@@ -84,6 +84,29 @@
 | `biquadratic_res_conjugate_pairs`, `biquartic_conjugate_pairs` | `tresultant` | |
 | `AlgebraicRt`, `ConjugatePair` | `tresultant` | |
 
+### 2.6 嵌套环表示层 — **Stable**
+
+| 符号 | 模块 | 说明 |
+|------|------|------|
+| `MainVar`, `UnivariateIn`, `UnivariateOver` | `nested` | ℚ[others][main] 视图；`.divides` / `.exact_quo_dividing` |
+| `UnivariatePoly` | `nested` | 拥有的 ℚ[others][main] 元素 |
+| `CoeffRingPoly` | `nested` | ℚ[others] 系数环；`.gcd` / `.exact_quo` |
+| `TnEmbed`, `BivariateEmbed` | `nested` | sparse_bi `eval_tn`；嵌入像带 `(main,t,n,aux)` |
+| `div_rem_wrt_aux_indep` | `nested` | Hensel：除子在 aux 上常系数时的 `(q,r)` |
+| `eval_aux` | `nested` | 在 ℚ[others][main] 中对 aux 赋值，main 不变 |
+| `GoodEval` | `factor/eval` | 好点赋值，保持 `preserved_main_degree` |
+| `SqffRingCtx`, `FactorSet` | `factor/ctx` | sqff 因子链上下文（crate-internal） |
+| `PolyFactorTower`, `CoeffRing` | `factor/tower` | FAC-G2；`factor_sqff_chain` = aux-lift → good_eval → sparse_bi |
+| `factor_bivariate_flat` | `factor/sparse` | ℚ[main,aux] 二元分解，无嵌套 `factor_multivariate_rec` |
+| `HenselPair` | `factor/ctx` | 二元 Hensel @ aux=0（crate-internal） |
+| `EmbedFactorDraft` | `nested` | sparse_bi 重建 IR（crate-internal） |
+| `FlatUni` | `nested` | ℚ[var] 平坦一元；factor 内唯一允许经典 `div_rem` 的子路径 |
+| `MultivariatePoly` | `nested` | 多元展示环边界；显式 leading-monomial `div_rem` |
+| `PrimitivePart` | `nested` | `primitive_part_wrt` 结果 tagged |
+| `DilationMap` | `nested` | sparse_bi dilation `{ aux_a, aux_b }` + apply/undo（crate-internal） |
+
+**禁止：** 嵌套环热路径用 `Poly::div_rem` 验整除；见 [GIAC-poly-nested-ring-types](issues/GIAC-poly-nested-ring-types.md) Phase 1。
+
 ---
 
 ## 3. 公开但未 `lib.rs` re-export 的 API
@@ -138,7 +161,7 @@
 
 | 缺口 ID | upstream (`gausspol.cc`) | giac-rs 状态 |
 |---------|---------------------------|--------------|
-| **FAC-G1** | `try_sparse_factor` + `try_sparse_factor_bi` | **Partial** — 好点种子 + 2-aux MVP；sum-coeff / dilation / pzadic 待补 |
+| **FAC-G1** | `try_sparse_factor` + `try_sparse_factor_bi` + `unitaryfactor` | **Partial** — P0/P1 尾链已落地（`pzadic`/`unitarize`/`trunc1`）；line25 仍 P2；sparse_bi sum-coeff 待补（[unitaryfactor-gaps](issues/GIAC-poly-unitaryfactor-gaps.md)） |
 | **FAC-G2** | 参系数 `poly_factor` 塔 | **Partial** — `try_lift_factors_in_aux_var` 覆盖 L20 |
 | **FAC-G3** | 混合次数二元 Hensel + fallback | **Partial** — L22 ✅（`hensel_lift_two_at_zero`） |
 | — | partfrac 重复二次 / 实二次分裂 | **Partial** — 线性/重根/实分裂已覆盖；高次仍缺 |

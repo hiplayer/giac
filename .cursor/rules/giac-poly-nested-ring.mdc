@@ -1,0 +1,66 @@
+---
+description: giac-poly 嵌套环/主元/embed 阶段类型与除法语义；管线排错先问环结构
+globs: giac-rs/crates/giac-poly/**
+alwaysApply: false
+---
+
+# giac-poly 嵌套环表示层
+
+`Poly` 是 **intentionally erased** 的通用稀疏多项式：同一类型承载 ℚ[x]、ℚ[others][main]、embed 像 ℚ[main,t] 等。环结构、主元、管线阶段**默认不在类型里**，须用 API 显式携带。
+
+**完整除法语义表：** [`.doc/giac-poly-api-stability.md`](../../.doc/giac-poly-api-stability.md) §1。  
+**类型化路线图：** [`.doc/issues/GIAC-poly-nested-ring-types.md`](../../.doc/issues/GIAC-poly-nested-ring-types.md)。
+
+## 管线排错顺序（优先于改 bug）
+
+因子/商/整除失败时，**先答**：
+
+1. **在哪个环？** 多元商环 / ℚ[others][main] / ℚ[others] 系数环 / embed 像
+2. **主元是谁？** `main`（及 aux、t、embed 的 `n`）
+3. **哪一阶段？** sqff / sparse / sparse_bi / Hensel / 启发式 fallback
+
+只有三者清楚后，才问「`div_rem` 为何余式非零」。多数是**除法语义用错**，不是算术 bug。
+
+## 类型与 API（`nested.rs`）
+
+| 数学对象 | Rust 类型 | 整除 / 商 |
+|----------|-----------|-----------|
+| ℚ[others][main] | `MainVar` + `UnivariateIn` / `UnivariatePoly` | `.divides()` / `.exact_quo_dividing()` → `quo_exact_wrt` |
+| ℚ[others] 系数 | `CoeffRingPoly` | `.exact_quo()` → `div_exact_coeff` |
+| sparse_bi embed | `TnEmbed` → [`BivariateEmbed`] | `.embed()`；`.view_main()` / `.view_t()` / `.to_recon_draft()` |
+| (main,t) 重建 IR | [`EmbedFactorDraft`] + `EmbedMonomial` | monomial 逐项对比；`.materialize()` → `UnivariatePoly` |
+| sqff 因子链 | `SqffRingCtx` + `FactorSet`（`factor/ctx.rs`） | `product_equals` / `verify_divides_chain` |
+| sparse @0 | `SparseAtZero` → `SparseSystem`（`sparse.rs`） | 求解前不经 `Poly` 往返 |
+| 好点赋值 | `GoodEval`（`factor/eval.rs`） | `preserved_main_degree` |
+| Hensel 双因子 | `HenselPair` + `AuxIndepFactor` | aux 常系数约束进构造 |
+| aux 赋值 | `UnivariateIn::eval_aux` | main 不变 |
+| `PolyFactorTower` | `factor/tower` | FAC-G2：`factor_sqff_chain` = aux-lift → good_eval → sparse_bi |
+| 平坦一元 | `FlatUni` | ℚ[var]；`div_rem` 仅在此类型上 |
+| 多元边界 | `MultivariatePoly` | 展示/启发式 `div_rem` |
+| primitive part | `PrimitivePart` | `primitive_part_wrt` tagged |
+| dilation | `DilationMap` | sparse_bi `apply` / `undo` |
+| unitaryfactor | `factor/unitary` | FAC-G1 尾链；详见 [GIAC-poly-unitaryfactor-gaps](../../.doc/issues/GIAC-poly-unitaryfactor-gaps.md) |
+
+## 禁止混用
+
+| ❌ | ✅ |
+|----|-----|
+| `Poly::div_rem` 验证 ℚ[others][main] 因子整除 | `UnivariateIn::divides` / `quo_exact_wrt` |
+| `div_rem` 归一化系数环 `lcpt/lc` | `CoeffRingPoly::exact_quo` |
+| 裸 `&Var` 当主元传参（新代码） | `MainVar` 或 `UnivariateIn::new(poly, main)` |
+
+`div_rem` 仅用于**真正的多元 leading-monomial** 上下文（如展示、非嵌套环启发式）；factor 嵌套环热路径禁止。
+
+## 何时新增类型
+
+有**数学依据**且契约重复出错时，在 `nested.rs`（或同级）新增 newtype / view，而不是再加 `try_*` 形状分支：
+
+- 新 embed 阶段（如三元 aux、`n` 扫描态）→ 扩展 `TnEmbed` 或专用 `EmbedConfig`
+- 重建需区分和系数 vs 单项式系数 → 保留双路径 + `EmbedMonomial` IR，勿合并成 per-case `if`
+- 新主元角色（如 Hensel 的 aux lift）→ `UnivariateIn` + 文档化 `main`
+
+新增类型须：契约注释、`nested` 或 `*-api-stability.md` 登记、回归测 **用错 API 会失败**（参考 `nested::tests::univariate_in_divides_vs_div_rem`）。
+
+## 与 algorithm-before-patch
+
+缺算法 → 补上游链；缺表示层 → 补 `nested` 类型。**禁止**在 `sparse`/`hensel` 调用方用 `div_rem` 打补丁绕过环语义。

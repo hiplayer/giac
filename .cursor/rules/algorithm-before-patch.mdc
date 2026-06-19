@@ -22,6 +22,7 @@ alwaysApply: false
 | 这次修改是否只为让一个 `#[ignore]` / 单测绿？ | 先查是否缺整条算法链 |
 | 是否新增形状/模式特例分支？ | 先查上游是否有对应通用步骤 |
 | 同类表达式是否已有 2+ 个特例？ | 应合并为一条算法，而非第 3 个特例 |
+| **giac-poly：** 是否在嵌套环里用 `div_rem` 验因子？ | 先问环/主元/阶段；见 [`giac-poly-nested-ring.mdc`](giac-poly-nested-ring.mdc) |
 
 ## 管线原则（全算法 crate）
 
@@ -54,7 +55,7 @@ alwaysApply: false
 
 ## 表示层 API（配套）
 
-稳定 / 临时（`drift_*`、`shim_*`）/ 管线私有分层，以及 `ExprArc`↔`Poly` 边界：见 [`algorithm-expr-api.mdc`](algorithm-expr-api.mdc) 与 [`.doc/algorithm-expr-api.md`](../../.doc/algorithm-expr-api.md)。
+稳定 / 临时（`drift_*`、`shim_*`）/ 管线私有分层，以及 `ExprArc`↔`Poly` 边界：见 [`algorithm-expr-api.mdc`](algorithm-expr-api.mdc) 与 [`.doc/algorithm-expr-api.md`](../../.doc/algorithm-expr-api.md)。`giac-poly` 嵌套环 / 主元 / embed：见 [`giac-poly-nested-ring.mdc`](giac-poly-nested-ring.mdc)。
 
 子域 I/O 契约（如 `mrv_w`、`exp_diff`）见 `.doc/*-expr-api.md` 索引表 §4，**不在此写子模块规则**。
 

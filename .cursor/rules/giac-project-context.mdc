@@ -20,11 +20,13 @@ Rust 移植 **giac-rs** 对标 **giac-2.0.0**；**测试即规格**（53 CTest /
 |------|------|
 | 模块映射 | `.doc/module-division.md` |
 | 算法缺口 | `.doc/issues/GIAC-algorithm-gaps-open.md` |
+| giac-poly 嵌套环类型 | `.doc/issues/GIAC-poly-nested-ring-types.md` |
+| unitaryfactor / pzadic 缺口 | `.doc/issues/GIAC-poly-unitaryfactor-gaps.md` |
 | limit 管线 | `.doc/issues/GIAC-limit-layered-pipeline.md` |
 | 测试规格 | `.doc/conformance-testing.md` |
 | 已知偏离 | `.doc/known-divergences.md` |
 | 工程门禁 | `.doc/rust-migration-supplement.md` §6–7 |
-| 算法表示层 API | `.doc/algorithm-expr-api.md`（§6.2 测试通过后复审）；Cursor：`algorithm-expr-api.mdc`、`algorithm-before-patch.mdc` |
+| 算法表示层 API | `.doc/algorithm-expr-api.md`（§6.2 测试通过后复审）；Cursor：`algorithm-expr-api.mdc`、`algorithm-before-patch.mdc`、`giac-poly-nested-ring.mdc` |
 
 ## 勿移植
 

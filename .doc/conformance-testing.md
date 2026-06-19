@@ -213,9 +213,11 @@ cargo test-timeout                      # 推荐：workspace 全量
 ./scripts/test-with-timeout.sh
 ```
 
-超时策略见 `giac-rs/.config/nextest.toml`（默认 **50s**/测；CK-INT-60/61 等 Gruntz 极限 **30s** override）。
+超时策略见 `giac-rs/.config/nextest.toml`（**release** 构建，默认 **15s**/测；CK-INT-60/61、`factor_x100` 等 **30s** override）。
 
-**仅调试子集**时用裸 `cargo test`（无超时包装，反馈更快）：
+Conformance 求值路径（`run_line`、`giac_check_factor` 等）默认要求 **`--release`**；本地 debug 可设 `GIAC_CONFORMANCE_ALLOW_DEBUG=1`。行内 eval/SymPy 上限：`GIAC_CHECK_TIMEOUT_SECS`（默认 10）。
+
+**仅调试子集**时用裸 debug `cargo test`（无 release 门禁、无 nextest 杀进程）：
 
 ```bash
 cargo test -p giac-calculus ck_int_61

@@ -3,7 +3,7 @@
 **状态:** open  
 **类型:** 索引 / AFK 跟踪  
 **上游基线:** **`giac/giac-2.0.0`**（`check/` 黄金 + `usual.cc` / `sym2poly.cc` / `gausspol.cc` / `intg.cc` / `series.cc`）  
-**相关:** [GIAC-algorithm-gaps-open](GIAC-algorithm-gaps-open.md)、[GIAC-limit-layered-pipeline](GIAC-limit-layered-pipeline.md)、[giac-simplify-api-stability.md](../giac-simplify-api-stability.md)、[giac-poly-api-stability.md](../giac-poly-api-stability.md)  
+**相关:** [GIAC-algorithm-gaps-open](GIAC-algorithm-gaps-open.md)、[GIAC-limit-layered-pipeline](GIAC-limit-layered-pipeline.md)、[GIAC-poly-nested-ring-types](GIAC-poly-nested-ring-types.md)、[giac-simplify-api-stability.md](../giac-simplify-api-stability.md)、[giac-poly-api-stability.md](../giac-poly-api-stability.md)  
 **验收:** FAC-G1–G3 tracer un-ignore；simplify/poly 稳定 API 表与源码 `/// **Stable**` 一致
 
 **快照日期:** 2026-06-19
@@ -94,6 +94,14 @@ giac-rs Phase 4 目标是 **headless CAS 子集**，不是 giac-2.0.0 全库 1:1
 
 → API 分层见 [giac-poly-api-stability.md](../giac-poly-api-stability.md)
 
+### 2.3 表示层缺口（架构，非上游算法）
+
+`Poly` 擦除环上下文导致 `div_rem` / `quo_exact_wrt` 混用（FAC-G1 tri_var sum-coeff 等）。类型化路线图见 **[GIAC-poly-nested-ring-types](GIAC-poly-nested-ring-types.md)**：
+
+- P0：`BivariateEmbed`、`EmbedFactorDraft`、`factor/*` 禁嵌套环 `div_rem`
+- P1：`SqffRingCtx`、`FactorSet`、`SparseAtZero`、`HenselPair`
+- P2：`FlatUni` / `MultivariatePoly` 边界分裂
+
 ---
 
 ## 3. giac-calculus — 上游对齐（摘要）
@@ -182,8 +190,8 @@ sqff → 随机 eval 不可约快检 → try_sparse_factor(v0) → try_sparse_fa
 
 giac-rs 缺口：
 
-- **已对齐：** 双主元 `(main,aux)`；`try_sparse_factor` + `find_good_eval` 好点种子；`try_sparse_factor_bi`（2-aux MVP）；`try_hensel_lift_factor` + `hensel_lift_two_at_zero` fallback；`find_good_eval` + 二元/多元不可约快检
-- **仍缺：** `sparse_bi` sum-coeff 重建 + dilation 随机扩张；`unitaryfactor` 有界启发式
+- **已对齐：** 双主元 `(main,aux)`；`try_sparse_factor` + `find_good_eval` 好点种子；`try_sparse_factor_bi`（2-aux MVP）；`try_hensel_lift_factor` + `hensel_lift_two_at_zero` fallback；`find_good_eval` + 二元/多元不可约快检；`unitaryfactor` 二元 MVP（`factor/unitary.rs`，bilinear gate ✅）
+- **仍缺：** `sparse_bi` sum-coeff 重建 + dilation；`unitaryfactor` 忠实 `pzadic` + 递归 + `unitarize`（详见 [GIAC-poly-unitaryfactor-gaps](GIAC-poly-unitaryfactor-gaps.md)）
 
 **临时算法可否删除：**
 
