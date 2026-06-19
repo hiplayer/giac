@@ -1,5 +1,10 @@
 //! Mathematical equivalence helpers (`assert_equiv` per conformance-testing.md §3).
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-simplify-api-stability.md`.
+//!
+//!
 use std::sync::Arc;
 
 use num_rational::Ratio;
@@ -63,8 +68,8 @@ pub fn assert_equiv(a: &Expr, b: &Expr, ctx: &Context) -> Result<bool, EvalError
     is_zero(d.as_ref(), ctx)
 }
 
-/// Pipeline-private drift absorber for `assert_equiv` only (not a crate-wide `canonical_*` API).
-/// Maps `1/sqrt(n)` → `sqrt(n)/n` so equivalent radical forms share one shape.
+// **Temporary** — drift_* for `assert_equiv` only (not a crate-wide `canonical_*` API).
+// Maps `1/sqrt(n)` → `sqrt(n)/n`. **退役:** 迁入 `normal` 或稳定 `canonical_radical` pub API。
 fn canonical_radical(e: &Expr) -> ExprArc {
     match e {
         Expr::Pow(base, exp) => {
@@ -106,6 +111,7 @@ fn canonical_radical(e: &Expr) -> ExprArc {
     }
 }
 
+// **Temporary** — drift helper for canonical_radical
 fn inv_sqrt_to_mul(base: &Expr) -> Option<ExprArc> {
     let args = match base {
         Expr::Func(FuncKind::Sqrt, args) => args,

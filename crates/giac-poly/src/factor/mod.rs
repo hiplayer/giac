@@ -1,4 +1,15 @@
 //! Polynomial factorization over ℚ (and ℤ/pℤ for `factor_poly_mod`).
+//!
+//! **Upstream:** `gausspol.cc` / `ezgcd.cc` — `do_factor_hensel`, `factor`.
+//! **缺口:** FAC-G1 `try_sparse_factor`、FAC-G2 参系数塔、FAC-G3 混合次数二元 Hensel。
+//!
+//! | Tier | 入口 |
+//! |------|------|
+//! | **Stable (bounded)** | `factor_into`, `factor_poly`, `factor_into_by_rational_roots` |
+//! | **Stable** | `factor_poly_mod`, `factor_mod_irreducibles` |
+//!
+//! 子模块：`multivariate` → `univariate` / `hensel` / `zassenhaus` / `patterns`。
+//! 全函数 tier 见 `.doc/giac-poly-api-stability.md` § `factor/mod.rs`。
 
 mod cyclotomic;
 mod fpx;
@@ -27,12 +38,12 @@ use multivariate::factor_into_poly;
 use patterns::{factor_xn_minus_one_display, try_factor_patterns};
 use power::as_perfect_power as perfect_power;
 
-/// Factor into irreducible polynomial factors over ℚ when possible.
+/// **Stable (bounded)** — Factor into irreducible polynomial factors over ℚ when possible.
 pub fn factor_into(p: &Poly) -> Option<Vec<Poly>> {
     factor_into_poly(p)
 }
 
-/// Integer-style factorization display (legacy `factor_poly`).
+/// **Stable (bounded)** — Integer-style factorization display (legacy `factor_poly`).
 pub fn factor_poly(p: &Poly) -> Poly {
     if let Some(f) = factor_xn_minus_one_display(p) {
         return f;
@@ -58,15 +69,17 @@ pub fn factor_poly(p: &Poly) -> Poly {
     p.clone()
 }
 
+/// **Stable (bounded)** — univariate via rational roots
 pub fn factor_into_by_rational_roots(p: &Poly, var: &crate::monomial::Var) -> crate::error::PolyResult<Vec<Poly>> {
     univariate::factor_univariate_flat(p, var)
 }
 
+/// **Stable** — factor mod p display
 pub fn factor_poly_mod(p: &Poly, modulus: i64) -> Result<Poly, crate::error::PolyError> {
     modular::factor_poly_mod(p, modulus)
 }
 
-/// Irreducible factors over F_p (monic, with repetition).
+/// **Stable** — Irreducible factors over F_p (monic, with repetition).
 pub fn factor_mod_irreducibles(p: &Poly, modulus: i64) -> crate::error::PolyResult<Vec<crate::modular::PolyMod>> {
     let pm = crate::modp(p, modulus)?;
     fpx::factor_fpx(&pm)

@@ -1,4 +1,8 @@
-//! Bivariate factorization in ℚ[y][x] via Hensel lifting (GIAC `try_hensel_lift_factor` / `hensel_lift`).
+//! Bivariate factorization in ℚ[y][x] via Hensel lifting @ y=0 + interpolation fallback.
+//!
+//! **Upstream:** `gausspol.cc` `try_hensel_lift_factor`, `hensel_lift`.
+//! **Partial:** `try_hensel_lift_bivariate` (FAC-G3 混合次数仍可能 None).
+//! **Pipeline private:** `hensel_lift_at_zero`, `try_hensel_lift_interp`, rat-vector helpers.
 
 use num_bigint::BigInt;
 use num_rational::Ratio;
@@ -18,6 +22,7 @@ use super::util::rational_nth_root;
 
 type RatVec = Vec<Ratio<BigInt>>;
 
+// **Pipeline private** — `trim_rat`
 fn trim_rat(c: &[Ratio<BigInt>]) -> RatVec {
     let mut out = c.to_vec();
     while out.len() > 1 && out.last().is_some_and(|v| v.is_zero()) {
@@ -30,6 +35,7 @@ fn trim_rat(c: &[Ratio<BigInt>]) -> RatVec {
     }
 }
 
+// **Pipeline private** — `rat_mul`
 fn rat_mul(a: &[Ratio<BigInt>], b: &[Ratio<BigInt>]) -> RatVec {
     if a.is_empty() || b.is_empty() {
         return vec![Ratio::zero()];
@@ -43,6 +49,7 @@ fn rat_mul(a: &[Ratio<BigInt>], b: &[Ratio<BigInt>]) -> RatVec {
     trim_rat(&out)
 }
 
+// **Pipeline private** — `rat_div_rem`
 fn rat_div_rem(a: &[Ratio<BigInt>], b: &[Ratio<BigInt>]) -> (RatVec, RatVec) {
     let mut r = trim_rat(a);
     let b = trim_rat(b);
@@ -78,6 +85,7 @@ fn rat_div_rem(a: &[Ratio<BigInt>], b: &[Ratio<BigInt>]) -> (RatVec, RatVec) {
     (trim_rat(&q), r)
 }
 
+// **Pipeline private** — `rat_egcd`
 fn rat_egcd(a: &[Ratio<BigInt>], b: &[Ratio<BigInt>]) -> (RatVec, RatVec, RatVec) {
     let mut old_r = trim_rat(a);
     let mut r = trim_rat(b);
@@ -106,6 +114,7 @@ fn rat_egcd(a: &[Ratio<BigInt>], b: &[Ratio<BigInt>]) -> (RatVec, RatVec, RatVec
     (old_r, old_s, old_t)
 }
 
+// **Pipeline private** — `rat_add`
 fn rat_add(a: &[Ratio<BigInt>], b: &[Ratio<BigInt>]) -> RatVec {
     let n = a.len().max(b.len());
     let mut out = vec![Ratio::zero(); n];
@@ -118,6 +127,7 @@ fn rat_add(a: &[Ratio<BigInt>], b: &[Ratio<BigInt>]) -> RatVec {
     trim_rat(&out)
 }
 
+// **Pipeline private** — `rat_sub`
 fn rat_sub(a: &[Ratio<BigInt>], b: &[Ratio<BigInt>]) -> RatVec {
     let n = a.len().max(b.len());
     let mut out = vec![Ratio::zero(); n];
@@ -130,11 +140,13 @@ fn rat_sub(a: &[Ratio<BigInt>], b: &[Ratio<BigInt>]) -> RatVec {
     trim_rat(&out)
 }
 
+// **Pipeline private** — `poly_univariate_rat`
 fn poly_univariate_rat(p: &Poly, x: &Var) -> RatVec {
     let d = univariate_degree(p, x);
     (0..=d).map(|e| coeff_at(p, x, e)).collect()
 }
 
+// **Pipeline private** — `poly_from_rat`
 fn poly_from_rat(x: &Var, c: &[Ratio<BigInt>]) -> Poly {
     let mut out = Poly::zero();
     for (e, coeff) in c.iter().enumerate() {
@@ -147,6 +159,7 @@ fn poly_from_rat(x: &Var, c: &[Ratio<BigInt>]) -> Poly {
 }
 
 /// `Σ u[i] * Π_{j≠i} f[j] = 1` for pairwise coprime univariate `f[i]` (GIAC `modpoly::egcd`).
+// **Pipeline private** — `egcd_factor_list`
 fn egcd_factor_list(factors: &[Poly], x: &Var) -> Option<Vec<Poly>> {
     let n = factors.len();
     if n == 0 {
@@ -184,6 +197,7 @@ fn egcd_factor_list(factors: &[Poly], x: &Var) -> Option<Vec<Poly>> {
 // ---------------------------------------------------------------------------
 
 /// Terms whose exponent of `y` is at most `max` (GIAC `reduce_poly` with b=0: degree < deg+1).
+// **Pipeline private** — `truncate_y`
 fn truncate_y(p: &Poly, y: &Var, max: u64) -> Poly {
     let mut out = Poly::zero();
     for (m, c) in &p.terms {
@@ -194,15 +208,18 @@ fn truncate_y(p: &Poly, y: &Var, max: u64) -> Poly {
     out
 }
 
+// **Pipeline private** — `is_independent_of_y`
 fn is_independent_of_y(p: &Poly, y: &Var) -> bool {
     p.terms.keys().all(|m| m.exp_of(y) == 0)
 }
 
+// **Pipeline private** — `leading_coeff_x`
 fn leading_coeff_x(p: &Poly, x: &Var) -> Poly {
     let d = univariate_degree(p, x);
     coeff_wrt_poly(p, x, d)
 }
 
+// **Pipeline private** — `scale_univariate_x`
 fn scale_univariate_x(p: &Poly, x: &Var, scale: &Ratio<BigInt>) -> Poly {
     let d = univariate_degree(p, x);
     let mut out = Poly::zero();
@@ -215,6 +232,7 @@ fn scale_univariate_x(p: &Poly, x: &Var, scale: &Ratio<BigInt>) -> Poly {
     out
 }
 
+// **Pipeline private** — `div_rem_x_over_qy`
 fn div_rem_x_over_qy(rem: &Poly, div: &Poly, x: &Var, y: &Var) -> Option<(Poly, Poly)> {
     if !is_independent_of_y(div, y) {
         return None;
@@ -245,6 +263,7 @@ fn div_rem_x_over_qy(rem: &Poly, div: &Poly, x: &Var, y: &Var) -> Option<(Poly, 
     Some((q, r))
 }
 
+// **Pipeline private** — `hensel_lift_two_at_zero`
 fn hensel_lift_two_at_zero(
     p: &Poly,
     x: &Var,
@@ -313,6 +332,7 @@ fn hensel_lift_two_at_zero(
 }
 
 /// Fold extracted constant factors into the remaining univariate factors so `∏ f_i = p0`.
+// **Pipeline private** — `normalize_univariate_factors`
 fn normalize_univariate_factors(f0: &mut Vec<Poly>, x: &Var, p0: &Poly) -> bool {
     let mut content = Poly::one();
     f0.retain(|f| {
@@ -344,6 +364,7 @@ fn normalize_univariate_factors(f0: &mut Vec<Poly>, x: &Var, p0: &Poly) -> bool 
     f0.iter().fold(Poly::one(), |acc, f| acc.mul(f)) == *p0
 }
 
+// **Pipeline private** — `hensel_lift_at_zero`
 fn hensel_lift_at_zero(p: &Poly, x: &Var, y: &Var) -> Option<Vec<Poly>> {
     let dy = univariate_degree(p, y);
     if dy == 0 {
@@ -449,6 +470,7 @@ fn hensel_lift_at_zero(p: &Poly, x: &Var, y: &Var) -> Option<Vec<Poly>> {
 // Fallback: evaluation + Lagrange interpolation
 // ---------------------------------------------------------------------------
 
+// **Pipeline private** — `as_rational_constant`
 fn as_rational_constant(p: &Poly) -> Option<Ratio<BigInt>> {
     if p.is_zero() {
         return Some(Ratio::zero());
@@ -462,6 +484,7 @@ fn as_rational_constant(p: &Poly) -> Option<Ratio<BigInt>> {
     None
 }
 
+// **Pipeline private** — `linear_root`
 fn linear_root(f: &Poly, x: &Var) -> Option<Ratio<BigInt>> {
     if univariate_degree(f, x) != 1 {
         return None;
@@ -474,6 +497,7 @@ fn linear_root(f: &Poly, x: &Var) -> Option<Ratio<BigInt>> {
     Some(-c0)
 }
 
+// **Pipeline private** — `factor_match_key_at`
 fn factor_match_key_at(f: &Poly, x: &Var, eval_var: &Var, eval_val: i64) -> (u64, Ratio<BigInt>, Ratio<BigInt>) {
     let fe = substitute_poly(
         f,
@@ -483,6 +507,7 @@ fn factor_match_key_at(f: &Poly, x: &Var, eval_var: &Var, eval_val: i64) -> (u64
     factor_match_key(&fe, x)
 }
 
+// **Pipeline private** — `sort_factors_by_match_key`
 fn sort_factors_by_match_key(
     facs: &[Poly],
     main: &Var,
@@ -505,6 +530,7 @@ fn sort_factors_by_match_key(
     perm
 }
 
+// **Pipeline private** — `factor_match_key`
 fn factor_match_key(f: &Poly, x: &Var) -> (u64, Ratio<BigInt>, Ratio<BigInt>) {
     if let Some(r) = linear_root(f, x) {
         return (1, r, Ratio::zero());
@@ -519,6 +545,7 @@ fn factor_match_key(f: &Poly, x: &Var) -> (u64, Ratio<BigInt>, Ratio<BigInt>) {
     (d, c0, Ratio::zero())
 }
 
+// **Pipeline private** — `lagrange_interpolate_y`
 fn lagrange_interpolate_y(y: &Var, points: &[(i64, Ratio<BigInt>)]) -> Poly {
     let mut out = Poly::zero();
     for (i, (yi, fi)) in points.iter().enumerate() {
@@ -537,6 +564,7 @@ fn lagrange_interpolate_y(y: &Var, points: &[(i64, Ratio<BigInt>)]) -> Poly {
     out
 }
 
+// **Pipeline private** — `lift_factor_from_evals`
 fn lift_factor_from_evals(samples: &[Poly], x: &Var, y: &Var) -> Option<Poly> {
     let deg = univariate_degree(&samples[0], x);
     let mut out = Poly::zero();
@@ -554,6 +582,7 @@ fn lift_factor_from_evals(samples: &[Poly], x: &Var, y: &Var) -> Option<Poly> {
 }
 
 /// Lift one factor track from evaluations at auxiliary values `points`.
+// **Pipeline private** — Hensel lift factor from auxiliary eval tracks
 pub(crate) fn lift_factor_from_aux_evals(
     samples: &[(i64, Poly)],
     x: &Var,
@@ -578,6 +607,7 @@ pub(crate) fn lift_factor_from_aux_evals(
 }
 
 /// Lift when substituted factors live in ℚ[rest][x] (one remaining variable besides `aux`).
+// **Pipeline private** — `lift_factor_from_aux_evals_with_rest`
 fn lift_factor_from_aux_evals_with_rest(
     samples: &[(i64, Poly)],
     main: &Var,
@@ -612,6 +642,7 @@ fn lift_factor_from_aux_evals_with_rest(
 }
 
 /// Factor by substituting an auxiliary variable and lifting (GIAC `find_good_eval` MVP).
+// **Pipeline private** — lift bivariate factors via aux variable
 pub(crate) fn try_lift_factors_in_aux_var(
     p: &Poly,
     main: &Var,
@@ -683,6 +714,7 @@ pub(crate) fn try_lift_factors_in_aux_var(
     }
 }
 
+// **Pipeline private** — optional fallback `try_hensel_lift_interp`
 fn try_hensel_lift_interp(p: &Poly, x: &Var, y: &Var) -> Option<Vec<Poly>> {
     let dy = univariate_degree(p, y);
     if dy == 0 {
@@ -733,7 +765,7 @@ fn try_hensel_lift_interp(p: &Poly, x: &Var, y: &Var) -> Option<Vec<Poly>> {
     Some(factors)
 }
 
-/// Factor `p(x,y)` in ℚ[y][x]: Hensel lift at `y=0`, then interpolation fallback.
+/// **Partial** — Factor `p(x,y)` in ℚ[y][x]: Hensel lift at `y=0`, then interpolation fallback.
 pub fn try_hensel_lift_bivariate(p: &Poly, x: &Var, y: &Var) -> Option<Vec<Poly>> {
     if univariate_degree(p, x) == 0 || univariate_degree(p, y) == 0 {
         return None;

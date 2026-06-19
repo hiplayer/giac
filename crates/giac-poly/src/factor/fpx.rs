@@ -1,4 +1,7 @@
-//! Univariate factorization over F_p via GIAC `modfactor.cc` (DDF + Cantor–Zassenhaus).
+//! Irreducible factorization of polynomials over finite fields (Cantor–Zassenhaus).
+//!
+//! **Stable:** `factor_fpx`, `degree`.
+//! **Pipeline private:** Yun square-free, distinct-degree, CZ block split, Berlekamp-style linear.
 
 use num_bigint::BigInt;
 use num_traits::{One, Zero};
@@ -8,14 +11,17 @@ use crate::modint::ModInt;
 use crate::modular::PolyMod;
 use crate::monomial::{Monomial, Var};
 
+// **Pipeline private** — `x_var`
 fn x_var() -> Var {
     Var::from("x")
 }
 
+// **Pipeline private** — `mi`
 fn mi(val: i64, modulus: &BigInt) -> ModInt {
     ModInt::new(BigInt::from(val), modulus.clone()).unwrap()
 }
 
+// **Pipeline private** — `is_poly_one`
 fn is_poly_one(p: &PolyMod) -> bool {
     p.terms.len() == 1
         && p
@@ -24,6 +30,7 @@ fn is_poly_one(p: &PolyMod) -> bool {
             .is_some_and(|c| c.is_one())
 }
 
+/// **Stable** — total degree
 pub fn degree(p: &PolyMod) -> u64 {
     let x = x_var();
     p.terms
@@ -33,6 +40,7 @@ pub fn degree(p: &PolyMod) -> u64 {
         .unwrap_or(0)
 }
 
+// **Pipeline private** — `coeff`
 fn coeff(p: &PolyMod, exp: u64) -> ModInt {
     let x = x_var();
     for (m, c) in &p.terms {
@@ -43,6 +51,7 @@ fn coeff(p: &PolyMod, exp: u64) -> ModInt {
     mi(0, &p.modulus)
 }
 
+// **Pipeline private** — `set_coeff`
 fn set_coeff(terms: &mut std::collections::BTreeMap<Monomial, ModInt>, exp: u64, c: ModInt) {
     let x = x_var();
     let mut m = Monomial::one();
@@ -59,6 +68,7 @@ fn set_coeff(terms: &mut std::collections::BTreeMap<Monomial, ModInt>, exp: u64,
     }
 }
 
+// **Pipeline private** — `from_coeffs`
 fn from_coeffs(modulus: &BigInt, coeffs: &[ModInt]) -> PolyMod {
     let mut terms = std::collections::BTreeMap::new();
     for (e, c) in coeffs.iter().enumerate() {
@@ -72,6 +82,7 @@ fn from_coeffs(modulus: &BigInt, coeffs: &[ModInt]) -> PolyMod {
     }
 }
 
+// **Pipeline private** — `x_poly`
 fn x_poly(modulus: &BigInt) -> PolyMod {
     let mut terms = std::collections::BTreeMap::new();
     terms.insert(Monomial::var(x_var()), mi(1, modulus));
@@ -81,15 +92,18 @@ fn x_poly(modulus: &BigInt) -> PolyMod {
     }
 }
 
+// **Pipeline private** — `one_poly`
 fn one_poly(modulus: &BigInt) -> PolyMod {
     PolyMod::one(modulus.clone())
 }
 
+// **Pipeline private** — `mod_poly`
 fn mod_poly(a: &PolyMod, m: &PolyMod) -> PolyResult<PolyMod> {
     let (_, r) = a.div_rem(m)?;
     Ok(r)
 }
 
+// **Stable** — exact division if remainder zero
 fn div_exact(a: &PolyMod, b: &PolyMod) -> PolyResult<PolyMod> {
     let (q, r) = a.div_rem(b)?;
     if !r.is_zero() {
@@ -98,6 +112,7 @@ fn div_exact(a: &PolyMod, b: &PolyMod) -> PolyResult<PolyMod> {
     Ok(q)
 }
 
+// **Pipeline private** — `make_monic`
 fn make_monic(p: &PolyMod) -> PolyResult<PolyMod> {
     let d = degree(p);
     if d == 0 {
@@ -115,6 +130,7 @@ fn make_monic(p: &PolyMod) -> PolyResult<PolyMod> {
     Ok(from_coeffs(&p.modulus, &coeffs))
 }
 
+// **Pipeline private** — `derivative`
 fn derivative(p: &PolyMod) -> PolyResult<PolyMod> {
     let d = degree(p);
     if d == 0 {
@@ -138,6 +154,7 @@ fn derivative(p: &PolyMod) -> PolyResult<PolyMod> {
     })
 }
 
+// **Pipeline private** — `eval`
 fn eval(p: &PolyMod, x: i64) -> PolyResult<ModInt> {
     let d = degree(p);
     let mut acc = mi(0, &p.modulus);
@@ -149,6 +166,7 @@ fn eval(p: &PolyMod, x: i64) -> PolyResult<ModInt> {
     Ok(acc)
 }
 
+// **Pipeline private** — `powmod`
 fn powmod(base: &PolyMod, exp: &BigInt, modulus: &PolyMod) -> PolyResult<PolyMod> {
     let mut result = one_poly(&modulus.modulus);
     let mut b = mod_poly(base, modulus)?;
@@ -165,6 +183,7 @@ fn powmod(base: &PolyMod, exp: &BigInt, modulus: &PolyMod) -> PolyResult<PolyMod
 }
 
 /// Evaluate `f(x)` at `x = g` modulo `modulus` (polynomial composition).
+// **Pipeline private** — `compose`
 fn compose(f: &PolyMod, g: &PolyMod, modulus: &PolyMod) -> PolyResult<PolyMod> {
     let d = degree(f);
     if d == 0 {
@@ -182,11 +201,13 @@ fn compose(f: &PolyMod, g: &PolyMod, modulus: &PolyMod) -> PolyResult<PolyMod> {
 }
 
 /// `f(x^p) mod modulus` (GIAC `xtoxpowerpn` without qmatrix).
+// **Pipeline private** — `subst_x_to_xp`
 fn subst_x_to_xp(f: &PolyMod, prime: &BigInt, modulus: &PolyMod) -> PolyResult<PolyMod> {
     let xp = powmod(&x_poly(&modulus.modulus), prime, modulus)?;
     compose(f, &xp, modulus)
 }
 
+// **Pipeline private** — `linear_factor`
 fn linear_factor(root: i64, modulus: &BigInt) -> PolyMod {
     from_coeffs(modulus, &[mi(-root, modulus), mi(1, modulus)])
 }
@@ -196,21 +217,25 @@ struct Lcg {
 }
 
 impl Lcg {
+    // **Pipeline private** — `new`
     fn new(seed: u64) -> Self {
         Self { state: seed.max(1) }
     }
 
+    // **Stable** — `Poly::next_u64`
     fn next_u64(&mut self) -> u64 {
         self.state = self.state.wrapping_mul(6364136223846793005).wrapping_add(1);
         self.state
     }
 
+    // **Stable** — `Poly::next_i64`
     fn next_i64(&mut self, modulus: &BigInt) -> i64 {
         let p = modulus.to_string().parse::<i64>().unwrap_or(65537);
         (self.next_u64() % p as u64) as i64
     }
 }
 
+// **Pipeline private** — `random_poly`
 fn random_poly(deg: u64, modulus: &BigInt, rng: &mut Lcg) -> PolyMod {
     let mut coeffs = Vec::with_capacity(deg as usize + 1);
     for e in 0..=deg {
@@ -223,6 +248,7 @@ fn random_poly(deg: u64, modulus: &BigInt, rng: &mut Lcg) -> PolyMod {
     from_coeffs(modulus, &coeffs)
 }
 
+// **Pipeline private** — `square_free_yun`
 fn square_free_yun(p: &PolyMod) -> PolyResult<Vec<(PolyMod, usize)>> {
     if p.is_zero() {
         return Err(PolyError::TypeError("zero polynomial"));
@@ -259,6 +285,7 @@ fn square_free_yun(p: &PolyMod) -> PolyResult<Vec<(PolyMod, usize)>> {
 }
 
 /// GIAC `ddf`: distinct-degree factorization into blocks of fixed irreducible degree.
+// **Pipeline private** — `distinct_degree_factorization`
 fn distinct_degree_factorization(q: &PolyMod) -> PolyResult<Vec<(PolyMod, u64)>> {
     let prime = q.modulus.clone();
     let x = x_poly(&prime);
@@ -300,6 +327,7 @@ fn distinct_degree_factorization(q: &PolyMod) -> PolyResult<Vec<(PolyMod, u64)>>
     Ok(blocks)
 }
 
+// **Pipeline private** — `extract_linear_factors`
 fn extract_linear_factors(p: &PolyMod) -> PolyResult<Vec<PolyMod>> {
     let pval = p
         .modulus
@@ -326,6 +354,7 @@ fn extract_linear_factors(p: &PolyMod) -> PolyResult<Vec<PolyMod>> {
 }
 
 /// GIAC `cantor_zassenhaus` for one DDF block of irreducible degree `i`.
+// **Pipeline private** — `cantor_zassenhaus_block`
 fn cantor_zassenhaus_block(block: &PolyMod, i: u64, rng: &mut Lcg) -> PolyResult<Vec<PolyMod>> {
     let k = degree(block);
     if k == 0 {
@@ -380,6 +409,7 @@ fn cantor_zassenhaus_block(block: &PolyMod, i: u64, rng: &mut Lcg) -> PolyResult
     Err(PolyError::NotImplemented("cantor-zassenhaus split"))
 }
 
+// **Pipeline private** — `factor_square_free`
 fn factor_square_free(p: &PolyMod) -> PolyResult<Vec<PolyMod>> {
     let q = make_monic(p)?;
     let blocks = distinct_degree_factorization(&q)?;
@@ -391,7 +421,7 @@ fn factor_square_free(p: &PolyMod) -> PolyResult<Vec<PolyMod>> {
     Ok(out)
 }
 
-/// Full factorization in F_p[x] into monic irreducible factors (with repetition).
+/// **Stable** — Full factorization in F_p[x] into monic irreducible factors (with repetition).
 pub fn factor_fpx(p: &PolyMod) -> PolyResult<Vec<PolyMod>> {
     if p.is_zero() {
         return Err(PolyError::TypeError("zero polynomial"));

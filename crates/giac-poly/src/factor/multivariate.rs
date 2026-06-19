@@ -1,3 +1,9 @@
+//! Multivariate factorization over ℚ: pattern table → univariate → main-variable tower.
+//!
+//! **Pipeline:** `factor_multivariate` → `factor_multivariate_rec` → `factor_wrt_main_var`.
+//! **Stable (bounded):** `factor_into_poly`, `factor_multivariate`.
+//! **Pipeline private:** `factor_multivariate_rec`, `factor_wrt_main_var`.
+
 use crate::error::{PolyError, PolyResult};
 use crate::monomial::Var;
 use crate::poly::Poly;
@@ -9,10 +15,12 @@ use super::poly_uni::{
 use super::univariate::factor_univariate_flat;
 use super::util::{extract_var_power_factors, is_univariate_in, main_var, vars_in};
 
+/// **Stable (bounded)** — factor_multivariate ok→Some
 pub fn factor_into_poly(p: &Poly) -> Option<Vec<Poly>> {
     factor_multivariate(p).ok()
 }
 
+/// **Stable (bounded)** — multivariate factorization
 pub fn factor_multivariate(p: &Poly) -> PolyResult<Vec<Poly>> {
     if p.is_zero() {
         return Err(PolyError::TypeError("zero polynomial"));
@@ -24,6 +32,7 @@ pub fn factor_multivariate(p: &Poly) -> PolyResult<Vec<Poly>> {
     factor_multivariate_rec(p, &vars)
 }
 
+// **Pipeline private** — multivariate factor recursion (patterns→uni→main var)
 pub(crate) fn factor_multivariate_rec(p: &Poly, vars: &[Var]) -> PolyResult<Vec<Poly>> {
     if let Some(f) = try_factor_patterns(p) {
         return Ok(f);
@@ -46,6 +55,7 @@ pub(crate) fn factor_multivariate_rec(p: &Poly, vars: &[Var]) -> PolyResult<Vec<
     Ok(factors)
 }
 
+// **Pipeline private** — `factor_wrt_main_var`
 fn factor_wrt_main_var(p: &Poly, var: &Var, others: &[Var]) -> PolyResult<Vec<Poly>> {
     if is_univariate_in(p, var) {
         return factor_univariate_flat(p, var);

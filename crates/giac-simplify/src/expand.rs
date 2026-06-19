@@ -1,3 +1,7 @@
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-simplify-api-stability.md`.
+//!
+//!
 use std::sync::Arc;
 
 use giac_poly::modp;
@@ -81,6 +85,8 @@ pub fn expand_polynomial(expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalErro
 }
 
 /// True when `e` or any descendant is `exp(...)` or `ln(...)`.
+///
+/// **Pipeline private** — used by `ExpandPolicy::NoExpDistribute`.
 pub(crate) fn expr_contains_exp_ln(e: &Expr) -> bool {
     match e {
         Expr::Func(FuncKind::Exp | FuncKind::Ln, _) => true,
@@ -103,6 +109,7 @@ pub(crate) fn expr_contains_exp_ln(e: &Expr) -> bool {
     }
 }
 
+// **Pipeline private** — distribute one mul factor over add
 fn expand_mul_pair(
     lhs: &Expr,
     rhs: &Expr,
@@ -139,6 +146,7 @@ fn expand_mul_pair(
     }
 }
 
+// **Pipeline private** — expand integer powers and mod-poly powers
 fn expand_pow(
     base: &ExprArc,
     exp: &ExprArc,
@@ -198,6 +206,7 @@ fn expand_pow(
     Ok(Expr::pow(base_e, Arc::clone(exp)))
 }
 
+// **Pipeline private** — repeated multiply for small integer power
 fn repeated_mul(
     base: ExprArc,
     exp: u32,
@@ -211,6 +220,7 @@ fn repeated_mul(
     Ok(result)
 }
 
+// **Pipeline private** — binomial power via poly or Expr::pow
 fn expand_binomial(terms: &[ExprArc], n: u32) -> ExprArc {
     let sum = Expr::add(terms.to_vec());
     if let Ok(p) = expr_to_poly(sum.as_ref()) {
@@ -238,6 +248,7 @@ pub fn normal(expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
     Ok(expanded)
 }
 
+// **Pipeline private** — coerce Expr modulus to i64
 fn modulus_from_expr(m: &Expr) -> Result<i64, EvalError> {
     match m {
         Expr::Int(n) => bigint_to_i64(n),
@@ -245,6 +256,7 @@ fn modulus_from_expr(m: &Expr) -> Result<i64, EvalError> {
     }
 }
 
+// **Pipeline private** — map PolyError to EvalError
 fn mod_err(e: giac_poly::PolyError) -> EvalError {
     match e {
         giac_poly::PolyError::DivisionByZero => EvalError::DivisionByZero,

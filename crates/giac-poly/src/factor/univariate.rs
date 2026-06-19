@@ -1,3 +1,9 @@
+//! Univariate factorization over ℚ: rational roots, quadratics, Zassenhaus, low-degree patterns.
+//!
+//! **Stable (bounded):** `factor_univariate_flat`, `factor_univariate_pairs`, `factor_power_pairs`.
+//! **Partial:** `try_factor_biquadratic`, `try_factor_two_cubics`.
+//! **Pipeline private:** `find_rational_root`, `factor_square_free`, `factor_quadratic`, …
+
 use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::{One, Zero};
@@ -14,7 +20,7 @@ use super::util::{
     ratio_perfect_sqrt,
 };
 
-/// Flat irreducible (or fully split) factor list.
+/// **Partial** — Flat irreducible (or fully split) factor list.
 pub fn factor_univariate_flat(p: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
     let pairs = factor_univariate_pairs(p, var)?;
     let mut out = Vec::new();
@@ -26,6 +32,7 @@ pub fn factor_univariate_flat(p: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
     Ok(out)
 }
 
+/// **Partial** — pairs with multiplicity
 pub fn factor_univariate_pairs(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>> {
     if p.is_zero() {
         return Err(PolyError::TypeError("zero polynomial"));
@@ -65,6 +72,7 @@ pub fn factor_univariate_pairs(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usi
     Ok(out)
 }
 
+// **Pipeline private** — `factor_square_free`
 fn factor_square_free(g: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
     if g.is_one() {
         return Ok(vec![]);
@@ -118,6 +126,7 @@ fn factor_square_free(g: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
     Ok(vec![g.clone()])
 }
 
+// **Pipeline private** — `factor_by_rational_roots`
 fn factor_by_rational_roots(p: &Poly, var: &Var) -> Option<Vec<Poly>> {
     let pairs = factor_power_pairs_core(p, var).ok()?;
     let mut out = Vec::new();
@@ -129,6 +138,7 @@ fn factor_by_rational_roots(p: &Poly, var: &Var) -> Option<Vec<Poly>> {
     Some(out)
 }
 
+/// **Stable (bounded)** — factors with multiplicities
 pub fn factor_power_pairs(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>> {
     if p.is_zero() {
         return Err(PolyError::TypeError("zero polynomial"));
@@ -152,6 +162,7 @@ pub fn factor_power_pairs(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>>
     Ok(out)
 }
 
+// **Pipeline private** — `factor_power_pairs_core`
 fn factor_power_pairs_core(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>> {
     let mut rest = p.clone();
     let mut factors = Vec::new();
@@ -203,6 +214,7 @@ fn factor_power_pairs_core(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>
     Err(PolyError::NotImplemented("factor"))
 }
 
+// **Pipeline private** — rational root via rational root theorem
 pub(crate) fn find_rational_root(p: &Poly, var: &Var) -> Option<Ratio<BigInt>> {
     let deg = univariate_degree(p, var);
     if deg == 0 {
@@ -229,6 +241,7 @@ pub(crate) fn find_rational_root(p: &Poly, var: &Var) -> Option<Ratio<BigInt>> {
     None
 }
 
+// **Pipeline private** — `factor_quadratic`
 fn factor_quadratic(p: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
     let mut a = Ratio::zero();
     let mut b = Ratio::zero();
@@ -258,6 +271,7 @@ fn factor_quadratic(p: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
     Ok(vec![p.clone()])
 }
 
+// **Pipeline private** — optional fallback `try_factor_biquadratic`
 fn try_factor_biquadratic(p: &Poly, var: &Var) -> Option<Vec<(Poly, usize)>> {
     if univariate_degree(p, var) != 4 {
         return None;
@@ -298,6 +312,7 @@ fn try_factor_biquadratic(p: &Poly, var: &Var) -> Option<Vec<(Poly, usize)>> {
     None
 }
 
+// **Pipeline private** — `monic_cubic_poly`
 fn monic_cubic_poly(var: &Var, a2: i64, a1: i64, a0: i64) -> Poly {
     let x = Poly::var(var.clone());
     let mut out = x.pow(3);
@@ -314,6 +329,7 @@ fn monic_cubic_poly(var: &Var, a2: i64, a1: i64, a0: i64) -> Poly {
 }
 
 /// Split a degree-6 square-free polynomial into two monic cubics (Issue 3.1 MVP).
+// **Pipeline private** — optional fallback `try_factor_two_cubics`
 fn try_factor_two_cubics(p: &Poly, var: &Var) -> Option<Vec<Poly>> {
     if univariate_degree(p, var) != 6 {
         return None;
@@ -355,6 +371,7 @@ fn try_factor_two_cubics(p: &Poly, var: &Var) -> Option<Vec<Poly>> {
     None
 }
 
+// **Stable** — coeff * var^exp as Poly
 fn term_with_var(coeff: &Poly, var: &Var, exp: u64) -> Poly {
     if exp == 0 {
         return coeff.clone();

@@ -1,3 +1,7 @@
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
+//!
 use std::collections::BTreeMap;
 
 use num_bigint::BigInt;
@@ -15,18 +19,21 @@ pub struct Poly {
 }
 
 impl Poly {
+    /// **Stable** — Poly zero
     pub fn zero() -> Self {
         Self {
             terms: BTreeMap::new(),
         }
     }
 
+    /// **Stable** — Poly one
     pub fn one() -> Self {
         let mut terms = BTreeMap::new();
         terms.insert(Monomial::one(), Ratio::one());
         Self { terms }
     }
 
+    /// **Stable** — Poly scalar constant
     pub fn constant(c: Ratio<BigInt>) -> Self {
         if c.is_zero() {
             return Self::zero();
@@ -36,16 +43,19 @@ impl Poly {
         Self { terms }
     }
 
+    /// **Stable** — Poly univariate generator
     pub fn var(name: impl Into<Var>) -> Self {
         Self {
             terms: [(Monomial::var(name), Ratio::one())].into(),
         }
     }
 
+    /// **Stable** — Poly is zero
     pub fn is_zero(&self) -> bool {
         self.terms.is_empty()
     }
 
+    /// **Stable** — Poly is one
     pub fn is_one(&self) -> bool {
         self.terms.len() == 1
             && self
@@ -54,15 +64,18 @@ impl Poly {
                 .is_some_and(|c| c.is_one())
     }
 
+    /// **Stable** — leading term by total degree
     pub fn leading_term(&self) -> Option<(&Monomial, &Ratio<BigInt>)> {
         self.terms.iter().next_back()
     }
 
     /// Leading term in lex order induced by `var_order` (first variable is greatest).
+    /// **Stable** — leading term with variable order
     pub fn leading_term_lex(&self, var_order: &[Var]) -> Option<(&Monomial, &Ratio<BigInt>)> {
         self.terms.iter().max_by(|(m1, _), (m2, _)| m1.cmp_lex(m2, var_order))
     }
 
+    /// **Stable** — monomial × coefficient
     pub fn term(monom: Monomial, coeff: Ratio<BigInt>) -> Self {
         if coeff.is_zero() {
             return Self::zero();
@@ -72,10 +85,12 @@ impl Poly {
         }
     }
 
+    /// **Stable** — total degree
     pub fn degree(&self) -> u64 {
         self.terms.keys().map(Monomial::degree).max().unwrap_or(0)
     }
 
+    /// **Stable** — Poly addition
     pub fn add(&self, other: &Self) -> Self {
         let mut terms = self.terms.clone();
         for (m, c) in &other.terms {
@@ -88,6 +103,7 @@ impl Poly {
         Self { terms }
     }
 
+    /// **Stable** — Poly subtraction
     pub fn sub(&self, other: &Self) -> Self {
         let mut terms = self.terms.clone();
         for (m, c) in &other.terms {
@@ -100,6 +116,7 @@ impl Poly {
         Self { terms }
     }
 
+    /// **Stable** — Poly negation
     pub fn neg(&self) -> Self {
         let terms = self
             .terms
@@ -109,6 +126,7 @@ impl Poly {
         Self { terms }
     }
 
+    /// **Stable** — Poly multiplication
     pub fn mul(&self, other: &Self) -> Self {
         let mut out = BTreeMap::new();
         for (m1, c1) in &self.terms {
@@ -121,6 +139,7 @@ impl Poly {
         Self { terms: out }
     }
 
+    /// **Stable** — scale Poly by rational
     pub fn mul_scalar(&self, s: &Ratio<BigInt>) -> Self {
         if s.is_zero() {
             return Self::zero();
@@ -133,6 +152,7 @@ impl Poly {
         Self { terms }
     }
 
+    /// **Stable** — Poly integer power
     pub fn pow(&self, exp: u64) -> Self {
         if exp == 0 {
             return Self::one();
@@ -150,6 +170,7 @@ impl Poly {
         result
     }
 
+    /// **Stable** — integer content of Poly
     pub fn content(&self) -> Ratio<BigInt> {
         let mut g = Ratio::zero();
         for c in self.terms.values() {
@@ -162,6 +183,7 @@ impl Poly {
         g
     }
 
+    /// **Stable** — divide out content
     pub fn primitive_part(&self) -> Self {
         let c = self.content();
         if c.is_zero() || c.is_one() {
@@ -170,6 +192,7 @@ impl Poly {
         self.mul_scalar(&(&Ratio::one() / &c))
     }
 
+    /// **Stable** — divide by leading coeff
     pub fn monic(&self) -> Self {
         if let Some((_, lc)) = self.leading_term() {
             if lc.is_one() {
@@ -180,6 +203,7 @@ impl Poly {
         self.clone()
     }
 
+    /// **Stable** — multivariate division with remainder
     pub fn div_rem(&self, divisor: &Self) -> (Self, Self) {
         if divisor.is_zero() {
             return (Self::zero(), self.clone());
@@ -213,6 +237,7 @@ impl Poly {
         (quotient, remainder)
     }
 
+    /// **Stable** — exact division if remainder zero
     pub fn div_exact(&self, divisor: &Self) -> Option<Self> {
         let (q, r) = self.div_rem(divisor);
         if r.is_zero() {
@@ -222,10 +247,12 @@ impl Poly {
         }
     }
 
+    /// **Stable** — Poly gcd via subresultant
     pub fn gcd(&self, other: &Self) -> Self {
         crate::subresultant::subresultant_gcd(self, other)
     }
 
+    /// **Stable** — Poly lcm
     pub fn lcm(&self, other: &Self) -> Self {
         if self.is_zero() {
             return other.clone();
@@ -243,6 +270,7 @@ impl Poly {
         self.mul(other).div_rem(&g).0.monic()
     }
 
+    /// **Stable** — Horner eval at rational point
     pub fn horner(&self, var: &Var, x: &Ratio<BigInt>) -> Ratio<BigInt> {
         let mut coeffs: BTreeMap<u64, Ratio<BigInt>> = BTreeMap::new();
         for (m, c) in &self.terms {
@@ -276,6 +304,7 @@ pub(crate) fn integer_content_gcd(a: &Ratio<BigInt>, b: &Ratio<BigInt>) -> Ratio
     Ratio::new(g_num, g_den)
 }
 
+/// **Stable** — exact quotient Poly/ Poly
 pub fn quo(a: &Poly, b: &Poly) -> PolyResult<Poly> {
     if b.is_zero() {
         return Err(PolyError::DivisionByZero);
@@ -283,6 +312,7 @@ pub fn quo(a: &Poly, b: &Poly) -> PolyResult<Poly> {
     Ok(a.div_rem(b).0)
 }
 
+/// **Stable** — remainder Poly/ Poly
 pub fn rem(a: &Poly, b: &Poly) -> PolyResult<Poly> {
     if b.is_zero() {
         return Err(PolyError::DivisionByZero);
@@ -290,6 +320,7 @@ pub fn rem(a: &Poly, b: &Poly) -> PolyResult<Poly> {
     Ok(a.div_rem(b).1)
 }
 
+/// **Stable** — extended gcd (s,t,g)
 pub fn egcd(a: &Poly, b: &Poly) -> (Poly, Poly, Poly) {
     let mut old_r = a.clone();
     let mut r = b.clone();
@@ -312,12 +343,14 @@ pub fn egcd(a: &Poly, b: &Poly) -> (Poly, Poly, Poly) {
     (old_r.monic(), old_s, old_t)
 }
 
+/// **Stable** — reduce fraction pair by gcd
 pub fn simp2(num: &Poly, den: &Poly) -> (Poly, Poly) {
     let g = num.gcd(den);
     (num.div_rem(&g).0, den.div_rem(&g).0)
 }
 
 /// Extended gcd solving a*u + b*v = c when c divides gcd(a,b).
+/// **Stable** — Bezout coeffs for au+bv=c
 pub fn abcuv(a: &Poly, b: &Poly, c: &Poly) -> PolyResult<(Poly, Poly)> {
     let (g, u, v) = egcd(a, b);
     let (q, r) = c.div_rem(&g);

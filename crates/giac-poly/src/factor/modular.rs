@@ -1,3 +1,8 @@
+//! Display-level factorization mod p: `Poly` → `PolyMod` → `factor_fpx` → lift back.
+//!
+//! **Stable:** `factor_poly_mod`.
+//! **Pipeline private:** `modpoly_to_poly`.
+
 use num_bigint::BigInt;
 
 use crate::error::PolyError;
@@ -8,7 +13,7 @@ use crate::poly::Poly;
 use super::cyclotomic::is_xn_minus_one_poly;
 use super::fpx::factor_fpx;
 
-/// Factor over ℤ/pℤ then lift display (giac `mod_factor` subset).
+/// **Stable** — Factor over ℤ/pℤ then lift display (giac `mod_factor` subset).
 pub fn factor_poly_mod(p: &Poly, modulus: i64) -> Result<Poly, PolyError> {
     if modulus == 2 && is_xn_minus_one_poly(p, &Var::from("x"), 4) {
         let x = Poly::var("x");
@@ -26,6 +31,7 @@ pub fn factor_poly_mod(p: &Poly, modulus: i64) -> Result<Poly, PolyError> {
     Ok(modpoly_to_poly(&out, modulus))
 }
 
+// **Pipeline private** — PolyMod → Poly over ℤ/pℤ for display
 pub(crate) fn modpoly_to_poly(p: &PolyMod, modulus: i64) -> Poly {
     let mut terms = std::collections::BTreeMap::new();
     for (m, c) in &p.terms {

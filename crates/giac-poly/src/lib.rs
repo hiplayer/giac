@@ -1,5 +1,7 @@
 #![deny(unsafe_code)]
-
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
 mod subresultant;
 mod tresultant;
 mod univariate;

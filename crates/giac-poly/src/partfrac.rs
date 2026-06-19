@@ -1,3 +1,7 @@
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
+//!
 use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::Signed;
@@ -13,6 +17,7 @@ use crate::poly::Poly;
 use crate::resultant::{coeff_at, univariate_degree};
 use crate::univariate::square_free_factorization;
 /// Partial fraction terms `(coeff, denominator factor)` for `num/den` in `var`.
+/// **Stable (bounded)** — partial fraction terms
 pub fn partfrac_terms(
     num: &Poly,
     den: &Poly,
@@ -31,6 +36,7 @@ pub fn partfrac_terms(
 }
 
 /// Partial fractions with polynomial numerators `(numer, denom_factor)`.
+/// **Stable (bounded)** — partfrac with poly part
 pub fn partfrac_rational_terms(
     num: &Poly,
     den: &Poly,
@@ -82,11 +88,13 @@ pub fn partfrac_rational_terms(
     Ok((poly_part, drop_zero_numerators(terms)))
 }
 
+// **Pipeline private** — `drop_zero_numerators`
 fn drop_zero_numerators(terms: Vec<(Poly, Poly)>) -> Vec<(Poly, Poly)> {
     terms.into_iter().filter(|(n, _)| !n.is_zero()).collect()
 }
 
 /// Partial fractions via square-free factorization (GIAC-224).
+// **Pipeline private** — `partfrac_by_square_free`
 fn partfrac_by_square_free(
     num: &Poly,
     den: &Poly,
@@ -135,6 +143,7 @@ fn partfrac_by_square_free(
 }
 
 /// Partial fractions with numerators up to `deg(g)-1` for each `g^j` term.
+// **Pipeline private** — `partfrac_affine_power_system`
 fn partfrac_affine_power_system(
     num: &Poly,
     den: &Poly,
@@ -189,6 +198,7 @@ fn partfrac_affine_power_system(
 }
 
 /// Square-free factors with multiplicity; rational roots when Yun sqff stalls.
+// **Pipeline private** — `denominator_power_factors`
 fn denominator_power_factors(den: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>> {
     if let Ok(factors) = square_free_factorization(den, var) {
         let deg_ok = factors
@@ -206,6 +216,7 @@ fn denominator_power_factors(den: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usi
 }
 
 /// Split square-free factors of degree > 2 into linear/quadratic pieces.
+// **Pipeline private** — `expand_sqff_factors`
 fn expand_sqff_factors(
     sqff: &[(Poly, usize)],
     var: &Var,
@@ -244,6 +255,7 @@ fn expand_sqff_factors(
     Ok(out)
 }
 
+// **Pipeline private** — `partfrac_square_free_affine_numerators`
 fn partfrac_square_free_affine_numerators(
     num: &Poly,
     den: &Poly,
@@ -299,6 +311,7 @@ fn partfrac_square_free_affine_numerators(
     Ok(out)
 }
 
+// **Pipeline private** — `partfrac_one_quadratic`
 fn partfrac_one_quadratic(num: &Poly, quad: &Poly, var: &Var) -> PolyResult<Vec<(Poly, Poly)>> {
     let c = coeff_at(num, var, 0);
     let a = coeff_at(quad, var, 2);
@@ -318,6 +331,7 @@ fn partfrac_one_quadratic(num: &Poly, quad: &Poly, var: &Var) -> PolyResult<Vec<
     Ok(vec![(quad_numer, quad.clone())])
 }
 
+// **Pipeline private** — `solve_linear_system`
 fn solve_linear_system(
     matrix: &[Vec<Ratio<BigInt>>],
     rhs: &[Ratio<BigInt>],
@@ -362,6 +376,7 @@ fn solve_linear_system(
     Some(b)
 }
 
+// **Pipeline private** — `partfrac_mixed_affine`
 fn partfrac_mixed_affine(
     num: &Poly,
     factors: &[Poly],
@@ -372,6 +387,7 @@ fn partfrac_mixed_affine(
     partfrac_square_free_affine_numerators(num, &den, var, &sqff)
 }
 
+// **Pipeline private** — `linear_root`
 fn linear_root(f: &Poly, var: &Var) -> PolyResult<Ratio<BigInt>> {
     let a = coeff_at(f, var, 1);
     if a.is_zero() {

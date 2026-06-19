@@ -1,3 +1,7 @@
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-simplify-api-stability.md`.
+//!
+//!
 use std::sync::Arc;
 
 use num_bigint::BigInt;
@@ -19,6 +23,7 @@ pub fn factor(expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
     factor_expr(expr, ctx)
 }
 
+// **Pipeline private** — recursive factor on Mul/Pow/Frac
 fn factor_expr(e: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
     match e {
         Expr::Mul(factors) => {
@@ -62,6 +67,7 @@ fn factor_expr(e: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
     }
 }
 
+// **Pipeline private** — flatten Mul to factor vec
 fn flatten_mul(e: &Expr) -> Vec<ExprArc> {
     match e {
         Expr::Mul(fs) => fs.clone(),
@@ -69,6 +75,7 @@ fn flatten_mul(e: &Expr) -> Vec<ExprArc> {
     }
 }
 
+// **Pipeline private** — normal→poly→factor_into chain
 fn factor_poly_form(e: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
     if let Ok((num, den)) = rational_num_den(e) {
         if !den.is_one() {
@@ -105,6 +112,7 @@ fn factor_poly_form(e: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
     Ok(poly_to_expr(&factor_poly(&p)))
 }
 
+// **Temporary** — Partial internal: quadratic → rootof when discriminant non-square.
 fn try_factor_quadratic_rootof(p: &Poly) -> Option<Vec<ExprArc>> {
     let vars = vars_in(p);
     if vars.len() != 1 {
@@ -156,6 +164,7 @@ fn try_factor_quadratic_rootof(p: &Poly) -> Option<Vec<ExprArc>> {
     Some(factors)
 }
 
+// **Pipeline private** — Poly → Poly1 minpoly Expr
 fn poly1_from_univariate(poly: &Poly, var: &giac_poly::Var) -> ExprArc {
     let deg = univariate_degree(poly, var);
     let mut coeffs = Vec::with_capacity((deg + 1) as usize);
@@ -165,6 +174,7 @@ fn poly1_from_univariate(poly: &Poly, var: &giac_poly::Var) -> ExprArc {
     Expr::func(FuncKind::Poly1, vec![Arc::new(Expr::Seq(coeffs))])
 }
 
+// **Temporary** — Partial internal: `ctx.with_sqrt` quadratic sqrt factors.
 fn try_factor_quadratic_sqrt(p: &Poly) -> Option<Vec<ExprArc>> {
     let vars = vars_in(p);
     if vars.len() != 1 {
@@ -213,6 +223,7 @@ fn try_factor_quadratic_sqrt(p: &Poly) -> Option<Vec<ExprArc>> {
     ])
 }
 
+// **Pipeline private** — Expr leaf to (num,den) Poly
 fn rational_num_den(e: &Expr) -> Result<(Poly, Poly), EvalError> {
     match e {
         Expr::Pow(base, exp) if matches!(exp.as_ref(), Expr::Int(n) if n == &-BigInt::from(1)) => {

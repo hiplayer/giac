@@ -1,30 +1,38 @@
-//! Issue 2.4: regression tests mapped from upstream `check/testfactor`.
+//! Regression tests mapped from upstream `check/testfactor` (Issue 2.3/2.4).
+//!
+//! L20/L22 仍 `#[ignore]`（FAC-G2/G3）。测试辅助 `x()`, `y()`, `assert_factors` 为 Pipeline private。
 
 use crate::monomial::Var;
 use crate::poly::Poly;
 
 use super::multivariate::factor_multivariate;
 
+// **Pipeline private** — `x`
 fn x() -> Poly {
     Poly::var("x")
 }
 
+// **Pipeline private** — `y`
 fn y() -> Poly {
     Poly::var("y")
 }
 
+// **Pipeline private** — `z`
 fn z() -> Poly {
     Poly::var("z")
 }
 
+// **Pipeline private** — `b_var`
 fn b_var() -> Poly {
     Poly::var("b")
 }
 
+// **Pipeline private** — `c_var`
 fn c_var() -> Poly {
     Poly::var("c")
 }
 
+// **Pipeline private** — `assert_factors`
 fn assert_factors(p: &Poly, min_count: usize) {
     let f = factor_multivariate(p).unwrap_or_else(|e| panic!("factor failed: {e:?}"));
     assert!(

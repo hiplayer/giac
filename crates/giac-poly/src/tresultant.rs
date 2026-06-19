@@ -1,5 +1,10 @@
 //! Parametric resultant Res_x(P(x,t), Q(x)) eliminating `x`, yielding a polynomial in `t`.
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
+//!
 use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::{One, Signed, Zero};
@@ -11,6 +16,7 @@ use crate::resultant::{coeff_at, resultant, univariate_degree};
 use crate::univariate::univariate_derivative;
 
 /// Build `num(x) - t * den'(x)` as a polynomial in `(x, t)`.
+/// **Stable** — RT numerator derivative
 pub fn num_minus_t_derivative(num: &Poly, den: &Poly, x: &Var, t: &Var) -> Poly {
     let dp = univariate_derivative(den, x);
     let mut p1 = embed_univariate_x(num, x);
@@ -25,6 +31,7 @@ pub fn num_minus_t_derivative(num: &Poly, den: &Poly, x: &Var, t: &Var) -> Poly 
     p1
 }
 
+// **Pipeline private** — `embed_univariate_x`
 fn embed_univariate_x(p: &Poly, x: &Var) -> Poly {
     let mut out = Poly::zero();
     for (m, c) in &p.terms {
@@ -36,6 +43,7 @@ fn embed_univariate_x(p: &Poly, x: &Var) -> Poly {
 }
 
 /// Resultant eliminating `x`; result is univariate in `t` (via interpolation).
+/// **Stable** — eliminate x via t-resultant
 pub fn tresultant_eliminate_x(a: &Poly, b: &Poly, x: &Var, t: &Var) -> PolyResult<Poly> {
     let da = univariate_degree(a, x);
     let db = univariate_degree(b, x);
@@ -58,6 +66,7 @@ pub fn tresultant_eliminate_x(a: &Poly, b: &Poly, x: &Var, t: &Var) -> PolyResul
     Ok(lagrange_poly(&samples, t))
 }
 
+// **Pipeline private** — `lagrange_poly`
 fn lagrange_poly(samples: &[(Ratio<BigInt>, Ratio<BigInt>)], t: &Var) -> Poly {
     let mut out = Poly::zero();
     let n = samples.len();
@@ -79,6 +88,7 @@ fn lagrange_poly(samples: &[(Ratio<BigInt>, Ratio<BigInt>)], t: &Var) -> Poly {
 }
 
 /// Evaluate `p(x,t)` at `t = alpha`, returning a univariate polynomial in `x`.
+/// **Stable** — substitute parameter in Poly
 pub fn eval_param_poly(p: &Poly, t: &Var, alpha: &Ratio<BigInt>, x: &Var) -> Poly {
     let mut out = Poly::zero();
     for (m, c) in &p.terms {
@@ -99,6 +109,7 @@ pub fn eval_param_poly(p: &Poly, t: &Var, alpha: &Ratio<BigInt>, x: &Var) -> Pol
 }
 
 /// Rational roots of a univariate polynomial in `t` (degree ≤ 4).
+/// **Stable** — rational roots in parameter t
 pub fn rational_roots_in_t(p: &Poly, t: &Var) -> PolyResult<Vec<Ratio<BigInt>>> {
     let d = univariate_degree(p, t);
     if d == 0 {
@@ -122,6 +133,7 @@ pub fn rational_roots_in_t(p: &Poly, t: &Var) -> PolyResult<Vec<Ratio<BigInt>>> 
     Ok(roots)
 }
 
+// **Pipeline private** — `eval_univariate_at_t`
 fn eval_univariate_at_t(p: &Poly, t: &Var, val: &Ratio<BigInt>) -> Ratio<BigInt> {
     let mut sum = Ratio::zero();
     for (m, c) in &p.terms {
@@ -138,6 +150,7 @@ fn eval_univariate_at_t(p: &Poly, t: &Var, val: &Ratio<BigInt>) -> Ratio<BigInt>
     sum
 }
 
+// **Pipeline private** — `rational_root_candidates`
 fn rational_root_candidates(p: &Poly, t: &Var) -> Vec<Ratio<BigInt>> {
     let d = univariate_degree(p, t);
     if d == 0 {
@@ -169,6 +182,7 @@ fn rational_root_candidates(p: &Poly, t: &Var) -> Vec<Ratio<BigInt>> {
     out
 }
 
+// **Pipeline private** — `push_divisors`
 fn push_divisors(n: &BigInt, out: &mut Vec<BigInt>) {
     if n.is_zero() {
         return;
@@ -206,6 +220,7 @@ pub struct ConjugatePair {
 }
 
 /// Conjugate-root pairs for even `Res_t` of degree 4 with no rational roots.
+/// **Partial** — RT biquadratic resolvent
 pub fn biquadratic_res_conjugate_pairs(p: &Poly, t: &Var) -> PolyResult<Vec<ConjugatePair>> {
     if univariate_degree(p, t) != 4 {
         return Ok(vec![]);
@@ -237,10 +252,12 @@ pub fn biquadratic_res_conjugate_pairs(p: &Poly, t: &Var) -> PolyResult<Vec<Conj
 }
 
 /// Legacy alias for pure `a·t⁴ + c` resultants.
+/// **Partial** — RT biquartic resolvent
 pub fn biquartic_conjugate_pairs(p: &Poly, t: &Var) -> PolyResult<Vec<ConjugatePair>> {
     biquadratic_res_conjugate_pairs(p, t)
 }
 
+// **Pipeline private** — `pairs_from_symmetric_res_factors`
 fn pairs_from_symmetric_res_factors(k: &Ratio<BigInt>, m: &Ratio<BigInt>) -> Vec<ConjugatePair> {
     let disc = m.clone() * m.clone() - Ratio::from_integer(BigInt::from(4)) * k.clone();
     if disc >= Ratio::zero() {
@@ -271,6 +288,7 @@ fn pairs_from_symmetric_res_factors(k: &Ratio<BigInt>, m: &Ratio<BigInt>) -> Vec
 }
 
 /// Write `√r = coeff · √rad` with squarefree `rad`.
+// **Pipeline private** — `sqrt_rational_coeff_radicand`
 fn sqrt_rational_coeff_radicand(r: &Ratio<BigInt>) -> (Ratio<BigInt>, u64) {
     if let Some(s) = ratio_perfect_sqrt(r) {
         return (s, 1);
@@ -285,6 +303,7 @@ fn sqrt_rational_coeff_radicand(r: &Ratio<BigInt>) -> (Ratio<BigInt>, u64) {
     (coeff, rad)
 }
 
+// **Pipeline private** — `extract_sqrt_factor`
 fn extract_sqrt_factor(n: &BigInt) -> (BigInt, BigInt) {
     let mut outer = BigInt::one();
     let mut inner = n.abs();
@@ -308,6 +327,7 @@ fn extract_sqrt_factor(n: &BigInt) -> (BigInt, BigInt) {
     (outer, inner)
 }
 
+// **Pipeline private** — `pure_biquartic_res_pairs`
 fn pure_biquartic_res_pairs(a: &Ratio<BigInt>, c: &Ratio<BigInt>) -> PolyResult<Vec<ConjugatePair>> {
     let t4 = -c.clone() / a.clone();
     if t4 >= Ratio::zero() {
@@ -340,6 +360,7 @@ fn pure_biquartic_res_pairs(a: &Ratio<BigInt>, c: &Ratio<BigInt>) -> PolyResult<
     Ok(pairs)
 }
 
+// **Stable** — detect perfect square Ratio
 fn ratio_perfect_sqrt(r: &Ratio<BigInt>) -> Option<Ratio<BigInt>> {
     if r.is_zero() {
         return Some(Ratio::zero());
@@ -349,6 +370,7 @@ fn ratio_perfect_sqrt(r: &Ratio<BigInt>) -> Option<Ratio<BigInt>> {
     Some(Ratio::new(sn, sd))
 }
 
+// **Pipeline private** — `integer_perfect_sqrt`
 fn integer_perfect_sqrt(n: &BigInt) -> Option<BigInt> {
     if n.is_negative() {
         return None;

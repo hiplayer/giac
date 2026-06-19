@@ -1,7 +1,12 @@
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
+//!
 use crate::error::{PolyError, PolyResult};
 use crate::poly::{egcd, Poly};
 
 /// Polynomial CRT: find `r` with `r ≡ a1 (mod m1)` and `r ≡ a2 (mod m2)`.
+/// **Stable** — Chinese remainder two residues
 pub fn chinrem(a1: &Poly, a2: &Poly, m1: &Poly, m2: &Poly) -> PolyResult<Poly> {
     let (g, s, _t) = egcd(m1, m2);
     if !g.is_one() {
@@ -15,6 +20,7 @@ pub fn chinrem(a1: &Poly, a2: &Poly, m1: &Poly, m2: &Poly) -> PolyResult<Poly> {
 }
 
 /// Combine parallel lists of residues/moduli; returns `[solution, m1*m2*...]`.
+/// **Stable** — CRT fold over lists
 pub fn chinrem_lists(residues: &[Poly], moduli: &[Poly]) -> PolyResult<(Poly, Poly)> {
     if residues.len() != moduli.len() || residues.is_empty() {
         return Err(PolyError::TypeError("chinrem list length"));

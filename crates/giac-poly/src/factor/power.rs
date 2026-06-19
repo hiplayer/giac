@@ -1,3 +1,8 @@
+//! Perfect-power detection: `(base)^exp` and `(linear)^n` shapes before general factor.
+//!
+//! **Stable:** `as_perfect_power`, `try_linear_power`.
+//! **Pipeline private:** `try_nth_root`, `try_binomial_square`.
+
 use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::{One, Zero};
@@ -8,7 +13,7 @@ use crate::resultant::coeff_at;
 
 use super::util::{integer_nth_root, rational_nth_root};
 
-/// If `p` is a perfect power, return `(base, exponent)`.
+/// **Stable** — If `p` is a perfect power, return `(base, exponent)`.
 pub fn as_perfect_power(p: &Poly) -> Option<(Poly, u64)> {
     if p.degree() <= 1 {
         return None;
@@ -29,6 +34,7 @@ pub fn as_perfect_power(p: &Poly) -> Option<(Poly, u64)> {
     None
 }
 
+// **Pipeline private** — optional fallback `try_nth_root`
 fn try_nth_root(p: &Poly, exp: u64) -> Option<Poly> {
     if p.terms.len() == 1 {
         return None;
@@ -50,6 +56,7 @@ fn try_nth_root(p: &Poly, exp: u64) -> Option<Poly> {
     None
 }
 
+// **Pipeline private** — optional fallback `try_binomial_square`
 fn try_binomial_square(p: &Poly) -> Option<Poly> {
     let d = p.degree();
     if d % 2 != 0 {
@@ -79,6 +86,7 @@ fn try_binomial_square(p: &Poly) -> Option<Poly> {
     }
 }
 
+/// **Partial** — detect (linear)^n
 pub fn try_linear_power(p: &Poly, var: &Var) -> Option<(Poly, u64)> {
     if let Some((base, exp)) = as_perfect_power(p) {
         if crate::resultant::univariate_degree(&base, var) == 1 {

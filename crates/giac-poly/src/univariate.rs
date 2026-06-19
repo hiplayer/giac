@@ -1,3 +1,7 @@
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
+//!
 use num_bigint::BigInt;
 use num_integer::Integer;
 use num_rational::Ratio;
@@ -8,11 +12,13 @@ use crate::monomial::Var;
 use crate::poly::Poly;
 use crate::resultant::{coeff_at, univariate_degree};
 
+// **Pipeline private** — `univariate_coeffs`
 fn univariate_coeffs(p: &Poly, var: &Var) -> Vec<Ratio<BigInt>> {
     let deg = univariate_degree(p, var);
     (0..=deg).map(|e| coeff_at(p, var, e)).collect()
 }
 
+// **Pipeline private** — `trim_coeffs`
 fn trim_coeffs(coeffs: &[Ratio<BigInt>]) -> Vec<Ratio<BigInt>> {
     let mut out = coeffs.to_vec();
     while out.len() > 1 && out.last().is_some_and(|c| c.is_zero()) {
@@ -25,6 +31,7 @@ fn trim_coeffs(coeffs: &[Ratio<BigInt>]) -> Vec<Ratio<BigInt>> {
     }
 }
 
+// **Pipeline private** — `poly_from_coeffs`
 fn poly_from_coeffs(var: &Var, coeffs: &[Ratio<BigInt>]) -> Poly {
     let mut out = Poly::zero();
     for (e, c) in coeffs.iter().enumerate() {
@@ -41,6 +48,7 @@ fn poly_from_coeffs(var: &Var, coeffs: &[Ratio<BigInt>]) -> Poly {
     out
 }
 
+// **Pipeline private** — `univariate_div_rem`
 fn univariate_div_rem(
     a: &[Ratio<BigInt>],
     b: &[Ratio<BigInt>],
@@ -79,6 +87,7 @@ fn univariate_div_rem(
     (trim_coeffs(&q), r)
 }
 
+// **Pipeline private** — `coeffs_to_integer_primitive`
 fn coeffs_to_integer_primitive(coeffs: &[Ratio<BigInt>]) -> Vec<BigInt> {
     if coeffs.is_empty() {
         return vec![BigInt::zero()];
@@ -110,10 +119,12 @@ fn coeffs_to_integer_primitive(coeffs: &[Ratio<BigInt>]) -> Vec<BigInt> {
     ic
 }
 
+// **Pipeline private** — `is_zero_int`
 fn is_zero_int(c: &[BigInt]) -> bool {
     trim_int(c) == vec![BigInt::zero()]
 }
 
+// **Pipeline private** — `int_exact_div_rem`
 fn int_exact_div_rem(a: &[BigInt], b: &[BigInt]) -> (Vec<BigInt>, Vec<BigInt>) {
     let mut r = trim_int(a);
     let b = trim_int(b);
@@ -149,6 +160,7 @@ fn int_exact_div_rem(a: &[BigInt], b: &[BigInt]) -> (Vec<BigInt>, Vec<BigInt>) {
     (trim_int(&q), r)
 }
 
+// **Pipeline private** — `pseudo_remainder`
 fn pseudo_remainder(a: &[BigInt], b: &[BigInt]) -> Vec<BigInt> {
     let a = trim_int(a);
     let b = trim_int(b);
@@ -169,6 +181,7 @@ fn pseudo_remainder(a: &[BigInt], b: &[BigInt]) -> Vec<BigInt> {
 }
 
 
+// **Pipeline private** — `trim_int`
 fn trim_int(c: &[BigInt]) -> Vec<BigInt> {
     let mut out = c.to_vec();
     while out.len() > 1 && out.last().is_some_and(|v| v.is_zero()) {
@@ -181,6 +194,7 @@ fn trim_int(c: &[BigInt]) -> Vec<BigInt> {
     }
 }
 
+// **Pipeline private** — `poly_from_int_coeffs`
 fn poly_from_int_coeffs(var: &Var, coeffs: &[BigInt]) -> Poly {
     let trimmed = trim_int(coeffs);
     let ratios: Vec<Ratio<BigInt>> = trimmed
@@ -190,6 +204,7 @@ fn poly_from_int_coeffs(var: &Var, coeffs: &[BigInt]) -> Poly {
     monic_univariate(var, &ratios)
 }
 
+// **Pipeline private** — `monic_univariate`
 fn monic_univariate(var: &Var, coeffs: &[Ratio<BigInt>]) -> Poly {
     let trimmed = trim_coeffs(coeffs);
     let lc = trimmed.last().cloned().unwrap_or_else(Ratio::zero);
@@ -202,6 +217,7 @@ fn monic_univariate(var: &Var, coeffs: &[Ratio<BigInt>]) -> Poly {
 }
 
 /// ∂p/∂x for univariate `p` in `var`.
+/// **Stable** — derivative w.r.t. var
 pub fn univariate_derivative(p: &Poly, var: &Var) -> Poly {
     let deg = univariate_degree(p, var);
     let mut out = Poly::zero();
@@ -222,6 +238,7 @@ pub fn univariate_derivative(p: &Poly, var: &Var) -> Poly {
 }
 
 /// Square-free factorization `p = ∏ f_k^k` (giac `Tsqff_char0`).
+/// **Stable** — Yun square-free factors
 pub fn square_free_factorization(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>> {
     if p.is_zero() {
         return Err(PolyError::TypeError("zero polynomial"));
@@ -249,6 +266,7 @@ pub fn square_free_factorization(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, u
 }
 
 /// Product of distinct square-free factors (`p = ∏ f_k^k` → `∏ f_k`).
+/// **Stable** — product of square-free factors
 pub fn square_free_part(p: &Poly, var: &Var) -> PolyResult<Poly> {
     if p.is_zero() {
         return Err(PolyError::TypeError("zero polynomial"));
@@ -261,6 +279,7 @@ pub fn square_free_part(p: &Poly, var: &Var) -> PolyResult<Poly> {
 }
 
 /// Substitute `var -> sub` in univariate polynomial `p`.
+/// **Stable** — substitute var → Poly
 pub fn substitute_univariate(p: &Poly, var: &Var, sub: &Poly) -> Poly {
     let d = univariate_degree(p, var);
     let mut out = Poly::zero();
@@ -275,6 +294,7 @@ pub fn substitute_univariate(p: &Poly, var: &Var, sub: &Poly) -> Poly {
 }
 
 /// Product of square-free factors with odd multiplicity (giac `sturm` / `sturmab` convention).
+/// **Stable** — odd multiplicity factor
 pub fn odd_multiplicity_part(p: &Poly, var: &Var) -> PolyResult<Poly> {
     if p.is_zero() {
         return Err(PolyError::TypeError("zero polynomial"));
@@ -296,6 +316,7 @@ pub fn odd_multiplicity_part(p: &Poly, var: &Var) -> PolyResult<Poly> {
     Ok(odd)
 }
 
+// **Pipeline private** — `odd_part_core`
 fn odd_part_core(p: &Poly, var: &Var) -> PolyResult<Poly> {
     let mut w = p.clone();
     let mut y = univariate_derivative(p, var);
@@ -320,10 +341,12 @@ fn odd_part_core(p: &Poly, var: &Var) -> PolyResult<Poly> {
 }
 
 /// Subresultant gcd for univariate polynomials in `var`.
+/// **Stable** — univariate gcd
 pub fn gcd_univariate(p: &Poly, q: &Poly, var: &Var) -> Poly {
     univariate_gcd(p, q, var)
 }
 
+// **Pipeline private** — `univariate_gcd`
 fn univariate_gcd(p: &Poly, q: &Poly, var: &Var) -> Poly {
     let mut a = coeffs_to_integer_primitive(&univariate_coeffs(p, var));
     let mut b = coeffs_to_integer_primitive(&univariate_coeffs(q, var));
@@ -346,6 +369,7 @@ fn univariate_gcd(p: &Poly, q: &Poly, var: &Var) -> Poly {
     }
 }
 
+// **Pipeline private** — `univariate_div_exact`
 fn univariate_div_exact(p: &Poly, d: &Poly, var: &Var) -> Option<Poly> {
     let (q, r) = univariate_div_rem(&univariate_coeffs(p, var), &univariate_coeffs(d, var));
     if r.len() == 1 && r[0].is_zero() {
@@ -355,6 +379,7 @@ fn univariate_div_exact(p: &Poly, d: &Poly, var: &Var) -> Option<Poly> {
     }
 }
 
+// **Pipeline private** — `gcd_reduce`
 fn gcd_reduce(w: &mut Poly, y: &mut Poly, var: &Var) -> Poly {
     let g = univariate_gcd(w, y, var);
     if !g.is_one() {
@@ -366,12 +391,14 @@ fn gcd_reduce(w: &mut Poly, y: &mut Poly, var: &Var) -> Poly {
     g
 }
 
+// **Pipeline private** — `univariate_rem`
 fn univariate_rem(a: &Poly, b: &Poly, var: &Var) -> Poly {
     let (_, r) = univariate_div_rem(&univariate_coeffs(a, var), &univariate_coeffs(b, var));
     poly_from_coeffs(var, &r)
 }
 
 /// Sturm sequence for univariate `p` (classical: P0=squarefree(p), P1=p', P_{i+1} = -rem(P_{i-1}, P_i)).
+/// **Stable** — Sturm chain
 pub fn sturm_sequence(p: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
     if univariate_degree(p, var) == 0 {
         return Err(PolyError::TypeError("constant polynomial"));
@@ -392,6 +419,7 @@ pub fn sturm_sequence(p: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
 }
 
 /// Evaluate univariate polynomial at a rational point.
+/// **Stable** — Horner eval
 pub fn eval_univariate_at(p: &Poly, var: &Var, x: &Ratio<BigInt>) -> Ratio<BigInt> {
     let deg = univariate_degree(p, var);
     let mut acc = Ratio::zero();
@@ -409,6 +437,7 @@ pub fn eval_univariate_at(p: &Poly, var: &Var, x: &Ratio<BigInt>) -> Ratio<BigIn
     acc
 }
 
+// **Pipeline private** — `sign_of_ratio`
 fn sign_of_ratio(r: &Ratio<BigInt>) -> i8 {
     if r.is_zero() {
         0
@@ -420,6 +449,7 @@ fn sign_of_ratio(r: &Ratio<BigInt>) -> i8 {
 }
 
 /// Count sign changes in `values`, skipping zeros (Sturm's theorem convention).
+/// **Stable** — sign change count in sequence
 pub fn sign_variations(values: &[Ratio<BigInt>]) -> usize {
     let signs: Vec<i8> = values
         .iter()
@@ -433,12 +463,14 @@ pub fn sign_variations(values: &[Ratio<BigInt>]) -> usize {
 }
 
 /// Sturm sign-variation count V(a) for sequence `seq` at point `a`.
+/// **Stable** — Sturm sign count at point
 pub fn sturm_sign_variations_at(seq: &[Poly], var: &Var, a: &Ratio<BigInt>) -> usize {
     let values: Vec<_> = seq.iter().map(|p| eval_univariate_at(p, var, a)).collect();
     sign_variations(&values)
 }
 
 /// Root count in `(a, b]` per giac `sturmab` (odd-multiplicity factors only).
+/// **Stable** — root count in (a,b)
 pub fn sturmab_count(
     p: &Poly,
     var: &Var,

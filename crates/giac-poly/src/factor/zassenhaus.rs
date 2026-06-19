@@ -1,6 +1,7 @@
-//! Univariate factorization over ℚ via Zassenhaus (GIAC `modfactor.cc` Phase B).
+//! Univariate Zassenhaus + modular Hensel lifting (integer poly → factors over ℚ).
 //!
-//! mod p factor (fpx) → linear Hensel lift → subset combine → integer recovery.
+//! **Partial:** `try_zassenhaus_factor`.
+//! **Pipeline private:** modular egcd, Hensel lift, factor combination recovery.
 
 use num_bigint::BigInt;
 use num_integer::Integer;
@@ -19,10 +20,12 @@ use super::fpx::{self, factor_fpx};
 const PRIMES: &[i64] = &[3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47];
 const MAX_COMBINE_FACTORS: usize = 12;
 
+// **Pipeline private** — `x_var`
 fn x_var() -> Var {
     Var::from("x")
 }
 
+// **Pipeline private** — `monomial_x_pow`
 fn monomial_x_pow(e: u64) -> Monomial {
     if e == 0 {
         Monomial::one()
@@ -36,10 +39,12 @@ fn monomial_x_pow(e: u64) -> Monomial {
     }
 }
 
+// **Pipeline private** — `is_int_poly`
 fn is_int_poly(p: &Poly) -> bool {
     p.terms.values().all(|c| c.denom().is_one())
 }
 
+// **Pipeline private** — `integer_coeffs`
 fn integer_coeffs(p: &Poly, var: &Var) -> Option<Vec<BigInt>> {
     if !is_int_poly(p) {
         return None;
@@ -56,6 +61,7 @@ fn integer_coeffs(p: &Poly, var: &Var) -> Option<Vec<BigInt>> {
     Some(out)
 }
 
+// **Pipeline private** — `mignotte_bound`
 fn mignotte_bound(p: &Poly, var: &Var) -> BigInt {
     let d = univariate_degree(p, var) as i64;
     if d <= 0 {
@@ -81,6 +87,7 @@ fn mignotte_bound(p: &Poly, var: &Var) -> BigInt {
     (sqrt_n + 1) * norm * pow2
 }
 
+// **Pipeline private** — `coeff_mod`
 fn coeff_mod(p: &PolyMod, e: u64) -> ModInt {
     let var = x_var();
     for (m, c) in &p.terms {
@@ -91,6 +98,7 @@ fn coeff_mod(p: &PolyMod, e: u64) -> ModInt {
     ModInt::new(BigInt::zero(), p.modulus.clone()).unwrap()
 }
 
+// **Pipeline private** — `poly_mod_from_coeffs`
 fn poly_mod_from_coeffs(coeffs: &[BigInt], modulus: &BigInt) -> PolyResult<PolyMod> {
     let mut terms = std::collections::BTreeMap::new();
     for (e, c) in coeffs.iter().enumerate() {
@@ -108,11 +116,13 @@ fn poly_mod_from_coeffs(coeffs: &[BigInt], modulus: &BigInt) -> PolyResult<PolyM
     })
 }
 
+// **Pipeline private** — `poly_mod_from_poly`
 fn poly_mod_from_poly(p: &Poly, var: &Var, modulus: &BigInt) -> PolyResult<PolyMod> {
     let coeffs = integer_coeffs(p, var).ok_or(PolyError::TypeError("non-integer poly"))?;
     poly_mod_from_coeffs(&coeffs, modulus)
 }
 
+// **Pipeline private** — `make_monic_mod`
 fn make_monic_mod(p: &PolyMod) -> PolyResult<PolyMod> {
     let d = fpx::degree(p);
     if d == 0 {
@@ -130,6 +140,7 @@ fn make_monic_mod(p: &PolyMod) -> PolyResult<PolyMod> {
     poly_mod_from_coeffs(&coeffs, &p.modulus)
 }
 
+// **Pipeline private** — `at_modulus`
 fn at_modulus(p: &PolyMod, modulus: &BigInt) -> PolyResult<PolyMod> {
     let d = fpx::degree(p);
     let mut coeffs = Vec::new();
@@ -139,6 +150,7 @@ fn at_modulus(p: &PolyMod, modulus: &BigInt) -> PolyResult<PolyMod> {
     poly_mod_from_coeffs(&coeffs, modulus)
 }
 
+// **Pipeline private** — `derivative_mod`
 fn derivative_mod(p: &PolyMod) -> PolyMod {
     let d = fpx::degree(p);
     let mut terms = std::collections::BTreeMap::new();
@@ -157,6 +169,7 @@ fn derivative_mod(p: &PolyMod) -> PolyMod {
     }
 }
 
+// **Pipeline private** — `is_square_free_mod`
 fn is_square_free_mod(p: &Poly, var: &Var, prime: i64) -> bool {
     let pm = match crate::modp(p, prime) {
         Ok(m) => m,
@@ -168,6 +181,7 @@ fn is_square_free_mod(p: &Poly, var: &Var, prime: i64) -> bool {
         .unwrap_or(false)
 }
 
+// **Pipeline private** — `extgcd_mod`
 fn extgcd_mod(a: &PolyMod, b: &PolyMod) -> Option<(PolyMod, PolyMod, PolyMod)> {
     let mut old_r = a.clone();
     let mut r = b.clone();
@@ -190,6 +204,7 @@ fn extgcd_mod(a: &PolyMod, b: &PolyMod) -> Option<(PolyMod, PolyMod, PolyMod)> {
 }
 
 /// `Σ u[i] * Π_{j≠i} f[j] = 1` for pairwise coprime univariate `f[i]` (GIAC `egcd`).
+// **Pipeline private** — `egcd_factor_list_mod`
 fn egcd_factor_list_mod(factors: &[PolyMod]) -> Option<Vec<PolyMod>> {
     let n = factors.len();
     if n == 0 {
@@ -221,6 +236,7 @@ fn egcd_factor_list_mod(factors: &[PolyMod]) -> Option<Vec<PolyMod>> {
     Some(u)
 }
 
+// **Pipeline private** — `polymod_to_int_poly`
 fn polymod_to_int_poly(p: &PolyMod, var: &Var) -> Poly {
     let d = fpx::degree(p);
     let half = &p.modulus / 2;
@@ -243,10 +259,12 @@ fn polymod_to_int_poly(p: &PolyMod, var: &Var) -> Poly {
     out
 }
 
+// **Pipeline private** — `divides_exact`
 fn divides_exact(num: &Poly, den: &Poly) -> bool {
     num.div_rem(den).1.is_zero()
 }
 
+// **Pipeline private** — `divides_exact_quotient`
 fn divides_exact_quotient(num: &Poly, den: &Poly) -> Option<Poly> {
     let (quo, rem) = num.div_rem(den);
     if rem.is_zero() {
@@ -256,6 +274,7 @@ fn divides_exact_quotient(num: &Poly, den: &Poly) -> Option<Poly> {
     }
 }
 
+// **Pipeline private** — `coeff_div_mod`
 fn coeff_div_mod(p: &PolyMod, d: &BigInt) -> PolyResult<PolyMod> {
     let deg = fpx::degree(p);
     let mut coeffs = Vec::new();
@@ -269,6 +288,7 @@ fn coeff_div_mod(p: &PolyMod, d: &BigInt) -> PolyResult<PolyMod> {
     poly_mod_from_coeffs(&coeffs, &p.modulus)
 }
 
+// **Pipeline private** — `lift_correction`
 fn lift_correction(
     q: &PolyMod,
     u: &PolyMod,
@@ -285,6 +305,7 @@ fn lift_correction(
 }
 
 /// Linear Hensel lift for two monic coprime factors mod `p` (GIAC `liftl`, n=2).
+// **Pipeline private** — `hensel_lift_two`
 fn hensel_lift_two(
     q: &Poly,
     var: &Var,
@@ -329,6 +350,7 @@ fn hensel_lift_two(
 }
 
 /// Linear Hensel lift for n mod-p factors to mod p^k (GIAC `liftl`).
+// **Pipeline private** — `hensel_lift_n`
 fn hensel_lift_n(
     q: &Poly,
     var: &Var,
@@ -385,6 +407,7 @@ fn hensel_lift_n(
     Some(factors)
 }
 
+// **Pipeline private** — `polymod_product`
 fn polymod_product(factors: &[PolyMod], indices: &[usize]) -> Option<PolyMod> {
     if indices.is_empty() {
         return None;
@@ -396,6 +419,7 @@ fn polymod_product(factors: &[PolyMod], indices: &[usize]) -> Option<PolyMod> {
     Some(out)
 }
 
+// **Pipeline private** — `recover_factors_from_lifted`
 fn recover_factors_from_lifted(g: &Poly, var: &Var, lifted: &[PolyMod]) -> Option<Vec<Poly>> {
     if lifted.is_empty() {
         return None;
@@ -418,6 +442,7 @@ fn recover_factors_from_lifted(g: &Poly, var: &Var, lifted: &[PolyMod]) -> Optio
 }
 
 /// Subset search on lifted mod-p^k factors (GIAC `combine` MVP).
+// **Pipeline private** — `extract_factors_via_combine`
 fn extract_factors_via_combine(g: &Poly, var: &Var, lifted: &[PolyMod]) -> Option<Vec<Poly>> {
     let n = lifted.len();
     if n == 0 {
@@ -430,6 +455,7 @@ fn extract_factors_via_combine(g: &Poly, var: &Var, lifted: &[PolyMod]) -> Optio
     extract_combine_rec(g, var, lifted, &mut Vec::new())
 }
 
+// **Pipeline private** — `extract_combine_rec`
 fn extract_combine_rec(
     g: &Poly,
     var: &Var,
@@ -491,10 +517,12 @@ fn extract_combine_rec(
     None
 }
 
+// **Pipeline private** — `verify_product`
 fn verify_product(factors: &[Poly], g: &Poly) -> bool {
     factors.iter().fold(Poly::one(), |a, b| a.mul(b)) == *g
 }
 
+/// **Partial** — Zassenhaus+Hensel lift
 pub fn try_zassenhaus_factor(g: &Poly, var: &Var) -> Option<Vec<Poly>> {
     if !is_int_poly(g) {
         return None;

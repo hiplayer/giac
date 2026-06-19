@@ -1,3 +1,7 @@
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
+//!
 use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::{One, Signed, Zero};
@@ -8,6 +12,7 @@ use crate::monomial::Var;
 use crate::poly::Poly;
 
 /// Sylvester resultant of univariate polynomials in `var`.
+/// **Stable** — univariate resultant
 pub fn resultant(a: &Poly, b: &Poly, var: &Var) -> PolyResult<Poly> {
     let g = a.gcd(b);
     if univariate_degree(&g, var) > 0 {
@@ -35,6 +40,7 @@ pub fn resultant(a: &Poly, b: &Poly, var: &Var) -> PolyResult<Poly> {
     Ok(Poly::constant(det))
 }
 
+// **Pipeline private** — `univariate_coefficients`
 fn univariate_coefficients(p: &Poly, var: &Var, degree: u64) -> Vec<Ratio<BigInt>> {
     let mut coeffs = vec![Ratio::zero(); (degree + 1) as usize];
     for (m, c) in &p.terms {
@@ -47,6 +53,7 @@ fn univariate_coefficients(p: &Poly, var: &Var, degree: u64) -> Vec<Ratio<BigInt
     coeffs
 }
 
+// **Pipeline private** — `sylvester_det`
 fn sylvester_det(
     a: &[Ratio<BigInt>],
     deg_a: usize,
@@ -70,6 +77,7 @@ fn sylvester_det(
     det_rational(&mut mat)
 }
 
+// **Pipeline private** — `det_rational`
 fn det_rational(mat: &mut [Vec<Ratio<BigInt>>]) -> Ratio<BigInt> {
     let n = mat.len();
     let mut det = Ratio::one();
@@ -101,6 +109,7 @@ fn det_rational(mat: &mut [Vec<Ratio<BigInt>>]) -> Ratio<BigInt> {
     det
 }
 
+// **Pipeline private** — `sylvester_det2`
 fn sylvester_det2(a: &Poly, b: &Poly, var: &Var) -> Poly {
     let a1 = coeff_at(a, var, 1);
     let a0 = coeff_at(a, var, 0);
@@ -109,6 +118,7 @@ fn sylvester_det2(a: &Poly, b: &Poly, var: &Var) -> Poly {
     Poly::constant(a1 * b0 - a0 * b1)
 }
 
+/// **Stable** — univariate coefficient at exponent
 pub fn coeff_at(p: &Poly, var: &Var, exp: u64) -> Ratio<BigInt> {
     for (m, c) in &p.terms {
         if exp == 0 && m.is_const() {
@@ -121,6 +131,7 @@ pub fn coeff_at(p: &Poly, var: &Var, exp: u64) -> Ratio<BigInt> {
     Ratio::zero()
 }
 
+/// **Stable** — degree w.r.t. var
 pub fn univariate_degree(p: &Poly, var: &Var) -> u64 {
     p.terms
         .keys()
@@ -132,6 +143,7 @@ pub fn univariate_degree(p: &Poly, var: &Var) -> u64 {
         .unwrap_or(0)
 }
 
+// **Pipeline private** — `univariate_leading_coeff`
 fn univariate_leading_coeff(p: &Poly, var: &Var) -> BigInt {
     let deg = univariate_degree(p, var);
     for (m, c) in p.terms.iter().rev() {
@@ -143,6 +155,7 @@ fn univariate_leading_coeff(p: &Poly, var: &Var) -> BigInt {
 }
 
 /// Roots of univariate polynomial (low-degree exact cases).
+/// **Stable (bounded)** — low-degree exact roots as Poly factors
 pub fn roots(p: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
     let d = univariate_degree(p, var);
     match d {
@@ -175,6 +188,7 @@ pub fn roots(p: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
     }
 }
 
+// **Pipeline private** — `quadratic_coeffs`
 fn quadratic_coeffs(
     p: &Poly,
     var: &Var,
@@ -196,6 +210,7 @@ fn quadratic_coeffs(
     Ok((a, b, c))
 }
 
+// **Pipeline private** — `ratio_is_perfect_square`
 fn ratio_is_perfect_square(r: &Ratio<BigInt>) -> Option<Ratio<BigInt>> {
     if !r.denom().is_one() {
         return None;
@@ -212,6 +227,7 @@ fn ratio_is_perfect_square(r: &Ratio<BigInt>) -> Option<Ratio<BigInt>> {
     }
 }
 
+// **Pipeline private** — `int_isqrt`
 fn int_isqrt(n: &BigInt) -> Option<BigInt> {
     if n.is_negative() {
         return None;
@@ -231,6 +247,7 @@ fn int_isqrt(n: &BigInt) -> Option<BigInt> {
     }
 }
 
+// **Pipeline private** — `quadratic_roots`
 fn quadratic_roots(p: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
     let (a, b, c) = quadratic_coeffs(p, var)?;
     let disc = &b * &b - Ratio::from_integer(BigInt::from(4)) * &a * &c;
@@ -245,6 +262,7 @@ fn quadratic_roots(p: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
     Ok(vec![Poly::constant(r1), Poly::constant(r2)])
 }
 
+// **Pipeline private** — `is_xn_minus_one`
 fn is_xn_minus_one(p: &Poly, var: &Var, n: u64) -> bool {
     if p.terms.len() != 2 {
         return false;

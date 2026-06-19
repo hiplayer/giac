@@ -1,4 +1,6 @@
-//! Factorization over Q(sqrt(d)) for quadratics with non-square discriminant.
+//! Quadratic factorization with sqrt display (Expr string helpers for giac-simplify).
+//!
+//! **Partial:** `quadratic_sqrt_factor_exprs`.
 
 use num_bigint::BigInt;
 use num_rational::Ratio;
@@ -10,7 +12,7 @@ use crate::resultant::{univariate_degree};
 
 use super::util::{ratio_perfect_sqrt, vars_in};
 
-/// Display factors `(x - (-b ± sqrt(disc))/(2a))` for a univariate quadratic.
+/// **Partial** — Display factors `(x - (-b ± sqrt(disc))/(2a))` for a univariate quadratic.
 pub fn quadratic_sqrt_factor_exprs(
     p: &Poly,
     var_name: &str,
@@ -52,6 +54,7 @@ pub fn quadratic_sqrt_factor_exprs(
     ])
 }
 
+// **Pipeline private** — `format_ratio`
 fn format_ratio(r: &Ratio<BigInt>) -> String {
     if r.denom().is_one() {
         r.numer().to_string()
@@ -60,6 +63,7 @@ fn format_ratio(r: &Ratio<BigInt>) -> String {
     }
 }
 
+// **Pipeline private** — `format_sqrt_ratio`
 fn format_sqrt_ratio(r: &Ratio<BigInt>) -> String {
     if r.is_one() {
         return "sqrt(1)".to_string();

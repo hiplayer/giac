@@ -1,4 +1,7 @@
-//! Cyclotomic polynomials Φ_n and x^n ± 1 factorization.
+//! Cyclotomic polynomials Φ_n and specialized x^n ± 1 factorization.
+//!
+//! **Stable:** `cyclotomic_poly`.
+//! **Partial:** `factor_xn_minus_one`, `try_factor_xn_minus_one`, `try_factor_xn_plus_one`, …
 
 use num_bigint::BigInt;
 use num_rational::Ratio;
@@ -11,7 +14,7 @@ use crate::resultant::{coeff_at, univariate_degree};
 
 use super::util::is_univariate_in;
 
-/// Positive divisors of `n`, sorted ascending.
+/// **Pipeline private** — Positive divisors of `n`, sorted ascending.
 pub fn divisors_u64(n: u64) -> Vec<u64> {
     let mut out = Vec::new();
     let mut i = 1u64;
@@ -28,7 +31,7 @@ pub fn divisors_u64(n: u64) -> Vec<u64> {
     out
 }
 
-/// n-th cyclotomic polynomial Φ_n(x) over ℚ.
+/// **Stable** — n-th cyclotomic polynomial Φ_n(x) over ℚ.
 pub fn cyclotomic_poly(n: u64, var: &Var) -> PolyResult<Poly> {
     if n == 0 {
         return Err(PolyError::TypeError("cyclotomic n=0"));
@@ -52,7 +55,7 @@ pub fn cyclotomic_poly(n: u64, var: &Var) -> PolyResult<Poly> {
     Ok(phi)
 }
 
-/// `x^n - 1 = ∏_{d|n} Φ_d(x)`.
+/// **Partial** — `x^n - 1 = ∏_{d|n} Φ_d(x)`.
 pub fn factor_xn_minus_one(var: &Var, n: u64) -> PolyResult<Vec<Poly>> {
     if n == 0 {
         return Ok(vec![]);
@@ -63,7 +66,7 @@ pub fn factor_xn_minus_one(var: &Var, n: u64) -> PolyResult<Vec<Poly>> {
         .collect()
 }
 
-/// Factors of `x^(2n)+x^n+1 = (x^(3n)-1)/(x^n-1)` via cyclotomic selection.
+/// **Partial** — Factors of `x^(2n)+x^n+1 = (x^(3n)-1)/(x^n-1)` via cyclotomic selection.
 pub fn factor_x2n_plus_xn_plus_1(var: &Var, n: u64) -> PolyResult<Vec<Poly>> {
     let mut out = Vec::new();
     for d in divisors_u64(3 * n) {
@@ -75,6 +78,7 @@ pub fn factor_x2n_plus_xn_plus_1(var: &Var, n: u64) -> PolyResult<Vec<Poly>> {
     Ok(out)
 }
 
+/// **Partial** — detect and factor x^2n+x^n+1
 pub fn try_factor_x2n_plus_xn_plus_1(p: &Poly, var: &Var) -> Option<Vec<Poly>> {
     if !is_univariate_in(p, var) {
         return None;
@@ -96,6 +100,7 @@ pub fn try_factor_x2n_plus_xn_plus_1(p: &Poly, var: &Var) -> Option<Vec<Poly>> {
     }
 }
 
+// **Pipeline private** — `is_x2n_plus_xn_plus_1_sparse`
 fn is_x2n_plus_xn_plus_1_sparse(p: &Poly, var: &Var, n: u64) -> bool {
     let d = 2 * n;
     if coeff_at(p, var, d) != num_rational::Ratio::one()
@@ -112,6 +117,7 @@ fn is_x2n_plus_xn_plus_1_sparse(p: &Poly, var: &Var, n: u64) -> bool {
     true
 }
 
+/// **Partial** — detect x^n-1
 pub fn try_factor_xn_minus_one(p: &Poly, var: &Var) -> Option<Vec<Poly>> {
     if !is_univariate_in(p, var) {
         return None;
@@ -134,6 +140,7 @@ pub fn try_factor_xn_minus_one(p: &Poly, var: &Var) -> Option<Vec<Poly>> {
     factor_xn_minus_one(var, n).ok()
 }
 
+/// **Pipeline private** — shape test x^n-1
 pub fn is_xn_minus_one_poly(p: &Poly, var: &Var, n: u64) -> bool {
     if !is_univariate_in(p, var) || p.terms.len() != 2 {
         return false;
@@ -151,6 +158,7 @@ pub fn is_xn_minus_one_poly(p: &Poly, var: &Var, n: u64) -> bool {
     has_xn && has_m1
 }
 
+/// **Partial** — detect x^n+1
 pub fn try_factor_xn_plus_one(p: &Poly, var: &Var) -> Option<Vec<Poly>> {
     if !is_univariate_in(p, var) || p.terms.len() != 2 {
         return None;
@@ -173,6 +181,7 @@ pub fn try_factor_xn_plus_one(p: &Poly, var: &Var) -> Option<Vec<Poly>> {
 }
 
 /// `x^n + 1 = ∏_{d|2n, d∤n} Φ_d(x)`.
+// **Pipeline private** — `factor_xn_plus_one`
 fn factor_xn_plus_one(var: &Var, n: u64) -> PolyResult<Vec<Poly>> {
     let mut out = Vec::new();
     for d in divisors_u64(2 * n) {

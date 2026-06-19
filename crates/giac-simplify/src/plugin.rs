@@ -1,5 +1,8 @@
 //! giac-simplify plugin: wires polynomial normalization into `giac-core::Context`.
-
+//!
+//! **API inventory:** inline tier on every function; full table in
+//! `.doc/giac-simplify-api-stability.md` (Per-file inventory).
+//!
 use std::sync::Arc;
 
 use num_bigint::BigInt;
@@ -14,34 +17,42 @@ use crate::{
 pub struct DefaultAlgebraPlugin;
 
 impl AlgebraPlugin for DefaultAlgebraPlugin {
+    // **Stable** — expand then polynomial collect
     fn normal(&self, expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
         normal(expr, ctx)
     }
 
+    // **Stable** — single fraction in lowest terms
     fn ratnormal(&self, expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
         ratnormal(expr, ctx)
     }
 
+    // **Stable** — expand with Full policy
     fn expand(&self, expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
         expand(expr, ctx)
     }
 
+    // **Stable (bounded)** — structural then giac-poly factor
     fn factor(&self, expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
         factor(expr, ctx)
     }
 
+    // **Stable** — integer prime factorization display
     fn ifactor(&self, n: &BigInt) -> ExprArc {
         ifactor(n)
     }
 
+    // **Partial** — trig/exp/ln arg expand then algebraic expand
     fn texpand(&self, expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
         texpand(expr, ctx)
     }
 
+    // **Partial** — half-angle tan on narrow pattern
     fn halftan(&self, expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
         halftan(expr, ctx)
     }
 
+    // **Partial** — linearize exp products and (exp+1)^2
     fn lin(&self, expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
         lin(expr, ctx)
     }

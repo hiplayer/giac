@@ -1,4 +1,7 @@
-//! Special-form polynomial factorizations (x^n±1, x^n-y^n, cyclotomic quotients).
+//! Fast-path pattern factorization (x^n±1, x^n±y^n, cyclotomic hooks) before Hensel.
+//!
+//! **Partial:** `try_factor_patterns`, `factor_xn_minus_one_display`.
+//! **Pipeline private:** `factor_xn_minus_yn`, `is_binomial_diff_power`, …
 
 use num_bigint::BigInt;
 use num_rational::Ratio;
@@ -14,6 +17,7 @@ use super::util::vars_in;
 
 pub use super::cyclotomic::{factor_xn_minus_one, is_xn_minus_one_poly};
 
+/// **Partial** — cyclotomic/binomial pattern table
 pub fn try_factor_patterns(p: &Poly) -> Option<Vec<Poly>> {
     let vars = vars_in(p);
     if vars.len() == 1 {
@@ -38,6 +42,7 @@ pub fn try_factor_patterns(p: &Poly) -> Option<Vec<Poly>> {
 }
 
 /// `x^n - y^n` (homogeneous binomial difference).
+// **Pipeline private** — `factor_xn_minus_yn`
 fn factor_xn_minus_yn(p: &Poly, x: &Var, y: &Var) -> Option<Vec<Poly>> {
     let xv = Poly::var(x.clone());
     let yv = Poly::var(y.clone());
@@ -49,6 +54,7 @@ fn factor_xn_minus_yn(p: &Poly, x: &Var, y: &Var) -> Option<Vec<Poly>> {
     None
 }
 
+// **Pipeline private** — `is_binomial_diff_power`
 fn is_binomial_diff_power(p: &Poly, x: &Var, y: &Var, n: u64) -> bool {
     if p.terms.len() != 2 {
         return false;
@@ -66,6 +72,7 @@ fn is_binomial_diff_power(p: &Poly, x: &Var, y: &Var, n: u64) -> bool {
     has_xn && has_yn
 }
 
+// **Pipeline private** — `factor_xn_minus_yn_explicit`
 fn factor_xn_minus_yn_explicit(x: &Poly, y: &Poly, n: u64) -> Vec<Poly> {
     match n {
         2 => vec![x.sub(y), x.add(y)],
@@ -86,7 +93,7 @@ fn factor_xn_minus_yn_explicit(x: &Poly, y: &Poly, n: u64) -> Vec<Poly> {
     }
 }
 
-/// Legacy wrapper used by `factor_poly`.
+/// **Partial** — Legacy wrapper used by `factor_poly`.
 pub fn factor_xn_minus_one_display(p: &Poly) -> Option<Poly> {
     let vars = vars_in(p);
     if vars.len() != 1 {

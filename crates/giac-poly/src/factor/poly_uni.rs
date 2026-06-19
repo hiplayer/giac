@@ -1,4 +1,7 @@
-//! Univariate polynomials over ℚ[vars] (coefficients are multivariate polys).
+//! Polynomials as univariate in main var with coefficients in nested Poly ring (bivariate steps).
+//!
+//! **Stable / Partial:** `coeff_wrt_poly`, `content_wrt`, `factor_sqff_over_coeff_ring`, …
+//! **Pipeline private:** Kronecker / eval lift fallbacks (`try_kronecker_bivariate`, …).
 
 use num_bigint::BigInt;
 use num_rational::Ratio;
@@ -12,16 +15,17 @@ use crate::resultant::univariate_degree;
 use super::univariate::factor_univariate_flat;
 use super::util::{coeff_wrt, is_univariate_in};
 
-/// Coefficient of `var^exp` as a polynomial in the remaining variables.
+/// **Stable** — Coefficient of `var^exp` as a polynomial in the remaining variables.
 pub fn coeff_wrt_poly(p: &Poly, var: &Var, exp: u64) -> Poly {
     coeff_wrt(p, var, exp)
 }
 
-/// Content of `p` w.r.t. `var`: gcd of all x-coefficients in ℚ[others].
+/// **Stable** — Content of `p` w.r.t. `var`: gcd of all x-coefficients in ℚ[others].
 pub fn content_wrt(p: &Poly, var: &Var) -> Poly {
     crate::subresultant::content_wrt_impl(p, var)
 }
 
+// **Pipeline private** — `poly_div_exact`
 fn poly_div_exact(num: &Poly, den: &Poly) -> PolyResult<Poly> {
     if let Some(q) = crate::subresultant::div_exact_coeff(num, den) {
         return Ok(q);
@@ -29,6 +33,7 @@ fn poly_div_exact(num: &Poly, den: &Poly) -> PolyResult<Poly> {
     Err(PolyError::NotImplemented("poly division"))
 }
 
+// **Pipeline private** — `poly_div_exact_wrt`
 fn poly_div_exact_wrt(num: &Poly, den: &Poly, var: &Var) -> PolyResult<Poly> {
     let (q, r) = crate::subresultant::univariate_div_rem_wrt(num, den, var);
     if r.is_zero() {
@@ -38,7 +43,7 @@ fn poly_div_exact_wrt(num: &Poly, den: &Poly, var: &Var) -> PolyResult<Poly> {
     }
 }
 
-/// `p / content_wrt(p, var)` in ℚ[others][var].
+/// **Stable** — `p / content_wrt(p, var)` in ℚ[others][var].
 pub fn primitive_part_wrt(p: &Poly, var: &Var) -> PolyResult<Poly> {
     let content = content_wrt(p, var);
     if content.is_one() {
@@ -57,6 +62,7 @@ pub fn primitive_part_wrt(p: &Poly, var: &Var) -> PolyResult<Poly> {
     Ok(pp)
 }
 
+/// **Stable** — coeff * var^exp as Poly
 pub fn term_with_var(coeff: &Poly, var: &Var, exp: u64) -> Poly {
     if exp == 0 {
         return coeff.clone();
@@ -64,7 +70,7 @@ pub fn term_with_var(coeff: &Poly, var: &Var, exp: u64) -> Poly {
     coeff.mul(&Poly::var(var.clone()).pow(exp))
 }
 
-/// ∂p/∂var treating coefficients in ℚ[others].
+/// **Stable** — ∂p/∂var treating coefficients in ℚ[others].
 pub fn derivative_wrt(p: &Poly, var: &Var) -> Poly {
     let d = univariate_degree(p, var);
     let mut out = Poly::zero();
@@ -79,7 +85,7 @@ pub fn derivative_wrt(p: &Poly, var: &Var) -> Poly {
     out
 }
 
-/// Square-free factorization w.r.t. `var` over ℚ[others] (Yun-style via gcd).
+/// **Stable** — Square-free factorization w.r.t. `var` over ℚ[others] (Yun-style via gcd).
 pub fn square_free_wrt(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>> {
     match square_free_wrt_impl(p, var) {
         Ok(f) => Ok(f),
@@ -88,6 +94,7 @@ pub fn square_free_wrt(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>> {
     }
 }
 
+// **Pipeline private** — `square_free_wrt_impl`
 fn square_free_wrt_impl(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>> {
     if p.is_zero() {
         return Err(PolyError::TypeError("zero polynomial"));
@@ -119,7 +126,7 @@ fn square_free_wrt_impl(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>> {
     Ok(factors)
 }
 
-/// Substitute `sub_var -> sub_poly` in `p`.
+/// **Stable** — Substitute `sub_var -> sub_poly` in `p`.
 pub fn substitute_poly(p: &Poly, sub_var: &Var, sub_poly: &Poly) -> Poly {
     let d = univariate_degree(p, sub_var);
     let mut out = Poly::zero();
@@ -135,7 +142,7 @@ pub fn substitute_poly(p: &Poly, sub_var: &Var, sub_poly: &Poly) -> Poly {
 
 type FactorRecFn = fn(&Poly, &[Var]) -> PolyResult<Vec<Poly>>;
 
-/// Factor square-free `g` in ℚ[others][var] recursively.
+/// **Partial** — Factor square-free `g` in ℚ[others][var] recursively.
 pub fn factor_sqff_over_coeff_ring(
     g: &Poly,
     var: &Var,
@@ -176,6 +183,7 @@ pub fn factor_sqff_over_coeff_ring(
     Ok(vec![g.clone()])
 }
 
+// **Pipeline private** — optional fallback `try_factor_bivariate_eval`
 fn try_factor_bivariate_eval(
     p: &Poly,
     main: &Var,
@@ -203,6 +211,7 @@ fn try_factor_bivariate_eval(
     try_lift_bivariate_from_eval(p, main, other)
 }
 
+// **Pipeline private** — optional fallback `try_lift_bivariate_from_eval`
 fn try_lift_bivariate_from_eval(p: &Poly, main: &Var, other: &Var) -> Option<Vec<Poly>> {
     let mut candidates = Vec::new();
     for k in 0i64..=2 {
@@ -239,6 +248,7 @@ fn try_lift_bivariate_from_eval(p: &Poly, main: &Var, other: &Var) -> Option<Vec
     }
 }
 
+// **Pipeline private** — `lift_univariate_factor`
 fn lift_univariate_factor(f: &Poly, main: &Var, other: &Var, p: &Poly) -> Option<Poly> {
     let deg = univariate_degree(f, main);
     if deg == 1 {
@@ -292,6 +302,7 @@ fn lift_univariate_factor(f: &Poly, main: &Var, other: &Var, p: &Poly) -> Option
     }
 }
 
+// **Pipeline private** — optional fallback `try_kronecker_bivariate`
 fn try_kronecker_bivariate(p: &Poly, x: &Var, y: &Var) -> Option<Vec<Poly>> {
     let dx = univariate_degree(p, x);
     let dy = univariate_degree(p, y);
@@ -326,6 +337,7 @@ fn try_kronecker_bivariate(p: &Poly, x: &Var, y: &Var) -> Option<Vec<Poly>> {
     }
 }
 
+// **Pipeline private** — `kronecker_lift`
 fn kronecker_lift(f: &Poly, x: &Var, y: &Var, n: u64) -> Option<Poly> {
     let d = univariate_degree(f, x);
     let mut out = Poly::zero();
@@ -349,10 +361,12 @@ fn kronecker_lift(f: &Poly, x: &Var, y: &Var, n: u64) -> Option<Poly> {
 }
 
 trait PolyConstant {
+    // **Pipeline private** — `as_constant`
     fn as_constant(&self) -> Option<Ratio<BigInt>>;
 }
 
 impl PolyConstant for Poly {
+    // **Stable** — `Poly::as_constant`
     fn as_constant(&self) -> Option<Ratio<BigInt>> {
         if self.terms.len() == 1 {
             self.terms.values().next().cloned()

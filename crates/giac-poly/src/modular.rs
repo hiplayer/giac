@@ -1,3 +1,7 @@
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
+//!
 use std::collections::BTreeMap;
 
 use num_bigint::BigInt;
@@ -16,6 +20,7 @@ pub struct PolyMod {
 }
 
 impl PolyMod {
+    /// **Stable** — Poly zero
     pub fn zero(modulus: BigInt) -> Self {
         Self {
             terms: BTreeMap::new(),
@@ -23,6 +28,7 @@ impl PolyMod {
         }
     }
 
+    /// **Stable** — Poly one
     pub fn one(modulus: BigInt) -> Self {
         let mut terms = BTreeMap::new();
         terms.insert(
@@ -32,6 +38,7 @@ impl PolyMod {
         Self { terms, modulus }
     }
 
+    /// **Stable** — `from_poly`
     pub fn from_poly(p: &Poly, modulus: BigInt) -> PolyResult<Self> {
         let mut terms = BTreeMap::new();
         for (m, c) in &p.terms {
@@ -46,14 +53,17 @@ impl PolyMod {
         Ok(Self { terms, modulus })
     }
 
+    /// **Stable** — Poly is zero
     pub fn is_zero(&self) -> bool {
         self.terms.is_empty()
     }
 
+    /// **Stable** — leading term by total degree
     pub fn leading_term(&self) -> Option<(&Monomial, &ModInt)> {
         self.terms.iter().next_back()
     }
 
+    /// **Stable** — Poly addition
     pub fn add(&self, other: &Self) -> PolyResult<Self> {
         let mut terms = self.terms.clone();
         for (m, c) in &other.terms {
@@ -74,6 +84,7 @@ impl PolyMod {
         })
     }
 
+    /// **Stable** — Poly subtraction
     pub fn sub(&self, other: &Self) -> PolyResult<Self> {
         let mut terms = self.terms.clone();
         for (m, c) in &other.terms {
@@ -95,6 +106,7 @@ impl PolyMod {
         })
     }
 
+    /// **Stable** — Poly multiplication
     pub fn mul(&self, other: &Self) -> PolyResult<Self> {
         let mut out = BTreeMap::new();
         for (m1, c1) in &self.terms {
@@ -116,6 +128,7 @@ impl PolyMod {
         })
     }
 
+    /// **Stable** — multivariate division with remainder
     pub fn div_rem(&self, divisor: &Self) -> PolyResult<(Self, Self)> {
         if divisor.is_zero() {
             return Err(PolyError::DivisionByZero);
@@ -151,6 +164,7 @@ impl PolyMod {
         Ok((quotient, remainder))
     }
 
+    /// **Stable** — Poly gcd via subresultant
     pub fn gcd(&self, other: &Self) -> PolyResult<Self> {
         if self.is_zero() {
             return Ok(other.clone());
@@ -171,6 +185,7 @@ impl PolyMod {
     }
 }
 
+/// **Stable** — Poly → PolyMod mod p
 pub fn modp(poly: &Poly, p: i64) -> PolyResult<PolyMod> {
     PolyMod::from_poly(poly, BigInt::from(p))
 }

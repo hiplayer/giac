@@ -1,3 +1,7 @@
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-simplify-api-stability.md`.
+//!
+//!
 use std::sync::Arc;
 
 use num_bigint::BigInt;
@@ -31,11 +35,13 @@ pub fn ratnormal(expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
     )))
 }
 
-/// **Unstable** — `AlgExt` ratnormal is a stub delegating to `eval` (GIAC-algext-adoption A-03).
+// **Temporary** — shim: `AlgExt` ratnormal delegates to `eval` (GIAC-algext-adoption A-03).
+// **退役:** `ext_reduce` 有理化落地后删除。
 fn ratnormal_algext(expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
     eval(expr, ctx)
 }
 
+// **Pipeline private** — Expr to (num Poly, den Poly)
 fn rational_parts(expr: &Expr, ctx: &Context) -> Result<(Poly, Poly), EvalError> {
     match expr {
         Expr::AlgExt(_) => Err(EvalError::TypeError("not a rational expression")),
@@ -88,6 +94,7 @@ fn rational_parts(expr: &Expr, ctx: &Context) -> Result<(Poly, Poly), EvalError>
     }
 }
 
+// **Pipeline private** — add rationals with common denominator
 fn rational_add(terms: &[ExprArc], ctx: &Context) -> Result<(Poly, Poly), EvalError> {
     if terms.is_empty() {
         return Ok((Poly::zero(), Poly::one()));
@@ -110,6 +117,7 @@ fn rational_add(terms: &[ExprArc], ctx: &Context) -> Result<(Poly, Poly), EvalEr
     Ok((num, lcd))
 }
 
+// **Pipeline private** — gcd-reduce num/den Poly pair
 fn reduce_fraction(num: Poly, den: Poly) -> Result<(Poly, Poly), EvalError> {
     if den.is_zero() {
         return Err(EvalError::DivisionByZero);

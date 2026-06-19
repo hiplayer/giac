@@ -1,5 +1,10 @@
 //! Integer factorization (`ifactor`).
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-simplify-api-stability.md`.
+//!
+//!
 use std::sync::Arc;
 
 use num_bigint::BigInt;
@@ -83,6 +88,7 @@ pub fn ifactor(n: &BigInt) -> ExprArc {
     }
 }
 
+// **Pipeline private** — Miller-Rabin for u64
 fn is_probable_prime_u64(n: u64) -> bool {
     if n < 2 {
         return false;
@@ -124,10 +130,12 @@ fn is_probable_prime_u64(n: u64) -> bool {
     true
 }
 
+// **Pipeline private** — u64 modular multiply
 fn mod_mul(a: u64, b: u64, m: u64) -> u64 {
     ((a as u128 * b as u128) % m as u128) as u64
 }
 
+// **Pipeline private** — u64 modular exponentiation
 fn mod_pow(mut base: u64, mut exp: u64, m: u64) -> u64 {
     let mut out = 1u64;
     base %= m;
@@ -141,6 +149,7 @@ fn mod_pow(mut base: u64, mut exp: u64, m: u64) -> u64 {
     out
 }
 
+// **Pipeline private** — Pollard rho on BigInt
 fn pollard_rho(n: &BigInt) -> Option<BigInt> {
     if n.bits() as usize <= 64 {
         let ni = n.to_u64_digits().1.first().copied().unwrap_or(0);
@@ -171,6 +180,7 @@ fn pollard_rho(n: &BigInt) -> Option<BigInt> {
     }
 }
 
+// **Pipeline private** — Pollard rho on u64
 fn pollard_rho_u64(n: u64) -> Option<u64> {
     if n % 2 == 0 {
         return Some(2);

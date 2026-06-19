@@ -1,3 +1,7 @@
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-simplify-api-stability.md`.
+//!
+//!
 use std::sync::Arc;
 
 use num_bigint::BigInt;
@@ -15,6 +19,7 @@ pub fn texpand(expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
     expand(te.as_ref(), ctx)
 }
 
+// **Pipeline private** — recursive texpand on Expr tree
 fn texpand_rec(expr: &Expr) -> Result<ExprArc, EvalError> {
     match expr {
         Expr::Func(FuncKind::Sin, args) => {
@@ -53,6 +58,7 @@ fn texpand_rec(expr: &Expr) -> Result<ExprArc, EvalError> {
     }
 }
 
+// **Pipeline private** — sin angle-sum and n*x rules
 fn expand_sin_arg(arg: &ExprArc) -> Result<ExprArc, EvalError> {
     if let Expr::Add(terms) = arg.as_ref() {
         if terms.len() == 2 {
@@ -68,6 +74,7 @@ fn expand_sin_arg(arg: &ExprArc) -> Result<ExprArc, EvalError> {
     Ok(Expr::func(FuncKind::Sin, vec![Arc::clone(arg)]))
 }
 
+// **Pipeline private** — cos angle-sum and n*x rules
 fn expand_cos_arg(arg: &ExprArc) -> Result<ExprArc, EvalError> {
     if let Expr::Add(terms) = arg.as_ref() {
         if terms.len() == 2 {
@@ -83,6 +90,7 @@ fn expand_cos_arg(arg: &ExprArc) -> Result<ExprArc, EvalError> {
     Ok(Expr::func(FuncKind::Cos, vec![Arc::clone(arg)]))
 }
 
+// **Pipeline private** — exp of sum → product of exp
 fn expand_exp_arg(arg: &ExprArc) -> Result<ExprArc, EvalError> {
     if let Expr::Add(terms) = arg.as_ref() {
         let parts: Result<Vec<_>, _> = terms
@@ -94,6 +102,7 @@ fn expand_exp_arg(arg: &ExprArc) -> Result<ExprArc, EvalError> {
     Ok(Expr::func(FuncKind::Exp, vec![Arc::clone(arg)]))
 }
 
+// **Pipeline private** — ln of product → sum of ln
 fn expand_ln_arg(arg: &ExprArc) -> Result<ExprArc, EvalError> {
     if let Expr::Mul(factors) = arg.as_ref() {
         let parts: Result<Vec<_>, _> = factors
@@ -105,6 +114,7 @@ fn expand_ln_arg(arg: &ExprArc) -> Result<ExprArc, EvalError> {
     Ok(Expr::func(FuncKind::Ln, vec![Arc::clone(arg)]))
 }
 
+// **Pipeline private** — sin(nx) for small integer n
 fn expand_sin_nx(n: i64, x: &ExprArc) -> Result<ExprArc, EvalError> {
     match n {
         1 => Ok(Expr::func(FuncKind::Sin, vec![Arc::clone(x)])),
@@ -137,6 +147,7 @@ fn expand_sin_nx(n: i64, x: &ExprArc) -> Result<ExprArc, EvalError> {
     }
 }
 
+// **Pipeline private** — cos(nx) for small integer n
 fn expand_cos_nx(n: i64, x: &ExprArc) -> Result<ExprArc, EvalError> {
     match n {
         1 => Ok(Expr::func(FuncKind::Cos, vec![Arc::clone(x)])),
@@ -182,6 +193,7 @@ pub fn halftan(expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
 }
 
 /// `2*tan(v/2)/(1-tan(v/2)^2)` — Weierstrass half-angle form for `tan(v)`.
+// **Pipeline private** — Weierstrass tan(v/2) form
 fn halftan_half_angle_rational(var: &ExprArc) -> ExprArc {
     let t = tan_half(var);
     let t2 = Expr::pow(Arc::clone(&t), Expr::int(2));
@@ -193,6 +205,7 @@ fn halftan_half_angle_rational(var: &ExprArc) -> ExprArc {
     Arc::new(Expr::Frac(num, den))
 }
 
+// **Pipeline private** — tan(v/2) Expr builder
 fn tan_half(var: &ExprArc) -> ExprArc {
     let arg = match var.as_ref() {
         Expr::Symbol(_) => Arc::new(Expr::Frac(Arc::clone(var), Expr::int(2))),
@@ -209,6 +222,7 @@ pub fn lin(expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
     expand(e.as_ref(), ctx)
 }
 
+// **Pipeline private** — recursive lin on Expr tree
 fn lin_rec(expr: &Expr) -> Result<ExprArc, EvalError> {
     match expr {
         Expr::Func(FuncKind::Exp, args) => Ok(Expr::func(FuncKind::Exp, vec![lin_rec(args[0].as_ref())?])),
@@ -243,6 +257,7 @@ fn lin_rec(expr: &Expr) -> Result<ExprArc, EvalError> {
     }
 }
 
+// **Pipeline private** — subtree contains exp
 fn contains_exp(expr: &Expr) -> bool {
     match expr {
         Expr::Func(FuncKind::Exp, _) => true,
@@ -254,6 +269,7 @@ fn contains_exp(expr: &Expr) -> bool {
     }
 }
 
+// **Pipeline private** — expand exp-base integer power
 fn expand_integer_pow(base: &ExprArc, exp: u32) -> Result<ExprArc, EvalError> {
     if exp == 0 {
         return Ok(Expr::int(1));
@@ -268,14 +284,17 @@ fn expand_integer_pow(base: &ExprArc, exp: u32) -> Result<ExprArc, EvalError> {
     Ok(acc)
 }
 
+// **Pipeline private** — build sin Expr
 fn sin_expr(x: &ExprArc) -> Result<ExprArc, EvalError> {
     Ok(Expr::func(FuncKind::Sin, vec![Arc::clone(x)]))
 }
 
+// **Pipeline private** — build cos Expr
 fn cos_expr(x: &ExprArc) -> Result<ExprArc, EvalError> {
     Ok(Expr::func(FuncKind::Cos, vec![Arc::clone(x)]))
 }
 
+// **Pipeline private** — detect n*x integer multiple
 fn integer_multiple(arg: &ExprArc) -> Option<(i64, ExprArc)> {
     match arg.as_ref() {
         Expr::Mul(factors) => {
@@ -301,6 +320,7 @@ fn integer_multiple(arg: &ExprArc) -> Option<(i64, ExprArc)> {
 }
 
 /// Pipeline-private — shape matcher for `halftan` only.
+// **Pipeline private** — detect sin(2x)/(1+cos(2x))
 fn detect_halftan_tan(expr: &Expr) -> Option<ExprArc> {
     let (num, den) = as_frac(expr)?;
     let (two, inner) = sin_double_angle(num.as_ref())?;
@@ -311,6 +331,7 @@ fn detect_halftan_tan(expr: &Expr) -> Option<ExprArc> {
     Some(inner)
 }
 
+// **Pipeline private** — view Expr as Frac pair
 fn as_frac(expr: &Expr) -> Option<(ExprArc, ExprArc)> {
     match expr {
         Expr::Frac(n, d) => Some((Arc::clone(n), Arc::clone(d))),
@@ -332,6 +353,7 @@ fn as_frac(expr: &Expr) -> Option<(ExprArc, ExprArc)> {
     }
 }
 
+// **Pipeline private** — peel unit coefficient from mul
 fn unwrap_unit_mul_owned(e: ExprArc) -> ExprArc {
     if let Expr::Mul(factors) = e.as_ref() {
         if factors.len() == 2 && factors[0].as_ref().is_one() {
@@ -344,6 +366,7 @@ fn unwrap_unit_mul_owned(e: ExprArc) -> ExprArc {
     e
 }
 
+// **Pipeline private** — detect sin(2k*x) in halftan
 fn sin_double_angle(expr: &Expr) -> Option<(i64, ExprArc)> {
     match expr {
         Expr::Func(FuncKind::Sin, args) => {
@@ -354,6 +377,7 @@ fn sin_double_angle(expr: &Expr) -> Option<(i64, ExprArc)> {
     }
 }
 
+// **Pipeline private** — detect cos(2k*x) in halftan
 fn cos_double_angle(expr: &Expr) -> Option<i64> {
     match expr {
         Expr::Add(terms) if terms.len() == 2 => {
@@ -373,6 +397,7 @@ fn cos_double_angle(expr: &Expr) -> Option<i64> {
 }
 
 /// Pipeline-private — handles only `(exp(x)+1)^2` in `lin`.
+// **Pipeline private** — expand (exp+1)^2 only
 fn lin_exp_plus_one_pow(base: &ExprArc, exp: &ExprArc) -> Option<ExprArc> {
     let n = bigint_to_i64(match exp.as_ref() {
         Expr::Int(v) => v,

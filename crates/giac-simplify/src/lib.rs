@@ -1,10 +1,17 @@
 #![deny(unsafe_code)]
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-simplify-api-stability.md`.
+//!
 #![cfg_attr(not(test), warn(clippy::unwrap_used))]
 #![cfg_attr(not(test), warn(clippy::expect_used))]
 
 //! Symbolic simplification: expand, normal, ratnormal, factor, equivalence.
 //!
 //! # API stability
+//!
+//! 三层分类与完整清单见 [`.doc/giac-simplify-api-stability.md`](../../.doc/giac-simplify-api-stability.md)
+//! 与 [`.doc/algorithm-expr-api.md`](../../.doc/algorithm-expr-api.md)。
+//! 上游缺口索引：[`.doc/issues/GIAC-simplify-poly-upstream-gaps.md`](../../.doc/issues/GIAC-simplify-poly-upstream-gaps.md) §1。
 //!
 //! | Tier | Public API | Scope |
 //! |------|------------|-------|
@@ -13,13 +20,7 @@
 //! | **Stable (legacy default)** | `expand` | Same as `expand_with_policy(..., Full)`; prefer `expand_polynomial` when `exp` shapes must be preserved |
 //! | **Partial** | `texpand`, `lin`, `halftan` | Rule-table subsets of upstream `usual.cc` / `lin.cc`; general input → `NotImplemented` |
 //!
-//! Internal helpers are **pipeline-private** unless noted `canonical_*` (equiv drift only).
-//!
-//! # Known technical debt
-//!
-//! - No crate-wide `canonical_*` naming layer; AST drift handled ad hoc (`equiv::canonical_radical` only).
-//! - `ratnormal` on `AlgExt` delegates to `eval`, not `ext_reduce` (GIAC-algext-adoption A-03).
-//! - Many upstream `usual.cc` / `subst.cc` builtins unported (`tlin`, `trig2exp`, `reorder`, `simplify`, …).
+//! **Temporary (private):** `ratnormal_algext` (shim); `canonical_radical` / `inv_sqrt_to_mul` (equiv drift only).
 
 mod expand;
 mod equiv;
