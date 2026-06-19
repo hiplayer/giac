@@ -724,7 +724,7 @@ pub fn common_ext(a: &AlgExtData, b: &AlgExtData) -> Result<(AlgExtData, AlgExtD
             Err(e) => return Err(e),
         };
         let min_poly = coords_to_expr(&min_g)?;
-        let gamma = AlgExtData {
+        let _gamma = AlgExtData {
             min_poly: min_poly.clone(),
             coords: vec![Expr::int(1)],
             root_index: None,

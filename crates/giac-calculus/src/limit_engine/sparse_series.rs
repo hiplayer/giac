@@ -26,7 +26,7 @@ use num_traits::{One, Signed, Zero};
 
 use super::bounds::{MAX_SERIES_DEPTH, MAX_SERIES_EXPANSION_ORDER, MAX_SERIES_ORDER, MAX_SERIES_TERMS};
 use super::mrv_w::{
-    decompose_ln_w_coeff, decompose_mrv_coeff, expr_contains_ln_w, is_expr_one, is_expr_zero as mrv_is_zero,
+    decompose_ln_w_coeff, decompose_mrv_coeff, is_expr_one, is_expr_zero as mrv_is_zero,
     is_mrv_w_var, mrv_ln_w_expr, neg_ln_w_expr,
 };
 use super::remove_lnexp::{expr_contains_exp_or_ln, remove_lnexp};

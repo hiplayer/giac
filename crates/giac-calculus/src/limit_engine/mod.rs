@@ -18,7 +18,7 @@ use giac_simplify::{expand, ratnormal};
 use giac_poly::{coeff_at, univariate_degree, Poly, Var};
 use num_bigint::BigInt;
 use num_rational::Ratio;
-use num_traits::{One, Signed, Zero};
+use num_traits::{Signed, Zero};
 
 use crate::diff::diff;
 use crate::integrate::try_as_rational;
@@ -48,16 +48,14 @@ pub(crate) fn expr_has_nested_exp(e: &ExprArc) -> bool {
 }
 
 pub(crate) use mrv_series_lead::{
-    canonicalize_limit_entry, normalize_expr_quotients, normalize_inverse_sums, unify_top_quotient,
+    canonicalize_limit_entry, normalize_inverse_sums,
 };
 pub(crate) use asymptotic::{
     asymptotic_series_at_infinity, limit_at_plus_infinity, limit_at_zero_fallback,
     peel_shared_u_inv_in_frac,
 };
-pub(crate) use mrv_lead_term::{
-    limit_from_mrv_lead_term, limit_unidirectional_plus_infinity, mrv_lead_term_plus_infinity,
-};
-pub(crate) use sparse_series::{series_at_center, series_at_zero, SparseSeries};
+
+pub(crate) use sparse_series::{series_at_center};
 
 /// **Pipeline** — 有限点代数极限
 pub(crate) fn limit_finite_algebraic(
@@ -296,7 +294,7 @@ pub(crate) fn limit_plus_infinity_algebraic(
             }
         }
     }
-    if let Some((num, den)) = try_as_quotient(expr, var) {
+    if let Some((num, _den)) = try_as_quotient(expr, var) {
         if matches!(num.as_ref(), Expr::Add(_)) && expr_contains_exp(&num) {
             if let Ok(r) = limit_via_reciprocal(expr, var, ctx) {
                 return Ok(r);
@@ -601,7 +599,7 @@ fn is_indeterminate(e: &ExprArc) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use giac_core::{eval, format_expr, Expr, FuncKind};
+    use giac_core::{format_expr, Expr, FuncKind};
 
     use super::*;
     use crate::plugin::xcas_default;

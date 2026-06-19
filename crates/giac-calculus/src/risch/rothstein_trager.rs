@@ -11,7 +11,7 @@ use std::sync::Arc;
 
 use giac_core::{bigint_to_i64, poly_to_expr, EvalError, Expr, ExprArc, Ident};
 use giac_poly::{
-    coeff_at, eval_param_poly, num_minus_t_derivative, rational_roots_in_t, tresultant_eliminate_x,
+    eval_param_poly, num_minus_t_derivative, rational_roots_in_t, tresultant_eliminate_x,
     univariate_degree, Poly, PolyError, Var,
 };
 use num_bigint::BigInt;

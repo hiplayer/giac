@@ -186,7 +186,7 @@ fn negate_linear_expr(e: &ExprArc) -> ExprArc {
             .map(|e| Expr::mul(vec![Expr::int(-1), e]))
             .unwrap_or_else(|_| Expr::mul(vec![Expr::int(-1), e.clone()])),
         Expr::Mul(factors) => {
-            if let Some(first) = factors.first() {
+            if let Some(_first) = factors.first() {
                 return Expr::mul(std::iter::once(Expr::int(-1))
                     .chain(factors.iter().cloned())
                     .collect());

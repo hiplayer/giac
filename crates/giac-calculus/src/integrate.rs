@@ -505,7 +505,7 @@ fn is_sin_double_angle(e: &ExprArc, var: &Ident) -> bool {
 
 /// **Partial** — heuristic `try_integrate_sin2x_cos`; **退役：** Risch / partfrac.
 fn try_integrate_sin2x_cos(a: &ExprArc, b: &ExprArc, var: &Ident) -> Option<ExprArc> {
-    let (sin2x, cosx) = if is_sin_double_angle(a, var) && is_cos_of_var(b, var) {
+    let (sin2x, _cosx) = if is_sin_double_angle(a, var) && is_cos_of_var(b, var) {
         (a, b)
     } else if is_sin_double_angle(b, var) && is_cos_of_var(a, var) {
         (b, a)

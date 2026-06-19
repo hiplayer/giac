@@ -1472,7 +1472,7 @@ fn is_minus_infinity(e: &ExprArc) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use giac_core::{eval, format_expr, Expr, FuncKind};
+    use giac_core::{format_expr, Expr, FuncKind};
 
     use super::*;
     use crate::plugin::xcas_default;

@@ -16,7 +16,7 @@
 //! `canonical_exp_diff` is the x-layer ε→0 pattern on the original variable:
 //! all shapes reduce to `exp(scale_log) * (exp(ε) - 1)` via [`detect_exp_difference`] + [`emit_exp_difference`].
 
-use std::cmp::Ordering;
+
 use std::sync::Arc;
 
 use giac_core::{Context, Expr, ExprArc, FuncKind, Ident};

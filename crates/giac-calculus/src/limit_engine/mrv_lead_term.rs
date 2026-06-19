@@ -12,7 +12,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use giac_core::{
-    eval, eval_subst_map, expr_to_poly, poly_to_expr, Context, EvalError, Expr, ExprArc,
+    eval, eval_subst_map, Context, EvalError, Expr, ExprArc,
     FuncKind, Ident,
 };
 use giac_simplify::ratnormal;
@@ -406,7 +406,7 @@ fn g_from_omega(omega: &ExprArc, var: &Ident, w: &Ident, ctx: &Context) -> ExprA
 }
 
 // **Pipeline private** — omega tends to zero at plus inf
-fn omega_tends_to_zero_at_plus_inf(omega: &ExprArc, var: &Ident, ctx: &Context) -> bool {
+fn omega_tends_to_zero_at_plus_inf(omega: &ExprArc, var: &Ident, _ctx: &Context) -> bool {
     if omega_neg_linear_coeff(omega, var).is_some() {
         return true;
     }
@@ -814,7 +814,7 @@ fn mrv_series_lead_loop_inner(
             });
         }
 
-        if let Some((lead_exp, coeff)) = p.lead() {
+        if let Some((_lead_exp, coeff)) = p.lead() {
             let coeff = normalize_series_coeff(&coeff, ctx);
             let needs_inv = is_series_coeff_undef(&coeff) || !lead_coeff_ready(&coeff, var, w);
             if needs_inv {
@@ -936,7 +936,7 @@ mod tests {
 
     #[test]
     fn rewrite_x_powers_in_mrv_w() {
-        use giac_core::format_expr;
+        
         let ctx = xcas_default();
         let var = Ident::new("x");
         let w = Ident::new(MRV_W);

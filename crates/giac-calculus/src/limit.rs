@@ -14,7 +14,7 @@ use giac_core::{
     bigint_to_i64, eval, eval_subst_map, Context, EvalError, Expr, ExprArc, FuncKind, Ident,
 };
 use num_bigint::BigInt;
-use num_traits::{Signed, Zero};
+use num_traits::{Zero};
 
 use crate::integrate::try_as_rational;
 use crate::limit_engine::{

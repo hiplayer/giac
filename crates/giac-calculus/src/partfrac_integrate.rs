@@ -169,7 +169,7 @@ fn integrate_with_hermite(
 }
 
 // **Pipeline private** — integrate one Hermite reduction term.
-fn integrate_hermite_term(t: &HermiteTerm, var: &Var, x: &Ident) -> Result<ExprArc, EvalError> {
+fn integrate_hermite_term(t: &HermiteTerm, var: &Var, _x: &Ident) -> Result<ExprArc, EvalError> {
     let scale = Ratio::from_integer(BigInt::from(t.power as i64));
     let sign = hermite_factor_sign(&t.factor, var);
     let num = t.numer.mul_scalar(&(-sign));

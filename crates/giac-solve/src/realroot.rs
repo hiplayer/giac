@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use giac_core::{eval, expr_to_poly, poly_to_expr, Context, EvalError, Expr, ExprArc, FuncKind};
+use giac_core::{eval, expr_to_poly, poly_to_expr, Context, EvalError, Expr, ExprArc};
 use giac_poly::{coeff_at, factor_into, univariate_degree, Poly, PolyError, Var};
 use crate::rootof::quadratic_rootof_roots;
 use num_bigint::BigInt;
@@ -103,7 +103,6 @@ fn poly_err(e: PolyError) -> EvalError {
 mod tests {
     use giac_core::{eval, format_expr, Expr, FuncKind};
 
-    use super::*;
     use crate::plugin::xcas_default;
 
     #[test]

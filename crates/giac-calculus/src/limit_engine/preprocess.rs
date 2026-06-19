@@ -11,7 +11,7 @@
 
 use std::sync::Arc;
 
-use giac_core::{bigint_to_i64, Context, EvalError, Expr, ExprArc, FuncKind, Ident};
+use giac_core::{Context, EvalError, Expr, ExprArc, FuncKind, Ident};
 use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::{One, Signed};

@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use giac_core::{Expr, ExprArc, FuncKind};
+use giac_core::{Expr, ExprArc};
 use num_traits::Signed;
 
 /// **Pipeline** — 提取 `(numerator, denominator)`
@@ -129,7 +129,7 @@ fn normalize_inverse_with(
                     if matches!(e.as_ref(), Expr::Int(n) if n.is_negative())
                         && accept_inverse_base(b)
                     {
-                        if let Expr::Int(n) = e.as_ref() {
+                        if let Expr::Int(_n) = e.as_ref() {
                             den.push(Arc::clone(b));
                             continue;
                         }
