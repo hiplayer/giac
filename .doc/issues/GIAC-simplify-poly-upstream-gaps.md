@@ -90,7 +90,7 @@ giac-rs Phase 4 目标是 **headless CAS 子集**，不是 giac-2.0.0 全库 1:1
 | **FAC-G2** | 参三元 `poly_factor` 塔 | **Partial** — `try_lift_factors_in_aux_var` 覆盖 L20 | testfactor L20 ✅ |
 | **FAC-G3** | 二元混合次数 Hensel 或 fallback | **Partial** — `try_hensel_lift_factor` + `(main,aux)` 双序 | testfactor L22 ✅ |
 
-**partfrac 连带缺口:** 重复二次因子、实二次分裂 → `NotImplemented("partfrac …")`；阻塞部分高阶有理积分。
+**partfrac 连带缺口:** 高次因子仍 `NotImplemented`；重复/实二次已部分覆盖（`disc=0` 重根、`disc>0` 有理分裂）。
 
 → API 分层见 [giac-poly-api-stability.md](../giac-poly-api-stability.md)
 
@@ -182,8 +182,8 @@ sqff → 随机 eval 不可约快检 → try_sparse_factor(v0) → try_sparse_fa
 
 giac-rs 缺口：
 
-- **已对齐：** 双主元 `(main,aux)`；`try_sparse_factor`；`try_hensel_lift_factor` + `hensel_lift_two_at_zero` fallback；二元 eval 不可约快检（0/1）
-- **仍缺：** `find_good_eval` 随机点；`try_sparse_factor(v)` 非仅 aux=0；`try_sparse_factor_bi`；`unitaryfactor` 有界启发式
+- **已对齐：** 双主元 `(main,aux)`；`try_sparse_factor`；`try_hensel_lift_factor` + `hensel_lift_two_at_zero` fallback；`find_good_eval` + 二元/多元不可约快检
+- **仍缺：** `try_sparse_factor(v)` 用好点种子（非仅 aux=0）；`try_sparse_factor_bi`；`unitaryfactor` 有界启发式
 
 **临时算法可否删除：**
 
