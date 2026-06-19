@@ -162,6 +162,10 @@ pub fn factor_sqff_over_coeff_ring(
     }
     if others.len() == 1 {
         let other = &others[0];
+        // Upstream: two good evals with single-factor image → declare irreducible.
+        if looks_irreducible_by_eval(g, var, other) {
+            return Ok(vec![g.clone()]);
+        }
         // Upstream `do_factor_hensel`: try_sparse_factor → try_sparse_factor_bi → try_hensel_lift_factor
         // → unitaryfactor/pzadic. Rust: sparse @ aux=0, then Hensel @ aux=0 (both main/aux orders).
         for (main, aux) in [(var, other), (other, var)] {
@@ -183,6 +187,36 @@ pub fn factor_sqff_over_coeff_ring(
     }
     // Fallback chain exhausted → treat as irreducible (upstream pushes pcur unchanged).
     Ok(vec![g.clone()])
+}
+
+// **Pipeline private** — upstream `do_factor_hensel` irreducibility probe (2 eval trials).
+fn looks_irreducible_by_eval(g: &Poly, var: &Var, other: &Var) -> bool {
+    let dx = univariate_degree(g, var);
+    if dx == 0 {
+        return false;
+    }
+    for k in [0i64, 1] {
+        let sub = substitute_poly(
+            g,
+            other,
+            &Poly::constant(Ratio::from_integer(BigInt::from(k))),
+        );
+        if univariate_degree(&sub, var) != dx {
+            return false;
+        }
+        let facs = match factor_univariate_flat(&sub, var) {
+            Ok(f) => f,
+            Err(_) => return false,
+        };
+        let nontrivial = facs
+            .iter()
+            .filter(|f| univariate_degree(f, var) > 0)
+            .count();
+        if nontrivial != 1 {
+            return false;
+        }
+    }
+    true
 }
 
 // **Temporary (retired)** — eval+interp lift; superseded by sparse→Hensel (FAC-G3). Kept for regression only.
@@ -395,6 +429,18 @@ mod tests {
         assert_eq!(content_wrt(&p, &Var::from("x")), y);
         let pp = primitive_part_wrt(&p, &Var::from("x")).unwrap();
         assert_eq!(pp, x.add(&y));
+    }
+
+    #[test]
+    fn eval_irreducibility_probe() {
+        let x = Poly::var("x");
+        let y = Poly::var("y");
+        // Irreducible over Q: both evals stay degree-2 with one nontrivial factor.
+        let irred = x.pow(2).add(&y.pow(2)).add(&Poly::one());
+        assert!(looks_irreducible_by_eval(&irred, &Var::from("x"), &Var::from("y")));
+        // Reducible: (x-y)*(x+y).
+        let red = x.pow(2).sub(&y.pow(2));
+        assert!(!looks_irreducible_by_eval(&red, &Var::from("x"), &Var::from("y")));
     }
 
     #[test]

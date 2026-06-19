@@ -1,7 +1,7 @@
 //! Polynomial factorization over ℚ (and ℤ/pℤ for `factor_poly_mod`).
 //!
 //! **Upstream:** `gausspol.cc` / `ezgcd.cc` — `do_factor_hensel`, `factor`.
-//! **缺口:** FAC-G1 `try_sparse_factor_bi`、FAC-G2 参系数塔；FAC-G3 L22 已绿。
+//! **缺口:** FAC-G1 `try_sparse_factor_bi`；FAC-G2 一般参系数塔；FAC-G3/L20/L22 tracer 已绿。
 //!
 //! | Tier | 入口 |
 //! |------|------|

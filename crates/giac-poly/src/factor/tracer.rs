@@ -1,6 +1,6 @@
 //! Regression tests mapped from upstream `check/testfactor` (Issue 2.3/2.4).
 //!
-//! L20 仍 `#[ignore]`（FAC-G2 参系数塔）。L22 已绿（FAC-G3）。测试辅助为 Pipeline private。
+//! L20/L22 已绿。测试辅助为 Pipeline private。
 
 use crate::monomial::Var;
 use crate::poly::Poly;
@@ -71,7 +71,6 @@ mod tests {
 
     /// testfactor line 20: `(x+b+c)*(x^2-x*b-x*c+b^2-b*c+c^2)`
     #[test]
-    #[ignore = "Issue 2.4: parametric trivariate needs poly_factor tower"]
     fn testfactor_line20_parametric_cubic_factor() {
         let p = x()
             .add(&b_var())
