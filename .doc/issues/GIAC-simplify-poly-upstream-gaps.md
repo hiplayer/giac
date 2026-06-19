@@ -25,7 +25,7 @@ giac-rs Phase 4 目标是 **headless CAS 子集**，不是 giac-2.0.0 全库 1:1
 | **limit** | Maxima rtest 17 条 | **17/17 ✅** | 含 Gruntz（`gruntz_exp_nested_diff` 等） |
 | **limit** | CK-INT-55–66 | **enabled ✅** | conformance eval 门禁 |
 | **integrate** | `testintegrate` 表 | **35 enabled / 31 disabled** | enabled eval 门禁绿（含 CK-INT-05） |
-| **factor** | `testfactor` tracer | L22 **enabled ✅**；L20 **`#[ignore]`** | FAC-G2 参系数塔 |
+| **factor** | `testfactor` tracer | L20/L22 **enabled ✅** | — |
 | **normalize** | `testnormalize` 188 条 | 经 `normal` 间接覆盖 | `non_recursive_normal` 未注册 |
 
 ---
@@ -87,7 +87,7 @@ giac-rs Phase 4 目标是 **headless CAS 子集**，不是 giac-2.0.0 全库 1:1
 | ID | upstream | giac-rs | check 锚点 |
 |----|----------|---------|------------|
 | **FAC-G1** | `try_sparse_factor` 启发式 fallback | **Partial**（@aux=0，2 因子 bilinear） | testfactor L22 由 Hensel 覆盖 |
-| **FAC-G2** | 参三元 `poly_factor` 塔 | **无** | testfactor L20 |
+| **FAC-G2** | 参三元 `poly_factor` 塔 | **Partial** — `try_lift_factors_in_aux_var` 覆盖 L20 | testfactor L20 ✅ |
 | **FAC-G3** | 二元混合次数 Hensel 或 fallback | **Partial** — `try_hensel_lift_factor` + `(main,aux)` 双序 | testfactor L22 ✅ |
 
 **partfrac 连带缺口:** 重复二次因子、实二次分裂 → `NotImplemented("partfrac …")`；阻塞部分高阶有理积分。
@@ -155,9 +155,9 @@ P3  assume/purge            → CAL-G4（giac-prog）
 
 - [x] `try_sparse_factor`（@aux=0，2 因子 bilinear；L22 仍 None — 见架构注）
 - [ ] `try_sparse_factor_bi`（三元+）
-- [ ] 参三元 factor tower（FAC-G2）
+- [x] 参三元 factor tower（FAC-G2 L20 由 aux-lift 覆盖）
 - [x] tracer L22 un-ignore
-- [ ] tracer L20 un-ignore
+- [x] tracer L20 un-ignore
 - [x] 退役 `try_factor_bivariate_eval` / `try_kronecker_bivariate` 热路径
 
 #### Phase B 架构诊断（2026-06-19，更新）
@@ -182,8 +182,8 @@ sqff → 随机 eval 不可约快检 → try_sparse_factor(v0) → try_sparse_fa
 
 giac-rs 缺口：
 
-- **已对齐：** 双主元 `(main,aux)`；`try_sparse_factor`；`try_hensel_lift_factor` + `hensel_lift_two_at_zero` fallback
-- **仍缺：** 随机 eval 不可约快检；`try_sparse_factor(v)` 用 `find_good_eval` 因子（非仅 aux=0）；`try_sparse_factor_bi`；`unitaryfactor` 有界启发式
+- **已对齐：** 双主元 `(main,aux)`；`try_sparse_factor`；`try_hensel_lift_factor` + `hensel_lift_two_at_zero` fallback；二元 eval 不可约快检（0/1）
+- **仍缺：** `find_good_eval` 随机点；`try_sparse_factor(v)` 非仅 aux=0；`try_sparse_factor_bi`；`unitaryfactor` 有界启发式
 
 **临时算法可否删除：**
 
@@ -194,7 +194,7 @@ giac-rs 缺口：
 | `giac-poly/poly_uni` | `try_factor_bivariate_eval`, `try_kronecker_*` | **已退役**（`#[cfg(test)]`）— FAC-G3 由 sparse→Hensel 覆盖 |
 | `giac-poly/poly_uni` | 静默 `Ok(vec![g])` | **语义正确**（不可约）— 但链未含随机 eval / sparse_bi / pzadic，属能力缺口非 bug |
 
-**FAC-G2 L20**（参系数 `b,c`）：需 `poly_factor` 系数环塔 — 与 FAC-G3 独立，仍 `#[ignore]`。
+**FAC-G2 L20**（参系数 `b,c`）：`try_lift_factors_in_aux_var` 已覆盖 L20；完整 `poly_factor` 系数环塔仍缺（一般参系数情形）。
 
 ### Phase C — simplify 三角/化简链
 
