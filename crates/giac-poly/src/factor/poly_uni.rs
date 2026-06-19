@@ -35,7 +35,7 @@ fn poly_div_exact(num: &Poly, den: &Poly) -> PolyResult<Poly> {
 }
 
 // **Pipeline private** — `poly_div_exact_wrt`
-fn poly_div_exact_wrt(num: &Poly, den: &Poly, var: &Var) -> PolyResult<Poly> {
+pub(crate) fn poly_div_exact_wrt(num: &Poly, den: &Poly, var: &Var) -> PolyResult<Poly> {
     let (q, r) = crate::subresultant::univariate_div_rem_wrt(num, den, var);
     if r.is_zero() {
         Ok(q)
@@ -183,6 +183,9 @@ pub fn factor_sqff_over_coeff_ring(
         let aux_refs: Vec<&Var> = others.iter().collect();
         if super::eval::looks_irreducible_by_good_eval(g, var, &aux_refs) {
             return Ok(vec![g.clone()]);
+        }
+        if let Some(f) = super::sparse::try_sparse_factor_bi(g, var, &aux_refs) {
+            return Ok(f);
         }
         for av in others {
             if let Some(f) = super::hensel::try_lift_factors_in_aux_var(g, var, av, others) {

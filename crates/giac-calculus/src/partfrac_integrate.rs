@@ -215,6 +215,9 @@ fn integrate_rational_term(
         let scaled = coeff / a;
         return Ok(Expr::mul(vec![ratio_to_expr(&scaled), ln_abs_expr(factor_expr)]));
     }
+    if fdeg == 1 && ndeg >= 1 {
+        return integrate_poly_over_linear(numer, factor, var, x);
+    }
     if fdeg >= 2 && ndeg == 0 {
         if fdeg == 2 {
             return integrate_over_quadratic(numer, factor, var, x);
@@ -228,6 +231,40 @@ fn integrate_rational_term(
         return integrate_over_quadratic(numer, factor, var, x);
     }
     Err(EvalError::NotImplemented("integrate partfrac"))
+}
+
+// **Pipeline private** — ∫ P(x)/(cx+d) dx with linear denominator.
+fn integrate_poly_over_linear(
+    numer: &Poly,
+    factor: &Poly,
+    var: &Var,
+    x: &Ident,
+) -> Result<ExprArc, EvalError> {
+    let a = coeff_at(factor, var, 1);
+    if a.is_zero() || univariate_degree(factor, var) != 1 {
+        return Err(EvalError::TypeError("not linear factor"));
+    }
+    let (q, r) = numer.div_rem(factor);
+    if univariate_degree(&r, var) > 0 {
+        return Err(EvalError::TypeError("non-constant remainder"));
+    }
+    let mut parts = Vec::new();
+    if !q.is_zero() {
+        parts.push(integrate(&poly_to_expr(&q), x)?);
+    }
+    if !r.is_zero() {
+        let coeff = coeff_at(&r, var, 0);
+        let scaled = coeff / a;
+        parts.push(Expr::mul(vec![
+            ratio_to_expr(&scaled),
+            ln_abs_expr(poly_to_expr(factor)),
+        ]));
+    }
+    if parts.is_empty() {
+        Ok(Expr::int(0))
+    } else {
+        Ok(Expr::add(parts))
+    }
 }
 
 // **Pipeline private** — ∫ c / g^n dx for linear `g` and n >= 2.
@@ -524,6 +561,16 @@ mod tests {
     use num_rational::Ratio;
 
     use super::*;
+
+    #[test]
+    fn integrate_poly_over_linear_term() {
+        let x = Ident::new("x");
+        let v = Var::from("x");
+        let numer = Poly::var("x").add(&Poly::constant(Ratio::from_integer(2.into())));
+        let factor = Poly::var("x").sub(&Poly::constant(Ratio::from_integer(3.into())));
+        let r = integrate_rational_term(&numer, &factor, &v, &x);
+        assert!(r.is_ok(), "{:?}", r);
+    }
 
     #[test]
     fn partfrac_integrate_x_over_repeated_linear() {
