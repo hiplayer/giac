@@ -1327,7 +1327,7 @@ fn reconstruct_sparse_bi_monomials(
     draft.materialize().map(|up| up.poly)
 }
 
-/// Dual-embedding reconstruction for monomial-only coeffs (sum-coeff uses monomial loop).
+/// Dual-embedding reconstruction for sum-coeff coeffs (monomial loop fallback).
 // **Pipeline private**
 fn reconstruct_factor_dual_embed(
     selp: &Poly,

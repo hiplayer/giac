@@ -140,9 +140,8 @@ mod tests {
         assert_factors(&p, 2);
     }
 
-    /// Hensel-fail gate (line 25 target): L22+y^3 — needs quadratic coeff lift (TODO).
+    /// Hensel-fail gate (line 25 target): L22+y^3 — multi-point coeff interp (P2a).
     #[test]
-    #[ignore = "FAC-G1: L22+y^3 needs quadratic PzadicLift; wire after coeff-interp"]
     fn testfactor_line25_unitaryfactor_gate() {
         let f1 = Poly::constant(Ratio::from_integer(3.into()))
             .mul(&x())
@@ -155,6 +154,25 @@ mod tests {
             .sub(&y().pow(2))
             .sub(&Poly::one())
             .add(&y().pow(3));
+        let p = f1.mul(&f2);
+        assert_factors(&p, 2);
+    }
+
+    /// line 26: line25 f2 + (-x^2*y) cross term — harder mixed-degree gate.
+    #[test]
+    fn testfactor_line26_y3_x2y_gate() {
+        let f1 = Poly::constant(Ratio::from_integer(3.into()))
+            .mul(&x())
+            .sub(&y().pow(2))
+            .add(&y())
+            .sub(&Poly::constant(Ratio::from_integer(5.into())));
+        let f2 = x()
+            .mul(&y())
+            .add(&Poly::constant(Ratio::from_integer(3.into())).mul(&x()))
+            .sub(&y().pow(2))
+            .sub(&Poly::one())
+            .add(&y().pow(3))
+            .sub(&x().pow(2).mul(&y()));
         let p = f1.mul(&f2);
         assert_factors(&p, 2);
     }

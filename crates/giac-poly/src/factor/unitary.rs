@@ -1,5 +1,7 @@
 //! Upstream `gausspol.cc` `unitaryfactor` / `pzadic` (FAC-G1 last-resort fallback).
 //!
+//! **数学原理：** `.doc/giac-poly-factor-unitary-principles.md`（pzadic / P2a 局部窗 + monic + Lagrange）
+//!
 //! ## Ring / stage typing
 //!
 //! | Stage | Mathematical object | Rust type | Division API |
@@ -24,7 +26,7 @@ use num_rational::Ratio;
 use num_traits::{One, Signed, Zero};
 
 use crate::monomial::Var;
-use crate::nested::{LiftedFactor, MainVar, PzadicDraft};
+use crate::nested::{LiftedFactor, MainVar, PzadicDraft, UnivariateIn};
 use crate::poly::Poly;
 use crate::resultant::{coeff_at, univariate_degree};
 use crate::univariate::square_free_part;
@@ -73,21 +75,18 @@ impl UnitaryEvalPoint {
     }
 }
 
+/// Upstream eval trajectory only: `x0 = 2·‖p‖∞+2`, then `x0 ← x0·73794/27011+1`.
+/// Sqff micro-bumps (`x0 += 1`) happen per-try in [`unitary_factor_rev`], not here.
 struct EvalBaseStream {
-    seeds: Vec<BigInt>,
-    idx: usize,
     point: UnitaryEvalPoint,
+    started: bool,
 }
 
 impl EvalBaseStream {
     fn new(p: &Poly) -> Self {
-        let mut seeds: Vec<BigInt> = (2..32).map(BigInt::from).collect();
-        let point = UnitaryEvalPoint::initial(p);
-        seeds.push(point.base().clone());
         Self {
-            seeds,
-            idx: 0,
-            point,
+            point: UnitaryEvalPoint::initial(p),
+            started: false,
         }
     }
 
@@ -99,19 +98,28 @@ impl EvalBaseStream {
         &mut self.point
     }
 
+    /// Next outer eval base. First call keeps `initial(p)`; later calls `advance()`.
     fn next(&mut self) -> bool {
-        if self.idx < self.seeds.len() {
-            self.point.set_base(self.seeds[self.idx].clone());
-            self.idx += 1;
-            return self.point.base().bits() as usize <= 256;
-        }
-        self.point.advance();
-        if self.point.base().bits() as usize <= 256 {
-            self.seeds.push(self.point.base().clone());
-            true
+        if self.started {
+            self.point.advance();
         } else {
-            false
+            self.started = true;
         }
+        self.point.base().bits() as usize <= 256
+    }
+
+    /// First `limit` bases on the upstream trajectory (for tests).
+    #[cfg(test)]
+    fn upstream_bases(p: &Poly, limit: usize) -> Vec<BigInt> {
+        let mut stream = Self::new(p);
+        let mut out = Vec::with_capacity(limit);
+        while out.len() < limit {
+            if !stream.next() {
+                break;
+            }
+            out.push(stream.current().base().clone());
+        }
+        out
     }
 }
 
@@ -304,6 +312,178 @@ impl<'a> PzadicLift<'a> {
     }
 }
 
+/// Max samples for multi-point coeff interpolation (P2a).
+const MULTI_EVAL_MAX_SAMPLES: usize = 8;
+
+fn factor_sort_key(f: &Poly, main: &Var) -> (u64, Ratio<BigInt>) {
+    let d = univariate_degree(f, main);
+    (d, coeff_at(f, main, d))
+}
+
+fn sort_eval_factors(fz: &mut [Poly], main: &Var) {
+    fz.sort_by(|a, b| factor_sort_key(a, main).cmp(&factor_sort_key(b, main)));
+}
+
+/// Lagrange interpolation: points `(x_i, v_i)` → `Poly` in `eval_var`.
+fn lagrange_interp_coeff(
+    samples: &[(BigInt, Ratio<BigInt>)],
+    eval_var: &Var,
+) -> Option<Poly> {
+    if samples.is_empty() {
+        return None;
+    }
+    let mut out = Poly::zero();
+    let n = samples.len();
+    for i in 0..n {
+        let (xi, vi) = &samples[i];
+        let mut basis = Poly::constant(Ratio::one());
+        for j in 0..n {
+            if i == j {
+                continue;
+            }
+            let (xj, _) = &samples[j];
+            let diff = xi - xj;
+            if diff.is_zero() {
+                return None;
+            }
+            let num = Poly::var(eval_var.clone())
+                .sub(&Poly::constant(Ratio::from_integer(xj.clone())));
+            let scale = Ratio::new(BigInt::one(), diff);
+            basis = basis.mul(&num.mul_scalar(&scale));
+        }
+        out = out.add(&basis.mul_scalar(vi));
+    }
+    Some(out)
+}
+
+fn monic_wrt_main(f: &Poly, main: &Var) -> Option<Poly> {
+    let d = univariate_degree(f, main);
+    if d == 0 {
+        return None;
+    }
+    let lc = coeff_at(f, main, d);
+    if lc.is_zero() {
+        return None;
+    }
+    Some(f.mul_scalar(&lc.recip()))
+}
+
+/// Multi-point coeff lift when single-base `pzadic` fails (P2a / line 25).
+///
+/// Sample bases form a **local window** below `base0` (not a global `2..N` scan):
+/// `[base0 - (need-1), …, base0 + tries]` so interpolation can use nearby sqff points
+/// while the outer stream stays on upstream `initial` / `advance`.
+fn lift_factor_multi_eval(
+    p: &Poly,
+    eval_var: &Var,
+    main: &Var,
+    factor_slot: usize,
+    base0: &BigInt,
+    max_y_deg: u64,
+) -> Option<Poly> {
+    let need = (max_y_deg as usize + 1).min(MULTI_EVAL_MAX_SAMPLES).max(2);
+    let back = BigInt::from(need as i64 - 1);
+    let mut b = if base0 > &back {
+        base0 - &back
+    } else {
+        BigInt::from(2)
+    };
+    let mut samples_by_deg: Vec<Vec<(BigInt, Ratio<BigInt>)>> = Vec::new();
+    let mut tries = 0usize;
+    let max_tries = need + 16;
+    while samples_by_deg.first().map(|s| s.len()).unwrap_or(0) < need && tries < max_tries {
+        tries += 1;
+        let mut ev = substitute_poly(p, eval_var, &Poly::constant(Ratio::from_integer(b.clone())));
+        for _ in 0..8 {
+            if is_sqff_wrt_main(&ev, main) {
+                break;
+            }
+            b += BigInt::one();
+            ev = substitute_poly(p, eval_var, &Poly::constant(Ratio::from_integer(b.clone())));
+        }
+        if !is_sqff_wrt_main(&ev, main) {
+            b += BigInt::one();
+            continue;
+        }
+        let Ok(mut fz) = factor_univariate_flat(&ev, main) else {
+            b += BigInt::one();
+            continue;
+        };
+        if !normalize_univariate_factors(&mut fz, main, &ev) || fz.len() < 2 {
+            b += BigInt::one();
+            continue;
+        }
+        sort_eval_factors(&mut fz, main);
+        if factor_slot >= fz.len() {
+            b += BigInt::one();
+            continue;
+        }
+        let f = monic_wrt_main(&fz[factor_slot], main)?;
+        let fd = univariate_degree(&f, main);
+        if samples_by_deg.is_empty() {
+            samples_by_deg.resize(fd as usize + 1, Vec::new());
+        } else if fd as usize + 1 != samples_by_deg.len() {
+            b += BigInt::one();
+            continue;
+        }
+        for e in 0..fd {
+            samples_by_deg[e as usize].push((b.clone(), coeff_at(&f, main, e)));
+        }
+        b += BigInt::one();
+    }
+    if samples_by_deg.first().map(|s| s.len()).unwrap_or(0) < need {
+        return None;
+    }
+    let mut lifted = Poly::zero();
+    let top = samples_by_deg.len().saturating_sub(1);
+    for (e, samples) in samples_by_deg.iter().enumerate() {
+        if e == top {
+            lifted = lifted.add(&term_with_var(&Poly::one(), main, e as u64));
+            continue;
+        }
+        if samples.iter().all(|(_, v)| v.is_zero()) {
+            continue;
+        }
+        let c_y = lagrange_interp_coeff(samples, eval_var)?;
+        if c_y.is_zero() {
+            continue;
+        }
+        lifted = lifted.add(&term_with_var(&c_y, main, e as u64));
+    }
+    if lifted.is_zero() {
+        None
+    } else {
+        Some(lifted)
+    }
+}
+
+fn try_lift_and_peel(
+    unitaryp: &Poly,
+    p: &Poly,
+    eval_var: &Var,
+    main: &Var,
+    main_tag: &MainVar,
+    eval_base: &BigInt,
+    f: &Poly,
+    factor_slot: usize,
+) -> Option<Poly> {
+    let lift = PzadicLift::new(main_tag.clone(), eval_var, eval_base.clone());
+    let draft = lift.draft_from(f);
+    for lifted in lift.lift_candidates(&draft) {
+        if lifted.as_univariate_in().divides(unitaryp) {
+            return Some(lifted.poly);
+        }
+    }
+    let max_y = univariate_degree(p, eval_var);
+    let interp = lift_factor_multi_eval(p, eval_var, main, factor_slot, eval_base, max_y)?;
+    let candidate = LiftedFactor::new(interp, main_tag.clone(), 1);
+    if candidate.as_univariate_in().divides(unitaryp) {
+        Some(candidate.poly)
+    } else {
+        None
+    }
+}
+
 /// Centered symmetric digit for upstream `smod` + `iquo((k-r), n)`.
 fn sym_mod_digit(num: &BigInt, den: &BigInt, base: &BigInt) -> (BigInt, BigInt) {
     let step = den * base;
@@ -410,6 +590,7 @@ pub(crate) fn unitary_factor_rev(p: &Poly, vars_rev: &[Var]) -> Option<Vec<Poly>
         if fz.is_empty() {
             break;
         }
+        sort_eval_factors(&mut fz, main);
         if fz.len() == 1 {
             if factors.is_empty() {
                 continue;
@@ -417,11 +598,17 @@ pub(crate) fn unitary_factor_rev(p: &Poly, vars_rev: &[Var]) -> Option<Vec<Poly>
             factors.push(unitaryp);
             return verified_product(factors, p);
         }
+        if univariate_degree(&unitaryp, main) == 1 {
+            factors.push(unitaryp);
+            return verified_product(factors, p);
+        }
 
         let eval_base = bases.current().base().clone();
         if let Some(batch) = try_peel_all_at_eval(
             &unitaryp,
+            p,
             eval_var,
+            main,
             &eval_base,
             &fz,
             main_tag.clone(),
@@ -431,22 +618,24 @@ pub(crate) fn unitary_factor_rev(p: &Poly, vars_rev: &[Var]) -> Option<Vec<Poly>
             break;
         }
 
-        let lift = PzadicLift::new(main_tag.clone(), eval_var, eval_base);
         let mut peeled = false;
-        for f in &fz {
-            let draft = lift.draft_from(f);
-            for lifted in lift.lift_candidates(&draft) {
-                let divisor = lifted.as_univariate_in();
-                if divisor.divides(&unitaryp) {
-                    let q = divisor.exact_quo_dividing(&unitaryp).ok()?;
-                    factors.push(lifted.poly);
-                    unitaryp = q;
-                    peeled = true;
-                    break;
-                }
+        for (fi, f) in fz.iter().enumerate() {
+            if let Some(lifted_poly) =
+                try_lift_and_peel(&unitaryp, p, eval_var, main, &main_tag, &eval_base, f, fi)
+            {
+                let divisor = UnivariateIn::new(&lifted_poly, main_tag.clone());
+                let q = divisor.exact_quo_dividing(&unitaryp).ok()?;
+                factors.push(lifted_poly);
+                unitaryp = q;
+                peeled = true;
+                break;
             }
         }
         if unitaryp.is_one() {
+            return verified_product(factors, p);
+        }
+        if univariate_degree(&unitaryp, main) == 1 {
+            factors.push(unitaryp);
             return verified_product(factors, p);
         }
         if !peeled {
@@ -514,8 +703,10 @@ fn factor_constant_tail(p: &Poly, vars_rev: &[Var]) -> Option<Vec<Poly>> {
 }
 
 fn try_peel_all_at_eval(
-    p: &Poly,
+    unitaryp: &Poly,
+    orig: &Poly,
     eval_var: &Var,
+    main: &Var,
     base: &BigInt,
     fz: &[Poly],
     main_tag: MainVar,
@@ -523,20 +714,14 @@ fn try_peel_all_at_eval(
     if fz.len() < 2 {
         return None;
     }
-    let lift = PzadicLift::new(main_tag.clone(), eval_var, base.clone());
-    let mut rest = p.clone();
+    let mut rest = unitaryp.clone();
     let mut out = Vec::new();
-    for f in fz {
-        let draft = lift.draft_from(f);
-        let lifted = lift.lift_candidates(&draft).into_iter().next()?;
-        let divisor = lifted.as_univariate_in();
-        if divisor.divides(&rest) {
-            let q = divisor.exact_quo_dividing(&rest).ok()?;
-            out.push(lifted.poly);
-            rest = q;
-        } else {
-            return None;
-        }
+    for (fi, f) in fz.iter().enumerate() {
+        let lifted_poly = try_lift_and_peel(&rest, orig, eval_var, main, &main_tag, base, f, fi)?;
+        let divisor = UnivariateIn::new(&lifted_poly, main_tag.clone());
+        let q = divisor.exact_quo_dividing(&rest).ok()?;
+        out.push(lifted_poly);
+        rest = q;
     }
     if (rest.is_one() || rest.is_zero()) && out.len() >= 2 {
         Some(out)
@@ -582,6 +767,7 @@ fn linfnorm(p: &Poly) -> Ratio<BigInt> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::nested::{MainVar, UnivariateIn};
     use num_traits::One;
 
     fn l22_y3_product() -> Poly {
@@ -598,6 +784,24 @@ mod tests {
             .sub(&y.pow(2))
             .sub(&Poly::one())
             .add(&y.pow(3));
+        f1.mul(&f2)
+    }
+
+    fn l22_y3_x2y_product() -> Poly {
+        let x = Poly::var("x");
+        let y = Poly::var("y");
+        let f1 = Poly::constant(Ratio::from_integer(3.into()))
+            .mul(&x)
+            .sub(&y.pow(2))
+            .add(&y)
+            .sub(&Poly::constant(Ratio::from_integer(5.into())));
+        let f2 = x
+            .mul(&y)
+            .add(&Poly::constant(Ratio::from_integer(3.into())).mul(&x))
+            .sub(&y.pow(2))
+            .sub(&Poly::one())
+            .add(&y.pow(3))
+            .sub(&x.pow(2).mul(&y));
         f1.mul(&f2)
     }
 
@@ -629,43 +833,75 @@ mod tests {
         assert_eq!(back, p);
     }
 
-    fn l22_poly() -> Poly {
-        let x = Poly::var("x");
-        let y = Poly::var("y");
-        Poly::constant(Ratio::from_integer(3.into()))
-            .mul(&x)
-            .sub(&y.pow(2))
-            .add(&y)
-            .sub(&Poly::constant(Ratio::from_integer(5.into())))
-            .mul(
-                &x
-                    .mul(&y)
-                    .add(&Poly::constant(Ratio::from_integer(3.into())).mul(&x))
-                    .sub(&y.pow(2))
-                    .sub(&Poly::one()),
-            )
+    #[test]
+    fn eval_base_stream_upstream_only() {
+        let p = l22_y3_product();
+        let initial = UnitaryEvalPoint::initial(&p).base().clone();
+        let bases = EvalBaseStream::upstream_bases(&p, 4);
+        assert_eq!(bases.len(), 4);
+        assert_eq!(bases[0], initial);
+        assert!(&bases[0] >= &BigInt::from(2));
+        // No small-integer scan: first base is norm-derived, not 2.
+        assert!(bases[0] > BigInt::from(31));
+        let advanced = &initial * BigInt::from(73794) / BigInt::from(27011) + BigInt::one();
+        assert_eq!(bases[1], advanced);
     }
 
+    /// P2a on first 4 upstream bases (partial peel, with sqff bumps).
     #[test]
-    fn l22_scan_peel() {
-        let p = l22_poly();
+    fn p2a_line25_upstream_trajectory() {
+        let p = l22_y3_product();
         let x = Var::from("x");
         let y = Var::from("y");
         let main_tag = MainVar::new(x.clone());
-        let mut found = 0;
-        for b in 2i64..80 {
-            let base = BigInt::from(b);
-            let ev = substitute_poly(&p, &y, &Poly::constant(Ratio::from_integer(b.into())));
-            if let Ok(mut fz) = factor_univariate_flat(&ev, &x) {
-                if normalize_univariate_factors(&mut fz, &x, &ev) && fz.len() >= 2 {
-                    if try_peel_all_at_eval(&p, &y, &base, &fz, main_tag.clone()).is_some() {
-                        found += 1;
-                    }
+        let mut peel_hits = 0usize;
+        for mut point in EvalBaseStream::upstream_bases(&p, 4)
+            .into_iter()
+            .map(|b| UnitaryEvalPoint { base: b })
+        {
+            let mut ev = substitute_poly(&p, &y, &Poly::constant(point.as_ratio()));
+            for _ in 0..UNITARY_MAX_TRY {
+                if is_sqff_wrt_main(&ev, &x) {
+                    break;
                 }
+                point.bump_sqff();
+                ev = substitute_poly(&p, &y, &Poly::constant(point.as_ratio()));
+            }
+            if !is_sqff_wrt_main(&ev, &x) {
+                continue;
+            }
+            let Ok(mut fz) = factor_univariate_flat(&ev, &x) else {
+                continue;
+            };
+            if !normalize_univariate_factors(&mut fz, &x, &ev) || fz.len() < 2 {
+                continue;
+            }
+            sort_eval_factors(&mut fz, &x);
+            let base = point.base().clone();
+            if fz.iter().enumerate().any(|(fi, f)| {
+                try_lift_and_peel(&p, &p, &y, &x, &main_tag, &base, f, fi).is_some()
+            }) {
+                peel_hits += 1;
             }
         }
-        eprintln!("L22 peel hits: {found}");
-        let _ = found;
+        assert!(
+            peel_hits >= 1,
+            "P2a partial peel on upstream trajectory, got {peel_hits}"
+        );
+    }
+
+    /// Local sample window below `base0` (not a global `2..N` outer scan).
+    #[test]
+    fn p2a_sample_window_anchors_below_base0() {
+        let p = l22_y3_product();
+        let x = Var::from("x");
+        let y = Var::from("y");
+        let base0 = UnitaryEvalPoint::initial(&p).base().clone();
+        let lifted = lift_factor_multi_eval(&p, &y, &x, 1, &base0, univariate_degree(&p, &y))
+            .expect("multi-eval local window");
+        assert!(!lifted.is_zero());
+        assert!(univariate_degree(&lifted, &x) > 0);
+        assert!(base0 > BigInt::from(34));
     }
 
     #[test]
@@ -697,9 +933,16 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "y^3 coeff lift needs P2 multi-point interp; P1 tail chain landed"]
     fn unitary_factor_line25_l22_y3() {
         let p = l22_y3_product();
+        let f = try_unitary_factor(&p, &[Var::from("x"), Var::from("y")]).expect("unitaryfactor");
+        assert_eq!(f.len(), 2);
+        assert_eq!(f.iter().fold(Poly::one(), |acc, q| acc.mul(q)), p);
+    }
+
+    #[test]
+    fn unitary_factor_line26_l22_y3_x2y() {
+        let p = l22_y3_x2y_product();
         let f = try_unitary_factor(&p, &[Var::from("x"), Var::from("y")]).expect("unitaryfactor");
         assert_eq!(f.len(), 2);
         assert_eq!(f.iter().fold(Poly::one(), |acc, q| acc.mul(q)), p);
