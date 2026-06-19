@@ -86,7 +86,7 @@ giac-rs Phase 4 目标是 **headless CAS 子集**，不是 giac-2.0.0 全库 1:1
 
 | ID | upstream | giac-rs | check 锚点 |
 |----|----------|---------|------------|
-| **FAC-G1** | `try_sparse_factor` 启发式 fallback | **Partial**（@aux=0，2 因子 bilinear） | testfactor L22 由 Hensel 覆盖 |
+| **FAC-G1** | `try_sparse_factor` + `try_sparse_factor_bi` 启发式 fallback | **Partial** — `@0`/`find_good_eval` 好点种子；`sparse_bi` 2-aux `eval_tn` MVP（单项式系数；sum-coeff 待补） | L22 由 Hensel 覆盖 |
 | **FAC-G2** | 参三元 `poly_factor` 塔 | **Partial** — `try_lift_factors_in_aux_var` 覆盖 L20 | testfactor L20 ✅ |
 | **FAC-G3** | 二元混合次数 Hensel 或 fallback | **Partial** — `try_hensel_lift_factor` + `(main,aux)` 双序 | testfactor L22 ✅ |
 
@@ -105,7 +105,7 @@ giac-rs Phase 4 目标是 **headless CAS 子集**，不是 giac-2.0.0 全库 1:1
 | 域 | 测试现状 | 算法深度缺口 |
 |----|----------|--------------|
 | **limit** | Maxima 17/17、CK limit 绿 | MRV SparseSeries ordre/upscale/padd 未完整；asymptotic 快路径待退役（LIM-G2–G4） |
-| **integrate** | 35/66 enabled | 真 Risch（CAL-G1）；31 disabled（换元/反三角/多参/assume） |
+| **integrate** | 35/66 enabled | 真 Risch（CAL-G1）；31 disabled（换元/反三角/多参/assume）；partfrac 已补 `∫P/(cx+d)`（`fdeg==1, ndeg>=1`） |
 | **diff** | 基础超越 | 一般幂、asin/sqrt 等 |
 | **series** | Taylor 子集 | 深层 ln/exp @ 非 0（SER-G1/G2） |
 | **assume/purge** | 未实现 | CK-INT-50/54（CAL-G4，giac-prog/core） |
@@ -153,8 +153,8 @@ P3  assume/purge            → CAL-G4（giac-prog）
 
 ### Phase B — FAC-G1–G3
 
-- [x] `try_sparse_factor`（@aux=0，2 因子 bilinear；L22 仍 None — 见架构注）
-- [ ] `try_sparse_factor_bi`（三元+）
+- [x] `try_sparse_factor`（@0 + `find_good_eval` 好点重试；L22 仍 None — 见架构注）
+- [x] `try_sparse_factor_bi`（2-aux MVP：`eval_tn` 嵌入 + 指数重建；`others.len()>=2` 接入；sum-coeff / dilation 待补）
 - [x] 参三元 factor tower（FAC-G2 L20 由 aux-lift 覆盖）
 - [x] tracer L22 un-ignore
 - [x] tracer L20 un-ignore
@@ -182,8 +182,8 @@ sqff → 随机 eval 不可约快检 → try_sparse_factor(v0) → try_sparse_fa
 
 giac-rs 缺口：
 
-- **已对齐：** 双主元 `(main,aux)`；`try_sparse_factor`；`try_hensel_lift_factor` + `hensel_lift_two_at_zero` fallback；`find_good_eval` + 二元/多元不可约快检
-- **仍缺：** `try_sparse_factor(v)` 用好点种子（非仅 aux=0）；`try_sparse_factor_bi`；`unitaryfactor` 有界启发式
+- **已对齐：** 双主元 `(main,aux)`；`try_sparse_factor` + `find_good_eval` 好点种子；`try_sparse_factor_bi`（2-aux MVP）；`try_hensel_lift_factor` + `hensel_lift_two_at_zero` fallback；`find_good_eval` + 二元/多元不可约快检
+- **仍缺：** `sparse_bi` sum-coeff 重建 + dilation 随机扩张；`unitaryfactor` 有界启发式
 
 **临时算法可否删除：**
 
