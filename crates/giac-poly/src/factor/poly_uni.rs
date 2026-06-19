@@ -179,9 +179,9 @@ fn factor_sqff_over_coeff_ring_ctx(
                     return Ok(set);
                 }
             }
-        }
-        for (main_var, aux_var) in [(var, other), (other, var)] {
-            if let Some(f) = super::unitary::try_unitary_factor_bivariate(g, main_var, aux_var) {
+            if let Some(f) =
+                super::unitary::try_unitary_factor(g, &[main_var.clone(), aux_var.clone()])
+            {
                 let set = FactorSet::from_polys(f, MainVar::new(main_var.clone()));
                 if set.product_equals(g) {
                     return Ok(set);

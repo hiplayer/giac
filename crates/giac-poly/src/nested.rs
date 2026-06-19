@@ -533,6 +533,64 @@ impl EmbedFactorDraft {
     }
 }
 
+/// `pzadic`-stage IR: univariate factor at eval before lift into `ℚ[eval_var][main]`.
+///
+/// Upstream `pzadic` expands dimension by one (`dim+1`): digit exponents along `eval_var`
+/// encode base-`base` expansions (centered symmetric `smod`). Implemented in
+/// [`crate::factor::unitary::PzadicLift::pzadic`].
+#[derive(Clone, Debug)]
+pub(crate) struct PzadicDraft {
+    /// `f ∈ ℚ[main]` after `eval_var ↦ base` (coeffs constant w.r.t. `eval_var`).
+    pub factor_at_eval: Poly,
+    pub main: MainVar,
+    pub eval_var: Var,
+    pub base: BigInt,
+    /// Upstream `dim+1` sketch: one new digit axis (`eval_var` exponents).
+    pub lifted_dim: usize,
+}
+
+impl PzadicDraft {
+    pub(crate) fn from_eval_factor(
+        factor_at_eval: Poly,
+        main: MainVar,
+        eval_var: Var,
+        base: BigInt,
+    ) -> Self {
+        Self {
+            factor_at_eval,
+            main,
+            eval_var,
+            base,
+            lifted_dim: 1,
+        }
+    }
+}
+
+/// Lifted factor candidate in `ℚ[eval_var][main]` (post-pzadic, pre-`divides` check).
+///
+/// Peel with [`LiftedFactor::as_univariate_in`], **not** [`Poly::div_rem`].
+#[derive(Clone, Debug)]
+pub(crate) struct LiftedFactor {
+    pub poly: Poly,
+    pub main: MainVar,
+    pub candidate_idx: usize,
+}
+
+impl LiftedFactor {
+    pub(crate) fn new(poly: Poly, main: MainVar, candidate_idx: usize) -> Self {
+        Self {
+            poly,
+            main,
+            candidate_idx,
+        }
+    }
+
+    /// **Stable (crate-internal)** — nested-ring divisor view for peel.
+    pub(crate) fn as_univariate_in(&self) -> UnivariateIn<'_> {
+        UnivariateIn::new(&self.poly, self.main.clone())
+    }
+}
+
 /// **Stable (crate-internal)** — `rem` has no exponent of `var`.
 pub(crate) fn is_independent_of_var(p: &Poly, var: &Var) -> bool {
     p.terms.keys().all(|m| m.exp_of(var) == 0)
@@ -729,6 +787,22 @@ mod tests {
         );
         let q = f.exact_quo_dividing(&p).expect("quotient");
         assert_eq!(q.mul(&factor), p);
+    }
+
+    #[test]
+    fn lifted_factor_peel_vs_div_rem() {
+        let x = Poly::var("x");
+        let y = Poly::var("y");
+        let p = x.add(&y).sub(&Poly::one()).mul(&x.sub(&y).sub(&Poly::one()));
+        let factor = x.add(&y).sub(&Poly::one());
+        let main = MainVar::new("x");
+        let lifted = LiftedFactor::new(factor.clone(), main.clone(), 0);
+        assert!(lifted.as_univariate_in().divides(&p));
+        let (_, rem) = p.div_rem(&factor);
+        assert!(
+            !rem.is_zero(),
+            "LiftedFactor peel must not use multivariate div_rem"
+        );
     }
 
     #[test]

@@ -1518,7 +1518,7 @@ fn try_sparse_factor_bi_single_n(
 
 /// **Partial** — Heuristic factorization via large eval + `pzadic` lift (FAC-G1/G3).
 pub fn try_heuristic_factor_bivariate(p: &Poly, main: &Var, other: &Var) -> Option<Vec<Poly>> {
-    super::unitary::try_unitary_factor_bivariate(p, main, other)
+    super::unitary::try_unitary_factor(p, &[main.clone(), other.clone()])
 }
 
 #[cfg(test)]
