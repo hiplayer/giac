@@ -107,7 +107,7 @@ fn partfrac_by_square_free(
 
     let mut denom_powers = Vec::new();
     for (g, mult) in &sqff {
-        if univariate_degree(g, var) > 2 {
+        if univariate_degree(g, var) > 3 {
             return Err(PolyError::NotImplemented("partfrac nonlinear factor"));
         }
         for j in 1..=*mult {
@@ -153,7 +153,7 @@ fn partfrac_affine_power_system(
     let mut term_specs = Vec::new();
     for (g, mult) in sqff {
         let gdeg = univariate_degree(g, var) as usize;
-        if gdeg == 0 || gdeg > 2 {
+        if gdeg == 0 || gdeg > 3 {
             return Err(PolyError::NotImplemented("partfrac nonlinear factor"));
         }
         for j in 1..=*mult {
@@ -237,7 +237,7 @@ fn expand_sqff_factors(
                 continue;
             }
         }
-        if univariate_degree(g, var) <= 2 {
+        if univariate_degree(g, var) <= 3 {
             out.push((g.clone(), *mult));
             continue;
         }
@@ -264,7 +264,7 @@ fn partfrac_square_free_affine_numerators(
 ) -> PolyResult<Vec<(Poly, Poly)>> {
     let mut term_specs = Vec::new();
     for (g, mult) in sqff {
-        if *mult != 1 || univariate_degree(g, var) > 2 {
+        if *mult != 1 || univariate_degree(g, var) > 3 {
             return Err(PolyError::NotImplemented("partfrac nonlinear factor"));
         }
         term_specs.push((g.clone(), univariate_degree(g, var)));
@@ -445,6 +445,19 @@ mod tests {
         assert!(factors.len() >= 2);
         let expanded = expand_sqff_factors(&factors, &Var::from("x")).unwrap();
         assert!(expanded.iter().all(|(g, _)| univariate_degree(g, &Var::from("x")) <= 2));
+    }
+
+    #[test]
+    fn partfrac_cubic_irreducible_denominator() {
+        let num = x();
+        let den = x().pow(3).add(&Poly::constant(Ratio::from_integer(2.into())));
+        let (_, terms) = partfrac_rational_terms(&num, &den, &Var::from("x")).unwrap();
+        assert_eq!(terms.len(), 1);
+        assert_eq!(univariate_degree(&terms[0].1, &Var::from("x")), 3);
+        let rebuilt = terms.iter().fold(Poly::zero(), |acc, (n, d)| {
+            acc.add(&n.mul(&den.div_rem(d).0))
+        });
+        assert_eq!(rebuilt, num);
     }
 
     #[test]

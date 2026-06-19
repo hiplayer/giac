@@ -6,7 +6,7 @@ mod lexer;
 mod parser;
 
 pub use lexer::Lexer;
-pub use parser::{parse_program, ParseError};
+pub use parser::{parse_compound_line, parse_program, ParseError};
 
 use giac_core::Context;
 

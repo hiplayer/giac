@@ -208,6 +208,13 @@ fn factor_sqff_over_coeff_ring_ctx(
         }
         let mut all_vars = vec![var.clone()];
         all_vars.extend(others.iter().cloned());
+        let aux_refs: Vec<&Var> = others.iter().collect();
+        if let Some(f) = super::sparse::try_sparse_factor_bi(g, var, &aux_refs) {
+            let set = FactorSet::from_polys(f, main.clone());
+            if set.product_equals(g) {
+                return Ok(set);
+            }
+        }
         if let Some(f) = super::unitary::try_unitary_factor(g, &all_vars) {
             let set = FactorSet::from_polys(f, main.clone());
             if set.product_equals(g) {

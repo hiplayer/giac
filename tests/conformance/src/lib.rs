@@ -9,10 +9,10 @@ use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
-use giac_core::{exec_stmt, format_expr, Context, Stmt, StmtResult};
+use giac_core::{exec_stmt, exec_stmts, format_expr, Context, Stmt, StmtResult};
 use giac_simplify::assert_equiv;
 use giac_ode::xcas_default;
-use giac_parse::parse_program;
+use giac_parse::{parse_compound_line, parse_program};
 use serde::Deserialize;
 
 pub use triple_skip::{
@@ -88,10 +88,17 @@ struct EvalLineResult {
 }
 
 fn eval_line_in_ctx(line: &str, mut ctx: Context) -> Result<EvalLineResult, String> {
-    let stmts = parse_program(&format!("{line};"), &ctx)
-        .map_err(|e| format!("parse `{line}`: {e}"))?;
-    let stmt = stmts.first().ok_or_else(|| format!("empty `{line}`"))?;
-    let output = match exec_stmt(stmt, &mut ctx).map_err(|e| format!("eval `{line}`: {e}"))? {
+    let stmts = if line.contains(',') && (line.starts_with("assume(") || line.contains("purge(")) {
+        parse_compound_line(line, &ctx).map_err(|e| format!("parse `{line}`: {e}"))?
+    } else {
+        parse_program(&format!("{line};"), &ctx)
+            .map_err(|e| format!("parse `{line}`: {e}"))?
+    };
+    if stmts.is_empty() {
+        return Err(format!("empty `{line}`"));
+    }
+    let result = exec_stmts(&stmts, &mut ctx).map_err(|e| format!("eval `{line}`: {e}"))?;
+    let output = match result {
         StmtResult::Value(v) | StmtResult::Assign { value: v, .. } => format_expr(v.as_ref()),
         StmtResult::NoValue => String::new(),
     };

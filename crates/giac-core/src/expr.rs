@@ -124,6 +124,10 @@ pub enum FuncKind {
     Proot,
     Simplify,
     Ifactor,
+    Assume,
+    Purge,
+    Froot,
+    Froots,
     /// Unknown identifier applied to arguments, e.g. `y(x)` in ODEs.
     Apply,
     /// Prime notation: `y'`, `y''` → args `[base, order]`.

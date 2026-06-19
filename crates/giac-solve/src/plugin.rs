@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use giac_core::{Context, EvalError, ExprArc, SolvePlugin};
 
+use crate::froot::eval_froot;
 use crate::realroot::eval_realroot;
 use crate::solve::eval_solve;
 use crate::sturm::{eval_sturm, eval_sturmab};
@@ -40,6 +41,10 @@ impl SolvePlugin for DefaultSolvePlugin {
 
     fn eval_realroot(&self, args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
         eval_realroot(args, ctx)
+    }
+
+    fn eval_froot(&self, args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
+        eval_froot(args, ctx)
     }
 }
 

@@ -24,7 +24,8 @@ mod num_util;
 mod simplify;
 mod stmt;
 
-pub use context::{Assumption, Context};
+pub use context::{Assumption, Context, RelationAssumption, expr_mentions_ident};
+pub use stmt::{exec_stmt, exec_stmts, Stmt, StmtResult};
 pub use display::format_expr;
 pub use error::EvalError;
 pub use eval::{eval, eval_subst_map};
@@ -49,4 +50,3 @@ pub use num_util::{
     bigint_to_i64, bigint_to_nonneg_u32, bigint_to_u32_abs, reduce_rational_pair,
 };
 pub use simplify::simplify;
-pub use stmt::{exec_stmt, Stmt, StmtResult};

@@ -24,6 +24,42 @@ pub fn parse_program(input: &str, ctx: &Context) -> Result<Vec<Stmt>, ParseError
     Ok(stmts)
 }
 
+/// Parse a comma-separated Xcas script line (`assume(...),integrate(...),purge(...)`).
+pub fn parse_compound_line(input: &str, ctx: &Context) -> Result<Vec<Stmt>, ParseError> {
+    let trimmed = input.trim().trim_end_matches(';');
+    let parts = split_top_level_commas(trimmed);
+    let mut stmts = Vec::new();
+    for part in parts {
+        let part = part.trim();
+        if part.is_empty() {
+            continue;
+        }
+        let src = format!("{part};");
+        let mut p = Parser::new(&src, ctx);
+        stmts.push(p.parse_stmt()?);
+    }
+    Ok(stmts)
+}
+
+fn split_top_level_commas(input: &str) -> Vec<String> {
+    let mut parts = Vec::new();
+    let mut start = 0usize;
+    let mut depth = 0i32;
+    for (i, ch) in input.char_indices() {
+        match ch {
+            '(' | '[' => depth += 1,
+            ')' | ']' => depth = depth.saturating_sub(1),
+            ',' if depth == 0 => {
+                parts.push(input[start..i].to_string());
+                start = i + ch.len_utf8();
+            }
+            _ => {}
+        }
+    }
+    parts.push(input[start..].to_string());
+    parts
+}
+
 struct Parser<'a, 'ctx> {
     tokens: Vec<Token<'a>>,
     pos: usize,
@@ -556,6 +592,10 @@ fn lookup_func(name: &str) -> Option<FuncKind> {
         "gramschmidt" => Some(FuncKind::Gramschmidt),
         "trace" => Some(FuncKind::Trace),
         "subst" => Some(FuncKind::Subst),
+        "assume" => Some(FuncKind::Assume),
+        "purge" => Some(FuncKind::Purge),
+        "froot" => Some(FuncKind::Froot),
+        "froots" => Some(FuncKind::Froots),
         "rootof" => Some(FuncKind::RootOf),
         _ => None,
     }
@@ -849,6 +889,25 @@ mod tests {
         assert!(matches!(
             &stmts[0],
             Stmt::ExprStmt(e) if matches!(e.as_ref(), Expr::Func(FuncKind::Taylor, _))
+        ));
+    }
+
+    #[test]
+    fn parse_compound_assume_integrate_purge() {
+        let ctx = Context::xcas_default();
+        let stmts = parse_compound_line(
+            "assume(t>2),integrate(x,x,2,t),purge(t)",
+            &ctx,
+        )
+        .unwrap();
+        assert_eq!(stmts.len(), 3);
+        assert!(matches!(
+            &stmts[0],
+            Stmt::ExprStmt(e) if matches!(e.as_ref(), Expr::Func(FuncKind::Assume, _))
+        ));
+        assert!(matches!(
+            &stmts[2],
+            Stmt::ExprStmt(e) if matches!(e.as_ref(), Expr::Func(FuncKind::Purge, _))
         ));
     }
 

@@ -280,6 +280,7 @@ fn eval_func(kind: FuncKind, args: &[ExprArc], ctx: &Context) -> Result<ExprArc,
         FuncKind::Sturm => return eval_sturm(args, ctx),
         FuncKind::Sturmab => return eval_sturmab(args, ctx),
         FuncKind::Realroot => return eval_realroot(args, ctx),
+        FuncKind::Froot | FuncKind::Froots => return eval_froot(args, ctx),
         FuncKind::Limit => return eval_limit(args, ctx),
         FuncKind::Series | FuncKind::Taylor => return eval_series(args, ctx),
         FuncKind::Desolve => return eval_desolve(args, ctx),
@@ -316,6 +317,9 @@ fn eval_func(kind: FuncKind, args: &[ExprArc], ctx: &Context) -> Result<ExprArc,
                 _ => Err(EvalError::TypeError("ifactor expects integer")),
             }
         }
+        FuncKind::Assume | FuncKind::Purge => Err(EvalError::TypeError(
+            "assume/purge require statement context (use exec_stmt)",
+        )),
         FuncKind::Texpand => ctx.algebra()?.texpand(args[0].as_ref(), ctx),
         FuncKind::Tlin => Err(EvalError::NotImplemented("tlin")),
         FuncKind::Halftan => ctx.algebra()?.halftan(args[0].as_ref(), ctx),
@@ -795,6 +799,10 @@ fn eval_realroot(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> 
     ctx.solve()?.eval_realroot(args, ctx)
 }
 
+fn eval_froot(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
+    ctx.solve()?.eval_froot(args, ctx)
+}
+
 fn eval_sturmab(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     ctx.solve()?.eval_sturmab(args, ctx)
 }
@@ -1064,6 +1072,10 @@ fn func_name(kind: FuncKind) -> &'static str {
         FuncKind::Halftan => "halftan",
         FuncKind::Lin => "lin",
         FuncKind::Ifactor => "ifactor",
+        FuncKind::Assume => "assume",
+        FuncKind::Purge => "purge",
+        FuncKind::Froot => "froot",
+        FuncKind::Froots => "froots",
     }
 }
 
