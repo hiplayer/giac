@@ -30,6 +30,14 @@ alwaysApply: false
 3. 漂移只进 `drift_*`；语义只进 owning 模块的 `decompose_*` 或主算法  
 4. 更新 `.doc/algorithm-expr-api.md` §4 索引或对应 `.doc/<module>-expr-api.md`  
 
+## 测试通过后（提交前复审）
+
+1. **临时匹配：** diff 中形状特例 / `shim` / 重复 `try_*` 是否净减少；净增须 justify  
+2. **新增 fn：** 逐项标 tier（`Stable` / `Partial` / `Temporary` / `Pipeline private`）  
+3. **文档：** 更新对应 `*-api-stability.md`；必要时跑 `annotate_api_tiers.py --inventory`  
+
+见 [`.doc/algorithm-expr-api.md`](../../.doc/algorithm-expr-api.md) §6.2。
+
 ## 与 algorithm-before-patch
 
 缺表示层能力 → 回 **owning crate** 补稳定 API，不在调用方散落第三个形状特例。管线旁路与 per-case 命名见 [`algorithm-before-patch.mdc`](algorithm-before-patch.mdc)。

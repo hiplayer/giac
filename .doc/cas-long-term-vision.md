@@ -190,21 +190,209 @@ pub struct Context {
 | `diff` | ✅ | 参数视为常数 |
 | `subst` / `:=` / 程序 | ✅ | Phase A `giac-prog` |
 | `integrate` | ⚠️ | 参数保留在结果中；积分本身仍受 §4.2 限制 |
-| `limit` | ⚠️ | 可能需要 `assume` 或分情形（`piecewise` 后期） |
-| `solve`（含参） | ⚠️ | 如 `solve(A*x=B,x)` → `x=B/A`，需 `A≠0` 或 `Failed(NeedsAssume)` |
+| `limit` | ⚠️ | 单分支：`assume` 选路；全分支：`piecewise`（§5.3）；缺信息 → `NeedsAssume` |
+| `solve`（含参） | ⚠️ | 如 `solve(A*x=B,x)` → `x=B/A`，需 `A≠0` 或 `Failed(NeedsAssume)` 或 `piecewise` |
 
-#### 5.3 assume 与保守化简
+#### 5.3 assume、piecewise 与参数分情形
 
-**Normative：**
+参数 A,B,C 与 `assume` / `piecewise` 解决**不同层次**的问题；与 [GIAC-algext-adoption.md](issues/GIAC-algext-adoption.md) §8.9 对齐。
 
-- 无 `assume` 时：**保守**——不将 `sqrt(A^2)` 化为 `A`，不假设 `A≠0`。
-- 有 `assume(A, integer)` / `assume(B>0)` 时：化简、积分、求解可走对应分支。
-- 需要假设但未给出 → `CasResult::Failed(NeedsAssume(...))`，非静默错答。
+| 机制 | 存放位置 | 回答的问题 | Phase |
+|------|----------|------------|-------|
+| **`SymbolRole::Parameter`** | `Context::symbol_roles` | A,B 是参数还是变量？ | C |
+| **`assume`** | `Context::assumptions` | **当前会话**里，对参数**额外假定什么**？ | C |
+| **`piecewise`** | `Expr` AST（结果式子内） | **所有参数区域**上的完整答案是什么？ | D |
+| **`NeedsAssume`** | `CasResult::Failed` | 缺假设、无法安全选支时**停住** | C |
 
-**验收（Phase C）：**
+**A,B 本身不是假设**：未写 `assume` 时参数仍可在式中出现，算法须保守（见下）。
 
-- 参数化 golden 集：`integrate(A*sin(x),x)`、`solve(A*x+B=0,x)`、`normal((A*x)^2/A)` 分 assume 有无
+##### 5.3.1 `assume` — 会话级分支选择
+
+`assume` 把**已知但未写进式子**的信息注入 `Context`，供各算法在**分叉处选一支**继续算。
+
+**概念模型（扩展 `Context::assumptions`）：**
+
+```rust
+pub enum Assumption {
+    Integer(Ident),
+    Real(Ident),
+    Positive(Ident),
+    // Phase C 扩展（概念层）：
+    // NonZero(Ident),
+    // Relation(ExprArc),   // A>0, A≠B, A>B, …
+}
+
+// 语句级：assume(A>0); …; purge(A)  — 见 GIAC-204b
+```
+
+**Normative（Phase C）：**
+
+- 无 `assume` 时：**保守**——不将 `sqrt(A^2)` 化为 `A`，不默认 `A≠0`，不在 MRV 增长比较中猜 `A>B`。
+- 有 `assume(A, integer)` / `assume(B>0)` / `assume(A≠0)` 时：化简、积分、求解、极限可走对应分支。
+- 需要假设但未给出 → `CasResult::Failed(NeedsAssume(...))`，**非静默错答**。
+- **`purge(A)`** 清除与 A 相关的绑定与假设；同式子可能从「可算」变回 `NeedsAssume`（Context 状态变化，非数学矛盾）。
+- **assume 不进 `AlgExt` 坐标 / 不进 `min_poly`**——假设只在 `Context`，不在代数扩域系数里编码「A>0」。
+
+**典型用途：**
+
+| 场景 | assume 作用 |
+|------|-------------|
+| `normal(sqrt(A^2))` | `assume(A>0)` → `A` |
+| `solve(A*x+B=0, x)` | `assume(A≠0)` → `x = -B/A` |
+| `integrate(abs(A*x), x)` | `assume(A>0)` → 去绝对值分支 |
+| `limit(..., x, +inf)` 含 `exp(A*x)-exp(B*x)` | `assume(A>B)` → MRV 选 `exp(A*x)` 为 dominant，走单支 Gruntz/MRV |
+
+**与 limit / MRV 的关系：** `exp_diff`、`mrv_w` 的代数 fold（`exp(A)-exp(B)`、`ln(w)` padd）**不读** `assumptions`；`assume` 仅在**下游决策点**介入——MRV 比较谁更快、选 `scale_log` / ε 是否 → 0、lead 系数约分。详见 [exp-diff-expr-api.md](exp-diff-expr-api.md)、[limit-engine-expr-api.md](limit-engine-expr-api.md)。
+
+##### 5.3.2 `piecewise` — 定义与功能
+
+**定义：** `piecewise` 是 **E 内的一等分段表达式**，用**显式条件列表**表示「参数或自变量落在不同区域时，值不同」。它是**结果的一部分**（写在 `Expr` 里），不是 `Context` 里的临时假设。
+
+**语法（对标 upstream giac / Xcas）：**
+
+```text
+piecewise(c₁, e₁, c₂, e₂, …, cₙ, eₙ [, e_default])
+when(c, e_then, e_else)          // 二元分支；嵌套 when ≡ 多支 piecewise
+```
+
+- 偶数个主体参数时：`c₁,e₁,c₂,e₂,…` — 依次检验条件，**第一个为真**的 `eᵢ` 为值。
+- 奇数个且最后一项无条件：最后一项为 **default**（所有前面条件均为假时）。
+- 条件 `cᵢ` 为逻辑式（等式、不等式、`and`/`or`）；Phase D 前可限制为参数上的多项式不等式 + 等式。
+
+**概念 AST（Phase D 目标）：**
+
+```rust
+/// 分段值：按顺序匹配，首个条件为真者生效；optional default 兜底
+pub struct Piecewise {
+    pub branches: Vec<(ExprArc /* cond */, ExprArc /* value */)>,
+    pub default: Option<ExprArc>,
+}
+
+// 纳入 Expr 枚举，或 FuncKind::Piecewise；打印 round-trip 为 piecewise(...)
+```
+
+**功能（为何需要 piecewise）：**
+
+1. **完整回答含参问题** — 参数在分界面（如 `A=B`）两侧极限/解不同；`piecewise` 一次给出**全部分支**，而非只算 assume 下的一支。
+2. **参数空间的「中断点」** — 如 \(\lim_{x\to+\infty}(e^{Ax}-e^{Bx})/e^{Bx}\) 在 `A=B` 与 `A≠B` 处行为不同；数学上应分情形，不应强行合并为一个无参式。
+3. **替代静默错答** — 当算法能枚举有限分支但用户未 `assume` 时，优先 `Exact(piecewise(...))`，而非猜一支或返回错误数值。
+4. **可组合** — `diff` / `integrate` / `limit` / `subst` 对 `piecewise` 按分支传播（各支独立运算，条件不变或按规则合并）；`eval` / 数值代入在条件可判定后落单支。
+
+**算法保证：** 语法不隐含「分类完备」；分支生成的可判定性与承诺范围见 **§5.3.5**（L0–L3）。
+
+**与 `assume` 对比：**
+
+| | `assume` | `piecewise` |
+|--|----------|-------------|
+| 存哪 | `Context`（会话） | `Expr`（答案） |
+| 语义 | 「**在此假设下**继续算」 | 「**在所有区域上**答案如此」 |
+| 分支数 | 隐含选 **1** 支 | 显式列出 **多** 支 |
+| 生命周期 | `purge` 可清 | 持久于结果式 |
+| Phase | C（语句级 + 算法读 Context） | D（AST + 分支传播） |
+
+##### 5.3.3 决策流：assume / NeedsAssume / piecewise
+
+含参运算遇到**无法比较**或**多分支**时的 normative 路由：
+
+```text
+含参请求（limit / solve / normal / …）
+  │
+  ├─ Context 已有 assume，且足以唯一选支
+  │     → 走单支算法 → CasResult::Exact(expr)     // 参数可仍留在式中
+  │
+  ├─ 无 assume，但条件可枚举为有限分支（Phase D，**L1**）
+  │     → 各支分别计算 → CasResult::Exact(piecewise(...))
+  │
+  ├─ 无 assume，需用户指定才安全（Phase C）
+  │     → CasResult::Failed(NeedsAssume { hint: "A≠0" | "compare A and B" | … })
+  │
+  └─ 已知不可判定 / 未实现
+        → Failed(Undecidable | NotImplemented)
+```
+
+**极限示例（概念）：**
+
+```text
+limit((exp(A*x) - exp(B*x)) / exp(B*x), x, +infinity)
+
+assume(A > B)  →  Exact(+infinity)           // 或经 MRV 的等价形
+assume(A < B)  →  Exact(0)
+assume(A = B)  →  Exact(0)                   // ε 小量路径
+
+无 assume（Phase D 目标）→
+  Exact(piecewise(
+    A > B,  +infinity,
+    A < B,  0,
+    A = B,  0
+  ))
+```
+
+Phase C 在 `piecewise` AST 未就绪时：无 `assume(A>B)` 等 → **`NeedsAssume`**，不静默选 `exp(A*x)` 或 `exp(B*x)` 为主导项。
+
+##### 5.3.4 验收
+
+**Phase C（assume）：**
+
+- 参数化 golden：`integrate(A*sin(x),x)`、`solve(A*x+B=0,x)`、`normal((A*x)^2/A)` **分 assume 有无**
 - 与 `test_subst`、`assume` 在 flanex / testintegrate 中的行为一致或 documented 偏离
+- 语句级 `assume` / `purge`：**GIAC-204b**
+
+**Phase D（piecewise，增量）：**
+
+- `piecewise` / `when` 解析与打印 round-trip
+- `diff` / `subst` 对简单 `piecewise` 分支传播
+- 含参 `limit` / `solve` 在分界面用 `piecewise` 覆盖（替代仅 `NeedsAssume`）
+- 与 upstream `prog.cc` `piecewise` / `when` 语义一致或登记 [known-divergences.md](known-divergences.md)
+- 分支生成仅在其 **L 层级**（§5.3.5）承诺范围内声称「完备」；超越该层 → `NeedsAssume` / `Undecidable`
+
+##### 5.3.5 分支生成的算法保证边界
+
+**Normative：** `piecewise` 语法是**答案表示**；「分类讨论是否正确、是否完备」取决于**谁生成** `(cᵢ, eᵢ)` 以及问题落在哪一层。**禁止**对外暗示「启用 piecewise 即自动保证含参分类完备」。
+
+**分层（L-piecewise）：**
+
+| 层级 | 分支来源 | 典型问题 | 算法基础 | 保证（实数语义下） | giac-rs Phase |
+|------|----------|----------|----------|-------------------|---------------|
+| **L0** | 用户 / 程序**手写** `piecewise` | 任意（条件由用户负责） | 无自动生成；`eval`/`subst` 按首真条件选支 | **表示语义**正确：条件为真时取对应支；**不**保证用户列全分支 | D（AST） |
+| **L1** | 算法**有限枚举**显式比较 | `A≶B`、`A=0`；含参 `limit` 中 MRV 主导项三分 | 各支调用原算法（Gruntz/MRV、solve、normal） | **各支在对应条件下**结果正确；**不**保证找全所有分界面 | C–D |
+| **L2** | **实代数**胞腔分解 | 系数 ∈ ℚ(A,B,…)；条件为多项式等式/不等式；含参 `solve`、符号 `realroot` | Sturm / 结果ants / **CAD** / 实闭域 **QE**（子集） | 在**多项式假设**下，胞腔**互斥且覆盖**参数空间（给定变量序）；各胞内分支固定 | D+（Sturm 已有；CAD/QE 后置） |
+| **L3** | 含 **exp/ln/trig** 的含参极限、积分、化简 | `limit(..., A,B)`、`integrate(abs(A*x),x)` 无 assume | Gruntz/MRV、启发式；**无**通用完备分类器 | **不承诺**自动 `piecewise` 完备；缺信息 → `NeedsAssume`；已知不可判定 → `Undecidable`（§4.3） | B–C |
+
+**正确性含义（按层）：**
+
+- **L0：** 契约在 `piecewise`/`when` 的 **AST 语义**与分支传播规则；与用户手写 `assume` 等价于只算一支。
+- **L1：** `Exact(piecewise(...))` 正确 ⟺ 每个 `(cᵢ,eᵢ)` 满足「在 `cᵢ` 为真的参数区域内，`eᵢ` 等于该运算的数学结果」；**不要求** `⋃cᵢ` 覆盖整个参数空间。
+- **L2：** 额外要求分支条件来自 **CAD/QE/Sturm** 输出，开胞内公式 sign-invariant；登记实现所支持的 **多项式次数/变量数** 上限。
+- **L3：** 仅承诺 **不静默错答**（§5.3.3）；可输出**已知有限** L1 分支（如 `A>B|A<B|A=B`），但**不**声称分界面完备。
+
+**与 limit / `exp_diff` / MRV：** L1/L3 的分叉点在 MRV 增长比较、主导 `exp` 选择、lead 约分；**不在** `canonical_exp_diff` / `canonical_mrv_coeff` fold 层（见 [exp-diff-expr-api.md](exp-diff-expr-api.md)）。
+
+**upstream giac 对照（`to_piecewise`，非完备引擎）：**
+
+giac `piecewise(expr [, x])` 在 `prog.cc` 中可对式子调用 `to_piecewise(e, x)`（`signalprocessing.cc`）。算法概要：
+
+```text
+abs/sign → Heaviside → 收集 Heaviside 线性变元的断点 zᵢ
+  → 若断点经 evalf 均为 numeric：在 (zᵢ, zᵢ₊₁) 上 interval 化简 → 拼 piecewise(x < zᵢ, …)
+  → 若仍含符号断点或 Heaviside：放弃，原式返回
+```
+
+| 项 | giac `to_piecewise` | giac-rs 目标（本文 L 层） |
+|----|---------------------|---------------------------|
+| 适用对象 | 单变量 `x` 上含 `abs`/Heaviside 的式子 | L0 任意；L1 参数比较；L2 多项式参数 |
+| 断点 | **数值化**后区间分割 | L2：符号 CAD/QE；L1：显式 `A≶B` |
+| 含参 `A,B` | 断点非 numeric 则**失败退回** | L2 专门处理；L3 不冒充 L2 |
+| `piecewise` 求值 | `prog.cc`：运行时首真条件选支 | 同 L0 语义 |
+| 含参 `limit` | 不自动生成 parametric piecewise | L1 手工枚举 + L3 `NeedsAssume` |
+
+**giac-rs 对外表述（normative）：**
+
+1. 文档与 API **必须标注**结果所属的 L 层（或 `Failed` 原因）。
+2. **L2 未实现前**，含参 `solve`/`limit` 不得输出声称「参数空间完备」的 `piecewise`。
+3. **L3** 默认路由：`assume` → 单支；否则 `NeedsAssume`；仅当算法**显式识别**有限 L1 分支集时才 `Exact(piecewise(...))`。
+4. 引入 CAD/QE 时单独 milestone + 测试集，不与 Phase D 基础 `piecewise` AST 混为一谈。
+
+**参考实现：** giac-2.0.0 `signalprocessing.cc`（`to_piecewise`、`flatten_piecewise`）；`prog.cc`（`_piecewise` 求值）。
 
 ---
 
@@ -217,8 +405,8 @@ pub struct Context {
 | 完整 Risch（超越情形） | 超出 Phase B 子集 |
 | 更广初等极限 | Gruntz 全套件；SymPy/Maxima rtest 对标 |
 | `gbasis` | 当前迁移计划后置；`greduce` 先行 |
-| `piecewise` | 参数分情形、`limit` / `solve` 分支 |
-| 条件化简 | 依赖完整 assume 引擎 |
+| `piecewise` | §5.3.2–5.3.3：AST、分支传播、含参 limit/solve |
+| 条件化简 | 依赖完整 assume 引擎（§5.3.1） |
 
 ---
 
@@ -228,7 +416,7 @@ pub struct Context {
 
 ```rust
 pub enum CasResult {
-    /// 精确符号结果（参数可保留在式中）
+    /// 精确符号结果（参数可保留；Phase D 可含 `piecewise` 节点，见 §5.3.2）
     Exact(Arc<Expr>),
     /// 代数数（rootof / AlgExt）
     Algebraic(Arc<AlgExtData>),
@@ -247,7 +435,7 @@ pub enum CasResult {
 pub enum FailKind {
     NotElementary,    // 无初等闭式（积分等）
     NotImplemented,   // 算法未实现
-    NeedsAssume,      // 缺少 assume（如 A≠0）
+    NeedsAssume,      // 缺少 assume（如 A≠0、A>B）；见 §5.3.3
     Undecidable,      // 已知不可判定
     Timeout,          // 资源上限
 }
@@ -355,6 +543,8 @@ Phase B+：**数学语义** 为权威；giac 为参考实现，非算法行级�
 - [conformance-testing.md](conformance-testing.md) — `assert_equiv` 规格
 - [external-test-resources.md](external-test-resources.md) — 外部 fixture 与抽取脚本
 - [phase4-issues.md](phase4-issues.md) — 微积分 / Risch 移植 issue 树
+- [issues/GIAC-algext-adoption.md](issues/GIAC-algext-adoption.md) — 参数 A,B 与 assume（§8.9）
+- [exp-diff-expr-api.md](exp-diff-expr-api.md)、[limit-engine-expr-api.md](limit-engine-expr-api.md) — limit MRV / exp 差分（assume 不介入 fold 层）
 - [issues/GIAC-limit-exp-difference-unification.md](issues/GIAC-limit-exp-difference-unification.md) — 极限统一管线
 - Richardson, *Some Undecidable Problems Involving Elementary Functions*
 - Gruntz, *On Computing Limits in a Symbolic Manipulation World*

@@ -71,9 +71,10 @@
 
 | Crate / 子模块 | 主表示 | 规范 / 边界 API | 专项文档 |
 |----------------|--------|-----------------|----------|
-| `giac-simplify` | `ExprArc` | `normal`, `ratnormal`, `expand`（各有适用范围） | — |
-| `giac-poly` | `Expr` ↔ `Poly` | `expr_to_poly`, `poly_to_expr`（仅多项式子类） | — |
+| `giac-simplify` | `ExprArc` | `normal`, `ratnormal`, `expand`（各有适用范围） | [giac-simplify-api-stability.md](giac-simplify-api-stability.md) |
+| `giac-poly` | `Poly` | `factor_into`, `partfrac_rational_terms`, `Poly` 环运算；`expr_to_poly` 在 giac-core | [giac-poly-api-stability.md](giac-poly-api-stability.md) |
 | `giac-calculus` / `limit_engine` | `ExprArc` + `SparseSeries` | `mrv_w::canonical_mrv_coeff`, `decompose_mrv_coeff`, `remove_lnexp` | [limit-engine-expr-api.md](limit-engine-expr-api.md) |
+| `giac-calculus`（全 crate） | `ExprArc` | `integrate`, `eval_limit`, `depends_on_var`；源码 `/// **Stable**` 标记 | [giac-calculus-api-stability.md](giac-calculus-api-stability.md) |
 | `giac-calculus` / `exp_diff` | `ExprArc`（x 层 `exp` 差分） | `canonical_exp_diff`, `match_exp_times_exp_minus_one`, `is_exp_minus_one_factor` | [exp-diff-expr-api.md](exp-diff-expr-api.md) |
 | `giac-calculus` / `risch` | `ExprArc` | 积分塔、`transcendental` 边界 | — |
 | `giac-calculus` / `intg` | `ExprArc` | 规则表入口 `_integrate` | — |
@@ -98,12 +99,39 @@
 
 ## 6. 新增函数检查清单
 
+### 6.1 新增时（动刀前 / 动刀中）
+
 1. **归类：** 稳定 / `drift_` / `shim_` / 管线私有？  
 2. **表示层：** 全程 `ExprArc` 还是 `Poly`？若跨表示，转换点是否唯一？  
 3. **I/O 契约：** 填 §3 表格。  
 4. **漂移：** 新 AST 漂移形 → 只加 `drift_*` + `canonical_*` 单测；语义 → `decompose_*` 或 owning 算法。  
 5. **文档：** 更新本表或子模块 doc；临时 API 写退役条件。  
 6. **与 algorithm-before-patch 一致：** 不为单测在调用方打补丁。
+
+### 6.2 测试通过后（提交 / 合入前复审）
+
+**顺序：** 实现完成 → `cargo test-timeout`（及域内相关单测）**全绿** → **再 review 一遍 diff**（禁止测试一绿即停）。
+
+| 审查项 | 做法 |
+|--------|------|
+| **临时匹配是否减少** | 对照 diff：`if looks_like`、per-case 形状表、重复 `try_*` 兜底、调用方 `shim` 是否 **净减少或合并**；若净增，须说明为何不能算法化（链到 gap issue） |
+| **可否删旧临时** | 新主路径已覆盖的旧 `drift_*` / `shim_*` / 重复 eval 提升 → **同 PR 删除或开 issue 并注释退役** |
+| **新增 fn 稳定性** | 每个 **新增或签名变更** 的 `fn` 标注 tier 并写入 crate 稳定性 doc 表 |
+| **注释与 inventory** | 源码 `/// **Stable**` / `// **Temporary**` / `// **Pipeline private**`；算法 crate 跑 `python3 scripts/annotate_api_tiers.py --inventory` 刷新 Per-file 表 |
+| **静默失败** | `try_*` 失败不得假成功（如 factor 静默 `Ok(vec![g])` 当不可约）；须走完整 fallback 链或明确边界 |
+
+**新增函数 tier 判定（摘要）：**
+
+| Tier | 条件 |
+|------|------|
+| **Stable** / **Stable (bounded)** | 有 I/O 契约、可跨模块调用、有单测；`pub` 或 intentional `pub(crate)` |
+| **Partial** | 启发式 / 规则表子集；失败 `None`/`Err`；注释写扩展或退役计划 |
+| **Temporary** | `shim_*`、`drift_*`、AlgExt stub；**必须**写退役 issue |
+| **Pipeline private** | 模块内编排；禁止它模块复制 |
+
+各 crate 细则：[giac-simplify-api-stability.md](giac-simplify-api-stability.md)、[giac-poly-api-stability.md](giac-poly-api-stability.md)、[giac-calculus-api-stability.md](giac-calculus-api-stability.md)。
+
+**PR 描述建议：** 列出「删除 / 合并的临时匹配」与「新增 fn + tier」两行摘要。
 
 ---
 

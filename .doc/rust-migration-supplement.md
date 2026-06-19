@@ -605,6 +605,8 @@ cargo test-timeout          # 推荐；并行 + 单测超时（需 cargo-nextest
 cargo ci-clippy
 ```
 
+**测试通过后再做（算法 crate 必做）：** 复审 diff — 临时形状匹配是否净减少、新增/变更 `fn` 是否已标 tier 并更新 `.doc/*-api-stability.md`（见 [algorithm-expr-api.md §6.2](algorithm-expr-api.md#62-测试通过后提交--合入前复审)）。
+
 全量无超时包装（不推荐日常/CI）：`cargo test --workspace`。说明见 [conformance-testing.md §5.1](conformance-testing.md#51-单测超时推荐-cargo-test-timeout) 与 `giac-rs/README.md`。
 
 配置细节：§6.4；unsafe 纪律：[`rust-migration-plan.md` §8](rust-migration-plan.md#8-内存安全与-unsafe-纪律)。

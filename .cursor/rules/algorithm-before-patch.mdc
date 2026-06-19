@@ -59,3 +59,16 @@ alwaysApply: false
 子域 I/O 契约（如 `mrv_w`、`exp_diff`）见 `.doc/*-expr-api.md` 索引表 §4，**不在此写子模块规则**。
 
 缺功能就补功能，别在调用方打补丁。**先问「缺的是哪条算法」，再问「这个 bug 怎么修」。**
+
+## 修改完成后（测试通过后必做）
+
+**顺序：** 实现 → 相关测试全绿 → **复审 diff**（不得测试一绿即提交）。
+
+| 必查 | 说明 |
+|------|------|
+| **临时匹配净减少** | 形状表 / per-case `try_*` / 调用方 `shim` 是否合并进主路径；净增须链 gap issue |
+| **旧临时可删** | 新算法已覆盖的 `drift_*`、`shim_*`、重复 fallback → 同 PR 删或标退役 |
+| **新增 fn tier** | 每个新/改 `fn` 标 `Stable` / `Partial` / `Temporary` / `Pipeline private`；更新 `.doc/*-api-stability.md` |
+| **inventory** | `giac-rs/scripts/annotate_api_tiers.py --inventory`（算法 crate 改动时） |
+
+细则：[`.doc/algorithm-expr-api.md`](../../.doc/algorithm-expr-api.md) §6.2。

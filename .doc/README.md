@@ -17,6 +17,7 @@
 | [builtin-api-map.md](builtin-api-map.md) | 测试 API → `at_*` → Rust crate |
 | [module-division.md](module-division.md) | C++ 算法源文件分工 |
 | [algorithm-expr-api.md](algorithm-expr-api.md) | **通用** 稳定/临时 API、Expr↔Poly 边界、防形式漂移（Cursor：`algorithm-expr-api.mdc`） |
+| [giac-calculus-api-stability.md](giac-calculus-api-stability.md) | **giac-calculus** crate 稳定/Partial/Pipeline 分层与源码注释约定 |
 | [limit-engine-expr-api.md](limit-engine-expr-api.md) | limit_engine 子域 I/O 契约（`.doc/` 专项，无 per-module Cursor 规则） |
 | [conformance-testing.md](conformance-testing.md) | Golden / assert_equiv；**`cargo test-timeout` 推荐用法** |
 | [GIAC-limit-layered-pipeline](issues/GIAC-limit-layered-pipeline.md) | limit 四层管线落地缺口 |

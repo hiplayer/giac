@@ -3,7 +3,7 @@
 **状态:** open  
 **类型:** 索引 / AFK 跟踪  
 **上游基线:** **`giac/giac-2.0.0`**（`check/` 黄金回归 + `src/*.cc` 算法实现；giac-rs conformance 默认 `GIAC_VERSION_DIR` 指向此目录）  
-**相关:** [GIAC-limit-layered-pipeline](GIAC-limit-layered-pipeline.md)、[GIAC-216e](GIAC-216e-mrv-series-lead-convergence.md)、[GIAC-limit-exp-difference-unification](GIAC-limit-exp-difference-unification.md)、[phase4-issues.md](../phase4-issues.md) §2.3  
+**相关:** [GIAC-simplify-poly-upstream-gaps](GIAC-simplify-poly-upstream-gaps.md)（simplify/poly/calculus 总览 + API 分层）、[GIAC-limit-layered-pipeline](GIAC-limit-layered-pipeline.md)、[GIAC-216e](GIAC-216e-mrv-series-lead-convergence.md)、[GIAC-limit-exp-difference-unification](GIAC-limit-exp-difference-unification.md)、[phase4-issues.md](../phase4-issues.md) §2.3  
 **验收:** 本 issue 中 **P0** 项对应的 `#[ignore]` 清零或改为 enabled conformance
 
 ---
