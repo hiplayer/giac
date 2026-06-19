@@ -12,9 +12,18 @@
 |------|------|--------|
 | `/// **Stable** — …` | 环运算、分解、partfrac 主入口 | `pub` |
 | `/// **Stable (bounded)** — …` | 输入次数/变元数受限 | `pub` |
+| `/// **Stable (crate-internal)** — …` | 嵌套环精确除法、content/pp 实现 | `pub(crate)` |
 | `/// **Partial** — …` | 启发式/模式表；失败返回 `None` 或 Err | `pub` |
 | `pub(crate) fn try_*` | factor 管线步骤 | crate 内 |
 | `fn try_*` | 私有 fallback / 形状检测 | 模块内 |
+
+**除法语义（禁止混用）：**
+
+| API | 语义 |
+|-----|------|
+| `Poly::div_rem` | 多元 leading-monomial 除法 |
+| `subresultant::univariate_div_rem_wrt` | ℚ[others][var] 上一元除法 |
+| `subresultant::quo_exact_wrt` | 上一元除法，余式非零 → `Err` |
 
 **命名:** 公开 `try_*`（如 `try_hensel_lift_bivariate`）表示 **可选算法路径**，非 [algorithm-expr-api](algorithm-expr-api.md) 意义的临时 `shim_*`；失败时静默 `None`，调用方须处理。
 
@@ -86,13 +95,21 @@
 | `factor_multivariate`, `factor_into_poly` | `factor/multivariate` | **Stable (bounded)** |
 | `gcd_univariate` | `univariate` | **Stable** |
 | `subresultant_gcd` | `subresultant` | **Stable** |
+| `quo_exact_wrt`, `quo_exact_coeff`, `univariate_div_rem_wrt`, `div_exact_coeff` | `subresultant` | **Stable (crate-internal)** — 嵌套环除法 |
+| `content_wrt_impl`, `primitive_part_wrt_impl` | `subresultant` | **Stable (crate-internal)** |
+| `coeff_wrt_poly`, `content_wrt`, `primitive_part_wrt`, `substitute_poly`, `square_free_wrt`, `derivative_wrt`, `term_with_var` | `factor/poly_uni` | **Stable (bounded)** |
+| `factor_sqff_over_coeff_ring` | `factor/poly_uni` | **Partial** — upstream `do_factor_hensel` 链 |
+| `try_sparse_factor`, `try_sparse_factor_bi` | `factor/sparse` | **Partial** — FAC-G1 |
+| `find_good_eval`, `looks_irreducible_by_good_eval` | `factor/eval` | **Partial** — 好点种子 / 不可约快检 |
 | `factor_univariate_flat`, `factor_univariate_pairs` | `factor/univariate` | **Partial** |
 | `try_zassenhaus_factor` | `factor/zassenhaus` | **Partial** |
 | `try_hensel_lift_bivariate` | `factor/hensel` | **Partial** — FAC-G3 |
 | `try_factor_patterns` | `factor/patterns` | **Partial** — cyclotomic/二项式模式 |
 | `try_factor_xn_minus_one` 等 | `factor/cyclotomic` | **Partial** |
 | `factor_fpx`, `degree` | `factor/fpx` | **Stable**（模域） |
-| `coeff_wrt`, `content_wrt`, `primitive_part_wrt`, `substitute_poly`, `factor_sqff_over_coeff_ring` | `factor/poly_uni` | **Pipeline / Partial** |
+| `normalize_univariate_factors`, `try_lift_factors_in_aux_var` | `factor/hensel` | **Pipeline private** `pub(crate)` |
+| `find_rational_root` | `factor/univariate` | **Pipeline private** `pub(crate)` |
+| `modpoly_to_poly` | `factor/modular.rs` | **Pipeline private** `pub(crate)` |
 
 ---
 
@@ -102,14 +119,18 @@
 |------|------|------|
 | `factor_multivariate_rec` | `multivariate.rs` | 多变量分解主递归 |
 | `factor_wrt_main_var` | `multivariate.rs` | 按主变元分解 |
+| `square_free_wrt_impl` | `poly_uni.rs` | Yun sqff 主循环 |
+| `matching_embed_factor`, `reconstruct_factor_two_aux` | `sparse.rs` | sparse_bi 嵌入重建 |
 | `try_hensel_lift_interp` | `hensel.rs` | Hensel 插值 fallback |
 | `hensel_lift_at_zero` | `hensel.rs` | y=0 处 Hensel |
-| `try_kronecker_bivariate`, `try_bivariate_eval`, `try_lift_bivariate_from_eval` | `poly_uni.rs` | 二元试算 |
 | `try_factor_biquadratic`, `try_factor_two_cubics` | `univariate.rs` | 低次模式 |
 | `try_nth_root`, `try_binomial_square` | `power.rs` | 完美幂 |
-| `find_rational_root` | `univariate.rs` | `pub(crate)` |
-| `lift_factor_from_aux_evals`, `try_lift_factors_in_aux_var` | `hensel.rs` | `pub(crate)` |
-| `modpoly_to_poly` | `factor/modular.rs` | `pub(crate)` |
+
+**已退役（`#[cfg(test)]`，不得上热路径）：**
+
+| 函数 | 文件 | 说明 |
+|------|------|------|
+| `try_kronecker_bivariate`, `try_factor_bivariate_eval`, `try_lift_bivariate_from_eval` | `poly_uni.rs` | 由 sparse→Hensel 覆盖 |
 
 ---
 
@@ -117,10 +138,10 @@
 
 | 缺口 ID | upstream (`gausspol.cc`) | giac-rs 状态 |
 |---------|---------------------------|--------------|
-| **FAC-G1** | `try_sparse_factor` | **未实现** — Hensel 失败后无启发式 |
-| **FAC-G2** | 参系数 `poly_factor` 塔 | **未实现** — testfactor L20 |
-| **FAC-G3** | 混合次数二元 Hensel + fallback | `try_hensel_lift_bivariate` 窄；L22 ignore |
-| — | partfrac 重复二次 / 实二次分裂 | `partfrac.rs` → `NotImplemented` |
+| **FAC-G1** | `try_sparse_factor` + `try_sparse_factor_bi` | **Partial** — 好点种子 + 2-aux MVP；sum-coeff / dilation / pzadic 待补 |
+| **FAC-G2** | 参系数 `poly_factor` 塔 | **Partial** — `try_lift_factors_in_aux_var` 覆盖 L20 |
+| **FAC-G3** | 混合次数二元 Hensel + fallback | **Partial** — L22 ✅（`hensel_lift_two_at_zero`） |
+| — | partfrac 重复二次 / 实二次分裂 | **Partial** — 线性/重根/实分裂已覆盖；高次仍缺 |
 
 **退役目标:** FAC-G1 落地后，缩小 §4 中互斥的 `try_*` 形状链，统一经 `factor_multivariate_rec` + sparse fallback。
 
@@ -131,9 +152,9 @@
 | 测试 | 文件 | 状态 |
 |------|------|------|
 | `testfactor_line16/17/21/12/24` | `factor/tracer.rs` | enabled |
-| `testfactor_line20` | `factor/tracer.rs` | **`#[ignore]`** FAC-G2 |
-| `testfactor_line22` | `factor/tracer.rs` | **`#[ignore]`** FAC-G3 |
-| `hensel_*` | `factor/hensel.rs` | 单元测试 |
+| `testfactor_line20` | `factor/tracer.rs` | enabled ✅ |
+| `testfactor_line22` | `factor/tracer.rs` | enabled ✅ |
+| `sparse_factor_*`, `hensel_*` | `factor/sparse.rs`, `hensel.rs` | 单元测试 |
 
 ---
 
@@ -346,20 +367,18 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 |----------|------|-------------|
 | `coeff_wrt_poly` | **Stable** | Coefficient of `var^exp` as a polynomial in the remaining variables. |
 | `content_wrt` | **Stable** | Content of `p` w.r.t. `var`: gcd of all x-coefficients in ℚ[others]. |
-| `poly_div_exact` | **Pipeline private** | `poly_div_exact` |
-| `poly_div_exact_wrt` | **Pipeline private** | `poly_div_exact_wrt` |
 | `primitive_part_wrt` | **Stable** | `p / content_wrt(p, var)` in ℚ[others][var]. |
 | `term_with_var` | **Stable** | coeff * var^exp as Poly |
 | `derivative_wrt` | **Stable** | ∂p/∂var treating coefficients in ℚ[others]. |
 | `square_free_wrt` | **Stable** | Square-free factorization w.r.t. `var` over ℚ[others] (Yun-style via gcd). |
-| `square_free_wrt_impl` | **Pipeline private** | `square_free_wrt_impl` |
+| `square_free_wrt_impl` | **Pipeline private** | Yun sqff loop; uses `quo_exact_wrt` |
 | `substitute_poly` | **Stable** | Substitute `sub_var -> sub_poly` in `p`. |
 | `factor_sqff_over_coeff_ring` | **Partial** | Factor square-free `g` in ℚ[others][var] recursively. |
-| `try_factor_bivariate_eval` | **Pipeline private** | optional fallback `try_factor_bivariate_eval` |
-| `try_lift_bivariate_from_eval` | **Pipeline private** | optional fallback `try_lift_bivariate_from_eval` |
-| `lift_univariate_factor` | **Pipeline private** | `lift_univariate_factor` |
-| `try_kronecker_bivariate` | **Pipeline private** | optional fallback `try_kronecker_bivariate` |
-| `kronecker_lift` | **Pipeline private** | `kronecker_lift` |
+| `try_factor_bivariate_eval` | **Temporary (retired)** | `#[cfg(test)]` eval+interp lift |
+| `try_lift_bivariate_from_eval` | **Temporary (retired)** | `#[cfg(test)]` |
+| `lift_univariate_factor` | **Temporary (retired)** | `#[cfg(test)]` |
+| `try_kronecker_bivariate` | **Temporary (retired)** | `#[cfg(test)]` Kronecker embed |
+| `kronecker_lift` | **Pipeline private** | Kronecker coeff decode (test-only caller) |
 | `as_constant` | **Pipeline private** | `as_constant` |
 | `as_constant` | **Stable** | `Poly::as_constant` |
 | `content_wrt_xy_plus_y_squared` | **Pipeline private** | `content_wrt_xy_plus_y_squared` |
@@ -648,13 +667,15 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `is_univariate_in` | **Pipeline private** | `is_univariate_in` |
 | `main_var_for_gcd` | **Pipeline private** | `main_var_for_gcd` |
 | `rational_primitive` | **Pipeline private** | `rational_primitive` |
-| `div_exact_coeff` | **Pipeline private** | `div_exact_coeff` |
-| `univariate_div_rem_wrt` | **Pipeline private** | `univariate_div_rem_wrt` |
-| `pseudo_rem_wrt` | **Pipeline private** | `pseudo_rem_wrt` |
+| `div_exact_coeff` | **Stable (crate-internal)** | exact quotient in coefficient ring when `b \| a` |
+| `quo_exact_coeff` | **Stable (crate-internal)** | `div_exact_coeff` → `PolyResult` |
+| `univariate_div_rem_wrt` | **Stable (crate-internal)** | division in ℚ[others][var] |
+| `quo_exact_wrt` | **Stable (crate-internal)** | exact quotient w.r.t. `var`; use instead of `Poly::div_rem` for nested rings |
+| `pseudo_rem_wrt` | **Pipeline private** | pseudo-remainder w.r.t. `var` |
 | `content_wrt` | **Stable** | content w.r.t. main var |
 | `primitive_part_wrt` | **Stable** | primitive part w.r.t. var |
-| `content_wrt_impl` | **Pipeline private** | `content_wrt_impl` |
-| `primitive_part_wrt_impl` | **Pipeline private** | `primitive_part_wrt_impl` |
+| `content_wrt_impl` | **Stable (crate-internal)** | gcd of coefficient polys w.r.t. `var` |
+| `primitive_part_wrt_impl` | **Stable (crate-internal)** | primitive part implementation |
 | `gcd_constant_wrt` | **Pipeline private** | `gcd_constant_wrt` |
 | `subresultant_gcd_wrt` | **Pipeline private** | `subresultant_gcd_wrt` |
 | `subresultant_gcd` | **Stable** | multivariate gcd subresultant |
