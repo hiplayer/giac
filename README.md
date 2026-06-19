@@ -49,10 +49,10 @@ The workspace has **800+** tests. Prefer **`cargo test-timeout`** over plain `ca
 
 | | `cargo test-timeout` | `cargo test --workspace` |
 |--|----------------------|---------------------------|
-| Runner | [cargo-nextest](https://nexte.st/) (parallel, per-test timeout) | libtest (no per-test kill) |
-| Hung test | Killed after cap; suite continues | Blocks until you Ctrl+C |
-| Full workspace | Typically **~1–2 min** | Often **slower**; one hang = infinite wait |
-| CI / pre-push | **Default** | Subset debug only |
+| Runner | [cargo-nextest](https://nexte.st/) (**`--release`**, per-test timeout) | libtest debug (no per-test kill) |
+| Hung test | Killed after **10s** cap; suite continues | Blocks until you Ctrl+C |
+| Full workspace | Typically **~1–2 min** release | Debug often **much slower**; one hang = infinite wait |
+| CI / pre-push | **Default** | Local debug only (`GIAC_CONFORMANCE_ALLOW_DEBUG=1`) |
 
 **One-time install** (pin **0.9.85** on rustc 1.75; 0.9.86+ needs rustc 1.91+):
 
@@ -63,19 +63,28 @@ cargo install cargo-nextest --locked --version 0.9.85
 **Run (from `giac-rs/`):**
 
 ```bash
-cargo test-timeout                     # alias → nextest run --workspace
+cargo test-timeout                     # alias → nextest run --workspace --release
 # equivalent:
 ./scripts/test-with-timeout.sh
 ```
 
-Timeout policy: [`.config/nextest.toml`](.config/nextest.toml) — default **50s** per test; Gruntz limit cases (CK-INT-60/61) **30s** override.
+Timeout policy: [`.config/nextest.toml`](.config/nextest.toml) — default **10s**/test (release); Gruntz limit + `factor_x100` **30s** override.
+
+Conformance eval (`run_line`, `giac_check_factor`, …) **requires `--release`** unless `GIAC_CONFORMANCE_ALLOW_DEBUG=1`. Per-line eval/SymPy cap: `GIAC_CHECK_TIMEOUT_SECS` (default **10**).
 
 Without nextest, `./scripts/test-with-timeout.sh` falls back to GNU `timeout` **one test at a time** (correct but **much slower** — install nextest).
 
-**Subset / single test** (fast feedback, no timeout wrapper):
+**Subset / single test** (release + timeout recommended):
 
 ```bash
-cargo test -p giac-calculus ck_int_61
+cargo test --release -p giac-conformance --test giac_check_factor factor_sympy_line_18
+cargo nextest run --release -p giac-conformance --test giac_check_factor
+```
+
+**Debug subset** (no release gate, no nextest kill — local only):
+
+```bash
+GIAC_CONFORMANCE_ALLOW_DEBUG=1 cargo test -p giac-calculus ck_int_61
 cargo test -p giac-calculus limit::tests::maxima_rtest::gruntz_exp_times_exp_diff_minus_one -- --exact
 ```
 
@@ -152,6 +161,8 @@ cargo test -p giac-conformance --test smoke
 cargo test -p giac-conformance --test cas_first_50
 cargo test -p giac-conformance --test giac_check_factor
 ```
+
+Use **`cargo test --release`** or **`cargo test-timeout`** for conformance; debug only with `GIAC_CONFORMANCE_ALLOW_DEBUG=1`.
 
 Upstream script coverage: `bin/test_linalg`, `test_linalg_ext`, `test_linalg_decomp`, `test_gauss_ext`, `test_poly`, `test_factor`, `test_groebner`, `test_cas_basic`, …
 

@@ -41,7 +41,9 @@ pub fn primitive_part_wrt(p: &Poly, var: &Var) -> PolyResult<Poly> {
         if c.is_zero() {
             continue;
         }
-        let q = crate::subresultant::quo_exact_coeff(&c, &content)?;
+        let q = crate::nested::CoeffRingPoly::new(&c)
+            .exact_quo(&crate::nested::CoeffRingPoly::new(&content))
+            .ok_or(PolyError::NotImplemented("poly division"))?;
         pp = pp.add(&term_with_var(&q, var, e));
     }
     Ok(pp)
@@ -180,14 +182,16 @@ fn factor_sqff_over_coeff_ring_ctx(
         }
     }
     if others.len() >= 2 {
-        let aux_refs: Vec<&Var> = others.iter().collect();
-        if super::eval::looks_irreducible_by_good_eval(g, var, &aux_refs) {
-            return Ok(FactorSet::irreducible(g.clone(), main.clone()));
-        }
         let tower = ctx.as_poly_factor_tower();
-        if let Some(set) = tower.try_factor() {
+        if tower.is_parametric_tower() {
+            let set = tower.factor_sqff_chain();
             if set.product_equals(g) {
                 return Ok(set);
+            }
+        } else {
+            let aux_refs: Vec<&Var> = others.iter().collect();
+            if super::eval::looks_irreducible_by_good_eval(g, var, &aux_refs) {
+                return Ok(FactorSet::irreducible(g.clone(), main.clone()));
             }
         }
     }
@@ -215,6 +219,51 @@ mod tests {
     use super::*;
     use num_rational::Ratio;
     use num_traits::One;
+
+    use super::super::multivariate::factor_multivariate_rec;
+    use super::super::ctx::SqffRingCtx;
+
+    fn sqff_rec(ctx: SqffRingCtx<'_>) -> PolyResult<Vec<Poly>> {
+        factor_multivariate_rec(ctx.poly, ctx.others.as_slice())
+    }
+
+    #[test]
+    fn sqff_chain_l20_via_factor_sqff_over_coeff_ring() {
+        let x = Poly::var("x");
+        let b = Poly::var("b");
+        let c = Poly::var("c");
+        let p = x
+            .add(&b)
+            .add(&c)
+            .mul(
+                &x.pow(2)
+                    .sub(&x.mul(&b))
+                    .sub(&x.mul(&c))
+                    .add(&b.pow(2))
+                    .sub(&b.mul(&c))
+                    .add(&c.pow(2)),
+            );
+        let others = [Var::from("c"), Var::from("x")];
+        let facs = factor_sqff_over_coeff_ring(&p, &Var::from("b"), &others, sqff_rec).unwrap();
+        assert!(facs.len() >= 2);
+        assert_eq!(facs.iter().fold(Poly::one(), |acc, f| acc.mul(f)), p);
+    }
+
+    #[test]
+    fn sqff_chain_l21_ternary_linears() {
+        let x = Poly::var("x");
+        let y = Poly::var("y");
+        let z = Poly::var("z");
+        let p = x
+            .sub(&y)
+            .sub(&z)
+            .mul(&x.sub(&y).add(&z))
+            .mul(&x.add(&y).add(&z));
+        let others = [Var::from("y"), Var::from("z")];
+        let facs = factor_sqff_over_coeff_ring(&p, &Var::from("x"), &others, sqff_rec).unwrap();
+        assert!(facs.len() >= 2);
+        assert_eq!(facs.iter().fold(Poly::one(), |acc, f| acc.mul(f)), p);
+    }
 
     #[test]
     fn content_wrt_xy_plus_y_squared() {

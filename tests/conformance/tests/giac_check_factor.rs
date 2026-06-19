@@ -3,18 +3,15 @@
 //! MVP: SymPy verifies `expand(factor(p)) == expand(p)` (identity factorization allowed).
 //! Golden literal match is reported but not required until general factor is implemented.
 //!
-//! Each line is bounded by a wall-clock timeout (default 10s via `GIAC_CHECK_TIMEOUT_SECS`);
-//! factor lines use a higher limit because debug builds can exceed 10s on bivariate gcd.
-
-use std::time::Duration;
+//! **Gate:** release build + per-line wall-clock cap (`check_timeout()`, default 10s).
+//! Run: `cargo test-timeout -p giac-conformance --test giac_check_factor`
+//! or `cargo test --release -p giac-conformance --test giac_check_factor`.
 
 use giac_conformance::{
-    assert_factor_line_sympy, factor_check_paths, load_factor_check_lines,
-    outputs_assert_equiv, run_lines_with_timeout, sympy_equiv, giac_check_dir,
+    assert_factor_line_sympy, check_timeout, factor_check_paths, load_factor_check_lines,
+    outputs_assert_equiv, require_release_profile, run_lines_with_timeout, sympy_equiv,
+    giac_check_dir,
 };
-
-/// Factor regression lines can exceed the default 10s in debug (bivariate gcd).
-const FACTOR_LINE_TIMEOUT: Duration = Duration::from_secs(30);
 
 #[test]
 fn factor_check_files_exist() {
@@ -35,7 +32,7 @@ macro_rules! factor_line_sympy {
     ($fn_name:ident, $idx:literal) => {
         #[test]
         fn $fn_name() -> Result<(), String> {
-            assert_factor_line_sympy($idx, FACTOR_LINE_TIMEOUT)
+            assert_factor_line_sympy($idx, check_timeout())
         }
     };
 }
@@ -73,8 +70,10 @@ factor_line_sympy!(factor_sympy_line_29, 29);
 
 #[test]
 fn giac_check_factor_golden_report() -> Result<(), String> {
+    require_release_profile()?;
+    let timeout = check_timeout();
     let (inputs, golden) = load_factor_check_lines()?;
-    let outputs = run_lines_with_timeout(&inputs, FACTOR_LINE_TIMEOUT)?;
+    let outputs = run_lines_with_timeout(&inputs, timeout)?;
     let mut exact = 0usize;
     let mut equiv = 0usize;
     for ((line, out), want) in inputs.iter().zip(outputs.iter()).zip(golden.iter()) {

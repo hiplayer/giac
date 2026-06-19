@@ -17,9 +17,10 @@ use crate::nested::{
 use crate::poly::Poly;
 use crate::resultant::{coeff_at, univariate_degree};
 
-use super::hensel::normalize_univariate_factors;
+use super::hensel::{normalize_univariate_factors, try_hensel_lift_bivariate};
 use super::poly_uni::{coeff_wrt_poly, primitive_part_wrt, substitute_poly, term_with_var};
 use super::univariate::factor_univariate_flat;
+use super::util::is_univariate_in;
 
 /// **Partial** — Sparse reconstruction from univariate factors at `other = 0` (FAC-G1).
 ///
@@ -1158,6 +1159,33 @@ fn bivariate_x_degrees_ok(p: &Poly, main: &Var) -> Option<Vec<u64>> {
     if degs.is_empty() { None } else { Some(degs) }
 }
 
+/// Factor `p ∈ ℚ[main, aux]` without nested `factor_multivariate_rec` (embed/sparse_bi only).
+pub(crate) fn factor_bivariate_flat(p: &Poly, main: &Var, aux: &Var) -> Option<Vec<Poly>> {
+    if p.is_zero() || p.is_one() {
+        return Some(vec![]);
+    }
+    let product_ok = |facs: &[Poly]| facs.iter().fold(Poly::one(), |acc, f| acc.mul(f)) == *p;
+    if is_univariate_in(p, main) {
+        return factor_univariate_flat(p, main).ok().filter(|f| product_ok(f));
+    }
+    if is_univariate_in(p, aux) {
+        return factor_univariate_flat(p, aux).ok().filter(|f| product_ok(f));
+    }
+    for (mv, av) in [(main, aux), (aux, main)] {
+        if let Some(f) = try_sparse_factor(p, mv, av) {
+            if product_ok(&f) {
+                return Some(f);
+            }
+        }
+        if let Some(f) = try_hensel_lift_bivariate(p, mv, av) {
+            if product_ok(&f) {
+                return Some(f);
+            }
+        }
+    }
+    None
+}
+
 // **Pipeline private** — pick sparsest bivariate factor candidate.
 fn select_bivariate_factor(
     facs: &[Poly],
@@ -1195,8 +1223,7 @@ fn matching_embed_factor(
     let emb = embed.clone().with_n(n1);
     let pt_emb = emb.embed(p);
     let pt = primitive_part_wrt(pt_emb.as_poly(), emb.main.as_var()).ok()?;
-    let vars = [emb.main.as_var().clone(), emb.t.as_var().clone()];
-    let facs = super::multivariate::factor_multivariate_rec(&pt, &vars).ok()?;
+    let facs = factor_bivariate_flat(&pt, emb.main.as_var(), emb.t.as_var())?;
     let lcpt = emb.embed(lcp).as_poly().clone();
     let main = emb.main.as_var();
     for f in &facs {
@@ -1480,8 +1507,7 @@ fn try_sparse_factor_bi_single_n(
     if pt.is_one() || emb.view_t(&pt).degree() == 0 {
         return None;
     }
-    let vars = [main.clone(), emb.t.as_var().clone()];
-    let facs = super::multivariate::factor_multivariate_rec(&pt, &vars).ok()?;
+    let facs = factor_bivariate_flat(&pt, main, emb.t.as_var())?;
     if facs.len() < 2 {
         return None;
     }
@@ -1651,6 +1677,25 @@ mod tests {
         assert_eq!(s[0], t0 / Ratio::from_integer(9.into()));
         // full sparse still returns None: template at `(main=x)` yields ∏f=lcp·p spurious branch
         assert!(try_sparse_factor(&p, &main, &other).is_none());
+    }
+
+    #[test]
+    fn factor_bivariate_flat_bilinear() {
+        let x = Poly::var("x");
+        let y = Poly::var("y");
+        let p = x.add(&y).sub(&Poly::one()).mul(&x.sub(&y).sub(&Poly::one()));
+        let f = factor_bivariate_flat(&p, &Var::from("x"), &Var::from("y")).expect("bilinear");
+        assert_eq!(f.len(), 2);
+        assert_eq!(f.iter().fold(Poly::one(), |acc, q| acc.mul(q)), p);
+    }
+
+    #[test]
+    fn factor_bivariate_flat_univariate_fallback() {
+        let x = Poly::var("x");
+        let p = x.pow(2).sub(&Poly::one());
+        let f = factor_bivariate_flat(&p, &Var::from("x"), &Var::from("y")).expect("uni in x");
+        assert_eq!(f.len(), 2);
+        assert_eq!(f.iter().fold(Poly::one(), |acc, q| acc.mul(q)), p);
     }
 
     #[test]

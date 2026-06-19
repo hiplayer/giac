@@ -1,7 +1,7 @@
 # Workspace-local cargo aliases (see README § Build, test & lint).
 
 [alias]
-# Per-test 10s timeout via nextest (.config/nextest.toml).
-test-timeout = "nextest run --workspace"
+# Release + per-test 10s timeout via nextest (.config/nextest.toml).
+test-timeout = "nextest run --workspace --release"
 # Same, CI profile: run all tests even after failures.
-test-timeout-ci = "nextest run --workspace --profile ci"
+test-timeout-ci = "nextest run --workspace --release --profile ci"

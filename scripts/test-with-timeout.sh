@@ -20,15 +20,15 @@ TIMEOUT_SECS="${TEST_TIMEOUT_SECS:-10}"
 export NEXTEST_PROFILE="${NEXTEST_PROFILE:-default}"
 
 if command -v cargo-nextest >/dev/null 2>&1 || cargo nextest --version >/dev/null 2>&1; then
-  echo "==> cargo nextest (per-test timeout: ${TIMEOUT_SECS}s via .config/nextest.toml)"
+  echo "==> cargo nextest --release (per-test timeout: ${TIMEOUT_SECS}s via .config/nextest.toml)"
   if [[ -n "${TEST_PACKAGES:-}" ]]; then
-    args=()
+    args=(--release)
     for pkg in ${TEST_PACKAGES}; do
       args+=(-p "$pkg")
     done
     exec cargo nextest run "${args[@]}" "$@"
   fi
-  exec cargo nextest run --workspace "$@"
+  exec cargo nextest run --workspace --release "$@"
 fi
 
 echo "warning: cargo-nextest not found; using GNU timeout fallback (${TIMEOUT_SECS}s per test, slower)." >&2
@@ -40,13 +40,13 @@ if ! command -v timeout >/dev/null 2>&1; then
   exit 1
 fi
 
-echo "==> building test binaries (no run)"
+echo "==> building test binaries (release, no run)"
 if [[ -n "${TEST_PACKAGES:-}" ]]; then
-  for pkg in "${PACKAGES[@]}"; do
-    cargo test -p "$pkg" --no-run >/dev/null
+  for pkg in ${TEST_PACKAGES}; do
+    cargo test --release -p "$pkg" --no-run >/dev/null
   done
 else
-  cargo test --workspace --no-run >/dev/null
+  cargo test --workspace --release --no-run >/dev/null
 fi
 
 mapfile -t PACKAGES < <(
@@ -81,9 +81,9 @@ run_one() {
 
   RAN=$((RAN + 1))
   if [[ "$kind" == doc ]]; then
-    cmd=(cargo test -p "$pkg" --doc "$test_id" -- --exact --nocapture)
+    cmd=(cargo test --release -p "$pkg" --doc "$test_id" -- --exact --nocapture)
   else
-    cmd=(cargo test -p "$pkg" "$test_id" -- --exact --nocapture)
+    cmd=(cargo test --release -p "$pkg" "$test_id" -- --exact --nocapture)
   fi
 
   printf '  [%ss] %s (%s) %s\n' "$TIMEOUT_SECS" "$pkg" "$kind" "$test_id"

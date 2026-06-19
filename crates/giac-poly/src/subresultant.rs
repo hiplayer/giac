@@ -185,6 +185,7 @@ fn primitive_part_wrt(p: &Poly, var: &Var) -> Poly {
 
 /// **Stable (crate-internal)** — gcd of coefficient polynomials w.r.t. `var`.
 pub(crate) fn content_wrt_impl(p: &Poly, var: &Var) -> Poly {
+    use crate::nested::CoeffRingPoly;
     let d = univariate_degree(p, var);
     let mut g = Poly::zero();
     for e in 0..=d {
@@ -195,7 +196,7 @@ pub(crate) fn content_wrt_impl(p: &Poly, var: &Var) -> Poly {
         g = if g.is_zero() {
             c
         } else {
-            subresultant_gcd(&g, &c)
+            CoeffRingPoly::new(&g).gcd(CoeffRingPoly::new(&c))
         };
     }
     if g.is_zero() {
@@ -218,7 +219,9 @@ pub(crate) fn primitive_part_wrt_impl(p: &Poly, var: &Var) -> Poly {
         if c.is_zero() {
             continue;
         }
-        let Some(q) = div_exact_coeff(&c, &content) else {
+        let Some(q) = crate::nested::CoeffRingPoly::new(&c)
+            .exact_quo(&crate::nested::CoeffRingPoly::new(&content))
+        else {
             return p.clone();
         };
         pp = pp.add(&term_with_var(&q, var, e));

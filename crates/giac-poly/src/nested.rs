@@ -51,6 +51,22 @@ impl<'a> CoeffRingPoly<'a> {
         Self(p)
     }
 
+    /// **Stable** — gcd in ℚ[others] via subresultant (typed coefficient-ring path).
+    pub fn gcd(self, other: CoeffRingPoly<'_>) -> Poly {
+        use crate::subresultant::subresultant_gcd;
+        if self.0.is_zero() {
+            return if other.0.is_zero() {
+                Poly::one()
+            } else {
+                other.0.clone().monic()
+            };
+        }
+        if other.0.is_zero() {
+            return self.0.clone().monic();
+        }
+        subresultant_gcd(self.0, other.0).monic()
+    }
+
     /// **Stable** — exact quotient in ℚ[others]; `None` if `den` does not divide `self`.
     pub fn exact_quo(&self, den: &CoeffRingPoly<'_>) -> Option<Poly> {
         div_exact_coeff(self.0, den.0)
@@ -429,6 +445,14 @@ mod tests {
     use super::*;
     use crate::monomial::Var;
     use num_traits::One;
+
+    #[test]
+    fn coeff_ring_gcd_divides_both() {
+        let y = Poly::var("y");
+        let g = CoeffRingPoly::new(&y).gcd(CoeffRingPoly::new(&y.pow(2)));
+        assert_eq!(g, y);
+        assert!(CoeffRingPoly::new(&y.pow(2)).exact_quo(&CoeffRingPoly::new(&g)).is_some());
+    }
 
     #[test]
     fn univariate_in_divides_vs_div_rem() {
