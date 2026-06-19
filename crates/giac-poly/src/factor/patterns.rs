@@ -3,6 +3,10 @@
 //! **Partial:** `try_factor_patterns`, `factor_xn_minus_one_display`.
 //! **Pipeline private:** `factor_xn_minus_yn`, `is_binomial_diff_power`, …
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
 use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::One;

@@ -5,6 +5,10 @@
 //! **Ring (crate-internal):** `subresultant::{quo_exact_wrt, quo_exact_coeff, univariate_div_rem_wrt}`.
 //! **Temporary (retired):** `try_factor_bivariate_eval`, `try_kronecker_bivariate` — removed (FAC-G3 covered by sparse→Hensel).
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
 use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::{One, Zero};

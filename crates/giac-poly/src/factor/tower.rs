@@ -5,6 +5,10 @@
 //! flat image in a single [`Poly`]; this module encodes the tower and routes
 //! factorization (aux-lift before sparse_bi).
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
 use crate::monomial::Var;
 use crate::nested::{MainVar, UnivariatePoly};
 use crate::poly::Poly;
@@ -19,19 +23,23 @@ pub(crate) struct CoeffRing<'a> {
 }
 
 impl<'a> CoeffRing<'a> {
+    // **Stable** — `new`
     pub(crate) fn new(vars: AuxVars<'a>) -> Self {
         Self { vars }
     }
 
+    // **Stable** — `from_slice`
     pub(crate) fn from_slice(vars: &'a [Var]) -> Self {
         Self::new(AuxVars::new(vars))
     }
 
     /// Upstream `inner_dim`.
+    // **Stable** — `inner_dim`
     pub(crate) fn inner_dim(&self) -> usize {
         self.vars.len()
     }
 
+    // **Stable** — `as_slice`
     pub(crate) fn as_slice(&self) -> &[Var] {
         self.vars.as_slice()
     }
@@ -46,6 +54,7 @@ pub(crate) struct PolyFactorTower<'a> {
 }
 
 impl<'a> PolyFactorTower<'a> {
+    // **Stable** — `new`
     pub(crate) fn new(poly: &'a Poly, main: impl Into<MainVar>, coeff_vars: &'a [Var]) -> Self {
         Self {
             poly,
@@ -54,6 +63,7 @@ impl<'a> PolyFactorTower<'a> {
         }
     }
 
+    // **Stable** — `from_sqff_ctx`
     pub(crate) fn from_sqff_ctx(ctx: &SqffRingCtx<'a>) -> Self {
         Self {
             poly: ctx.poly,
@@ -62,16 +72,19 @@ impl<'a> PolyFactorTower<'a> {
         }
     }
 
+    // **Stable** — `main_degree`
     pub(crate) fn main_degree(&self) -> u64 {
         univariate_degree(self.poly, self.main.as_var())
     }
 
     /// Total variable count after unsplit (main + coeff ring).
+    // **Stable** — `flat_dim`
     pub(crate) fn flat_dim(&self) -> usize {
         1 + self.coeff_ring.inner_dim()
     }
 
     /// All variables in the flat unsplit image (main first).
+    // **Stable** — `all_vars`
     pub(crate) fn all_vars(&self) -> Vec<Var> {
         let mut out = vec![self.main.as_var().clone()];
         out.extend(self.coeff_ring.as_slice().iter().cloned());
@@ -79,21 +92,25 @@ impl<'a> PolyFactorTower<'a> {
     }
 
     /// Whether the FAC-G2 tower path applies (`|coeff| ≥ 2`, positive main degree).
+    // **Stable** — `is_parametric_tower`
     pub(crate) fn is_parametric_tower(&self) -> bool {
         self.coeff_ring.inner_dim() >= 2 && self.main_degree() > 0
     }
 
     /// giac `unsplitmultivarpoly`: flat [`Poly`] is already the unsplit image.
+    // **Stable** — `unsplit_to_flat`
     pub(crate) fn unsplit_to_flat(&self) -> Poly {
         self.poly.clone()
     }
 
     /// giac `splitmultivarpoly`: tag a flat factor as ℚ[coeff_ring][main].
+    // **Stable** — `split_factor`
     pub(crate) fn split_factor(&self, flat: Poly) -> UnivariatePoly {
         UnivariatePoly::new(flat, self.main.clone())
     }
 
     /// Upstream `poly_factor` MVP on flat representation: aux substitution + lift.
+    // **Partial** — optional algorithm path `try_factor_aux_lift`
     pub(crate) fn try_factor_aux_lift(&self) -> Option<FactorSet> {
         if !self.is_parametric_tower() {
             return None;
@@ -113,6 +130,7 @@ impl<'a> PolyFactorTower<'a> {
     }
 
     /// FAC-G2 tower factor chain: aux-lift → good_eval → sparse_bi (sparse only if still splittable).
+    // **Stable** — `factor_sqff_chain`
     pub(crate) fn factor_sqff_chain(&self) -> FactorSet {
         if !self.is_parametric_tower() {
             return FactorSet::irreducible(self.poly.clone(), self.main.clone());
@@ -131,6 +149,7 @@ impl<'a> PolyFactorTower<'a> {
     }
 
     /// Sparse_bi fallback only (used by tests and internal chain).
+    // **Partial** — optional algorithm path `try_sparse_bi`
     pub(crate) fn try_sparse_bi(&self) -> Option<FactorSet> {
         let aux_refs: Vec<&Var> = self.coeff_ring.as_slice().iter().collect();
         let f = super::sparse::try_sparse_factor_bi(self.poly, self.main.as_var(), &aux_refs)?;
@@ -143,6 +162,7 @@ impl<'a> PolyFactorTower<'a> {
     }
 
     /// FAC-G2 tower factor chain (alias): aux-lift then sparse_bi only.
+    // **Partial** — optional algorithm path `try_factor`
     pub(crate) fn try_factor(&self) -> Option<FactorSet> {
         if !self.is_parametric_tower() {
             return None;
@@ -152,6 +172,7 @@ impl<'a> PolyFactorTower<'a> {
 }
 
 impl<'a> SqffRingCtx<'a> {
+    // **Stable** — `as_poly_factor_tower`
     pub(crate) fn as_poly_factor_tower(&self) -> PolyFactorTower<'a> {
         PolyFactorTower::from_sqff_ctx(self)
     }

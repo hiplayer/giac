@@ -7,6 +7,10 @@
 //!
 //! **Do not** use [`Poly::div_rem`] to test divisibility in these contexts.
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
 use num_rational::Ratio;
 use num_bigint::BigInt;
 use num_traits::Zero;
@@ -36,6 +40,7 @@ impl MainVar {
 }
 
 impl From<Var> for MainVar {
+    // **Stable** — `Poly::from`
     fn from(v: Var) -> Self {
         Self(v)
     }
@@ -129,6 +134,7 @@ impl<'a> UnivariateIn<'a> {
     ///
     /// Divisor [`Self`] must be independent of `aux` (Hensel lift step). Uses
     /// [`univariate_div_rem_wrt`], **not** [`Poly::div_rem`].
+    /// **Stable** — `div_rem_wrt_aux_indep`
     pub fn div_rem_wrt_aux_indep(
         &self,
         rem: &Poly,
@@ -311,6 +317,7 @@ impl DilationMap {
     /// **Stable (crate-internal)** — upstream deterministic dilation presets.
     pub const PRESETS: [(i64, i64); 4] = [(2, -1), (-1, 2), (2, 2), (-1, -1)];
 
+    // **Stable** — `Poly::pair`
     pub(crate) fn pair(da: i64, db: i64, aux_a: Var, aux_b: Var) -> Self {
         Self {
             aux_a,
@@ -320,17 +327,20 @@ impl DilationMap {
         }
     }
 
+    // **Stable** — `Poly::apply`
     pub(crate) fn apply(&self, p: &Poly) -> Poly {
         let mut out = dilate_one(p, &self.aux_a, self.da);
         dilate_one(&out, &self.aux_b, self.db)
     }
 
+    // **Stable** — `undo`
     pub(crate) fn undo(&self, p: &Poly) -> Poly {
         let mut out = undilate_one(p, &self.aux_b, self.db);
         undilate_one(&out, &self.aux_a, self.da)
     }
 }
 
+// **Pipeline private** — `is_flat_univariate_in`
 fn is_flat_univariate_in(p: &Poly, var: &Var) -> bool {
     p.terms
         .keys()
@@ -351,6 +361,7 @@ pub(crate) fn substitute_wrt(p: &Poly, sub_var: &Var, sub_poly: &Poly) -> Poly {
     out
 }
 
+// **Pipeline private** — `dilate_one`
 fn dilate_one(p: &Poly, aux: &Var, factor: i64) -> Poly {
     if factor == 1 {
         return p.clone();
@@ -363,6 +374,7 @@ fn dilate_one(p: &Poly, aux: &Var, factor: i64) -> Poly {
     substitute_wrt(p, aux, &sub)
 }
 
+// **Pipeline private** — `undilate_one`
 fn undilate_one(p: &Poly, aux: &Var, factor: i64) -> Poly {
     if factor == 1 {
         return p.clone();
@@ -378,11 +390,13 @@ fn undilate_one(p: &Poly, aux: &Var, factor: i64) -> Poly {
 }
 
 /// **Stable (crate-internal)** — single-aux dilation `aux ↦ factor * aux`.
+// **Stable** — `dilate_aux`
 pub(crate) fn dilate_aux(p: &Poly, aux: &Var, factor: i64) -> Poly {
     dilate_one(p, aux, factor)
 }
 
 /// **Stable (crate-internal)** — undo single-aux dilation.
+// **Stable** — `undilate_aux`
 pub(crate) fn undilate_aux(p: &Poly, aux: &Var, factor: i64) -> Poly {
     undilate_one(p, aux, factor)
 }
@@ -482,6 +496,7 @@ impl BivariateEmbed {
     }
 
     /// **Stable (crate-internal)** — sparse_bi reconstruction draft from this candidate.
+    // **Stable** — `to_recon_draft`
     pub(crate) fn to_recon_draft(&self, seldegs: &[u64]) -> EmbedFactorDraft {
         EmbedFactorDraft::from_embedded(self, seldegs)
     }
@@ -497,6 +512,7 @@ pub(crate) struct EmbedFactorDraft {
 }
 
 impl EmbedFactorDraft {
+    // **Stable** — `Poly::from_embedded`
     pub(crate) fn from_embedded(selp: &BivariateEmbed, seldegs: &[u64]) -> Self {
         let main = selp.embed.main.as_var();
         let t = selp.embed.t.as_var();
@@ -509,11 +525,13 @@ impl EmbedFactorDraft {
         }
     }
 
+    // **Stable** — `Poly::from_poly`
     pub(crate) fn from_poly(selp: &Poly, embed: &TnEmbed, seldegs: &[u64]) -> Self {
         Self::from_embedded(&BivariateEmbed::new(selp.clone(), embed.clone()), seldegs)
     }
 
     /// Rebuild factor in ℚ[main, aux] from monomial IR (no further embed round-trips).
+    // **Stable** — `materialize`
     pub(crate) fn materialize(&self) -> Option<UnivariatePoly> {
         let main = self.embed.main.as_var();
         let aux_a = &self.embed.aux[0];
@@ -550,6 +568,7 @@ pub(crate) struct PzadicDraft {
 }
 
 impl PzadicDraft {
+    // **Stable** — `Poly::from_eval_factor`
     pub(crate) fn from_eval_factor(
         factor_at_eval: Poly,
         main: MainVar,
@@ -577,6 +596,7 @@ pub(crate) struct LiftedFactor {
 }
 
 impl LiftedFactor {
+    // **Stable** — `new`
     pub(crate) fn new(poly: Poly, main: MainVar, candidate_idx: usize) -> Self {
         Self {
             poly,
@@ -586,17 +606,20 @@ impl LiftedFactor {
     }
 
     /// **Stable (crate-internal)** — nested-ring divisor view for peel.
+    // **Stable** — `Poly::as_univariate_in`
     pub(crate) fn as_univariate_in(&self) -> UnivariateIn<'_> {
         UnivariateIn::new(&self.poly, self.main.clone())
     }
 }
 
 /// **Stable (crate-internal)** — `rem` has no exponent of `var`.
+// **Stable** — `is_independent_of_var`
 pub(crate) fn is_independent_of_var(p: &Poly, var: &Var) -> bool {
     p.terms.keys().all(|m| m.exp_of(var) == 0)
 }
 
 /// **Stable (crate-internal)** — division in ℚ[aux][main] when `div` is independent of `aux`.
+// **Stable** — `div_rem_wrt_aux_indep`
 pub(crate) fn div_rem_wrt_aux_indep(
     rem: &Poly,
     div: &Poly,
@@ -627,6 +650,7 @@ pub(crate) struct EmbedMonomial {
 }
 
 impl EmbedMonomial {
+    // **Stable** — `Poly::sorted_from_poly`
     pub(crate) fn sorted_from_poly(p: &Poly, main: &Var, t: &Var) -> Vec<Self> {
         let mut out = Vec::new();
         for (m, c) in &p.terms {

@@ -4,6 +4,10 @@
 //! **Stable (bounded):** `factor_into_poly`, `factor_multivariate`.
 //! **Pipeline private:** `factor_multivariate_rec`, `factor_wrt_main_var`.
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
 use crate::error::{PolyError, PolyResult};
 use crate::monomial::Var;
 use crate::poly::Poly;

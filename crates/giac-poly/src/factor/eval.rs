@@ -3,6 +3,10 @@
 //! **Upstream:** `ezgcd.cc` `find_good_eval`, `peval_1`; used in `do_factor_hensel`
 //! for irreducibility probes and Hensel/sparse seeds.
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
 pub use super::ctx::GoodEval;
 
 use num_bigint::BigInt;

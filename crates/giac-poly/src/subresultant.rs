@@ -96,6 +96,7 @@ fn rational_primitive(p: &Poly) -> Poly {
 }
 
 /// **Stable (crate-internal)** — exact quotient `a/b` in the coefficient ring when `b | a`.
+// **Stable** — `div_exact_coeff`
 pub(crate) fn div_exact_coeff(a: &Poly, b: &Poly) -> Option<Poly> {
     let (q, r) = a.div_rem(b);
     if r.is_zero() {
@@ -106,11 +107,13 @@ pub(crate) fn div_exact_coeff(a: &Poly, b: &Poly) -> Option<Poly> {
 }
 
 /// **Stable (crate-internal)** — `div_exact_coeff` with `PolyResult` for pipeline callers.
+// **Stable** — `quo_exact_coeff`
 pub(crate) fn quo_exact_coeff(num: &Poly, den: &Poly) -> PolyResult<Poly> {
     div_exact_coeff(num, den).ok_or(PolyError::NotImplemented("poly division"))
 }
 
 /// **Stable (crate-internal)** — division in ℚ[others][var] treating polynomials as univariate in `var`.
+// **Stable** — `univariate_div_rem_wrt`
 pub(crate) fn univariate_div_rem_wrt(a: &Poly, b: &Poly, var: &Var) -> (Poly, Poly) {
     let mut remainder = a.clone();
     let mut quotient = Poly::zero();
@@ -143,6 +146,7 @@ pub(crate) fn univariate_div_rem_wrt(a: &Poly, b: &Poly, var: &Var) -> (Poly, Po
 /// **Stable (crate-internal)** — exact quotient in ℚ[others][var]; fails if remainder nonzero.
 ///
 /// Use this (not `Poly::div_rem`) when coefficients live in ℚ[others].
+// **Stable** — `quo_exact_wrt`
 pub(crate) fn quo_exact_wrt(num: &Poly, den: &Poly, var: &Var) -> PolyResult<Poly> {
     let (q, r) = univariate_div_rem_wrt(num, den, var);
     if r.is_zero() {
@@ -184,6 +188,7 @@ fn primitive_part_wrt(p: &Poly, var: &Var) -> Poly {
 }
 
 /// **Stable (crate-internal)** — gcd of coefficient polynomials w.r.t. `var`.
+// **Stable** — `content_wrt_impl`
 pub(crate) fn content_wrt_impl(p: &Poly, var: &Var) -> Poly {
     use crate::nested::CoeffRingPoly;
     let d = univariate_degree(p, var);
@@ -207,6 +212,7 @@ pub(crate) fn content_wrt_impl(p: &Poly, var: &Var) -> Poly {
 }
 
 // **Stable (crate-internal)** — primitive part implementation (factor/partfrac use `poly_uni` wrapper).
+// **Stable** — `primitive_part_wrt_impl`
 pub(crate) fn primitive_part_wrt_impl(p: &Poly, var: &Var) -> Poly {
     let content = content_wrt_impl(p, var);
     if content.is_one() {

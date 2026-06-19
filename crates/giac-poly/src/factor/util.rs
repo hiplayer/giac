@@ -2,6 +2,10 @@
 //!
 //! **Stable:** `vars_in`, `ratio_perfect_sqrt`, `coeff_wrt`, `main_var`, …
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
 use std::collections::{BTreeMap, BTreeSet};
 
 use num_bigint::BigInt;

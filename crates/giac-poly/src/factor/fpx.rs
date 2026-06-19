@@ -3,6 +3,10 @@
 //! **Stable:** `factor_fpx`, `degree`.
 //! **Pipeline private:** Yun square-free, distinct-degree, CZ block split, Berlekamp-style linear.
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
 use num_bigint::BigInt;
 use num_traits::{One, Zero};
 

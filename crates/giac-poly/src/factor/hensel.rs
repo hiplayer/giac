@@ -4,6 +4,10 @@
 //! **Partial:** `try_hensel_lift_bivariate` — upstream `try_hensel_lift_factor` total-degree lift @ y=0.
 //! **Pipeline private:** `try_hensel_lift_factor`, `hensel_lift_at_zero`, `try_hensel_lift_interp`.
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
 use num_bigint::BigInt;
 use num_integer::Integer;
 use num_rational::Ratio;

@@ -4,6 +4,10 @@
 //! **Partial:** `try_sparse_factor` (FAC-G1), `try_sparse_factor_bi` (FAC-G1 sum-coeff + dilation),
 //! `try_heuristic_factor_bivariate` (FAC-G1/G3 last resort).
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
 use std::collections::HashMap;
 
 use num_bigint::BigInt;
@@ -82,6 +86,7 @@ struct SparseAtZero<'a> {
 }
 
 impl<'a> SparseAtZero<'a> {
+    // **Pipeline private** — `prepare`
     fn prepare(
         p: &'a Poly,
         main: &Var,
@@ -134,6 +139,7 @@ impl<'a> SparseAtZero<'a> {
         })
     }
 
+    // **Pipeline private** — `into_system`
     fn into_system(self) -> Option<SparseSystem<'a>> {
         let main = self.main.as_var();
         let templates = build_factor_templates(&self.facs, main);
@@ -183,6 +189,7 @@ struct SparseSystem<'a> {
 }
 
 impl<'a> SparseSystem<'a> {
+    // **Pipeline private** — `solve`
     fn solve(mut self) -> Option<Vec<Poly>> {
         let main = self.main.as_var();
         let sol = if self.s == 2 && self.n_la == 2 {
@@ -277,14 +284,17 @@ struct SparseCoeff {
 }
 
 impl SparseCoeff {
+    // **Stable** — Poly zero
     fn zero() -> Self {
         Self::default()
     }
 
+    // **Stable** — Poly is zero
     fn is_zero(&self) -> bool {
         self.known.is_zero() && self.linear.iter().all(|(_, c)| c.is_zero())
     }
 
+    // **Stable** — Poly addition
     fn add(&self, other: &Self) -> Self {
         let mut out = Self {
             known: self.known.clone() + other.known.clone(),
@@ -296,6 +306,7 @@ impl SparseCoeff {
         out
     }
 
+    // **Stable** — Poly multiplication
     fn mul(&self, other: &Self) -> (Self, Vec<BilinearTerm>) {
         let mut out = Self::zero();
         let mut bilinear = Vec::new();
@@ -345,12 +356,14 @@ struct SparseEquation {
 }
 
 impl SparseEquation {
+    // **Stable** — Poly is zero
     fn is_zero(&self) -> bool {
         self.known.is_zero()
             && self.linear.iter().all(|(_, c)| c.is_zero())
             && self.bilinear.iter().all(|t| t.coeff.is_zero())
     }
 
+    // **Stable** — `Poly::from_parts`
     fn from_parts(c: SparseCoeff, bilinear: Vec<BilinearTerm>) -> Self {
         Self {
             known: c.known,
@@ -359,10 +372,12 @@ impl SparseEquation {
         }
     }
 
+    // **Stable** — `Poly::is_linear`
     fn is_linear(&self) -> bool {
         self.bilinear.is_empty()
     }
 
+    // **Pipeline private** — `substitute`
     fn substitute(&mut self, idx: usize, value: &Ratio<BigInt>) {
         if value.is_zero() {
             return;
@@ -655,6 +670,7 @@ fn solve_sparse_two_factor(
     None
 }
 
+// **Pipeline private** — `a0_quadratic_roots`
 fn a0_quadratic_roots(
     lk: &[Ratio<BigInt>],
     c: &[Ratio<BigInt>],
@@ -677,6 +693,7 @@ fn a0_quadratic_roots(
     Some((r1, r2))
 }
 
+// **Pipeline private** — `complete_two_factor_a`
 fn complete_two_factor_a(
     a: &mut [Ratio<BigInt>],
     lk: &[Ratio<BigInt>],
@@ -705,6 +722,7 @@ fn complete_two_factor_a(
     Some(())
 }
 
+// **Pipeline private** — `bilinear_at_m`
 fn bilinear_at_m(a: &[Ratio<BigInt>], lk: &[Ratio<BigInt>], m: usize) -> Ratio<BigInt> {
     let dy = a.len() - 1;
     let mut sum = Ratio::zero();
@@ -718,6 +736,7 @@ fn bilinear_at_m(a: &[Ratio<BigInt>], lk: &[Ratio<BigInt>], m: usize) -> Ratio<B
     sum
 }
 
+// **Pipeline private** — `solve_a_j_at_m`
 fn solve_a_j_at_m(
     a: &[Ratio<BigInt>],
     lk: &[Ratio<BigInt>],
@@ -759,6 +778,7 @@ fn solve_a_j_at_m(
     Some((c[m].clone() - partial) / coeff)
 }
 
+// **Pipeline private** — `rational_sqrt`
 fn rational_sqrt(d: &Ratio<BigInt>) -> Option<Ratio<BigInt>> {
     if d.is_zero() {
         return Some(Ratio::zero());
@@ -768,6 +788,7 @@ fn rational_sqrt(d: &Ratio<BigInt>) -> Option<Ratio<BigInt>> {
     Some(Ratio::new(sn, sd))
 }
 
+// **Pipeline private** — `integer_sqrt_bigint`
 fn integer_sqrt_bigint(n: &BigInt) -> Option<BigInt> {
     if n.is_negative() {
         return None;
@@ -1118,13 +1139,23 @@ fn verify_sparse_factors(factors: &[Poly], p: &Poly, _lcp: &Poly, _s: usize) -> 
 // Multivariate sparse embedding (upstream `ezgcd.cc` `try_sparse_factor_bi`)
 // ---------------------------------------------------------------------------
 
-/// **Partial** — sparse factor via bivariate `eval_tn` embedding (FAC-G1, 3+ vars).
+/// **Partial** — sparse factor via bivariate `eval_tn` embedding (FAC-G1, 2+ aux).
 pub fn try_sparse_factor_bi(p: &Poly, main: &Var, auxes: &[&Var]) -> Option<Vec<Poly>> {
     if auxes.len() < 2 {
         return None;
     }
     if auxes.len() == 2 {
         return try_sparse_factor_bi_two_aux(p, main, auxes[0], auxes[1]);
+    }
+    // 3+ aux: upstream embeds two aux at a time; try each pair until product matches.
+    for i in 0..auxes.len() {
+        for j in (i + 1)..auxes.len() {
+            if let Some(f) = try_sparse_factor_bi_two_aux(p, main, auxes[i], auxes[j]) {
+                if f.iter().fold(Poly::one(), |acc, q| acc.mul(q)) == *p {
+                    return Some(f);
+                }
+            }
+        }
     }
     None
 }
@@ -1161,6 +1192,7 @@ fn bivariate_x_degrees_ok(p: &Poly, main: &Var) -> Option<Vec<u64>> {
 }
 
 /// Factor `p ∈ ℚ[main, aux]` without nested `factor_multivariate_rec` (embed/sparse_bi only).
+// **Stable** — `factor_bivariate_flat`
 pub(crate) fn factor_bivariate_flat(p: &Poly, main: &Var, aux: &Var) -> Option<Vec<Poly>> {
     if p.is_zero() || p.is_one() {
         return Some(vec![]);
@@ -1441,6 +1473,7 @@ fn try_sparse_factor_bi_two_aux(p: &Poly, main: &Var, aux_a: &Var, aux_b: &Var) 
     try_sparse_factor_bi_two_aux_inner(p, main, aux_a, aux_b, true)
 }
 
+// **Pipeline private** — optional fallback `try_sparse_factor_bi_two_aux_inner`
 fn try_sparse_factor_bi_two_aux_inner(
     p: &Poly,
     main: &Var,

@@ -23,21 +23,6 @@ pub use triple_skip::{
 /// Per-line eval/SymPy timeout for conformance tests (override with `GIAC_CHECK_TIMEOUT_SECS`).
 pub const DEFAULT_CHECK_TIMEOUT_SECS: u64 = 10;
 
-/// Set `GIAC_CONFORMANCE_ALLOW_DEBUG=1` to run conformance eval in debug (no release gate).
-pub const ALLOW_DEBUG_ENV: &str = "GIAC_CONFORMANCE_ALLOW_DEBUG";
-
-/// Conformance timed paths require `--release` (see `giac-rs/README.md`).
-pub fn require_release_profile() -> Result<(), String> {
-    if cfg!(debug_assertions) && std::env::var(ALLOW_DEBUG_ENV).is_err() {
-        return Err(format!(
-            "conformance tests require release build: \
-             cargo test --release … or cargo test-timeout … \
-             (debug ok only with {ALLOW_DEBUG_ENV}=1)"
-        ));
-    }
-    Ok(())
-}
-
 /// Wall-clock limit for a single check line (eval or SymPy verify).
 pub fn check_timeout() -> Duration {
     std::env::var("GIAC_CHECK_TIMEOUT_SECS")
@@ -325,7 +310,6 @@ pub fn run_script(path: &Path) -> Result<Vec<String>, String> {
 }
 
 pub fn run_line(line: &str) -> Result<String, String> {
-    require_release_profile()?;
     let line = line.to_string();
     let timeout = check_timeout();
     let label = format!("eval `{line}`");
@@ -335,7 +319,6 @@ pub fn run_line(line: &str) -> Result<String, String> {
 }
 
 pub fn run_line_with_timeout(line: &str, timeout: Duration) -> Result<String, String> {
-    require_release_profile()?;
     let line = line.to_string();
     let label = format!("eval `{line}`");
     with_timeout(timeout, &label, move || {
@@ -734,7 +717,6 @@ pub fn assert_testcas_sympy_range(
 
 /// SymPy-verify one upstream factor check line by index (skips `cas_setup`).
 pub fn assert_factor_line_sympy(index: usize, timeout: Duration) -> Result<(), String> {
-    require_release_profile()?;
     let (inputs, _) = load_factor_check_lines()?;
     let line = inputs.get(index).ok_or_else(|| {
         format!(

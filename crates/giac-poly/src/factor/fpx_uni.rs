@@ -3,6 +3,10 @@
 //! Shared by `fpx` (mod-p factorization) and `zassenhaus` (Hensel lift).
 //! **Pipeline private (`pub(crate)`):** callers must ensure `p` is univariate in `var`.
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
 use std::collections::BTreeMap;
 
 use num_bigint::BigInt;

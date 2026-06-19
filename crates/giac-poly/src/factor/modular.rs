@@ -3,6 +3,10 @@
 //! **Stable:** `factor_poly_mod`.
 //! **Pipeline private:** `modpoly_to_poly`.
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
 use num_bigint::BigInt;
 
 use crate::error::PolyError;

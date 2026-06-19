@@ -4,6 +4,10 @@
 //! **Partial:** `try_factor_biquadratic`, `try_factor_two_cubics`.
 //! **Pipeline private:** `find_rational_root`, `factor_square_free`, `factor_quadratic`, …
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
 use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::{One, Zero};

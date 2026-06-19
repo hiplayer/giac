@@ -2,6 +2,10 @@
 //!
 //! L20/L22 已绿。测试辅助为 Pipeline private。
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
 use crate::monomial::Var;
 use crate::poly::Poly;
 

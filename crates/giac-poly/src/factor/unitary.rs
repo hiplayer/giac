@@ -20,6 +20,9 @@
 //! **Upstream convention:** variables in **reversed** order; `main = vars_rev.last()`,
 //! `eval_var = vars_rev[0]`; substitute `eval_var ↦ base`, factor w.r.t. `main`, faithful `pzadic`,
 //! peel with exact nested-ring division (never [`Poly::div_rem`] on lifted factors).
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
 
 use num_bigint::BigInt;
 use num_rational::Ratio;
@@ -45,6 +48,7 @@ pub(crate) struct UnitaryEvalPoint {
 }
 
 impl UnitaryEvalPoint {
+    // **Pipeline private** — GCDHEU eval base 2·‖p‖∞+2
     pub(crate) fn initial(p: &Poly) -> Self {
         let norm = linfnorm(p);
         let mut base = BigInt::from(2) * norm.numer().abs() + BigInt::from(2);
@@ -54,22 +58,27 @@ impl UnitaryEvalPoint {
         Self { base }
     }
 
+    // **Pipeline private** — eval base accessor
     pub(crate) fn base(&self) -> &BigInt {
         &self.base
     }
 
+    // **Pipeline private** — set eval base
     pub(crate) fn set_base(&mut self, base: BigInt) {
         self.base = base;
     }
 
+    // **Pipeline private** — sqff micro-bump base += 1
     pub(crate) fn bump_sqff(&mut self) {
         self.base += BigInt::one();
     }
 
+    // **Pipeline private** — upstream eval step ⌊base·73794/27011⌋+1
     pub(crate) fn advance(&mut self) {
         self.base = &self.base * BigInt::from(73794) / BigInt::from(27011) + BigInt::one();
     }
 
+    // **Pipeline private** — eval base as Ratio<BigInt>
     fn as_ratio(&self) -> Ratio<BigInt> {
         Ratio::from_integer(self.base.clone())
     }
@@ -83,6 +92,7 @@ struct EvalBaseStream {
 }
 
 impl EvalBaseStream {
+    // **Pipeline private** — EvalBaseStream from poly norm
     fn new(p: &Poly) -> Self {
         Self {
             point: UnitaryEvalPoint::initial(p),
@@ -90,15 +100,18 @@ impl EvalBaseStream {
         }
     }
 
+    // **Pipeline private** — current EvalBaseStream point
     fn current(&self) -> &UnitaryEvalPoint {
         &self.point
     }
 
+    // **Pipeline private** — mutable current EvalBaseStream point
     fn current_mut(&mut self) -> &mut UnitaryEvalPoint {
         &mut self.point
     }
 
     /// Next outer eval base. First call keeps `initial(p)`; later calls `advance()`.
+    // **Pipeline private** — advance outer eval base or stop when bits > 256
     fn next(&mut self) -> bool {
         if self.started {
             self.point.advance();
@@ -110,6 +123,7 @@ impl EvalBaseStream {
 
     /// First `limit` bases on the upstream trajectory (for tests).
     #[cfg(test)]
+    // **Pipeline private** — first N bases on EvalBaseStream (tests)
     fn upstream_bases(p: &Poly, limit: usize) -> Vec<BigInt> {
         let mut stream = Self::new(p);
         let mut out = Vec::with_capacity(limit);
@@ -124,6 +138,7 @@ impl EvalBaseStream {
 }
 
 /// Upstream `tensor::reverse()` — swap variable index `i` ↔ `n-1-i` for `order`.
+// **Pipeline private** — upstream tensor reverse on variable indices
 pub(crate) fn reverse_var_order(p: &Poly, order: &[Var]) -> Poly {
     if order.len() < 2 {
         return p.clone();
@@ -149,6 +164,7 @@ pub(crate) fn reverse_var_order(p: &Poly, order: &[Var]) -> Poly {
 }
 
 /// Upstream `trunc1()` — drop the first variable dimension (`eval_var` exponents).
+// **Pipeline private** — drop eval_var tail (upstream trunc1)
 pub(crate) fn trunc1_drop_var(p: &Poly, drop_var: &Var) -> Poly {
     let mut out = Poly::zero();
     for (m, c) in &p.terms {
@@ -165,6 +181,7 @@ pub(crate) fn trunc1_drop_var(p: &Poly, drop_var: &Var) -> Poly {
 }
 
 /// Upstream `untrunc1(j)` — prepend `drop_var^j` to each term.
+// **Pipeline private** — reinsert eval_var with zero exp (upstream untrunc1)
 pub(crate) fn untrunc1_insert_var(p: &Poly, var: &Var, j: u64) -> Poly {
     if j == 0 {
         return p.clone();
@@ -172,6 +189,7 @@ pub(crate) fn untrunc1_insert_var(p: &Poly, var: &Var, j: u64) -> Poly {
     p.mul(&Poly::var(var.clone()).pow(j))
 }
 
+// **Pipeline private** — group terms by eval_var exponent
 fn eval_coeff_groups(p: &Poly, eval_var: &Var) -> Vec<(u64, Poly)> {
     let max = univariate_degree(p, eval_var);
     let mut out = Vec::new();
@@ -185,6 +203,7 @@ fn eval_coeff_groups(p: &Poly, eval_var: &Var) -> Vec<(u64, Poly)> {
 }
 
 /// Upstream `unitarize` w.r.t. `eval_var` (first index after `reverse`).
+// **Pipeline private** — scale to unitary leading coeff w.r.t. eval_var
 pub(crate) fn unitarize(p: &Poly, eval_var: &Var) -> (Poly, Poly) {
     let groups = eval_coeff_groups(p, eval_var);
     if groups.is_empty() {
@@ -213,6 +232,7 @@ pub(crate) fn unitarize(p: &Poly, eval_var: &Var) -> (Poly, Poly) {
 }
 
 /// Upstream `ununitarize`.
+// **Pipeline private** — undo unitarize scaling factor
 pub(crate) fn ununitarize(unitaryp: &Poly, an: &Poly, eval_var: &Var) -> Poly {
     if an.is_one() {
         return unitaryp.clone();
@@ -225,6 +245,7 @@ pub(crate) fn ununitarize(unitaryp: &Poly, an: &Poly, eval_var: &Var) -> Poly {
     ppush.primitive_part()
 }
 
+// **Pipeline private** — integer exponentiation in Poly ring
 fn pow_poly(base: &Poly, exp: usize) -> Poly {
     if exp == 0 {
         return Poly::one();
@@ -251,6 +272,7 @@ pub(crate) struct PzadicLift<'a> {
 }
 
 impl<'a> PzadicLift<'a> {
+    // **Pipeline private** — PzadicLift builder
     pub(crate) fn new(main: impl Into<MainVar>, eval_var: &'a Var, base: BigInt) -> Self {
         Self {
             main: main.into(),
@@ -259,6 +281,7 @@ impl<'a> PzadicLift<'a> {
         }
     }
 
+    // **Pipeline private** — build PzadicDraft from eval factor
     pub(crate) fn draft_from(&self, f: &Poly) -> PzadicDraft {
         PzadicDraft::from_eval_factor(
             f.clone(),
@@ -268,12 +291,14 @@ impl<'a> PzadicLift<'a> {
         )
     }
 
+    // **Pipeline private** — pzadic lift candidates from draft
     pub(crate) fn lift_candidates(&self, draft: &PzadicDraft) -> Vec<LiftedFactor> {
         let poly = self.pzadic(&draft.factor_at_eval);
         vec![LiftedFactor::new(poly, draft.main.clone(), 0)]
     }
 
     /// Upstream `pzadic(p, n)`: expand each coefficient in base `n`, attach `eval_var^j`.
+    // **Pipeline private** — faithful base-B digit lift (dim+1 via eval_var)
     pub(crate) fn pzadic(&self, f: &Poly) -> Poly {
         let main = self.main.as_var();
         let b = self.base.abs();
@@ -315,16 +340,19 @@ impl<'a> PzadicLift<'a> {
 /// Max samples for multi-point coeff interpolation (P2a).
 const MULTI_EVAL_MAX_SAMPLES: usize = 8;
 
+// **Pipeline private** — sort key (deg, lc) for eval factors
 fn factor_sort_key(f: &Poly, main: &Var) -> (u64, Ratio<BigInt>) {
     let d = univariate_degree(f, main);
     (d, coeff_at(f, main, d))
 }
 
+// **Pipeline private** — stable sort eval factor slots
 fn sort_eval_factors(fz: &mut [Poly], main: &Var) {
     fz.sort_by(|a, b| factor_sort_key(a, main).cmp(&factor_sort_key(b, main)));
 }
 
 /// Lagrange interpolation: points `(x_i, v_i)` → `Poly` in `eval_var`.
+// **Pipeline private** — P2a Lagrange coeff in eval_var
 fn lagrange_interp_coeff(
     samples: &[(BigInt, Ratio<BigInt>)],
     eval_var: &Var,
@@ -356,6 +384,7 @@ fn lagrange_interp_coeff(
     Some(out)
 }
 
+// **Pipeline private** — normalize factor monic w.r.t. main
 fn monic_wrt_main(f: &Poly, main: &Var) -> Option<Poly> {
     let d = univariate_degree(f, main);
     if d == 0 {
@@ -373,6 +402,7 @@ fn monic_wrt_main(f: &Poly, main: &Var) -> Option<Poly> {
 /// Sample bases form a **local window** below `base0` (not a global `2..N` scan):
 /// `[base0 - (need-1), …, base0 + tries]` so interpolation can use nearby sqff points
 /// while the outer stream stays on upstream `initial` / `advance`.
+// **Pipeline private** — P2a local-window multi-point coeff lift
 fn lift_factor_multi_eval(
     p: &Poly,
     eval_var: &Var,
@@ -457,6 +487,7 @@ fn lift_factor_multi_eval(
     }
 }
 
+// **Pipeline private** — pzadic peel then P2a fallback + divides check
 fn try_lift_and_peel(
     unitaryp: &Poly,
     p: &Poly,
@@ -485,6 +516,7 @@ fn try_lift_and_peel(
 }
 
 /// Centered symmetric digit for upstream `smod` + `iquo((k-r), n)`.
+// **Pipeline private** — symmetric mod digit for pzadic expansion
 fn sym_mod_digit(num: &BigInt, den: &BigInt, base: &BigInt) -> (BigInt, BigInt) {
     let step = den * base;
     let half = &step / BigInt::from(2);
@@ -497,7 +529,17 @@ fn sym_mod_digit(num: &BigInt, den: &BigInt, base: &BigInt) -> (BigInt, BigInt) 
     (digit, new_num)
 }
 
+/// Map factors from reversed-variable workspace back to `order`.
+// **Pipeline private** — inverse of upstream `tensor::reverse()` on factors
+fn unreverse_factors(factors: &[Poly], order: &[Var]) -> Vec<Poly> {
+    factors
+        .iter()
+        .map(|f| reverse_var_order(f, order))
+        .collect()
+}
+
 /// Multivariate `unitaryfactor` with upstream tail (`unitarize` fallback).
+// **Partial** — FAC-G1 last-resort; sparse/Hensel fallback; bounded GCDHEU eval stream
 pub(crate) fn try_unitary_factor(p: &Poly, vars: &[Var]) -> Option<Vec<Poly>> {
     if vars.is_empty() {
         return None;
@@ -507,21 +549,39 @@ pub(crate) fn try_unitary_factor(p: &Poly, vars: &[Var]) -> Option<Vec<Poly>> {
     }
     let vars_rev: Vec<Var> = vars.iter().rev().cloned().collect();
     let eval_var = &vars_rev[0];
+    // U5: upstream `tensor::reverse()` before `unitaryfactor` — required for 3+ vars only.
+    // Bivariate already uses `vars_rev`; reversing `p` too misaligns `EvalBaseStream::initial`
+    // and forces full UNITARY_MAX_TRY² retries (line25/line26 gate timeout).
+    let (work, map_back) = if vars.len() >= 3 {
+        (reverse_var_order(p, vars), true)
+    } else {
+        (p.clone(), false)
+    };
 
-    if let Some(f) = unitary_factor_rev(p, &vars_rev) {
-        if let Some(v) = verified_product(f.clone(), p) {
+    if let Some(f) = unitary_factor_rev(&work, &vars_rev) {
+        let mapped = if map_back {
+            unreverse_factors(&f, vars)
+        } else {
+            f
+        };
+        if let Some(v) = verified_product(mapped, p) {
             return Some(v);
         }
     }
 
-    let (unitaryp, an) = unitarize(p, eval_var);
+    let (unitaryp, an) = unitarize(&work, eval_var);
     if !an.is_one() {
         if let Some(fz2) = unitary_factor_rev(&unitaryp, &vars_rev) {
             let all: Vec<Poly> = fz2
                 .iter()
                 .map(|f| ununitarize(f, &an, eval_var))
                 .collect();
-            if let Some(v) = verified_product(all, p) {
+            let mapped = if map_back {
+                unreverse_factors(&all, vars)
+            } else {
+                all
+            };
+            if let Some(v) = verified_product(mapped, p) {
                 return Some(v);
             }
         }
@@ -530,6 +590,7 @@ pub(crate) fn try_unitary_factor(p: &Poly, vars: &[Var]) -> Option<Vec<Poly>> {
 }
 
 /// Core loop on reversed variable order (upstream `unitaryfactor`).
+// **Partial** — core unitaryfactor loop on vars_rev; pzadic peel + P2a fallback
 pub(crate) fn unitary_factor_rev(p: &Poly, vars_rev: &[Var]) -> Option<Vec<Poly>> {
     let main = vars_rev.last()?;
     let eval_var = &vars_rev[0];
@@ -655,6 +716,7 @@ pub(crate) fn unitary_factor_rev(p: &Poly, vars_rev: &[Var]) -> Option<Vec<Poly>
     verified_product(factors, p)
 }
 
+// **Pipeline private** — recurse constant tail into factor list
 fn factor_constant_tail_into(
     mut factors: Vec<Poly>,
     unitaryp: &Poly,
@@ -681,6 +743,7 @@ fn factor_constant_tail_into(
     verified_product(factors, orig)
 }
 
+// **Pipeline private** — factor tail when main degree → 0
 fn factor_constant_tail(p: &Poly, vars_rev: &[Var]) -> Option<Vec<Poly>> {
     if p.is_one() {
         return Some(vec![]);
@@ -702,6 +765,7 @@ fn factor_constant_tail(p: &Poly, vars_rev: &[Var]) -> Option<Vec<Poly>> {
     }
 }
 
+// **Pipeline private** — batch peel all slots at one eval base
 fn try_peel_all_at_eval(
     unitaryp: &Poly,
     orig: &Poly,
@@ -730,6 +794,7 @@ fn try_peel_all_at_eval(
     }
 }
 
+// **Pipeline private** — factor eval image w.r.t. main
 fn factor_at_eval(ev: &Poly, main: &Var, child_rev: &[Var]) -> Option<Vec<Poly>> {
     if child_rev.len() <= 1 {
         return factor_univariate_flat(ev, main).ok();
@@ -737,6 +802,7 @@ fn factor_at_eval(ev: &Poly, main: &Var, child_rev: &[Var]) -> Option<Vec<Poly>>
     unitary_factor_rev(ev, child_rev)
 }
 
+// **Pipeline private** — check factor product equals orig
 fn verified_product(factors: Vec<Poly>, orig: &Poly) -> Option<Vec<Poly>> {
     if factors.len() < 2 {
         return None;
@@ -749,6 +815,7 @@ fn verified_product(factors: Vec<Poly>, orig: &Poly) -> Option<Vec<Poly>> {
     }
 }
 
+// **Pipeline private** — sqff test w.r.t. main var
 fn is_sqff_wrt_main(p: &Poly, main: &Var) -> bool {
     square_free_part(p, main)
         .ok()
@@ -756,6 +823,7 @@ fn is_sqff_wrt_main(p: &Poly, main: &Var) -> bool {
         .unwrap_or(false)
 }
 
+// **Pipeline private** — L∞ norm of Poly coefficients
 fn linfnorm(p: &Poly) -> Ratio<BigInt> {
     p.terms
         .values()
@@ -849,6 +917,7 @@ mod tests {
 
     /// P2a on first 4 upstream bases (partial peel, with sqff bumps).
     #[test]
+    #[cfg_attr(debug_assertions, ignore = "slow in debug; run `cargo test --release -p giac-poly p2a_line25_upstream_trajectory`")]
     fn p2a_line25_upstream_trajectory() {
         let p = l22_y3_product();
         let x = Var::from("x");

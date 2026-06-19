@@ -14,6 +14,10 @@
 //! 子模块：`multivariate` → `univariate` / `hensel` / `sparse` / `zassenhaus` / `patterns`。
 //! 全函数 tier 见 `.doc/giac-poly-api-stability.md` § `factor/mod.rs`。
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
 mod tower;
 mod ctx;
 mod eval;

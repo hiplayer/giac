@@ -70,6 +70,7 @@ pub fn assert_equiv(a: &Expr, b: &Expr, ctx: &Context) -> Result<bool, EvalError
 
 // **Temporary** — drift_* for `assert_equiv` only (not a crate-wide `canonical_*` API).
 // Maps `1/sqrt(n)` → `sqrt(n)/n`. **退役:** 迁入 `normal` 或稳定 `canonical_radical` pub API。
+// **Temporary** — drift: 1/sqrt(n)↔sqrt(n)/n for assert_equiv
 fn canonical_radical(e: &Expr) -> ExprArc {
     match e {
         Expr::Pow(base, exp) => {

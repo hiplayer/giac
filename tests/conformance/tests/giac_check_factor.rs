@@ -3,14 +3,13 @@
 //! MVP: SymPy verifies `expand(factor(p)) == expand(p)` (identity factorization allowed).
 //! Golden literal match is reported but not required until general factor is implemented.
 //!
-//! **Gate:** release build + per-line wall-clock cap (`check_timeout()`, default 10s).
-//! Run: `cargo test-timeout -p giac-conformance --test giac_check_factor`
-//! or `cargo test --release -p giac-conformance --test giac_check_factor`.
+//! **Gate:** per-line wall-clock cap (`check_timeout()`, default 10s).
+//! Full workspace: `cargo test-timeout` (nextest **--release** via `.cargo/config.toml`).
+//! Run subset: `cargo nextest run --release -p giac-conformance --test giac_check_factor`.
 
 use giac_conformance::{
     assert_factor_line_sympy, check_timeout, factor_check_paths, load_factor_check_lines,
-    outputs_assert_equiv, require_release_profile, run_lines_with_timeout, sympy_equiv,
-    giac_check_dir,
+    outputs_assert_equiv, run_lines_with_timeout, sympy_equiv, giac_check_dir,
 };
 
 #[test]
@@ -70,7 +69,6 @@ factor_line_sympy!(factor_sympy_line_29, 29);
 
 #[test]
 fn giac_check_factor_golden_report() -> Result<(), String> {
-    require_release_profile()?;
     let timeout = check_timeout();
     let (inputs, golden) = load_factor_check_lines()?;
     let outputs = run_lines_with_timeout(&inputs, timeout)?;

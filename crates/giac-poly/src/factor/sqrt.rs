@@ -2,6 +2,10 @@
 //!
 //! **Partial:** `quadratic_sqrt_factor_exprs`.
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
 use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::{One, Zero};

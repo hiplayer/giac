@@ -3,6 +3,10 @@
 //! **Stable:** `as_perfect_power`, `try_linear_power`.
 //! **Pipeline private:** `try_nth_root`, `try_binomial_square`.
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
 use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::{One, Zero};

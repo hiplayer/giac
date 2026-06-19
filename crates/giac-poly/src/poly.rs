@@ -294,6 +294,7 @@ impl Poly {
     }
 }
 
+// **Pipeline private** — gcd of rational coeffs as Ratio
 pub(crate) fn integer_content_gcd(a: &Ratio<BigInt>, b: &Ratio<BigInt>) -> Ratio<BigInt> {
     let na = a.numer().abs();
     let da = a.denom().abs();

@@ -3,6 +3,10 @@
 //! Encodes ring tower (`SqffRingCtx`), factor lists (`FactorSet`), good eval points
 //! (`GoodEval`), and Hensel lift pairs (`HenselPair`).
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
 use num_rational::Ratio;
 use num_bigint::BigInt;
 
@@ -19,22 +23,27 @@ pub(crate) struct AuxVars<'a> {
 }
 
 impl<'a> AuxVars<'a> {
+    // **Stable** — `new`
     pub(crate) fn new(vars: &'a [Var]) -> Self {
         Self { vars }
     }
 
+    // **Stable** — `as_slice`
     pub(crate) fn as_slice(&self) -> &[Var] {
         self.vars
     }
 
+    // **Stable** — `len`
     pub(crate) fn len(&self) -> usize {
         self.vars.len()
     }
 
+    // **Stable** — `is_empty`
     pub(crate) fn is_empty(&self) -> bool {
         self.vars.is_empty()
     }
 
+    // **Stable** — `refs`
     pub(crate) fn refs(&self) -> Vec<&'a Var> {
         self.vars.iter().collect()
     }
@@ -49,6 +58,7 @@ pub(crate) struct SqffRingCtx<'a> {
 }
 
 impl<'a> SqffRingCtx<'a> {
+    // **Stable** — `new`
     pub(crate) fn new(poly: &'a Poly, main: impl Into<MainVar>, others: &'a [Var]) -> Self {
         Self {
             poly,
@@ -57,10 +67,12 @@ impl<'a> SqffRingCtx<'a> {
         }
     }
 
+    // **Stable** — `main_degree`
     pub(crate) fn main_degree(&self) -> u64 {
         univariate_degree(self.poly, self.main.as_var())
     }
 
+    // **Stable** — `with_main_and_others`
     pub(crate) fn with_main_and_others(
         &self,
         main: impl Into<MainVar>,
@@ -89,6 +101,7 @@ pub(crate) struct FactorSet {
 }
 
 impl FactorSet {
+    // **Stable** — `Poly::irreducible`
     pub(crate) fn irreducible(poly: Poly, main: MainVar) -> Self {
         Self {
             components: vec![SqffComponent {
@@ -99,6 +112,7 @@ impl FactorSet {
         }
     }
 
+    // **Stable** — `Poly::from_polys`
     pub(crate) fn from_polys(polys: Vec<Poly>, main: MainVar) -> Self {
         Self {
             components: polys
@@ -112,11 +126,13 @@ impl FactorSet {
         }
     }
 
+    // **Stable** — `into_polys`
     pub(crate) fn into_polys(self) -> Vec<Poly> {
         self.components.into_iter().map(|c| c.factor.poly).collect()
     }
 
     /// Whether `∏ f_i^{m_i} == p` in ℚ[others][main] (exact product check).
+    // **Stable** — `product_equals`
     pub(crate) fn product_equals(&self, p: &Poly) -> bool {
         let mut prod = Poly::one();
         for c in &self.components {
@@ -130,6 +146,7 @@ impl FactorSet {
     }
 
     /// Strip to plain factors after nested-ring divisibility checks on each component.
+    // **Stable** — `verify_divides_chain`
     pub(crate) fn verify_divides_chain(&self, p: &Poly) -> bool {
         if !self.product_equals(p) {
             return false;
@@ -159,6 +176,7 @@ pub struct GoodEval {
 }
 
 impl GoodEval {
+    // **Stable** — `new`
     pub(crate) fn new(evaluated: Poly, values: Vec<Ratio<BigInt>>, preserved_main_degree: u64) -> Self {
         Self {
             evaluated,
@@ -167,6 +185,7 @@ impl GoodEval {
         }
     }
 
+    // **Stable** — `Poly::first_value`
     pub(crate) fn first_value(&self) -> Option<&Ratio<BigInt>> {
         self.values.first()
     }
@@ -180,6 +199,7 @@ pub(crate) struct AuxIndepFactor<'a> {
 }
 
 impl<'a> AuxIndepFactor<'a> {
+    // **Partial** — optional algorithm path `try_new`
     pub(crate) fn try_new(poly: &'a Poly, main: MainVar, aux: &Var) -> Option<Self> {
         if !is_independent_of_var(poly, aux) {
             return None;
@@ -193,10 +213,12 @@ impl<'a> AuxIndepFactor<'a> {
         })
     }
 
+    // **Stable** — `as_view`
     pub(crate) fn as_view(&self) -> &UnivariateIn<'a> {
         &self.view
     }
 
+    // **Stable** — `div_rem_wrt_aux_indep`
     pub(crate) fn div_rem_wrt_aux_indep(
         &self,
         rem: &Poly,
@@ -216,6 +238,7 @@ pub(crate) struct HenselPair<'a> {
 }
 
 impl<'a> HenselPair<'a> {
+    // **Partial** — optional algorithm path `try_new`
     pub(crate) fn try_new(
         p: &'a Poly,
         main: impl Into<MainVar>,

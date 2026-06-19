@@ -3,6 +3,10 @@
 //! **Partial:** `try_zassenhaus_factor`.
 //! **Pipeline private:** modular egcd, Hensel lift, factor combination recovery.
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
 use num_bigint::BigInt;
 use num_traits::{One, Signed, Zero};
 
