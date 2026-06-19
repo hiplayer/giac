@@ -322,10 +322,20 @@ fn partfrac_one_quadratic(num: &Poly, quad: &Poly, var: &Var) -> PolyResult<Vec<
     }
     let disc = b.clone() * b.clone() - Ratio::from_integer(BigInt::from(4)) * a.clone() * d;
     if disc > Ratio::zero() {
+        if let Some(factors) = factor_into(quad) {
+            if factors.len() > 1 {
+                return partfrac_by_square_free(num, quad, var);
+            }
+        }
         return Err(PolyError::NotImplemented("partfrac real quadratic split"));
     }
     if disc == Ratio::zero() {
-        return Err(PolyError::NotImplemented("partfrac repeated quadratic"));
+        if let Some(factors) = factor_into(quad) {
+            if factors.len() == 1 && univariate_degree(&factors[0], var) == 1 {
+                return partfrac_affine_power_system(num, quad, var, &[(factors[0].clone(), 2)]);
+            }
+        }
+        return partfrac_affine_power_system(num, quad, var, &[(quad.clone(), 2)]);
     }
     let quad_numer = Poly::constant(c / a);
     Ok(vec![(quad_numer, quad.clone())])
@@ -547,6 +557,38 @@ mod tests {
         eprintln!("ck05 partfrac: {:?}", r.as_ref().map(|(_, t)| t.len()));
         let (_, terms) = r.unwrap();
         assert!(terms.len() >= 4, "got {} terms", terms.len());
+    }
+
+    #[test]
+    fn partfrac_one_over_x_minus_one_squared() {
+        let num = Poly::one();
+        let den = x().sub(&Poly::one()).pow(2);
+        let (_, terms) = partfrac_rational_terms(&num, &den, &Var::from("x")).unwrap();
+        let recomposed = terms.iter().fold(Poly::zero(), |acc, (n, d)| {
+            acc.add(&n.mul(&den.div_rem(d).0))
+        });
+        assert_eq!(recomposed, num);
+        assert!(!terms.is_empty());
+    }
+
+    #[test]
+    fn partfrac_x_over_x_minus_one_squared() {
+        let num = x();
+        let den = x().sub(&Poly::one()).pow(2);
+        let (_, terms) = partfrac_rational_terms(&num, &den, &Var::from("x")).unwrap();
+        assert_eq!(terms.len(), 2);
+        let recomposed = terms.iter().fold(Poly::zero(), |acc, (n, d)| {
+            acc.add(&n.mul(&den.div_rem(d).0))
+        });
+        assert_eq!(recomposed, num);
+    }
+
+    #[test]
+    fn partfrac_one_over_x_squared_minus_four() {
+        let num = Poly::one();
+        let den = x().pow(2).sub(&Poly::constant(Ratio::from_integer(4.into())));
+        let (_, terms) = partfrac_rational_terms(&num, &den, &Var::from("x")).unwrap();
+        assert_eq!(terms.len(), 2);
     }
 
     #[test]
