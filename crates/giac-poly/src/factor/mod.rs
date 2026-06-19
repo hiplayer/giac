@@ -1,7 +1,10 @@
 //! Polynomial factorization over ℚ (and ℤ/pℤ for `factor_poly_mod`).
 //!
+//! **Nested-ring gate:** ℚ[others][main] paths in `sparse` / `hensel` / `poly_uni` must use
+//! [`crate::nested::UnivariateIn`] (`.divides`, `.div_rem_wrt_aux_indep`) — not [`Poly::div_rem`].
+//!
 //! **Upstream:** `gausspol.cc` / `ezgcd.cc` — `do_factor_hensel`, `factor`.
-//! **缺口:** FAC-G1 `try_sparse_factor_bi`（sum-coeff 重建、dilation 循环）；FAC-G2 一般参系数塔。
+//! **缺口:** FAC-G2 一般参系数塔；`unitaryfactor` / `pzadic` 有界启发式待接入。
 //!
 //! | Tier | 入口 |
 //! |------|------|
@@ -11,6 +14,8 @@
 //! 子模块：`multivariate` → `univariate` / `hensel` / `sparse` / `zassenhaus` / `patterns`。
 //! 全函数 tier 见 `.doc/giac-poly-api-stability.md` § `factor/mod.rs`。
 
+mod tower;
+mod ctx;
 mod eval;
 mod cyclotomic;
 mod fpx;
@@ -32,6 +37,7 @@ mod util;
 use crate::poly::Poly;
 
 pub use util::{ratio_perfect_sqrt, vars_in};
+pub use eval::GoodEval;
 pub use power::{as_perfect_power, try_linear_power};
 pub use sqrt::quadratic_sqrt_factor_exprs;
 pub use univariate::factor_power_pairs;

@@ -9,6 +9,7 @@ use crate::monomial::Var;
 use crate::poly::Poly;
 
 use super::patterns::try_factor_patterns;
+use super::ctx::SqffRingCtx;
 use super::poly_uni::{
     content_wrt, factor_sqff_over_coeff_ring, primitive_part_wrt, square_free_wrt,
 };
@@ -71,12 +72,17 @@ fn factor_wrt_main_var(p: &Poly, var: &Var, others: &[Var]) -> PolyResult<Vec<Po
     let pp = primitive_part_wrt(p, var)?;
     let sqff = square_free_wrt(&pp, var)?;
     for (g, k) in sqff {
-        let gf = factor_sqff_over_coeff_ring(&g, var, others, factor_multivariate_rec)?;
+        let gf = factor_sqff_over_coeff_ring(&g, var, others, factor_multivariate_rec_sqff)?;
         for _ in 0..k {
             factors.extend(gf.iter().cloned());
         }
     }
     Ok(factors)
+}
+
+// **Pipeline private** — [`SqffFactorRecFn`] adapter for multivariate recursion
+fn factor_multivariate_rec_sqff(ctx: SqffRingCtx<'_>) -> PolyResult<Vec<Poly>> {
+    factor_multivariate_rec(ctx.poly, ctx.others.as_slice())
 }
 
 #[cfg(test)]

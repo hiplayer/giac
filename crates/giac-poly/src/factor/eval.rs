@@ -3,6 +3,8 @@
 //! **Upstream:** `ezgcd.cc` `find_good_eval`, `peval_1`; used in `do_factor_hensel`
 //! for irreducibility probes and Hensel/sparse seeds.
 
+pub use super::ctx::GoodEval;
+
 use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::Zero;
@@ -30,7 +32,7 @@ pub fn find_good_eval(
     main: &Var,
     auxes: &[&Var],
     start: &[i64],
-) -> Option<(Poly, Vec<Ratio<BigInt>>)> {
+) -> Option<GoodEval> {
     let target_deg = univariate_degree(p, main);
     if target_deg == 0 {
         return None;
@@ -42,7 +44,7 @@ pub fn find_good_eval(
             .collect();
         let ev = peval_at_main(p, main, auxes, &vals);
         if univariate_degree(&ev, main) == target_deg && !ev.is_zero() {
-            return Some((ev, vals));
+            return Some(GoodEval::new(ev, vals, target_deg));
         }
     }
     None
@@ -90,11 +92,11 @@ pub fn looks_irreducible_by_good_eval(p: &Poly, main: &Var, auxes: &[&Var]) -> b
     let zero = vec![0i64; auxes.len()];
     let one = vec![1i64; auxes.len()];
     for start in [&zero[..], &one[..]] {
-        let (ev, _) = match find_good_eval(p, main, auxes, start) {
+        let ge = match find_good_eval(p, main, auxes, start) {
             Some(x) => x,
             None => return false,
         };
-        let facs = match factor_univariate_flat(&ev, main) {
+        let facs = match factor_univariate_flat(&ge.evaluated, main) {
             Ok(f) => f,
             Err(_) => return false,
         };
@@ -119,9 +121,10 @@ mod tests {
         let x = Poly::var("x");
         let y = Poly::var("y");
         let p = x.pow(2).sub(&y).mul(&x.add(&Poly::one()));
-        let (ev, _) = find_good_eval(&p, &Var::from("x"), &[&Var::from("y")], &[0]).unwrap();
-        assert_eq!(univariate_degree(&ev, &Var::from("x")), 3);
-        assert!(!ev.is_zero());
+        let ge = find_good_eval(&p, &Var::from("x"), &[&Var::from("y")], &[0]).unwrap();
+        assert_eq!(univariate_degree(&ge.evaluated, &Var::from("x")), 3);
+        assert_eq!(ge.preserved_main_degree, 3);
+        assert!(!ge.evaluated.is_zero());
     }
 
     #[test]
@@ -131,10 +134,10 @@ mod tests {
         // x*y: y=0 kills x-degree; later candidates still find a good point.
         let p = x.mul(&y);
         assert!(find_good_eval(&p, &Var::from("x"), &[&Var::from("y")], &[0]).is_some());
-        let (ev, vals) =
+        let ge =
             find_good_eval(&p, &Var::from("x"), &[&Var::from("y")], &[0]).unwrap();
-        assert_ne!(vals[0], Ratio::zero());
-        assert_eq!(univariate_degree(&ev, &Var::from("x")), 1);
+        assert_ne!(ge.values[0], Ratio::zero());
+        assert_eq!(univariate_degree(&ge.evaluated, &Var::from("x")), 1);
     }
 
     #[test]

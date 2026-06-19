@@ -2,6 +2,7 @@
 //! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
 //! full module index in `.doc/giac-poly-api-stability.md`.
 //!
+mod nested;
 mod subresultant;
 mod tresultant;
 mod univariate;
@@ -17,6 +18,10 @@ mod chinrem;
 mod ops;
 mod partfrac;
 
+pub use nested::{
+    BivariateEmbed, CoeffRingPoly, MainVar, TnEmbed, UnivariateIn, UnivariateOver, UnivariatePoly,
+};
+pub use factor::GoodEval;
 pub use error::{PolyError, PolyResult};
 pub use monomial::{Monomial, Var};
 pub use poly::{Poly, abcuv, egcd, quo, rem, simp2};

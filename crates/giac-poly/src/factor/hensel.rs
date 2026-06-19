@@ -10,10 +10,12 @@ use num_rational::Ratio;
 use num_traits::{One, Zero};
 
 use crate::monomial::Var;
+use crate::nested::{MainVar, UnivariateIn};
 use crate::poly::Poly;
 use crate::resultant::{coeff_at, univariate_degree};
 
 use super::poly_uni::{coeff_wrt_poly, substitute_poly, term_with_var};
+use super::ctx::HenselPair;
 use super::univariate::factor_univariate_flat;
 use super::util::rational_nth_root;
 
@@ -209,9 +211,9 @@ fn truncate_y(p: &Poly, y: &Var, max: u64) -> Poly {
     out
 }
 
-// **Pipeline private** — `is_independent_of_y`
-fn is_independent_of_y(p: &Poly, y: &Var) -> bool {
-    p.terms.keys().all(|m| m.exp_of(y) == 0)
+// **Pipeline private** — `div_rem_x_over_qy` via nested-ring API (divisor independent of aux)
+fn div_rem_x_over_qy(rem: &Poly, div: &Poly, x: &Var, y: &Var) -> Option<(Poly, Poly)> {
+    UnivariateIn::new(div, MainVar::new(x.clone())).div_rem_wrt_aux_indep(rem, y)
 }
 
 // **Pipeline private** — `leading_coeff_x`
@@ -233,45 +235,13 @@ fn scale_univariate_x(p: &Poly, x: &Var, scale: &Ratio<BigInt>) -> Poly {
     out
 }
 
-// **Pipeline private** — `div_rem_x_over_qy`
-fn div_rem_x_over_qy(rem: &Poly, div: &Poly, x: &Var, y: &Var) -> Option<(Poly, Poly)> {
-    if !is_independent_of_y(div, y) {
-        return None;
-    }
-    let dd = univariate_degree(div, x);
-    if dd == 0 {
-        return None;
-    }
-    let lc = coeff_at(div, x, dd);
-    if lc.is_zero() {
-        return None;
-    }
-
-    let mut r = rem.clone();
-    let mut q = Poly::zero();
-    loop {
-        let dr = univariate_degree(&r, x);
-        if r.is_zero() || dr < dd {
-            break;
-        }
-        let lc_r = coeff_wrt_poly(&r, x, dr);
-        let quo_coeff = lc_r.mul_scalar(&(Ratio::one() / lc.clone()));
-        let shift = dr - dd;
-        let q_term = term_with_var(&quo_coeff, x, shift);
-        q = q.add(&q_term);
-        r = r.sub(&q_term.mul(div));
-    }
-    Some((q, r))
-}
-
 // **Pipeline private** — legacy y-degree truncation Hensel (2 factors); fallback when total-degree lift fails
-fn hensel_lift_two_at_zero(
-    p: &Poly,
-    main: &Var,
-    aux: &Var,
-    f0: &Poly,
-    g0: &Poly,
-) -> Option<Vec<Poly>> {
+fn hensel_lift_two_at_zero(pair: HenselPair<'_>) -> Option<Vec<Poly>> {
+    let p = pair.p;
+    let main = pair.main.as_var();
+    let aux = &pair.aux;
+    let f0 = pair.f0.as_view().poly;
+    let g0 = pair.g0.as_view().poly;
     let fa = poly_univariate_rat(f0, main);
     let ga = poly_univariate_rat(g0, main);
     let (g, qu, ru) = rat_egcd(&fa, &ga);
@@ -298,8 +268,8 @@ fn hensel_lift_two_at_zero(
         }
         let rprime = truncate_y(&err.mul(&qu_p), aux, deg.saturating_sub(1));
         let qprime = truncate_y(&err.mul(&ru_p), aux, deg.saturating_sub(1));
-        let (_fq, frem) = div_rem_x_over_qy(&qprime, f0, main, aux)?;
-        let (_gq, grem) = div_rem_x_over_qy(&rprime, g0, main, aux)?;
+        let (_fq, frem) = pair.f0.div_rem_wrt_aux_indep(&qprime)?;
+        let (_gq, grem) = pair.g0.div_rem_wrt_aux_indep(&rprime)?;
         f = f.add(&truncate_y(&frem, aux, deg.saturating_sub(1)));
         g = g.add(&truncate_y(&grem, aux, deg.saturating_sub(1)));
     }
@@ -317,8 +287,8 @@ fn hensel_lift_two_at_zero(
         }
         let rprime = truncate_y(&err.mul(&qu_p), aux, deg.saturating_sub(1));
         let qprime = truncate_y(&err.mul(&ru_p), aux, deg.saturating_sub(1));
-        let (_fq, frem) = div_rem_x_over_qy(&qprime, f0, main, aux)?;
-        let (_gq, grem) = div_rem_x_over_qy(&rprime, g0, main, aux)?;
+        let (_fq, frem) = pair.f0.div_rem_wrt_aux_indep(&qprime)?;
+        let (_gq, grem) = pair.g0.div_rem_wrt_aux_indep(&rprime)?;
         f = f.add(&truncate_y(&frem, aux, deg.saturating_sub(1)));
         g = g.add(&truncate_y(&grem, aux, deg.saturating_sub(1)));
         if f.mul(&g) == *p {
@@ -633,8 +603,12 @@ fn hensel_lift_at_zero(p: &Poly, main: &Var, aux: &Var) -> Option<Vec<Poly>> {
     }
 
     if f0.len() == 2 {
-        return hensel_lift_two_at_zero(p, main, aux, &f0[0], &f0[1])
-            .or_else(|| hensel_lift_two_at_zero(p, main, aux, &f0[1], &f0[0]));
+        return HenselPair::try_new(p, main.clone(), aux, &f0[0], &f0[1])
+            .and_then(hensel_lift_two_at_zero)
+            .or_else(|| {
+                HenselPair::try_new(p, main.clone(), aux, &f0[1], &f0[0])
+                    .and_then(hensel_lift_two_at_zero)
+            });
     }
     None
 }
@@ -1167,8 +1141,12 @@ mod tests {
         let mut f0 = factor_univariate_flat(&p0, &Var::from("x")).unwrap();
         normalize_univariate_factors(&mut f0, &Var::from("x"), &p0);
         assert_eq!(f0.len(), 2);
-        let f = hensel_lift_two_at_zero(&p, &Var::from("x"), &Var::from("y"), &f0[0], &f0[1])
-            .or_else(|| hensel_lift_two_at_zero(&p, &Var::from("x"), &Var::from("y"), &f0[1], &f0[0]))
+        let f = HenselPair::try_new(&p, Var::from("x"), &Var::from("y"), &f0[0], &f0[1])
+            .and_then(hensel_lift_two_at_zero)
+            .or_else(|| {
+                HenselPair::try_new(&p, Var::from("x"), &Var::from("y"), &f0[1], &f0[0])
+                    .and_then(hensel_lift_two_at_zero)
+            })
             .expect("two-factor Hensel at zero");
         assert_eq!(f.len(), 2);
         assert_eq!(f.iter().fold(Poly::one(), |acc, q| acc.mul(q)), p);

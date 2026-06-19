@@ -1,9 +1,8 @@
 //! Sparse / heuristic multivariate factorization fallbacks.
 //!
 //! **Upstream:** `ezgcd.cc` `try_sparse_factor`, `gausspol.cc` `unitaryfactor` / `pzadic`.
-//! **Partial:** `try_sparse_factor` (FAC-G1, poly-`lcp`, 2-factor bilinear),
-//! `try_sparse_factor_bi` (FAC-G1, 2-aux `eval_tn` MVP),
-//! `try_heuristic_factor_bivariate` (FAC-G1/G3).
+//! **Partial:** `try_sparse_factor` (FAC-G1), `try_sparse_factor_bi` (FAC-G1 sum-coeff + dilation),
+//! `try_heuristic_factor_bivariate` (FAC-G1/G3 last resort).
 
 use std::collections::HashMap;
 
@@ -12,12 +11,14 @@ use num_rational::Ratio;
 use num_traits::{One, Signed, Zero};
 
 use crate::monomial::Var;
+use crate::nested::{
+    CoeffRingPoly, EmbedFactorDraft, EmbedMonomial, MainVar, TnEmbed, UnivariateIn,
+};
 use crate::poly::Poly;
 use crate::resultant::{coeff_at, univariate_degree};
 
 use super::hensel::normalize_univariate_factors;
 use super::poly_uni::{coeff_wrt_poly, primitive_part_wrt, substitute_poly, term_with_var};
-use crate::subresultant::quo_exact_wrt;
 use super::univariate::factor_univariate_flat;
 
 /// **Partial** — Sparse reconstruction from univariate factors at `other = 0` (FAC-G1).
@@ -29,12 +30,14 @@ pub fn try_sparse_factor(p: &Poly, main: &Var, other: &Var) -> Option<Vec<Poly>>
     try_sparse_factor_at(p, main, other, None)
         .or_else(|| {
             super::eval::find_good_eval(p, main, &[other], &[0])
-                .and_then(|(_, vals)| try_sparse_factor_at(p, main, other, Some(vals[0].clone())))
+                .and_then(|ge| ge.first_value().cloned())
+                .and_then(|v| try_sparse_factor_at(p, main, other, Some(v)))
         })
         .or_else(|| try_sparse_factor_at(p, other, main, None))
         .or_else(|| {
             super::eval::find_good_eval(p, other, &[main], &[0])
-                .and_then(|(_, vals)| try_sparse_factor_at(p, other, main, Some(vals[0].clone())))
+                .and_then(|ge| ge.first_value().cloned())
+                .and_then(|v| try_sparse_factor_at(p, other, main, Some(v)))
         })
 }
 
@@ -48,73 +51,174 @@ pub fn try_sparse_factor_at(
     try_sparse_factor_impl(p, main, other, at)
 }
 
-// **Pipeline private** — single `(main, other)` attempt
+// **Pipeline private** — single `(main, other)` attempt via typed sparse stages
 fn try_sparse_factor_impl(
     p: &Poly,
     main: &Var,
     other: &Var,
     at: Option<Ratio<BigInt>>,
 ) -> Option<Vec<Poly>> {
-    let dx = univariate_degree(p, main);
-    if dx == 0 || univariate_degree(p, other) == 0 {
-        return None;
+    SparseAtZero::prepare(p, main, other, at)?
+        .into_system()?
+        .solve()
+}
+
+/// Stage 1: univariate image @ `aux = eval` (upstream sparse @0 / good eval).
+// **Pipeline private**
+struct SparseAtZero<'a> {
+    p: &'a Poly,
+    main: MainVar,
+    aux: Var,
+    eval: Ratio<BigInt>,
+    p0: Poly,
+    facs: Vec<Poly>,
+    s: usize,
+    lcp: Poly,
+    dy: usize,
+    n_la: usize,
+    tdeg: usize,
+}
+
+impl<'a> SparseAtZero<'a> {
+    fn prepare(
+        p: &'a Poly,
+        main: &Var,
+        aux: &Var,
+        at: Option<Ratio<BigInt>>,
+    ) -> Option<Self> {
+        let dx = univariate_degree(p, main);
+        if dx == 0 || univariate_degree(p, aux) == 0 {
+            return None;
+        }
+
+        let eval = at.unwrap_or_else(Ratio::zero);
+        let p0 = substitute_poly(p, aux, &Poly::constant(eval.clone()));
+        let mut facs = factor_univariate_flat(&p0, main).ok()?;
+        if !normalize_univariate_factors(&mut facs, main, &p0) {
+            return None;
+        }
+        let s = facs.len();
+        if s < 2 {
+            return None;
+        }
+
+        let n_la: usize = facs
+            .iter()
+            .map(|f| factor_unknown_count(f, main))
+            .sum();
+        let tdeg = p.terms.keys().map(|m| m.degree()).max().unwrap_or(0) as usize;
+        if n_la == 0 || n_la >= 5usize.max(tdeg / 2) {
+            return None;
+        }
+
+        let dy = univariate_degree(p, aux) as usize;
+        let lcp = leading_coeff_main(p, main);
+        if lcp.is_zero() {
+            return None;
+        }
+
+        Some(Self {
+            p,
+            main: MainVar::new(main.clone()),
+            aux: aux.clone(),
+            eval,
+            p0,
+            facs,
+            s,
+            lcp,
+            dy,
+            n_la,
+            tdeg,
+        })
     }
 
-    let eval = at.unwrap_or_else(Ratio::zero);
-    let p0 = substitute_poly(p, other, &Poly::constant(eval));
-    let mut facs = factor_univariate_flat(&p0, main).ok()?;
-    if !normalize_univariate_factors(&mut facs, main, &p0) {
-        return None;
+    fn into_system(self) -> Option<SparseSystem<'a>> {
+        let main = self.main.as_var();
+        let templates = build_factor_templates(&self.facs, main);
+        let n_vars = self.n_la * (self.dy + 1);
+        let target = scale_by_lcp_power(self.p, &self.lcp, self.s - 1);
+        let mut eqs = build_sparse_equations(
+            &templates,
+            &self.lcp,
+            &target,
+            main,
+            &self.aux,
+            self.dy,
+        );
+        if eqs.is_empty() {
+            return None;
+        }
+        Some(SparseSystem {
+            p: self.p,
+            main: self.main,
+            aux: self.aux,
+            lcp: self.lcp,
+            s: self.s,
+            templates,
+            eqs,
+            n_vars,
+            dy: self.dy,
+            n_la: self.n_la,
+            target,
+        })
     }
-    let s = facs.len();
-    if s < 2 {
-        return None;
-    }
+}
 
-    let n_la: usize = facs
-        .iter()
-        .map(|f| factor_unknown_count(f, main))
-        .sum();
-    let tdeg = p.terms.keys().map(|m| m.degree()).max().unwrap_or(0) as usize;
-    if n_la == 0 || n_la >= 5usize.max(tdeg / 2) {
-        return None;
-    }
+/// Stage 2: linear system for unknown coeffs (no further `Poly` round-trips until solve).
+// **Pipeline private**
+struct SparseSystem<'a> {
+    p: &'a Poly,
+    main: MainVar,
+    aux: Var,
+    lcp: Poly,
+    s: usize,
+    templates: Vec<FactorTemplate>,
+    eqs: Vec<SparseEquation>,
+    n_vars: usize,
+    dy: usize,
+    n_la: usize,
+    target: Poly,
+}
 
-    let dy = univariate_degree(p, other) as usize;
-    let lcp = leading_coeff_main(p, main);
-    if lcp.is_zero() {
-        return None;
+impl<'a> SparseSystem<'a> {
+    fn solve(mut self) -> Option<Vec<Poly>> {
+        let main = self.main.as_var();
+        let sol = if self.s == 2 && self.n_la == 2 {
+            solve_sparse_two_factor(
+                &mut self.eqs,
+                &self.lcp,
+                &self.target,
+                main,
+                &self.aux,
+                self.dy,
+            )?
+        } else {
+            solve_sparse_system(&mut self.eqs, self.n_vars)?
+        };
+        let factors = build_factors(
+            &self.templates,
+            &sol,
+            &self.lcp,
+            main,
+            &self.aux,
+            self.dy,
+        );
+        let mut factors: Vec<Poly> = factors
+            .into_iter()
+            .filter_map(|f| primitive_part_wrt(&f, main).ok())
+            .collect();
+        if factors.len() != self.s {
+            return None;
+        }
+        try_adjust_sparse_scale(&mut factors, self.p, &self.lcp, self.s, main);
+        verify_sparse_factors(&factors, self.p, &self.lcp, self.s)
     }
-
-    let templates = build_factor_templates(&facs, main);
-    let n_vars = n_la * (dy + 1);
-    let target = scale_by_lcp_power(p, &lcp, s - 1);
-
-    let mut eqs = build_sparse_equations(&templates, &lcp, &target, main, other, dy);
-    if eqs.is_empty() {
-        return None;
-    }
-    let sol = if s == 2 && n_la == 2 {
-        solve_sparse_two_factor(&mut eqs, &lcp, &target, main, other, dy)?
-    } else {
-        solve_sparse_system(&mut eqs, n_vars)?
-    };
-    let factors = build_factors(&templates, &sol, &lcp, main, other, dy);
-    let mut factors: Vec<Poly> = factors
-        .into_iter()
-        .filter_map(|f| primitive_part_wrt(&f, main).ok())
-        .collect();
-    if factors.len() != s {
-        return None;
-    }
-    try_adjust_sparse_scale(&mut factors, p, &lcp, s, main);
-    verify_sparse_factors(&factors, p, &lcp, s)
 }
 
 // **Pipeline private** — leading coefficient of `p` in `main` (poly in remaining vars)
 fn leading_coeff_main(p: &Poly, main: &Var) -> Poly {
-    let d = univariate_degree(p, main);
-    coeff_wrt_poly(p, main, d)
+    let main_var = MainVar::new(main.clone());
+    UnivariateIn::new(p, main_var).leading_coeff()
 }
 
 // **Pipeline private** — non-leading term count in univariate factor `f`
@@ -1009,10 +1113,8 @@ fn verify_sparse_factors(factors: &[Poly], p: &Poly, _lcp: &Poly, _s: usize) -> 
 }
 
 // ---------------------------------------------------------------------------
-// Multivariate sparse embedding (upstream `try_sparse_factor_bi`, MVP: 2 aux vars)
+// Multivariate sparse embedding (upstream `ezgcd.cc` `try_sparse_factor_bi`)
 // ---------------------------------------------------------------------------
-
-const SPARSE_EMBED_T: &str = "__sparse_t__";
 
 /// **Partial** — sparse factor via bivariate `eval_tn` embedding (FAC-G1, 3+ vars).
 pub fn try_sparse_factor_bi(p: &Poly, main: &Var, auxes: &[&Var]) -> Option<Vec<Poly>> {
@@ -1025,38 +1127,21 @@ pub fn try_sparse_factor_bi(p: &Poly, main: &Var, auxes: &[&Var]) -> Option<Vec<
     None
 }
 
-// **Pipeline private** — `eval_tn`: aux_i -> t^{n_i}
-fn eval_tn_embed(
-    p: &Poly,
-    main: &Var,
-    aux_a: &Var,
-    aux_b: &Var,
-    n_a: usize,
-    n_b: usize,
-    t: &Var,
-) -> Poly {
-    let mut out = Poly::zero();
-    for (m, c) in &p.terms {
-        let xe = m.exp_of(main);
-        let te = m.exp_of(aux_a) * n_a as u64 + m.exp_of(aux_b) * n_b as u64;
-        if te == 0 {
-            out = out.add(&term_with_var(&Poly::constant(c.clone()), main, xe));
-        } else {
-            let tc = Poly::var(t.clone()).pow(te);
-            out = out.add(&term_with_var(&tc.mul_scalar(c), main, xe));
-        }
-    }
-    out
+// **Pipeline private** — build `Poly` from sorted embed monomials + aux exponents
+fn embed_sorted_monomials(p: &Poly, main: &Var, t: &Var) -> Vec<EmbedMonomial> {
+    EmbedMonomial::sorted_from_poly(p, main, t)
 }
 
 // **Pipeline private** — distinct `main`-degrees with pairwise distinct coeffs (upstream `x_degrees`).
 fn bivariate_x_degrees_ok(p: &Poly, main: &Var) -> Option<Vec<u64>> {
+    let main_var = MainVar::new(main.clone());
+    let view = UnivariateIn::new(p, main_var);
     let mut degs = Vec::new();
     let mut prev: Option<u64> = None;
     let mut coeffs: Vec<Poly> = Vec::new();
-    let d = univariate_degree(p, main);
+    let d = view.degree();
     for e in (0..=d).rev() {
-        let c = coeff_wrt_poly(p, main, e);
+        let c = view.coeff_at(e);
         if c.is_zero() {
             continue;
         }
@@ -1089,14 +1174,8 @@ fn select_bivariate_factor(
         if lc.is_zero() {
             continue;
         }
-        let multby = {
-            let (q, r) = lcpt.div_rem(&lc);
-            if r.is_zero() {
-                q
-            } else {
-                continue;
-            }
-        };
+        let multby = CoeffRingPoly::new(&lcpt)
+            .exact_quo(&CoeffRingPoly::new(&lc))?;
         let score = multby.terms.len();
         if best.as_ref().map(|(_, _, s)| score < *s).unwrap_or(true) {
             best = Some((multby.mul(f), degs, score));
@@ -1109,19 +1188,17 @@ fn select_bivariate_factor(
 fn matching_embed_factor(
     p: &Poly,
     lcp: &Poly,
-    main: &Var,
-    aux_a: &Var,
-    aux_b: &Var,
-    n_a: usize,
-    n_b: usize,
-    t: &Var,
+    embed: &TnEmbed,
+    n1: [usize; 2],
     seldegs: &[u64],
 ) -> Option<Poly> {
-    let pt = eval_tn_embed(p, main, aux_a, aux_b, n_a, n_b, t);
-    let pt = primitive_part_wrt(&pt, main).ok()?;
-    let vars = [main.clone(), t.clone()];
+    let emb = embed.clone().with_n(n1);
+    let pt_emb = emb.embed(p);
+    let pt = primitive_part_wrt(pt_emb.as_poly(), emb.main.as_var()).ok()?;
+    let vars = [emb.main.as_var().clone(), emb.t.as_var().clone()];
     let facs = super::multivariate::factor_multivariate_rec(&pt, &vars).ok()?;
-    let lcpt = eval_tn_embed(lcp, main, aux_a, aux_b, n_a, n_b, t);
+    let lcpt = emb.embed(lcp).as_poly().clone();
+    let main = emb.main.as_var();
     for f in &facs {
         if f.is_one() {
             continue;
@@ -1136,44 +1213,124 @@ fn matching_embed_factor(
         if lc.is_zero() {
             continue;
         }
-        let (q, r) = lcpt.div_rem(&lc);
-        if !r.is_zero() {
+        let Some(multby) = CoeffRingPoly::new(&lcpt).exact_quo(&CoeffRingPoly::new(&lc)) else {
             continue;
-        }
-        return Some(q.mul(f));
+        };
+        return Some(multby.mul(f));
     }
     None
 }
 
-// **Pipeline private** — reconstruct one multivariate factor from two embeddings.
-fn reconstruct_factor_two_aux(
+/// Monomial-by-monomial aux exponent recovery (upstream `try_sparse_factor_bi` inner loop).
+// **Pipeline private**
+fn reconstruct_sparse_bi_monomials(
+    draft: &mut EmbedFactorDraft,
+    p: &Poly,
+    lcp: &Poly,
+    n: [usize; 2],
+) -> Option<Poly> {
+    const N_AUX: usize = 2;
+    let embed = &draft.embed;
+    let main = embed.main.as_var();
+    let t = embed.t.as_var();
+    let seldegs = draft.seldegs.clone();
+    let mut i = 0usize;
+    let mut increment = 1usize;
+
+    while i < N_AUX {
+        let mut n1 = n;
+        n1[i] += increment;
+        let curp = matching_embed_factor(p, lcp, embed, n1, &seldegs)?;
+        let curp_monos = embed_sorted_monomials(&curp, main, t);
+
+        if curp_monos.len() < draft.monos.len() {
+            increment += 1;
+            if increment > 3 {
+                return None;
+            }
+            continue;
+        }
+        if curp_monos.len() > draft.monos.len() {
+            draft.monos = curp_monos;
+            draft.aux_exps = vec![(0, 0); draft.monos.len()];
+            return reconstruct_sparse_bi_monomials(draft, p, lcp, n1);
+        }
+
+        let ni = n[i] as u64;
+        let n1i = n1[i] as u64;
+        if n1i == ni {
+            return None;
+        }
+        for ((st, ct), exp) in draft
+            .monos
+            .iter()
+            .zip(curp_monos.iter())
+            .zip(draft.aux_exps.iter_mut())
+        {
+            if st.main_e != ct.main_e {
+                return None;
+            }
+            let delta = (ct.t_e.saturating_sub(st.t_e)) / (n1i - ni);
+            let mut ae = exp.0;
+            let mut be = exp.1;
+            if i == 0 {
+                ae = delta;
+            } else {
+                be = delta;
+            }
+            if i == N_AUX - 2 {
+                let mut rem = ct.t_e;
+                rem = rem.saturating_sub(ae * n1[0] as u64);
+                be = rem / n1[1].max(1) as u64;
+            }
+            *exp = (ae, be);
+        }
+
+        increment = 1;
+        if i == N_AUX - 2 {
+            i += 1;
+        }
+        i += 1;
+    }
+
+    if i < N_AUX {
+        return None;
+    }
+    draft.materialize().map(|up| up.poly)
+}
+
+/// Dual-embedding reconstruction for monomial-only coeffs (sum-coeff uses monomial loop).
+// **Pipeline private**
+fn reconstruct_factor_dual_embed(
     selp: &Poly,
     p: &Poly,
     lcp: &Poly,
-    main: &Var,
-    aux_a: &Var,
-    aux_b: &Var,
-    t: &Var,
+    embed: &TnEmbed,
     seldegs: &[u64],
 ) -> Option<Poly> {
-    let curp_a = matching_embed_factor(p, lcp, main, aux_a, aux_b, 2, 1, t, seldegs)?;
-    let curp_b = matching_embed_factor(p, lcp, main, aux_a, aux_b, 1, 2, t, seldegs)?;
+    let main = embed.main.as_var();
+    let t = embed.t.as_var();
+    let aux_a = &embed.aux[0];
+    let aux_b = &embed.aux[1];
+    let curp_a = matching_embed_factor(p, lcp, embed, [2, 1], seldegs)?;
+    let curp_b = matching_embed_factor(p, lcp, embed, [1, 2], seldegs)?;
+    let selp_view = UnivariateIn::new(selp, embed.main.clone());
     let mut recon = Poly::zero();
     let deg_iter: Vec<u64> = if seldegs.is_empty() {
-        (0..=univariate_degree(selp, main)).rev().collect()
+        (0..=selp_view.degree()).rev().collect()
     } else {
         seldegs.to_vec()
     };
     for e in deg_iter {
-        let c0 = coeff_wrt_poly(selp, main, e);
+        let c0 = selp_view.coeff_at(e);
         if c0.is_zero() {
             continue;
         }
-        let ca = coeff_wrt_poly(&curp_a, main, e);
-        let cb = coeff_wrt_poly(&curp_b, main, e);
-        let t0 = univariate_degree(&c0, t);
-        let ta = univariate_degree(&ca, t);
-        let tb = univariate_degree(&cb, t);
+        let ca = UnivariateIn::new(&curp_a, embed.main.clone()).coeff_at(e);
+        let cb = UnivariateIn::new(&curp_b, embed.main.clone()).coeff_at(e);
+        let t0 = embed.view_t(&c0).degree();
+        let ta = embed.view_t(&ca).degree();
+        let tb = embed.view_t(&cb).degree();
         if t0 == 0 && ta == 0 && tb == 0 {
             recon = recon.add(&term_with_var(&c0, main, e));
             continue;
@@ -1194,50 +1351,163 @@ fn reconstruct_factor_two_aux(
         }
         recon = recon.add(&mon);
     }
-    let pp = primitive_part_wrt(&recon, main).ok()?;
-    if pp.is_zero() {
-        None
-    } else {
-        Some(pp)
-    }
+    primitive_part_wrt(&recon, main).ok().filter(|pp| !pp.is_zero())
 }
 
-// **Pipeline private** — two auxiliary variables.
+// **Pipeline private**
+fn reconstruct_sparse_bi_factor(
+    selp: &Poly,
+    seldegs: &[u64],
+    p: &Poly,
+    lcp: &Poly,
+    embed: &TnEmbed,
+    n: [usize; 2],
+) -> Option<Poly> {
+    if let Some(pp) = reconstruct_factor_dual_embed(selp, p, lcp, embed, seldegs) {
+        if UnivariateIn::new(&pp, embed.main.clone()).divides(p) {
+            return Some(pp);
+        }
+    }
+    let mut draft = EmbedFactorDraft::from_poly(selp, embed, seldegs);
+    reconstruct_sparse_bi_monomials(&mut draft, p, lcp, n)
+}
+
+// **Pipeline private** — exact quotient `p / factor` in ℚ[others][main].
+fn exact_quo_wrt(p: &Poly, factor: &Poly, main: MainVar) -> Option<Poly> {
+    UnivariateIn::new(factor, main).exact_quo_dividing(p).ok()
+}
+
+// **Pipeline private** — substitute `aux -> factor * aux`
+fn dilate_poly(p: &Poly, aux: &Var, factor: i64) -> Poly {
+    if factor == 1 {
+        return p.clone();
+    }
+    let sub = if factor == -1 {
+        Poly::var(aux.clone()).neg()
+    } else {
+        Poly::var(aux.clone()).mul_scalar(&Ratio::from_integer(BigInt::from(factor)))
+    };
+    substitute_poly(p, aux, &sub)
+}
+
+// **Pipeline private** — undo dilation: `factor*aux -> aux`
+fn undilate_poly(p: &Poly, aux: &Var, factor: i64) -> Poly {
+    if factor == 1 {
+        return p.clone();
+    }
+    let inv = Ratio::from_integer(BigInt::from(1)) / Ratio::from_integer(BigInt::from(factor.abs()));
+    let sub = if factor == -1 {
+        Poly::var(aux.clone()).neg()
+    } else {
+        Poly::var(aux.clone()).mul_scalar(&inv)
+    };
+    substitute_poly(p, aux, &sub)
+}
+
+// **Pipeline private** — upstream random dilation fallback (deterministic seeds)
+fn try_dilation_sparse_bi(
+    p: &Poly,
+    main: &Var,
+    aux_a: &Var,
+    aux_b: &Var,
+) -> Option<Vec<Poly>> {
+    const DILATIONS: [(i64, i64); 4] = [(2, -1), (-1, 2), (2, 2), (-1, -1)];
+    for (da, db) in DILATIONS {
+        let mut dilated = dilate_poly(p, aux_a, da);
+        dilated = dilate_poly(&dilated, aux_b, db);
+        let Some(facs) = try_sparse_factor_bi_two_aux_inner(&dilated, main, aux_a, aux_b, false) else {
+            continue;
+        };
+        let undilated: Vec<Poly> = facs
+            .iter()
+            .map(|f| {
+                let mut u = undilate_poly(f, aux_b, db);
+                u = undilate_poly(&u, aux_a, da);
+                u
+            })
+            .collect();
+        if undilated.iter().fold(Poly::one(), |acc, q| acc.mul(q)) == *p {
+            return Some(undilated);
+        }
+    }
+    None
+}
+
+// **Pipeline private** — two auxiliary variables; upstream `n` sweep then dilation fallback.
 fn try_sparse_factor_bi_two_aux(p: &Poly, main: &Var, aux_a: &Var, aux_b: &Var) -> Option<Vec<Poly>> {
-    let t = Var::from(SPARSE_EMBED_T);
+    try_sparse_factor_bi_two_aux_inner(p, main, aux_a, aux_b, true)
+}
+
+fn try_sparse_factor_bi_two_aux_inner(
+    p: &Poly,
+    main: &Var,
+    aux_a: &Var,
+    aux_b: &Var,
+    allow_dilation: bool,
+) -> Option<Vec<Poly>> {
+    let embed = TnEmbed::unit(main.clone(), aux_a.clone(), aux_b.clone());
     let lcp = leading_coeff_main(p, main);
     if lcp.is_zero() {
         return None;
     }
-    let pt = eval_tn_embed(p, main, aux_a, aux_b, 1, 1, &t);
-    let pt = primitive_part_wrt(&pt, main).ok()?;
-    if pt.is_one() || univariate_degree(&pt, &t) == 0 {
+
+    let mut n = [1usize, 1usize];
+    while n[0] < 4 {
+        if let Some(f) = try_sparse_factor_bi_single_n(p, &embed, &lcp, n, allow_dilation) {
+            return Some(f);
+        }
+        n[0] += 1;
+    }
+    if allow_dilation {
+        try_dilation_sparse_bi(p, main, aux_a, aux_b)
+    } else {
+        None
+    }
+}
+
+// **Pipeline private** — one embed exponent vector `n`
+fn try_sparse_factor_bi_single_n(
+    p: &Poly,
+    embed: &TnEmbed,
+    lcp: &Poly,
+    n: [usize; 2],
+    allow_dilation: bool,
+) -> Option<Vec<Poly>> {
+    let emb = embed.clone().with_n(n);
+    let pt_emb = emb.embed(p);
+    let main = emb.main.as_var();
+    let pt = primitive_part_wrt(pt_emb.as_poly(), main).ok()?;
+    if pt.is_one() || emb.view_t(&pt).degree() == 0 {
         return None;
     }
-    let vars = [main.clone(), t.clone()];
+    let vars = [main.clone(), emb.t.as_var().clone()];
     let facs = super::multivariate::factor_multivariate_rec(&pt, &vars).ok()?;
     if facs.len() < 2 {
         return None;
     }
-    let lcpt = eval_tn_embed(&lcp, main, aux_a, aux_b, 1, 1, &t);
+    let lcpt = emb.embed(lcp).as_poly().clone();
+
     let (selp, degs) = select_bivariate_factor(&facs, main, &lcpt)?;
-    if selp.terms.len() as f64 / (univariate_degree(&selp, main) as f64 + 1.0)
-        > 0.2 * (univariate_degree(&selp, &t) as f64 + 1.0)
-    {
+
+    let recon = reconstruct_sparse_bi_factor(&selp, &degs, p, lcp, &emb, n)?;
+    let factor = UnivariateIn::new(&recon, emb.main.clone());
+    if recon.is_one() || !factor.divides(p) {
+        if allow_dilation && facs.iter().any(|f| !f.is_one() && bivariate_x_degrees_ok(f, main).is_none())
+        {
+            return try_dilation_sparse_bi(p, main, &emb.aux[0], &emb.aux[1]);
+        }
         return None;
     }
-    let recon = reconstruct_factor_two_aux(&selp, p, &lcp, main, aux_a, aux_b, &t, &degs)?;
-    let q = quo_exact_wrt(p, &recon, main).ok()?;
-    if recon.is_one() {
-        return None;
-    }
+    let q = exact_quo_wrt(p, &recon, emb.main.clone())?;
     let mut out = vec![recon];
     if !q.is_one() {
-        let rest = try_sparse_factor_bi_two_aux(&q, main, aux_a, aux_b).unwrap_or_else(|| vec![q]);
+        let rest = match try_sparse_factor_bi_two_aux_inner(&q, main, &emb.aux[0], &emb.aux[1], allow_dilation) {
+            Some(r) if r.iter().fold(Poly::one(), |acc, f| acc.mul(f)) == q => r,
+            _ => vec![q],
+        };
         out.extend(rest);
     }
-    let prod = out.iter().fold(Poly::one(), |acc, f| acc.mul(f));
-    if prod == *p {
+    if out.iter().fold(Poly::one(), |acc, f| acc.mul(f)) == *p {
         Some(out)
     } else {
         None
@@ -1275,11 +1545,13 @@ pub fn try_heuristic_factor_bivariate(p: &Poly, main: &Var, other: &Var) -> Opti
             .iter()
             .map(|f| pzadic_lift(f, main, other, &base))
             .collect();
+        let main_var = MainVar::new(main.clone());
         let mut rest = p.clone();
         let mut out = Vec::new();
         for f in &lifted {
-            let (q, r) = rest.div_rem(f);
-            if r.is_zero() {
+            let factor = UnivariateIn::new(f, main_var.clone());
+            if factor.divides(&rest) {
+                let q = factor.exact_quo_dividing(&rest).ok()?;
                 out.push(f.clone());
                 rest = q;
             }
@@ -1390,26 +1662,12 @@ mod tests {
         let main = Var::from("x");
         let ya = Var::from("y");
         let za = Var::from("z");
-        let t = Var::from(SPARSE_EMBED_T);
-        let lcp = leading_coeff_main(&p, &main);
-        let pt = eval_tn_embed(&p, &main, &ya, &za, 1, 1, &t);
-        let pt = primitive_part_wrt(&pt, &main).expect("pp");
-        let facs = crate::factor::multivariate::factor_multivariate_rec(&pt, &[main.clone(), t.clone()])
-            .expect("factor embed");
-        assert!(facs.len() >= 2);
-        let lcpt = eval_tn_embed(&lcp, &main, &ya, &za, 1, 1, &t);
-        let (selp, degs) = select_bivariate_factor(&facs, &main, &lcpt).expect("select");
-        let recon = reconstruct_factor_two_aux(&selp, &p, &lcp, &main, &ya, &za, &t, &degs)
-            .expect("reconstruct");
-        let q = quo_exact_wrt(&p, &recon, &main).expect("quotient");
-        assert!(q.mul(&recon) == p);
         let f = try_sparse_factor_bi(&p, &main, &[&ya, &za]).expect("sparse_bi");
         assert!(f.len() >= 2);
         assert_eq!(f.iter().fold(Poly::one(), |acc, q| acc.mul(q)), p);
     }
 
     #[test]
-    #[ignore = "FAC-G1: sparse_bi sum-coeff reconstruction needs upstream monomial loop"]
     fn sparse_factor_tri_var_sum_coeff() {
         let x = Poly::var("x");
         let y = Poly::var("y");
