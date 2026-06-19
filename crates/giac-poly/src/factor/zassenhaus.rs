@@ -4,40 +4,19 @@
 //! **Pipeline private:** modular egcd, Hensel lift, factor combination recovery.
 
 use num_bigint::BigInt;
-use num_integer::Integer;
-use num_rational::Ratio;
 use num_traits::{One, Signed, Zero};
 
 use crate::error::{PolyError, PolyResult};
-use crate::modint::ModInt;
 use crate::modular::PolyMod;
-use crate::monomial::{Monomial, Var};
+use crate::monomial::Var;
 use crate::poly::Poly;
 use crate::resultant::{coeff_at, univariate_degree};
 
 use super::fpx::{self, factor_fpx};
+use super::fpx_uni::{self, coeff_at as mod_coeff_at};
 
 const PRIMES: &[i64] = &[3, 5, 7, 11, 13, 17, 19, 23, 29, 31, 37, 41, 43, 47];
 const MAX_COMBINE_FACTORS: usize = 12;
-
-// **Pipeline private** — `x_var`
-fn x_var() -> Var {
-    Var::from("x")
-}
-
-// **Pipeline private** — `monomial_x_pow`
-fn monomial_x_pow(e: u64) -> Monomial {
-    if e == 0 {
-        Monomial::one()
-    } else {
-        let x = x_var();
-        let mut m = Monomial::var(x.clone());
-        for _ in 1..e {
-            m = m.mul(&Monomial::var(x.clone()));
-        }
-        m
-    }
-}
 
 // **Pipeline private** — `is_int_poly`
 fn is_int_poly(p: &Poly) -> bool {
@@ -87,86 +66,10 @@ fn mignotte_bound(p: &Poly, var: &Var) -> BigInt {
     (sqrt_n + 1) * norm * pow2
 }
 
-// **Pipeline private** — `coeff_mod`
-fn coeff_mod(p: &PolyMod, e: u64) -> ModInt {
-    let var = x_var();
-    for (m, c) in &p.terms {
-        if m.exp_of(&var) == e && m.iter().all(|(v, _)| v == &var) {
-            return c.clone();
-        }
-    }
-    ModInt::new(BigInt::zero(), p.modulus.clone()).unwrap()
-}
-
-// **Pipeline private** — `poly_mod_from_coeffs`
-fn poly_mod_from_coeffs(coeffs: &[BigInt], modulus: &BigInt) -> PolyResult<PolyMod> {
-    let mut terms = std::collections::BTreeMap::new();
-    for (e, c) in coeffs.iter().enumerate() {
-        let r = c.mod_floor(modulus);
-        if !r.is_zero() {
-            terms.insert(
-                monomial_x_pow(e as u64),
-                ModInt::new(r, modulus.clone())?,
-            );
-        }
-    }
-    Ok(PolyMod {
-        terms,
-        modulus: modulus.clone(),
-    })
-}
-
 // **Pipeline private** — `poly_mod_from_poly`
 fn poly_mod_from_poly(p: &Poly, var: &Var, modulus: &BigInt) -> PolyResult<PolyMod> {
     let coeffs = integer_coeffs(p, var).ok_or(PolyError::TypeError("non-integer poly"))?;
-    poly_mod_from_coeffs(&coeffs, modulus)
-}
-
-// **Pipeline private** — `make_monic_mod`
-fn make_monic_mod(p: &PolyMod) -> PolyResult<PolyMod> {
-    let d = fpx::degree(p);
-    if d == 0 {
-        return Ok(p.clone());
-    }
-    let lc = coeff_mod(p, d);
-    if lc.is_one() {
-        return Ok(p.clone());
-    }
-    let inv = lc.inv()?;
-    let mut coeffs = Vec::new();
-    for e in 0..=d {
-        coeffs.push(coeff_mod(p, e).mul(&inv)?.val);
-    }
-    poly_mod_from_coeffs(&coeffs, &p.modulus)
-}
-
-// **Pipeline private** — `at_modulus`
-fn at_modulus(p: &PolyMod, modulus: &BigInt) -> PolyResult<PolyMod> {
-    let d = fpx::degree(p);
-    let mut coeffs = Vec::new();
-    for e in 0..=d {
-        coeffs.push(coeff_mod(p, e).val.clone());
-    }
-    poly_mod_from_coeffs(&coeffs, modulus)
-}
-
-// **Pipeline private** — `derivative_mod`
-fn derivative_mod(p: &PolyMod) -> PolyMod {
-    let d = fpx::degree(p);
-    let mut terms = std::collections::BTreeMap::new();
-    for e in 1..=d {
-        let c = coeff_mod(p, e);
-        let scaled = c
-            .mul(&ModInt::new(BigInt::from(e as i64), p.modulus.clone()).unwrap())
-            .unwrap();
-        if !scaled.is_zero() {
-            terms.insert(monomial_x_pow(e - 1), scaled);
-        }
-    }
-    PolyMod {
-        terms,
-        modulus: p.modulus.clone(),
-    }
+    fpx_uni::from_bigint_coeffs(var, modulus, &coeffs)
 }
 
 // **Pipeline private** — `is_square_free_mod`
@@ -175,7 +78,10 @@ fn is_square_free_mod(p: &Poly, var: &Var, prime: i64) -> bool {
         Ok(m) => m,
         Err(_) => return false,
     };
-    let dp = derivative_mod(&pm);
+    let dp = match fpx_uni::derivative(&pm, var) {
+        Ok(d) => d,
+        Err(_) => return false,
+    };
     pm.gcd(&dp)
         .map(|g| fpx::degree(&g) == 0)
         .unwrap_or(false)
@@ -236,34 +142,6 @@ fn egcd_factor_list_mod(factors: &[PolyMod]) -> Option<Vec<PolyMod>> {
     Some(u)
 }
 
-// **Pipeline private** — `polymod_to_int_poly`
-fn polymod_to_int_poly(p: &PolyMod, var: &Var) -> Poly {
-    let d = fpx::degree(p);
-    let half = &p.modulus / 2;
-    let mut out = Poly::zero();
-    for e in 0..=d {
-        let mut c = coeff_mod(p, e).val.clone();
-        if c > half {
-            c -= &p.modulus;
-        }
-        if c.is_zero() {
-            continue;
-        }
-        let term = if e == 0 {
-            Poly::constant(Ratio::from_integer(c))
-        } else {
-            Poly::constant(Ratio::from_integer(c)).mul(&Poly::var(var.clone()).pow(e))
-        };
-        out = out.add(&term);
-    }
-    out
-}
-
-// **Pipeline private** — `divides_exact`
-fn divides_exact(num: &Poly, den: &Poly) -> bool {
-    num.div_rem(den).1.is_zero()
-}
-
 // **Pipeline private** — `divides_exact_quotient`
 fn divides_exact_quotient(num: &Poly, den: &Poly) -> Option<Poly> {
     let (quo, rem) = num.div_rem(den);
@@ -275,17 +153,17 @@ fn divides_exact_quotient(num: &Poly, den: &Poly) -> Option<Poly> {
 }
 
 // **Pipeline private** — `coeff_div_mod`
-fn coeff_div_mod(p: &PolyMod, d: &BigInt) -> PolyResult<PolyMod> {
-    let deg = fpx::degree(p);
+fn coeff_div_mod(p: &PolyMod, var: &Var, d: &BigInt) -> PolyResult<PolyMod> {
+    let deg = fpx_uni::univariate_degree(p, var);
     let mut coeffs = Vec::new();
     for e in 0..=deg {
-        let c = coeff_mod(p, e).val.clone();
+        let c = mod_coeff_at(p, var, e).val.clone();
         if &c % d != BigInt::zero() {
             return Err(PolyError::NotImplemented("non-exact coeff division"));
         }
         coeffs.push(c / d);
     }
-    poly_mod_from_coeffs(&coeffs, &p.modulus)
+    fpx_uni::from_bigint_coeffs(var, &p.modulus, &coeffs)
 }
 
 // **Pipeline private** — `lift_correction`
@@ -293,15 +171,16 @@ fn lift_correction(
     q: &PolyMod,
     u: &PolyMod,
     denom: &PolyMod,
+    var: &Var,
     scale: &BigInt,
 ) -> PolyResult<PolyMod> {
     let prod = q.mul(u)?;
     let (_, rem) = prod.div_rem(denom)?;
     let mut coeffs = Vec::new();
-    for e in 0..=fpx::degree(&rem) {
-        coeffs.push(coeff_mod(&rem, e).val.clone() * scale);
+    for e in 0..=fpx_uni::univariate_degree(&rem, var) {
+        coeffs.push(mod_coeff_at(&rem, var, e).val.clone() * scale);
     }
-    poly_mod_from_coeffs(&coeffs, &q.modulus)
+    fpx_uni::from_bigint_coeffs(var, &q.modulus, &coeffs)
 }
 
 /// Linear Hensel lift for two monic coprime factors mod `p` (GIAC `liftl`, n=2).
@@ -324,22 +203,22 @@ fn hensel_lift_two(
         let mod_next = &mod_k * &p;
         let q_mod = poly_mod_from_poly(q, var, &mod_next).ok()?;
         let pi = f.mul(&g).ok()?;
-        let pi = at_modulus(&pi, &mod_next).ok()?;
+        let pi = fpx_uni::at_modulus(&pi, var, &mod_next).ok()?;
         let mut diff = q_mod.sub(&pi).ok()?;
-        diff = coeff_div_mod(&diff, &mod_k).ok()?;
-        diff = at_modulus(&diff, &p).ok()?;
+        diff = coeff_div_mod(&diff, var, &mod_k).ok()?;
+        diff = fpx_uni::at_modulus(&diff, var, &p).ok()?;
         if diff.is_zero() {
             f.modulus = mod_next.clone();
             g.modulus = mod_next.clone();
             mod_k = mod_next;
             continue;
         }
-        let f_orig = at_modulus(&f, &p).ok()?;
-        let g_orig = at_modulus(&g, &p).ok()?;
-        let s_p = at_modulus(&s, &p).ok()?;
-        let t_p = at_modulus(&t, &p).ok()?;
-        let df = lift_correction(&diff, &t_p, &f_orig, &mod_k).ok()?;
-        let dg = lift_correction(&diff, &s_p, &g_orig, &mod_k).ok()?;
+        let f_orig = fpx_uni::at_modulus(&f, var, &p).ok()?;
+        let g_orig = fpx_uni::at_modulus(&g, var, &p).ok()?;
+        let s_p = fpx_uni::at_modulus(&s, var, &p).ok()?;
+        let t_p = fpx_uni::at_modulus(&t, var, &p).ok()?;
+        let df = lift_correction(&diff, &t_p, &f_orig, var, &mod_k).ok()?;
+        let dg = lift_correction(&diff, &s_p, &g_orig, var, &mod_k).ok()?;
         f = f.add(&df).ok()?;
         g = g.add(&dg).ok()?;
         f.modulus = mod_next.clone();
@@ -373,7 +252,7 @@ fn hensel_lift_n(
     let p = BigInt::from(prime);
     let orig: Vec<PolyMod> = factors
         .iter()
-        .map(|f| at_modulus(f, &p))
+        .map(|f| fpx_uni::at_modulus(f, var, &p))
         .collect::<Result<_, _>>()
         .ok()?;
     let bezout = egcd_factor_list_mod(&orig)?;
@@ -383,12 +262,12 @@ fn hensel_lift_n(
         let mut pi = factors[0].clone();
         for f in factors.iter().skip(1) {
             pi = pi.mul(f).ok()?;
-            pi = at_modulus(&pi, &mod_next).ok()?;
+            pi = fpx_uni::at_modulus(&pi, var, &mod_next).ok()?;
         }
         let q_mod = poly_mod_from_poly(q, var, &mod_next).ok()?;
         let mut diff = q_mod.sub(&pi).ok()?;
-        diff = coeff_div_mod(&diff, &mod_k).ok()?;
-        diff = at_modulus(&diff, &p).ok()?;
+        diff = coeff_div_mod(&diff, var, &mod_k).ok()?;
+        diff = fpx_uni::at_modulus(&diff, var, &p).ok()?;
         if diff.is_zero() {
             for f in &mut factors {
                 f.modulus = mod_next.clone();
@@ -397,8 +276,8 @@ fn hensel_lift_n(
             continue;
         }
         for (f, (u, o)) in factors.iter_mut().zip(bezout.iter().zip(orig.iter())) {
-            let u_p = at_modulus(u, &p).ok()?;
-            let df = lift_correction(&diff, &u_p, o, &mod_k).ok()?;
+            let u_p = fpx_uni::at_modulus(u, var, &p).ok()?;
+            let df = lift_correction(&diff, &u_p, o, var, &mod_k).ok()?;
             *f = f.add(&df).ok()?;
             f.modulus = mod_next.clone();
         }
@@ -425,7 +304,7 @@ fn recover_factors_from_lifted(g: &Poly, var: &Var, lifted: &[PolyMod]) -> Optio
         return None;
     }
     if lifted.len() == 1 {
-        let f = polymod_to_int_poly(&lifted[0], var);
+        let f = fpx_uni::to_centered_int_poly(&lifted[0], var);
         return divides_exact_quotient(g, &f).map(|q| vec![f, q]);
     }
     if let Some(out) = extract_factors_via_combine(g, var, lifted) {
@@ -433,7 +312,7 @@ fn recover_factors_from_lifted(g: &Poly, var: &Var, lifted: &[PolyMod]) -> Optio
     }
     // Single lifted factor may be exact while the paired one is not (asymmetric rounding).
     for f in lifted {
-        let fi = polymod_to_int_poly(f, var);
+        let fi = fpx_uni::to_centered_int_poly(f, var);
         if let Some(q) = divides_exact_quotient(g, &fi) {
             return Some(vec![fi, q]);
         }
@@ -449,7 +328,7 @@ fn extract_factors_via_combine(g: &Poly, var: &Var, lifted: &[PolyMod]) -> Optio
         return None;
     }
     if n == 1 {
-        let f = polymod_to_int_poly(&lifted[0], var);
+        let f = fpx_uni::to_centered_int_poly(&lifted[0], var);
         return divides_exact_quotient(g, &f).map(|_| vec![f]);
     }
     extract_combine_rec(g, var, lifted, &mut Vec::new())
@@ -470,7 +349,7 @@ fn extract_combine_rec(
         return Some(std::mem::take(acc));
     }
     if lifted.len() == 1 {
-        let f = polymod_to_int_poly(&lifted[0], var);
+        let f = fpx_uni::to_centered_int_poly(&lifted[0], var);
         if let Some(quo) = divides_exact_quotient(g, &f) {
             acc.push(f);
             return extract_combine_rec(&quo, var, &[], acc);
@@ -484,7 +363,7 @@ fn extract_combine_rec(
         let mut idx: Vec<usize> = (0..k).collect();
         loop {
             let prod = polymod_product(lifted, &idx)?;
-            let cand = polymod_to_int_poly(&prod, var);
+            let cand = fpx_uni::to_centered_int_poly(&prod, var);
             if let Some(quo) = divides_exact_quotient(g, &cand) {
                 let rest: Vec<PolyMod> = lifted
                     .iter()
@@ -549,7 +428,7 @@ pub fn try_zassenhaus_factor(g: &Poly, var: &Var) -> Option<Vec<Poly>> {
             continue;
         }
         for f in &mut facs {
-            *f = make_monic_mod(f).ok()?;
+            *f = fpx_uni::make_monic(f, var).ok()?;
         }
         let lifted = match hensel_lift_n(g, var, prime, facs, &bound) {
             Some(v) => v,
@@ -567,6 +446,7 @@ pub fn try_zassenhaus_factor(g: &Poly, var: &Var) -> Option<Vec<Poly>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use num_rational::Ratio;
 
     fn cubic1() -> Poly {
         let x = Poly::var("x");

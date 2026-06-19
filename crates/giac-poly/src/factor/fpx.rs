@@ -11,6 +11,8 @@ use crate::modint::ModInt;
 use crate::modular::PolyMod;
 use crate::monomial::{Monomial, Var};
 
+use super::fpx_uni::{self, mod_int, var_poly};
+
 // **Pipeline private** — `x_var`
 fn x_var() -> Var {
     Var::from("x")
@@ -18,7 +20,7 @@ fn x_var() -> Var {
 
 // **Pipeline private** — `mi`
 fn mi(val: i64, modulus: &BigInt) -> ModInt {
-    ModInt::new(BigInt::from(val), modulus.clone()).unwrap()
+    mod_int(val, modulus)
 }
 
 // **Pipeline private** — `is_poly_one`
@@ -30,66 +32,24 @@ fn is_poly_one(p: &PolyMod) -> bool {
             .is_some_and(|c| c.is_one())
 }
 
-/// **Stable** — total degree
+/// **Stable** — total degree in `x`
 pub fn degree(p: &PolyMod) -> u64 {
-    let x = x_var();
-    p.terms
-        .keys()
-        .map(|m| m.exp_of(&x))
-        .max()
-        .unwrap_or(0)
+    fpx_uni::univariate_degree(p, &x_var())
 }
 
 // **Pipeline private** — `coeff`
 fn coeff(p: &PolyMod, exp: u64) -> ModInt {
-    let x = x_var();
-    for (m, c) in &p.terms {
-        if m.exp_of(&x) == exp && m.iter().all(|(v, _)| v == &x) {
-            return c.clone();
-        }
-    }
-    mi(0, &p.modulus)
-}
-
-// **Pipeline private** — `set_coeff`
-fn set_coeff(terms: &mut std::collections::BTreeMap<Monomial, ModInt>, exp: u64, c: ModInt) {
-    let x = x_var();
-    let mut m = Monomial::one();
-    if exp > 0 {
-        m = Monomial::var(x.clone());
-        for _ in 1..exp {
-            m = m.mul(&Monomial::var(x.clone()));
-        }
-    }
-    if c.is_zero() {
-        terms.remove(&m);
-    } else {
-        terms.insert(m, c);
-    }
+    fpx_uni::coeff_at(p, &x_var(), exp)
 }
 
 // **Pipeline private** — `from_coeffs`
 fn from_coeffs(modulus: &BigInt, coeffs: &[ModInt]) -> PolyMod {
-    let mut terms = std::collections::BTreeMap::new();
-    for (e, c) in coeffs.iter().enumerate() {
-        if !c.is_zero() {
-            set_coeff(&mut terms, e as u64, c.clone());
-        }
-    }
-    PolyMod {
-        terms,
-        modulus: modulus.clone(),
-    }
+    fpx_uni::from_modint_coeffs(&x_var(), modulus, coeffs)
 }
 
 // **Pipeline private** — `x_poly`
 fn x_poly(modulus: &BigInt) -> PolyMod {
-    let mut terms = std::collections::BTreeMap::new();
-    terms.insert(Monomial::var(x_var()), mi(1, modulus));
-    PolyMod {
-        terms,
-        modulus: modulus.clone(),
-    }
+    var_poly(&x_var(), modulus)
 }
 
 // **Pipeline private** — `one_poly`
@@ -114,44 +74,12 @@ fn div_exact(a: &PolyMod, b: &PolyMod) -> PolyResult<PolyMod> {
 
 // **Pipeline private** — `make_monic`
 fn make_monic(p: &PolyMod) -> PolyResult<PolyMod> {
-    let d = degree(p);
-    if d == 0 {
-        return Ok(p.clone());
-    }
-    let lc = coeff(p, d);
-    if lc.is_one() {
-        return Ok(p.clone());
-    }
-    let inv = lc.inv()?;
-    let mut coeffs = Vec::with_capacity(d as usize + 1);
-    for e in 0..=d {
-        coeffs.push(coeff(p, e).mul(&inv)?);
-    }
-    Ok(from_coeffs(&p.modulus, &coeffs))
+    fpx_uni::make_monic(p, &x_var())
 }
 
 // **Pipeline private** — `derivative`
 fn derivative(p: &PolyMod) -> PolyResult<PolyMod> {
-    let d = degree(p);
-    if d == 0 {
-        return Ok(PolyMod::zero(p.modulus.clone()));
-    }
-    let mut coeffs = Vec::new();
-    for e in 1..=d {
-        let c = coeff(p, e);
-        let scaled = c.mul(&mi(e as i64, &p.modulus))?;
-        if !scaled.is_zero() {
-            coeffs.push((e - 1, scaled));
-        }
-    }
-    let mut terms = std::collections::BTreeMap::new();
-    for (e, c) in coeffs {
-        set_coeff(&mut terms, e, c);
-    }
-    Ok(PolyMod {
-        terms,
-        modulus: p.modulus.clone(),
-    })
+    fpx_uni::derivative(p, &x_var())
 }
 
 // **Pipeline private** — `eval`

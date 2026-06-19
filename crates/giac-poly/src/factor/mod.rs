@@ -14,6 +14,7 @@
 mod eval;
 mod cyclotomic;
 mod fpx;
+mod fpx_uni;
 mod hensel;
 mod zassenhaus;
 mod modular;
