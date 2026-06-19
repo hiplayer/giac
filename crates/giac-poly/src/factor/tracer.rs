@@ -1,6 +1,6 @@
 //! Regression tests mapped from upstream `check/testfactor` (Issue 2.3/2.4).
 //!
-//! L20/L22 仍 `#[ignore]`（FAC-G2/G3）。测试辅助 `x()`, `y()`, `assert_factors` 为 Pipeline private。
+//! L20 仍 `#[ignore]`（FAC-G2 参系数塔）。L22 已绿（FAC-G3）。测试辅助为 Pipeline private。
 
 use crate::monomial::Var;
 use crate::poly::Poly;
@@ -101,7 +101,6 @@ mod tests {
 
     /// testfactor line 22: `(3*x-y^2+y-5)*(x*y+3*x-y^2-1)`
     #[test]
-    #[ignore = "Issue 2.3: needs higher-degree Hensel or heuristic fallback"]
     fn testfactor_line22_bivariate_mixed_degree() {
         let p = Poly::constant(Ratio::from_integer(3.into()))
             .mul(&x())

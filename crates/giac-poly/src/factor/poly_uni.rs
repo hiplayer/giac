@@ -1,7 +1,8 @@
 //! Polynomials as univariate in main var with coefficients in nested Poly ring (bivariate steps).
 //!
 //! **Stable / Partial:** `coeff_wrt_poly`, `content_wrt`, `factor_sqff_over_coeff_ring`, …
-//! **Pipeline private:** Kronecker / eval lift fallbacks (`try_kronecker_bivariate`, …).
+//! **Pipeline private:** sqff-over-coeff-ring factor chain (upstream `do_factor_hensel` slice).
+//! Retired from hot path: `try_factor_bivariate_eval`, `try_kronecker_bivariate` (FAC-G3 covered by sparse→Hensel).
 
 use num_bigint::BigInt;
 use num_rational::Ratio;
@@ -159,10 +160,18 @@ pub fn factor_sqff_over_coeff_ring(
     if others.is_empty() {
         return factor_univariate_flat(g, var);
     }
-    let dy = univariate_degree(g, &others[0]);
-    if others.len() == 1 && univariate_degree(g, &others[0]) > 0 {
-        if let Some(f) = super::hensel::try_hensel_lift_bivariate(g, var, &others[0]) {
-            return Ok(f);
+    if others.len() == 1 {
+        let other = &others[0];
+        // Upstream `do_factor_hensel`: try_sparse_factor → try_sparse_factor_bi → try_hensel_lift_factor
+        // → unitaryfactor/pzadic. Rust: sparse @ aux=0, then Hensel @ aux=0 (both main/aux orders).
+        for (main, aux) in [(var, other), (other, var)] {
+            if let Some(f) = super::sparse::try_sparse_factor(g, main, aux) {
+                return Ok(f);
+            }
+            if let Some(f) = super::hensel::try_hensel_lift_bivariate(g, main, aux) {
+                return Ok(f);
+            }
+            // Heuristic pzadic: disabled until bounded integer path (upstream last resort).
         }
     }
     if others.len() >= 2 {
@@ -172,18 +181,12 @@ pub fn factor_sqff_over_coeff_ring(
             }
         }
     }
-    if let Some(f) = try_factor_bivariate_eval(g, var, &others[0], others) {
-        return Ok(f);
-    }
-    if dx + dy > 8 {
-        if let Some(f) = try_kronecker_bivariate(g, var, &others[0]) {
-            return Ok(f);
-        }
-    }
+    // Fallback chain exhausted → treat as irreducible (upstream pushes pcur unchanged).
     Ok(vec![g.clone()])
 }
 
-// **Pipeline private** — optional fallback `try_factor_bivariate_eval`
+// **Temporary (retired)** — eval+interp lift; superseded by sparse→Hensel (FAC-G3). Kept for regression only.
+#[cfg(test)]
 fn try_factor_bivariate_eval(
     p: &Poly,
     main: &Var,
@@ -211,7 +214,7 @@ fn try_factor_bivariate_eval(
     try_lift_bivariate_from_eval(p, main, other)
 }
 
-// **Pipeline private** — optional fallback `try_lift_bivariate_from_eval`
+#[cfg(test)]
 fn try_lift_bivariate_from_eval(p: &Poly, main: &Var, other: &Var) -> Option<Vec<Poly>> {
     let mut candidates = Vec::new();
     for k in 0i64..=2 {
@@ -248,7 +251,7 @@ fn try_lift_bivariate_from_eval(p: &Poly, main: &Var, other: &Var) -> Option<Vec
     }
 }
 
-// **Pipeline private** — `lift_univariate_factor`
+#[cfg(test)]
 fn lift_univariate_factor(f: &Poly, main: &Var, other: &Var, p: &Poly) -> Option<Poly> {
     let deg = univariate_degree(f, main);
     if deg == 1 {
@@ -302,7 +305,8 @@ fn lift_univariate_factor(f: &Poly, main: &Var, other: &Var, p: &Poly) -> Option
     }
 }
 
-// **Pipeline private** — optional fallback `try_kronecker_bivariate`
+// **Temporary (retired)** — Kronecker embed; slow/unreliable on L22. Kept for regression only.
+#[cfg(test)]
 fn try_kronecker_bivariate(p: &Poly, x: &Var, y: &Var) -> Option<Vec<Poly>> {
     let dx = univariate_degree(p, x);
     let dy = univariate_degree(p, y);
@@ -391,6 +395,29 @@ mod tests {
         assert_eq!(content_wrt(&p, &Var::from("x")), y);
         let pp = primitive_part_wrt(&p, &Var::from("x")).unwrap();
         assert_eq!(pp, x.add(&y));
+    }
+
+    #[test]
+    #[ignore = "FAC-G3: Kronecker too slow / fails on mixed-degree L22"]
+    fn kronecker_line22() {
+        let x = Poly::var("x");
+        let y = Poly::var("y");
+        let p = Poly::constant(Ratio::from_integer(3.into()))
+            .mul(&x)
+            .sub(&y.pow(2))
+            .add(&y)
+            .sub(&Poly::constant(Ratio::from_integer(5.into())))
+            .mul(
+                &x
+                    .mul(&y)
+                    .add(&Poly::constant(Ratio::from_integer(3.into())).mul(&x))
+                    .sub(&y.pow(2))
+                    .sub(&Poly::one()),
+            );
+        let f = try_kronecker_bivariate(&p, &Var::from("x"), &Var::from("y"))
+            .expect("kronecker should factor L22");
+        assert_eq!(f.len(), 2);
+        assert_eq!(f.iter().fold(Poly::one(), |acc, q| acc.mul(q)), p);
     }
 
     #[test]

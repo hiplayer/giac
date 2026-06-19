@@ -1,14 +1,14 @@
 //! Polynomial factorization over ℚ (and ℤ/pℤ for `factor_poly_mod`).
 //!
 //! **Upstream:** `gausspol.cc` / `ezgcd.cc` — `do_factor_hensel`, `factor`.
-//! **缺口:** FAC-G1 `try_sparse_factor`、FAC-G2 参系数塔、FAC-G3 混合次数二元 Hensel。
+//! **缺口:** FAC-G1 `try_sparse_factor_bi`、FAC-G2 参系数塔；FAC-G3 L22 已绿。
 //!
 //! | Tier | 入口 |
 //! |------|------|
 //! | **Stable (bounded)** | `factor_into`, `factor_poly`, `factor_into_by_rational_roots` |
 //! | **Stable** | `factor_poly_mod`, `factor_mod_irreducibles` |
 //!
-//! 子模块：`multivariate` → `univariate` / `hensel` / `zassenhaus` / `patterns`。
+//! 子模块：`multivariate` → `univariate` / `hensel` / `sparse` / `zassenhaus` / `patterns`。
 //! 全函数 tier 见 `.doc/giac-poly-api-stability.md` § `factor/mod.rs`。
 
 mod cyclotomic;
@@ -20,6 +20,7 @@ mod multivariate;
 mod patterns;
 mod poly_uni;
 mod power;
+mod sparse;
 mod sqrt;
 #[cfg(test)]
 mod tracer;
