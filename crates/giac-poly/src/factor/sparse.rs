@@ -16,7 +16,8 @@ use crate::poly::Poly;
 use crate::resultant::{coeff_at, univariate_degree};
 
 use super::hensel::normalize_univariate_factors;
-use super::poly_uni::{coeff_wrt_poly, poly_div_exact_wrt, primitive_part_wrt, substitute_poly, term_with_var};
+use super::poly_uni::{coeff_wrt_poly, primitive_part_wrt, substitute_poly, term_with_var};
+use crate::subresultant::quo_exact_wrt;
 use super::univariate::factor_univariate_flat;
 
 /// **Partial** — Sparse reconstruction from univariate factors at `other = 0` (FAC-G1).
@@ -1226,7 +1227,7 @@ fn try_sparse_factor_bi_two_aux(p: &Poly, main: &Var, aux_a: &Var, aux_b: &Var) 
         return None;
     }
     let recon = reconstruct_factor_two_aux(&selp, p, &lcp, main, aux_a, aux_b, &t, &degs)?;
-    let q = poly_div_exact_wrt(p, &recon, main).ok()?;
+    let q = quo_exact_wrt(p, &recon, main).ok()?;
     if recon.is_one() {
         return None;
     }
@@ -1400,7 +1401,7 @@ mod tests {
         let (selp, degs) = select_bivariate_factor(&facs, &main, &lcpt).expect("select");
         let recon = reconstruct_factor_two_aux(&selp, &p, &lcp, &main, &ya, &za, &t, &degs)
             .expect("reconstruct");
-        let q = poly_div_exact_wrt(&p, &recon, &main).expect("quotient");
+        let q = quo_exact_wrt(&p, &recon, &main).expect("quotient");
         assert!(q.mul(&recon) == p);
         let f = try_sparse_factor_bi(&p, &main, &[&ya, &za]).expect("sparse_bi");
         assert!(f.len() >= 2);

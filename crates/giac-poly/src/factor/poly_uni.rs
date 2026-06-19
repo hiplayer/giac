@@ -1,8 +1,9 @@
-//! Polynomials as univariate in main var with coefficients in nested Poly ring (bivariate steps).
+//! Nested-ring polynomial ops (ℚ[others][var]) and sqff-over-coeff-ring factor chain.
 //!
-//! **Stable / Partial:** `coeff_wrt_poly`, `content_wrt`, `factor_sqff_over_coeff_ring`, …
-//! **Pipeline private:** sqff-over-coeff-ring factor chain (upstream `do_factor_hensel` slice).
-//! Retired from hot path: `try_factor_bivariate_eval`, `try_kronecker_bivariate` (FAC-G3 covered by sparse→Hensel).
+//! **Stable:** `coeff_wrt_poly`, `content_wrt`, `primitive_part_wrt`, `substitute_poly`, …
+//! **Partial:** `factor_sqff_over_coeff_ring` (upstream `do_factor_hensel` slice).
+//! **Ring (crate-internal):** `subresultant::{quo_exact_wrt, quo_exact_coeff, univariate_div_rem_wrt}`.
+//! **Temporary (retired):** `try_factor_bivariate_eval`, `try_kronecker_bivariate` (`#[cfg(test)]`).
 
 use num_bigint::BigInt;
 use num_rational::Ratio;
@@ -26,24 +27,6 @@ pub fn content_wrt(p: &Poly, var: &Var) -> Poly {
     crate::subresultant::content_wrt_impl(p, var)
 }
 
-// **Pipeline private** — `poly_div_exact`
-fn poly_div_exact(num: &Poly, den: &Poly) -> PolyResult<Poly> {
-    if let Some(q) = crate::subresultant::div_exact_coeff(num, den) {
-        return Ok(q);
-    }
-    Err(PolyError::NotImplemented("poly division"))
-}
-
-// **Pipeline private** — `poly_div_exact_wrt`
-pub(crate) fn poly_div_exact_wrt(num: &Poly, den: &Poly, var: &Var) -> PolyResult<Poly> {
-    let (q, r) = crate::subresultant::univariate_div_rem_wrt(num, den, var);
-    if r.is_zero() {
-        Ok(q)
-    } else {
-        Err(PolyError::NotImplemented("poly division"))
-    }
-}
-
 /// **Stable** — `p / content_wrt(p, var)` in ℚ[others][var].
 pub fn primitive_part_wrt(p: &Poly, var: &Var) -> PolyResult<Poly> {
     let content = content_wrt(p, var);
@@ -57,7 +40,7 @@ pub fn primitive_part_wrt(p: &Poly, var: &Var) -> PolyResult<Poly> {
         if c.is_zero() {
             continue;
         }
-        let q = poly_div_exact(&c, &content)?;
+        let q = crate::subresultant::quo_exact_coeff(&c, &content)?;
         pp = pp.add(&term_with_var(&q, var, e));
     }
     Ok(pp)
@@ -104,8 +87,8 @@ fn square_free_wrt_impl(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>> {
     let mut y = derivative_wrt(&w, var);
     let g0 = w.gcd(&y);
     if !g0.is_one() {
-        w = poly_div_exact_wrt(&w, &g0, var)?;
-        y = poly_div_exact_wrt(&y, &g0, var)?;
+        w = crate::subresultant::quo_exact_wrt(&w, &g0, var)?;
+        y = crate::subresultant::quo_exact_wrt(&y, &g0, var)?;
     }
     y = y.sub(&derivative_wrt(&w, var));
 
@@ -116,7 +99,7 @@ fn square_free_wrt_impl(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>> {
         let g = w.gcd(&y);
         if !g.is_one() {
             factors.push((g.clone(), k));
-            w = poly_div_exact_wrt(&w, &g, var)?;
+            w = crate::subresultant::quo_exact_wrt(&w, &g, var)?;
         }
         y = y.sub(&derivative_wrt(&w, var));
         k += 1;
