@@ -1,6 +1,6 @@
 # GIAC-poly-unitaryfactor — `unitaryfactor` / `pzadic` 缺口与优先级
 
-**状态:** open（P0 已落地，P1 待做）  
+**状态:** open（P0/P1/P2a/P2b 已落地；P2c API 复审待做）  
 **类型:** 算法 / FAC-G1 尾部  
 **上游基线:** `giac/giac-2.0.0` `gausspol.cc` `unitaryfactor` / `pzadic` / `unitarize` / `do_factor_hensel` L7044–7077  
 **实现:** `giac-rs/crates/giac-poly/src/factor/unitary.rs`  
@@ -13,85 +13,74 @@
 
 giac-rs 已接入 `factor/unitary.rs`（`UnitaryEvalPoint`、`PzadicLift`、`PzadicDraft`/`LiftedFactor`、`unitary_factor_rev`），并在 `poly_uni` 的 sqff 链中排在 **sparse → Hensel 之后**。
 
-**现状：** conformance / testfactor 主路径已绿（L20–L24 等由 Tower / Hensel 覆盖）；**P0 架构统一已完成**（单一入口 `unitary_factor_rev`、统一 `lift_candidates`）；**P1 算法尾链**（忠实 `pzadic`、`unitarize`、`trunc1`、`reverse`）仍为 FAC-G1 尾部最大能力缺口。
+**现状：** conformance / testfactor 主路径已绿；**P0 架构统一**、**P1 上游尾链**、**P2a 多点 coeff 插值**、**P2b sparse_bi sum-coeff** 均已落地。line 25 门禁（`L22+y³`）已取消 `#[ignore]`。
 
-**目标：** 对齐上游 **有界递归启发式**（非 closed-form），使 `unitaryfactor` 成为多元分解的真实兜底，而非形状特判集合。
+**剩余缺口：** `reverse()` 在 `factor_multivariate` 边界未接线（U5）；`ununitarize` 往返非精确（y² 符号）；3+ aux 的 `try_sparse_factor_bi` 仍仅 2-aux。
 
 ---
 
-## 2. 已交付（MVP）
+## 2. 已交付
 
 | 项 | 说明 |
 |----|------|
 | 类型分层 | `UnitaryEvalPoint`、`PzadicLift`、`PzadicDraft`、`LiftedFactor`、`UnivariateIn::divides` |
 | 管线接线 | `poly_uni`：`|others|≥1` 统一 `try_unitary_factor` → `unitary_factor_rev`（无二元旁路） |
-| 赋值搜索 | `x0 = 2‖p‖∞+2`；sqff 微调；`x0 ← x0·73794/27011`；base 位长 ≤256 |
-| 仿射特判 | `deg_x=1` 时 `±eval_var` 两候选 + `pzadic_digits` fallback |
-| 测试 | `testfactor_unitary_bilinear_gate` ✅；147 passed / 6 ignored |
+| 赋值搜索 | `x0 = 2‖p‖∞+2`；sqff 微调；`x0 ← x0·73794/27011`；**无** `2..N` 小整数扫描；base 位长 ≤256 |
+| P1 尾链 | 忠实 `pzadic`；`unitarize`/`ununitarize`；`trunc1` 常数项尾部 |
+| P2a | `lift_factor_multi_eval`（局部窗 `[base0-(need-1),…]` + monic 插值）；`try_lift_and_peel` fallback |
+| P2b | `reconstruct_factor_dual_embed` sum-coeff；`sparse_factor_tri_var_sum_coeff` ✅ |
+| 测试 | line25 gate ✅；P2a 专项 3 + e2e 1（见 §6）；154 passed / 4 ignored |
 
 ---
 
 ## 3. 开放问题（按根因）
 
-### U1 — `PzadicLift` 非上游 `pzadic`（**架构**）
+### U1 — `PzadicLift` 与上游 `pzadic` 语义 — **部分闭合（P1+P2a）**
 
 | 上游 | giac-rs |
 |------|---------|
-| `pzadic` 使 `dim+1`，在反序变量下做 base-`x₀` 数位展开 | flat `Poly` 上手搓 digit；无扩维语义 |
-| 与 `reverse()` + 递归变量序咬合 | 固定 `(main, eval_var)` 二元视图 |
+| `pzadic` 使 `dim+1`，base-`x₀` 数位展开 | `PzadicLift::pzadic` + P2a 多点 Lagrange fallback |
+| 与 `reverse()` + 递归变量序咬合 | `vars_rev` 内部反序；边界 `reverse_var_order` 未接线（U5） |
 
-**后果：** 无法从赋值像恢复 `y²`、`y³`、`xy` 等系数结构；line 25 类用例必然失败。
-
-**禁止方向：** 再加 `quadratic template`、`y³ template` 等 per-case 补丁。
+单点 `pzadic` 对 `y³` 交叉项仍不足；P2a 在单点失败时用多点插值恢复（line 25 验收）。
 
 ---
 
-### U2 — 二元 / 多元路径分裂（**架构**）— ✅ P0 已闭合
+### U2 — 二元 / 多元路径分裂 — ✅ P0 已闭合
 
-| 路径 | 行为 |
-|------|------|
-| ~~`try_unitary_factor_bivariate`~~ | 已删除；batch peel 内联为 `try_peel_all_at_eval` |
-| `unitary_factor_rev` | 唯一入口；`lift_candidates` 统一 peel |
-
-~~`poly_uni` 在 `|others|=1` 时**不走**完整递归~~ → 现与 `≥2` 相同，经 `try_unitary_factor`。
+单一入口 `unitary_factor_rev`；`lift_candidates` 统一 peel。
 
 ---
 
-### U3 — 缺 `unitarize` / `ununitarize`（**上游链**）
+### U3 — `unitarize` / `ununitarize` — ✅ P1 已闭合
 
-上游 `do_factor_hensel` 在 `unitaryfactor` 失败后对 **非 monic 首项系数** 做：
+`try_unitary_factor` 第二路径：`unitarize → unitary_factor_rev → ununitarize`。`unitarize_extracts_leading_coeff` 覆盖 L22 首项。
 
-```text
-unitarize → reverse → unitaryfactor → reverse → ununitarize
-```
-
-典型：`3x - y² + y - 5`（L22 因子）。giac-rs **未实现**。
+**已知：** `ununitarize` 往返非精确（y² 符号）；仅提取 `an` 已测。
 
 ---
 
-### U4 — 缺 `trunc1` 常数项分支（**上游链**）
+### U4 — `trunc1` 常数项分支 — ✅ P1 已闭合
 
-上游 `unitaryfactor` 在 `main` 次数归零后，对常数项 `trunc1` 再递归分解。giac-rs 递归壳未实现此尾部。
+`factor_constant_tail` / `factor_constant_tail_into` 在 `main` 次数归零后递归。
 
 ---
 
 ### U5 — 缺 `reverse()` 统一入口（**管线**）
 
-上游对 sqff 块先 `pcur.reverse()` 再 `unitaryfactor`，因子再 `reverse` 回来。giac-rs 在 `factor_multivariate` 边界未做等价反序，仅 `vars_rev` 在 `try_unitary_factor` 内部。
+上游对 sqff 块先 `pcur.reverse()` 再 `unitaryfactor`。giac-rs 仅用 `vars_rev`，3+ 元符号翻转风险未消。
 
 ---
 
-### U6 — 单点赋值信息不足（**数学**）
+### U6 — 单点赋值信息不足 — ✅ P2a 已闭合（增强路径）
 
-在 `eval_var = B` 时，真因子若含 `y²`、`y³`，赋值像为 **ℚ[x] 上常数系数**；**单点无法唯一恢复** `ℚ[x,y]` 中的高次项。
-
-上游靠 **递归降维 + 多轮剥离** 逐步消化；若仍不足，需 **多点 coeff 插值**（增强，非主路径）。
+`lift_factor_multi_eval`：在 `pzadic` 不整除时，对赋值因子各 `main` 系数做 Lagrange 插值（`MULTI_EVAL_MAX_SAMPLES=8`）。
 
 ---
 
-### U7 — `sparse_bi` sum-coeff 仍缺（**FAC-G1 并行缺口**）
+### U7 — `sparse_bi` sum-coeff — ✅ P2b 已闭合
 
-与 unitary 独立，但同属 `do_factor_hensel` 尾部能力：`sparse_bi` 重建仅单项式系数 MVP；sum-coeff / 完整 dilation 未补。部分多元式在到达 unitary 前即失败或极慢。
+`reconstruct_factor_dual_embed` + monomial loop；`sparse_factor_tri_var_sum_coeff` ✅。`try_dilation_sparse_bi` 随机 dilation 已接线。
 
 ---
 
@@ -100,8 +89,8 @@ unitarize → reverse → unitaryfactor → reverse → ununitarize
 | 测试 | 状态 | 意图 |
 |------|------|------|
 | `testfactor_unitary_bilinear_gate` | ✅ | 仿射提升最小覆盖 |
-| `testfactor_line25_unitaryfactor_gate` | `#[ignore]` | Hensel 失败、需真实 pzadic/递归 |
-| `unitary_factor_line25_l22_y3` | `#[ignore]` | 同上（单元测试） |
+| `testfactor_line25_unitaryfactor_gate` | ✅ | Hensel 失败、P2a multi-eval |
+| `unitary_factor_line25_l22_y3` | ✅ | 单元测试同上 |
 
 **Line 25 多项式（合成）：**
 
@@ -115,57 +104,35 @@ p  = f1 * f2
 |------|------|
 | `try_sparse_factor` (x,y)/(y,x) | None |
 | `try_hensel_lift_bivariate` | None |
-| `try_unitary_factor` / `unitary_factor_rev` | None（base 2..39 无 peel） |
-| `factor_multivariate` | 1 因子（误判不可约） |
+| `try_unitary_factor` | ✅（b≈34 + multi-eval） |
+| `factor_multivariate` | 2 因子 |
 
 ---
 
 ## 5. 优先级路线图
 
-与 [GIAC-simplify-poly-upstream-gaps](GIAC-simplify-poly-upstream-gaps.md) §5 对齐；**unitary 属 P2**（不阻塞 conformance golden）。
+### P0 — 类型与单一入口 — ✅ 2026-06-19
 
-### P0 — 类型与单一入口（架构）— ✅ 2026-06-19
-
-| ID | 工作 | 验收 |
-|----|------|------|
-| **U-P0a** | `PzadicDraft` / `LiftedFactor` IR（`nested.rs`）；`lifted_factor_peel_vs_div_rem` 误用测 | ✅ |
-| **U-P0b** | 删除 `try_unitary_factor_bivariate`；`|others|=1` 统一 `try_unitary_factor` | ✅ bilinear gate |
-| **U-P0c** | `unitary_factor_rev` 统一 `lift_candidates`（无 `lift()` 单候选） | ✅ |
-
----
-
-### P1 — 上游尾链（算法）— ✅ 2026-06-19（line 25 门禁仍 P2）
-
-| ID | 工作 | 验收 |
-|----|------|------|
-| **U-P1a** | 忠实 `pzadic`（centered `smod` digit lift） | ✅ bilinear；`pzadic_lift_linear_via_digits` |
-| **U-P1b** | `unitarize` / `ununitarize` | ✅ `unitarize_extracts_leading_coeff`；二次路径 |
-| **U-P1c** | `trunc1` 常数项尾部 + `reverse_var_order` 辅助 | ✅ `factor_constant_tail`；`vars_rev` 接线（无符号翻转） |
-| **U-P1d** | 移除 `±eval_var` 仿射特判 | ✅ 仅 `PzadicLift::pzadic` |
-
-**未达里程碑：** `testfactor_line25_unitaryfactor_gate` 仍 `#[ignore]` — `y³` 交叉项需 **P2a** 多点插值（单点 `pzadic` + 尾链仍超时/失败）。
-
----
+### P1 — 上游尾链 — ✅ 2026-06-19
 
 ### P2 — 增强与并行缺口
 
 | ID | 工作 | 验收 |
 |----|------|------|
-| **U-P2a** | 多点赋值 coeff 插值（仅当 P1 单点仍失败时） | line 25 或文档登记已知偏离 |
-| **U-P2b** | `sparse_bi` sum-coeff 重建（FAC-G1，与 unitary 并行） | 减少进入 unitary 前的超时/误判 |
-| **U-P2c** | `giac-poly-api-stability.md` / `unitary.rs` tier 复审 | API 表与实现一致 |
-
-**估时：** 1–2 周（可与 P1 后半并行）
+| **U-P2a** | 多点赋值 coeff 插值 | ✅ line 25 gate |
+| **U-P2b** | `sparse_bi` sum-coeff 重建 | ✅ `sparse_factor_tri_var_sum_coeff` |
+| **U-P2c** | `giac-poly-api-stability.md` / `unitary.rs` tier 复审 | 待做 |
 
 ---
 
-### 不做 / 低优先级
+### P2a 回归（无小整数扫描）
 
-| 项 | 原因 |
-|----|------|
-| 更多仿射 / 二次 / 三次 template | 违背「一种环一种算法」；维护爆炸 |
-| 展开六次积多元分解（line 23 结构层） | 属 simplify `factor(Mul)` + FAC-G2，非 unitary |
-| 将 unitary 提至 P0 | conformance 已绿；Hensel/Tower 先覆盖 |
+| 测试 | 验收 |
+|------|------|
+| `eval_base_stream_upstream_only` | 首基 = `initial`，次基 = `advance(initial)` |
+| `p2a_sample_window_anchors_below_base0` | 局部采样窗低于 `initial` |
+| `p2a_line25_upstream_trajectory` | 前 4 个 upstream 基 ≥1 次 partial peel |
+| `unitary_factor_line25_l22_y3` + `testfactor_line25_unitaryfactor_gate` | 端到端 2 因子 |
 
 ---
 
@@ -173,16 +140,9 @@ p  = f1 * f2
 
 ```bash
 cd giac-rs
-# 全量（含 6 ignored）
 cargo test --release -p giac-poly --lib
-
-# unitary 相关
-cargo test --release -p giac-poly unitary --lib
-cargo test --release -p giac-poly testfactor_unitary --lib
-
-# line 25 门禁（实现 P1 后取消 ignore）
-cargo test --release -p giac-poly line25 --lib -- --include-ignored
-
+cargo test --release -p giac-poly line25 --lib
+cargo test --release -p giac-poly sparse_factor_tri_var_sum_coeff --lib
 cargo test --release -p giac-conformance --test giac_check_factor
 ```
 

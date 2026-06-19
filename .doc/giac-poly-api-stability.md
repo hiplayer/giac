@@ -161,7 +161,7 @@
 
 | 缺口 ID | upstream (`gausspol.cc`) | giac-rs 状态 |
 |---------|---------------------------|--------------|
-| **FAC-G1** | `try_sparse_factor` + `try_sparse_factor_bi` + `unitaryfactor` | **Partial** — P0/P1 尾链已落地（`pzadic`/`unitarize`/`trunc1`）；line25 仍 P2；sparse_bi sum-coeff 待补（[unitaryfactor-gaps](issues/GIAC-poly-unitaryfactor-gaps.md)） |
+| **FAC-G1** | `try_sparse_factor` + `try_sparse_factor_bi` + `unitaryfactor` | **Partial** — P0–P2b 已落地（`pzadic`/`unitarize`/`trunc1`/multi-eval；sparse_bi sum-coeff）；line25 ✅；U5 `reverse` 边界待补（[unitaryfactor-gaps](issues/GIAC-poly-unitaryfactor-gaps.md)） |
 | **FAC-G2** | 参系数 `poly_factor` 塔 | **Partial** — `try_lift_factors_in_aux_var` 覆盖 L20 |
 | **FAC-G3** | 混合次数二元 Hensel + fallback | **Partial** — L22 ✅（`hensel_lift_two_at_zero`） |
 | — | partfrac 重复二次 / 实二次分裂 | **Partial** — 线性/重根/实分裂已覆盖；高次仍缺 |

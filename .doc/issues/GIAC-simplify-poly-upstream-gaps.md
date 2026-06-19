@@ -86,7 +86,7 @@ giac-rs Phase 4 目标是 **headless CAS 子集**，不是 giac-2.0.0 全库 1:1
 
 | ID | upstream | giac-rs | check 锚点 |
 |----|----------|---------|------------|
-| **FAC-G1** | `try_sparse_factor` + `try_sparse_factor_bi` 启发式 fallback | **Partial** — `@0`/`find_good_eval` 好点种子；`sparse_bi` 2-aux `eval_tn` MVP（单项式系数；sum-coeff 待补） | L22 由 Hensel 覆盖 |
+| **FAC-G1** | `try_sparse_factor` + `try_sparse_factor_bi` 启发式 fallback | **Partial** — `@0`/`find_good_eval`；`sparse_bi` 2-aux sum-coeff ✅（`reconstruct_factor_dual_embed`）；`unitaryfactor` P0–P2a ✅（line25 gate） | L22 Hensel；line25 unitary |
 | **FAC-G2** | 参三元 `poly_factor` 塔 | **Partial** — `try_lift_factors_in_aux_var` 覆盖 L20 | testfactor L20 ✅ |
 | **FAC-G3** | 二元混合次数 Hensel 或 fallback | **Partial** — `try_hensel_lift_factor` + `(main,aux)` 双序 | testfactor L22 ✅ |
 
@@ -162,7 +162,7 @@ P3  assume/purge            → CAL-G4（giac-prog）
 ### Phase B — FAC-G1–G3
 
 - [x] `try_sparse_factor`（@0 + `find_good_eval` 好点重试；L22 仍 None — 见架构注）
-- [x] `try_sparse_factor_bi`（2-aux MVP：`eval_tn` 嵌入 + 指数重建；`others.len()>=2` 接入；sum-coeff / dilation 待补）
+- [x] `try_sparse_factor_bi`（2-aux：`eval_tn` + sum-coeff dual-embed + dilation；`others.len()>=2` 接入）
 - [x] 参三元 factor tower（FAC-G2 L20 由 aux-lift 覆盖）
 - [x] tracer L22 un-ignore
 - [x] tracer L20 un-ignore
@@ -190,8 +190,8 @@ sqff → 随机 eval 不可约快检 → try_sparse_factor(v0) → try_sparse_fa
 
 giac-rs 缺口：
 
-- **已对齐：** 双主元 `(main,aux)`；`try_sparse_factor` + `find_good_eval` 好点种子；`try_sparse_factor_bi`（2-aux MVP）；`try_hensel_lift_factor` + `hensel_lift_two_at_zero` fallback；`find_good_eval` + 二元/多元不可约快检；`unitaryfactor` 二元 MVP（`factor/unitary.rs`，bilinear gate ✅）
-- **仍缺：** `sparse_bi` sum-coeff 重建 + dilation；`unitaryfactor` 忠实 `pzadic` + 递归 + `unitarize`（详见 [GIAC-poly-unitaryfactor-gaps](GIAC-poly-unitaryfactor-gaps.md)）
+- **已对齐：** 双主元 `(main,aux)`；`try_sparse_factor` + `find_good_eval`；`try_sparse_factor_bi`（2-aux sum-coeff + dilation）；`try_hensel_lift_factor` + `hensel_lift_two_at_zero`；`unitaryfactor` P0–P2a（line25 gate ✅）
+- **仍缺：** `factor_multivariate` 边界 `reverse()`（U5）；3+ aux `sparse_bi`；完整参系数 `poly_factor` 塔（FAC-G2 一般情形）。详见 [GIAC-poly-unitaryfactor-gaps](GIAC-poly-unitaryfactor-gaps.md)
 
 **临时算法可否删除：**
 
