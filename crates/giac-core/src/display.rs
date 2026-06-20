@@ -40,6 +40,7 @@ pub fn format_expr(expr: &Expr) -> String {
 }
 
 fn format_algext(a: &AlgExtData) -> String {
+    // Display via `to_rootof_expr` only — no `common` / field alignment (L0 path).
     format_expr(a.to_rootof_expr().as_ref())
 }
 

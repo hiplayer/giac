@@ -70,8 +70,17 @@ impl AlgExtData {
     }
 
     pub fn from_rootof(num: &ExprArc, min_poly: &ExprArc) -> Result<Self, EvalError> {
+        Self::from_rootof_over(num, min_poly, &ExtensionField::rational())
+    }
+
+    /// Like [`Self::from_rootof`] but adjoin over `parent` (default `parent = ℚ` in [`Self::from_rootof`]).
+    pub fn from_rootof_over(
+        num: &ExprArc,
+        min_poly: &ExprArc,
+        parent: &Arc<ExtensionField>,
+    ) -> Result<Self, EvalError> {
         let min_q = min_poly_exprs_to_q(&poly1_coeffs(min_poly)?)?;
-        let field = ExtensionField::adjoin_irreducible_over_q(min_q)?;
+        let field = ExtensionField::adjoin_irreducible(parent, min_q)?;
         let coords = match num.as_ref() {
             Expr::Seq(items) => rationalize_poly1(items)?,
             Expr::Int(_) | Expr::Rat(_) => rationalize_poly1(std::slice::from_ref(num))?,
@@ -137,6 +146,10 @@ impl AlgExtData {
             && self.field.dimension() == 1
     }
 
+    /// Build `rootof` display form from current coords + minpoly (L0).
+    ///
+    /// Does **not** call `common` / `align_elements` — display stays on the element's
+    /// minimal ambient field. See [GIAC-lazy-common-tower-plan.md] §11.1 L0/L1.
     pub fn to_rootof_expr(&self) -> ExprArc {
         let coords = canonical_poly1_expr(&self.coords);
         let min_poly = canonical_poly1_expr(&self.min_poly());
@@ -162,11 +175,22 @@ impl AlgExtData {
     }
 }
 
+fn fields_same(a: &Arc<ExtensionField>, b: &Arc<ExtensionField>) -> bool {
+    Arc::ptr_eq(a, b) || **a == **b
+}
+
 fn align_pair(a: &AlgExtData, b: &AlgExtData) -> Result<(Arc<ExtensionField>, CoordsQ, CoordsQ), EvalError> {
     let aligned = ExtensionField::align_elements(&a.field, &a.coords_q()?, &b.field, &b.coords_q()?)?;
     Ok((aligned.field, aligned.left, aligned.right))
 }
 
+/// Fold a sum of `AlgExt` / rational leaves (eval `Add` patch).
+///
+/// **Lazy common (Split):** group by same [`ExtensionField`] (`Arc::ptr_eq` or `field ==`);
+/// within-group merge uses [`AlgExtData::add`] without cross-domain `common`. When exactly
+/// one group exists and a new term lies in a different field, that pairwise `add` may
+/// `common`; otherwise unlike fields stay as an `Add` tree. See
+/// [GIAC-lazy-common-tower-plan.md] §11.6 E.
 pub fn fold_algext_sum(terms: &[ExprArc]) -> Result<ExprArc, EvalError> {
     let mut groups: Vec<(Arc<ExtensionField>, AlgExtData)> = Vec::new();
     let mut rat_sum = Ratio::<BigInt>::zero();
@@ -174,7 +198,7 @@ pub fn fold_algext_sum(terms: &[ExprArc]) -> Result<ExprArc, EvalError> {
     for t in terms {
         match t.as_ref() {
             Expr::AlgExt(a) => {
-                if let Some((_, acc)) = groups.iter_mut().find(|(f, _)| Arc::ptr_eq(f, &a.field)) {
+                if let Some((_, acc)) = groups.iter_mut().find(|(f, _)| fields_same(f, &a.field)) {
                     *acc = acc.add(a)?;
                 } else if groups.len() == 1 {
                     let (f, acc) = groups.remove(0);
@@ -652,6 +676,33 @@ mod tests {
         assert!(sum_ab.eq_mod(&sum_ba).unwrap());
         assert_eq!(sum_ab.field.id(), sqrt2.field.id());
         assert!(!sum_ab.is_zero());
+    }
+
+    #[test]
+    fn fold_algext_sum_merges_equal_fields_without_ptr_eq() {
+        use crate::algebra::ext_tower;
+
+        let alpha = AlgExtData::from_rootof(
+            &Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])),
+            &q_minpoly(),
+        )
+        .unwrap();
+        let dup_field = ext_tower::duplicate_field_arc_for_test(&alpha.field);
+        assert!(!Arc::ptr_eq(&alpha.field, &dup_field));
+        assert_eq!(*alpha.field, *dup_field);
+
+        let beta = AlgExtData::from_coords_q(
+            dup_field,
+            alpha.coords_q().unwrap(),
+            None,
+        )
+        .unwrap();
+        let expected = alpha.add(&beta).unwrap();
+        let folded = fold_algext_sum(&[alpha.into_expr(), beta.into_expr()]).unwrap();
+        match folded.as_ref() {
+            Expr::AlgExt(a) => assert!(a.eq_mod(&expected).unwrap()),
+            other => panic!("expected single AlgExt, got {other:?}"),
+        }
     }
 
     #[test]

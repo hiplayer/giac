@@ -208,15 +208,17 @@ impl AlgExtCData {
                 other_im: other.im_q()?,
             });
         }
-        let common = ExtensionField::common_over_q(&self.field, &other.field)?;
-        let self_emb = ExtensionField::embedding_for(&self.field, &common)?;
-        let other_emb = ExtensionField::embedding_for(&other.field, &common)?;
+        let aligned_re =
+            ExtensionField::align_elements(&self.field, &self.re_q()?, &other.field, &other.re_q()?)?;
+        let aligned_im =
+            ExtensionField::align_elements(&self.field, &self.im_q()?, &other.field, &other.im_q()?)?;
+        debug_assert_eq!(aligned_re.field.id(), aligned_im.field.id());
         Ok(AlignedPair {
-            field: Arc::clone(&common.field),
-            self_re: self_emb.apply(&self.re_q()?),
-            self_im: self_emb.apply(&self.im_q()?),
-            other_re: other_emb.apply(&other.re_q()?),
-            other_im: other_emb.apply(&other.im_q()?),
+            field: aligned_re.field,
+            self_re: aligned_re.left,
+            self_im: aligned_im.left,
+            other_re: aligned_re.right,
+            other_im: aligned_im.right,
         })
     }
 }

@@ -4,6 +4,9 @@
 //!
 //! Phase 0 scope: coefficients in ℚ only; each [`ExtensionField`] is described by a
 //! primitive/minimal polynomial over ℚ (single adjoin or `common` composite).
+//!
+//! T1+: nontrivial adjoins record a true [`ExtensionTower::Adj`] parent chain and
+//! `(parent_id, min_poly)` registry keys; see [GIAC-lazy-common-tower-plan.md] T1.
 
 use std::collections::HashMap;
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -34,7 +37,8 @@ fn next_field_id() -> u64 {
 pub enum ExtensionTower {
     /// K = ℚ, dimension 1.
     Base,
-    /// K = parent(γ); `min_poly_q` is the minimal polynomial of γ over ℚ (Phase 0).
+    /// K = parent(γ); `min_poly_q` is the minimal polynomial of γ over the parent (Phase C
+    /// before parent-coeff arithmetic: coefficients are rational constants only).
     ///
     /// For towers built via [`ExtensionField::common_over_q`], `min_poly_q` is the
     /// primitive-element polynomial over ℚ describing the entire field.
@@ -42,6 +46,9 @@ pub enum ExtensionTower {
         parent: Arc<ExtensionTower>,
         min_poly_q: CoordsQ,
         ext_degree: usize,
+        /// When this layer adjoins over a nontrivial parent, `k` in θ = α + k·β used to
+        /// build [`ExtensionField::min_poly_over_q`] (T1 compose). `None` for flatten `common`.
+        primitive_k: Option<i64>,
     },
 }
 
@@ -76,6 +83,8 @@ pub struct ExtensionField {
     tower: Arc<ExtensionTower>,
     /// Defining polynomial over ℚ for this field (primitive element when composite).
     min_poly_over_q: CoordsQ,
+    /// Immediate parent when registered via [`ExtensionField::adjoin_irreducible`].
+    parent_field: Option<Arc<ExtensionField>>,
 }
 
 impl PartialEq for ExtensionField {
@@ -99,6 +108,7 @@ impl ExtensionField {
                 id: next_field_id(),
                 tower: Arc::new(ExtensionTower::Base),
                 min_poly_over_q: Vec::new(),
+                parent_field: None,
             })
         }))
     }
@@ -119,14 +129,98 @@ impl ExtensionField {
         &self.min_poly_over_q
     }
 
-    /// Build ℚ(α) from an irreducible (or at least degree ≥ 1) polynomial over ℚ.
-    pub fn adjoin_irreducible_over_q(min_poly_q: CoordsQ) -> Result<Arc<Self>, EvalError> {
+    /// Immediate parent field when this handle comes from a tower adjoin (T1+).
+    pub fn parent_field(&self) -> Option<&Arc<ExtensionField>> {
+        self.parent_field.as_ref()
+    }
+
+    /// Adjoin a root of irreducible (or degree ≥ 1) `min_poly_q` over `parent`.
+    pub fn adjoin_irreducible(
+        parent: &Arc<ExtensionField>,
+        min_poly_q: CoordsQ,
+    ) -> Result<Arc<Self>, EvalError> {
         let min_poly_q = trim_leading_zero(min_poly_q);
         let d = poly_degree(&min_poly_q);
         if d < 1 {
             return Err(EvalError::TypeError("extension degree >= 1"));
         }
-        field_registry().register_simple(&min_poly_q)
+        if !parent.is_base() && !layer_minpoly_rational_constants(&min_poly_q) {
+            return Err(EvalError::TypeError(
+                "T1 adjoin: layer minpoly must have rational coefficients",
+            ));
+        }
+        field_registry().register_adjoin(parent, &min_poly_q)
+    }
+
+    /// Build ℚ(α) from an irreducible (or at least degree ≥ 1) polynomial over ℚ.
+    pub fn adjoin_irreducible_over_q(min_poly_q: CoordsQ) -> Result<Arc<Self>, EvalError> {
+        Self::adjoin_irreducible(&Self::rational(), min_poly_q)
+    }
+
+    /// True when `sub` embeds in `sup` along the registered adjoin parent chain (T1).
+    pub fn is_subfield_of(sub: &Arc<ExtensionField>, sup: &Arc<ExtensionField>) -> bool {
+        if Arc::ptr_eq(sub, sup) || **sub == **sup {
+            return true;
+        }
+        if sub.is_base() {
+            return true;
+        }
+        if sup.is_base() {
+            return false;
+        }
+        let mut cur = sup.parent_field.as_ref();
+        while let Some(p) = cur {
+            if Arc::ptr_eq(p, sub) || **p == **sub {
+                return true;
+            }
+            cur = p.parent_field.as_ref();
+        }
+        false
+    }
+
+    /// Linear embedding `sub` ↪ `sup` when [`Self::is_subfield_of`] (T1); `None` if unrelated.
+    pub fn try_subfield_embedding(
+        sub: &Arc<ExtensionField>,
+        sup: &Arc<ExtensionField>,
+    ) -> Result<Option<FieldEmbedding>, EvalError> {
+        if !Self::is_subfield_of(sub, sup) {
+            return Ok(None);
+        }
+        if Arc::ptr_eq(sub, sup) || **sub == **sup {
+            let dim = sub.dimension();
+            return Ok(Some(FieldEmbedding {
+                source: Arc::clone(sub),
+                target: Arc::clone(sup),
+                matrix: super::field_arith::identity_matrix(dim),
+            }));
+        }
+        if sub.is_base() {
+            return Ok(Some(rational_subfield_embedding(sub, sup)));
+        }
+        let mut chain = Vec::new();
+        let mut cur = Arc::clone(sup);
+        loop {
+            let parent = cur
+                .parent_field
+                .as_ref()
+                .ok_or(EvalError::TypeError("subfield chain broken"))?;
+            chain.push(Arc::clone(&cur));
+            if Arc::ptr_eq(parent, sub) || **parent == **sub {
+                break;
+            }
+            if parent.is_base() {
+                return Ok(None);
+            }
+            cur = Arc::clone(parent);
+        }
+        chain.reverse();
+        let mut emb = direct_adjoin_parent_embedding(sub, &chain[0])?;
+        for child in &chain[1..] {
+            let parent = child.parent_field.as_ref().unwrap();
+            let step = direct_adjoin_parent_embedding(parent, child)?;
+            emb = compose_field_embeddings(&emb, &step)?;
+        }
+        Ok(Some(emb))
     }
 
     /// `min_poly` as `Expr` coefficients (giac `poly1` order).
@@ -269,6 +363,9 @@ impl ExtensionField {
     }
 
     /// Align two field elements into a common ambient field (S0 unified entry point).
+    ///
+    /// T2: when one field is a subfield of the other (tower adjoin chain), embed along the
+    /// chain and **do not** call [`Self::common_over_q`] / `common_cache`.
     pub fn align_elements(
         a_field: &Arc<ExtensionField>,
         a_coords: &CoordsQ,
@@ -280,6 +377,24 @@ impl ExtensionField {
                 field: Arc::clone(a_field),
                 left: pad_to_len(a_coords, a_field.dimension()),
                 right: pad_to_len(b_coords, b_field.dimension()),
+            });
+        }
+        if Self::is_subfield_of(a_field, b_field) {
+            let emb_a = Self::try_subfield_embedding(a_field, b_field)?
+                .ok_or(EvalError::TypeError("subfield embedding missing"))?;
+            return Ok(AlignedElements {
+                field: Arc::clone(b_field),
+                left: emb_a.apply(a_coords),
+                right: pad_to_len(b_coords, b_field.dimension()),
+            });
+        }
+        if Self::is_subfield_of(b_field, a_field) {
+            let emb_b = Self::try_subfield_embedding(b_field, a_field)?
+                .ok_or(EvalError::TypeError("subfield embedding missing"))?;
+            return Ok(AlignedElements {
+                field: Arc::clone(a_field),
+                left: pad_to_len(a_coords, a_field.dimension()),
+                right: emb_b.apply(b_coords),
             });
         }
         let common = Self::common_over_q(a_field, b_field)?;
@@ -359,6 +474,7 @@ pub struct AlignedElements {
 }
 
 struct FieldRegistry {
+    by_adjoin: Mutex<HashMap<(u64, Vec<u8>), Arc<ExtensionField>>>,
     by_min_poly: Mutex<HashMap<Vec<u8>, Arc<ExtensionField>>>,
     common_cache: Mutex<HashMap<(u64, u64), Arc<CommonFieldPair>>>,
 }
@@ -366,6 +482,7 @@ struct FieldRegistry {
 impl FieldRegistry {
     fn new() -> Self {
         Self {
+            by_adjoin: Mutex::new(HashMap::new()),
             by_min_poly: Mutex::new(HashMap::new()),
             common_cache: Mutex::new(HashMap::new()),
         }
@@ -384,25 +501,56 @@ impl FieldRegistry {
         key
     }
 
-    fn register_simple(&self, min_poly_q: &CoordsQ) -> Result<Arc<ExtensionField>, EvalError> {
-        let key = Self::min_poly_key(min_poly_q);
-        if let Some(hit) = self.by_min_poly.lock().unwrap().get(&key) {
+    fn register_adjoin(
+        &self,
+        parent: &Arc<ExtensionField>,
+        min_poly_q: &CoordsQ,
+    ) -> Result<Arc<ExtensionField>, EvalError> {
+        let adjoin_key = (parent.id(), Self::min_poly_key(min_poly_q));
+        if let Some(hit) = self.by_adjoin.lock().unwrap().get(&adjoin_key) {
             return Ok(Arc::clone(hit));
         }
-        let d = poly_degree(min_poly_q);
+        if parent.is_base() {
+            if let Some(hit) = self
+                .by_min_poly
+                .lock()
+                .unwrap()
+                .get(&Self::min_poly_key(min_poly_q))
+            {
+                self.by_adjoin
+                    .lock()
+                    .unwrap()
+                    .insert(adjoin_key, Arc::clone(hit));
+                return Ok(Arc::clone(hit));
+            }
+        }
+        let ext_degree = poly_degree(min_poly_q);
+        let (min_poly_over_q, primitive_k) = if parent.is_base() {
+            (min_poly_q.clone(), None)
+        } else {
+            compose_min_poly_over_q(parent, min_poly_q)?
+        };
         let field = Arc::new(ExtensionField {
             id: next_field_id(),
             tower: Arc::new(ExtensionTower::Adj {
-                parent: Arc::new(ExtensionTower::Base),
+                parent: Arc::clone(parent.tower()),
                 min_poly_q: min_poly_q.clone(),
-                ext_degree: d,
+                ext_degree,
+                primitive_k,
             }),
-            min_poly_over_q: min_poly_q.clone(),
+            min_poly_over_q,
+            parent_field: Some(Arc::clone(parent)),
         });
-        self.by_min_poly
+        self.by_adjoin
             .lock()
             .unwrap()
-            .insert(key, Arc::clone(&field));
+            .insert(adjoin_key, Arc::clone(&field));
+        if parent.is_base() {
+            self.by_min_poly
+                .lock()
+                .unwrap()
+                .insert(Self::min_poly_key(min_poly_q), Arc::clone(&field));
+        }
         Ok(field)
     }
 
@@ -423,8 +571,10 @@ impl FieldRegistry {
                     parent: Arc::new(ExtensionTower::Base),
                     min_poly_q: min_poly_q.clone(),
                     ext_degree: d,
+                    primitive_k: None,
                 }),
                 min_poly_over_q: min_poly_q,
+                parent_field: None,
             });
             self.by_min_poly
                 .lock()
@@ -466,6 +616,119 @@ impl FieldRegistry {
 fn field_registry() -> &'static FieldRegistry {
     static REG: OnceLock<FieldRegistry> = OnceLock::new();
     REG.get_or_init(FieldRegistry::new)
+}
+
+#[cfg(test)]
+pub(crate) fn common_cache_len_for_test() -> usize {
+    field_registry().common_cache.lock().unwrap().len()
+}
+
+fn layer_minpoly_rational_constants(min_poly_q: &[Ratio<BigInt>]) -> bool {
+    min_poly_q.iter().all(|c| c.denom().is_one())
+}
+
+fn compose_min_poly_over_q(
+    parent: &ExtensionField,
+    layer_min_poly: &CoordsQ,
+) -> Result<(CoordsQ, Option<i64>), EvalError> {
+    let na = parent.dimension();
+    let nb = poly_degree(layer_min_poly);
+    let expected = na * nb;
+    for k in 1i64..=12 {
+        match common_primitive_sum(
+            parent.min_poly_over_q(),
+            layer_min_poly,
+            na,
+            nb,
+            k,
+        ) {
+            Ok((min_g, _, _)) if poly_degree(&min_g) == expected => {
+                return Ok((min_g, Some(k)));
+            }
+            Ok(_) | Err(EvalError::TypeError(_)) => continue,
+            Err(e) => return Err(e),
+        }
+    }
+    Err(EvalError::NotImplemented("ExtensionField::adjoin compose minpoly"))
+}
+
+fn rational_subfield_embedding(
+    sub: &Arc<ExtensionField>,
+    sup: &Arc<ExtensionField>,
+) -> FieldEmbedding {
+    let dim = sup.dimension();
+    let mut m = vec![vec![Ratio::zero(); 1]; dim];
+    if dim > 0 {
+        m[dim - 1][0] = Ratio::one();
+    }
+    FieldEmbedding {
+        source: Arc::clone(sub),
+        target: Arc::clone(sup),
+        matrix: m,
+    }
+}
+
+fn direct_adjoin_parent_embedding(
+    parent: &Arc<ExtensionField>,
+    child: &Arc<ExtensionField>,
+) -> Result<FieldEmbedding, EvalError> {
+    let (layer_min_poly, ext_degree, primitive_k) = match child.tower.as_ref() {
+        ExtensionTower::Adj {
+            min_poly_q,
+            ext_degree,
+            primitive_k,
+            ..
+        } => (min_poly_q.as_slice(), *ext_degree, *primitive_k),
+        ExtensionTower::Base => {
+            return Err(EvalError::TypeError("expected adjoin child field"));
+        }
+    };
+    let k = primitive_k.ok_or(EvalError::TypeError("missing adjoin primitive_k"))?;
+    let (_, mat_parent, _) = common_primitive_sum(
+        parent.min_poly_over_q(),
+        layer_min_poly,
+        parent.dimension(),
+        ext_degree,
+        k,
+    )?;
+    Ok(FieldEmbedding {
+        source: Arc::clone(parent),
+        target: Arc::clone(child),
+        matrix: mat_parent,
+    })
+}
+
+fn compose_field_embeddings(
+    inner: &FieldEmbedding,
+    outer: &FieldEmbedding,
+) -> Result<FieldEmbedding, EvalError> {
+    debug_assert!(Arc::ptr_eq(&inner.target, &outer.source) || inner.target == outer.source);
+    let src_dim = inner.source.dimension();
+    let mid_dim = inner.target.dimension();
+    let tgt_dim = outer.target.dimension();
+    if inner.matrix.len() != mid_dim
+        || outer.matrix.len() != tgt_dim
+        || inner
+            .matrix
+            .iter()
+            .any(|row| row.len() != src_dim)
+        || outer.matrix.iter().any(|row| row.len() != mid_dim)
+    {
+        return Err(EvalError::TypeError("embedding compose dimension mismatch"));
+    }
+    let mut matrix = vec![vec![Ratio::zero(); src_dim]; tgt_dim];
+    for i in 0..tgt_dim {
+        for j in 0..src_dim {
+            for k in 0..mid_dim {
+                matrix[i][j] += outer.matrix[i][k].clone() * inner.matrix[k][j].clone();
+            }
+        }
+    }
+    Ok(FieldEmbedding {
+        source: Arc::clone(&inner.source),
+        target: Arc::clone(&outer.target),
+        matrix,
+    })
 }
 
 fn compute_common_over_q(
@@ -649,6 +912,17 @@ pub fn embed_coords(embedding: &FieldEmbedding, coords: &CoordsQ) -> CoordsQ {
     embedding.apply(coords)
 }
 
+/// Second `Arc` handle with the same tower / minpoly but a distinct id (tests only).
+#[cfg(test)]
+pub(crate) fn duplicate_field_arc_for_test(f: &Arc<ExtensionField>) -> Arc<ExtensionField> {
+    Arc::new(ExtensionField {
+        id: next_field_id(),
+        tower: Arc::clone(f.tower()),
+        min_poly_over_q: f.min_poly_over_q().to_vec(),
+        parent_field: f.parent_field.as_ref().map(Arc::clone),
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -779,5 +1053,89 @@ mod tests {
 
         let sum = qr.field.element_add(&qr.left, &qr.right).unwrap();
         assert!(!qr.field.element_is_zero(&sum));
+    }
+
+    fn minpoly_u2_minus(n: i64) -> CoordsQ {
+        vec![
+            Ratio::one(),
+            Ratio::zero(),
+            Ratio::from_integer(n.into()),
+        ]
+    }
+
+    #[test]
+    fn t1a_adjoin_base_sqrt2_matches_legacy() {
+        let legacy = ExtensionField::adjoin_irreducible_over_q(minpoly_u2_minus(-2)).unwrap();
+        let via_parent =
+            ExtensionField::adjoin_irreducible(&ExtensionField::rational(), minpoly_u2_minus(-2))
+                .unwrap();
+        assert_eq!(*legacy, *via_parent);
+        assert_eq!(legacy.dimension(), 2);
+        assert!(legacy.parent_field().is_some());
+        assert!(legacy.parent_field().unwrap().is_base());
+    }
+
+    #[test]
+    fn t1b_adjoin_k1_u2_minus_3_has_dimension_four() {
+        let k1 = sqrt2_field();
+        let k2 = ExtensionField::adjoin_irreducible(&k1, minpoly_u2_minus(-3)).unwrap();
+        assert_eq!(k2.dimension(), 4);
+        assert_eq!(k2.parent_field().map(|p| p.id()), Some(k1.id()));
+        assert!(ExtensionField::is_subfield_of(&k1, &k2));
+        assert!(!ExtensionField::is_subfield_of(&k2, &k1));
+    }
+
+    #[test]
+    fn t1_try_subfield_embedding_k1_into_k2() {
+        let k1 = sqrt2_field();
+        let k2 = ExtensionField::adjoin_irreducible(&k1, minpoly_u2_minus(-3)).unwrap();
+        let emb = ExtensionField::try_subfield_embedding(&k1, &k2)
+            .unwrap()
+            .expect("K1 embeds in K2");
+        assert_eq!(emb.source.id(), k1.id());
+        assert_eq!(emb.target.id(), k2.id());
+        assert_eq!(emb.matrix.len(), k2.dimension());
+        assert_eq!(emb.matrix[0].len(), k1.dimension());
+        let img = emb.apply(&k1.generator_coords());
+        assert_eq!(img.len(), k2.dimension());
+    }
+
+    #[test]
+    fn t2_align_subfield_does_not_grow_common_cache() {
+        let k1 = sqrt2_field();
+        let k2 = ExtensionField::adjoin_irreducible(&k1, minpoly_u2_minus(-3)).unwrap();
+        let before = common_cache_len_for_test();
+        let alpha = k1.generator_coords();
+        let alpha_in_k2 = ExtensionField::try_subfield_embedding(&k1, &k2)
+            .unwrap()
+            .unwrap()
+            .apply(&alpha);
+        let _ = ExtensionField::align_elements(&k1, &alpha, &k2, &alpha_in_k2).unwrap();
+        assert_eq!(common_cache_len_for_test(), before);
+    }
+
+    #[test]
+    fn t2_algext_add_same_generator_in_superfield_no_common_cache() {
+        use crate::algebra::alg_ext::AlgExtData;
+        use crate::algebra::field_arith::coords_to_expr;
+
+        let k1 = sqrt2_field();
+        let k2 = ExtensionField::adjoin_irreducible(&k1, minpoly_u2_minus(-3)).unwrap();
+        let alpha_k2 = ExtensionField::try_subfield_embedding(&k1, &k2)
+            .unwrap()
+            .unwrap()
+            .apply(&k1.generator_coords());
+        let a = AlgExtData::from_field_coords(
+            Arc::clone(&k2),
+            coords_to_expr(&alpha_k2).unwrap(),
+        )
+        .unwrap();
+        let b = AlgExtData::from_field_coords(Arc::clone(&k2), coords_to_expr(&alpha_k2).unwrap()).unwrap();
+        let before = common_cache_len_for_test();
+        let sum = a.add(&b).unwrap();
+        assert_eq!(common_cache_len_for_test(), before);
+        assert_eq!(sum.field.id(), a.field.id());
+        let two_b = b.add(&b).unwrap();
+        assert!(sum.eq_mod(&two_b).unwrap());
     }
 }
