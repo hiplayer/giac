@@ -1,9 +1,11 @@
 //! Univariate polynomial arithmetic over ℚ in giac `poly1` convention (high degree first).
 //!
 //! Shared by [`super::ext_tower::ExtensionField`] and [`super::alg_ext::AlgExtData`].
+//! Dense ℚ ring ops delegate to [`giac_poly::dense::poly1`] (see GIAC-dense-poly1-refactor D2).
 
 use std::sync::Arc;
 
+use giac_poly::dense::{self, Poly1Order, RatioRingCtx};
 use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::{One, Zero};
@@ -15,111 +17,49 @@ use crate::expr::{Expr, ExprArc, FuncKind};
 pub type CoordsQ = Vec<Ratio<BigInt>>;
 pub type CoordsQSlice<'a> = &'a [Ratio<BigInt>];
 
+const POLY1_Q: Poly1Order = Poly1Order::HighFirst;
+const RATIO_CTX: RatioRingCtx = RatioRingCtx;
+
+fn dense_q<T>(r: giac_poly::PolyResult<T>) -> T {
+    r.expect("dense poly1 over Q is infallible except inv_mod")
+}
+
 pub fn trim_leading_zero(mut v: CoordsQ) -> CoordsQ {
-    while v.len() > 1 && matches!(v.first(), Some(c) if c.is_zero()) {
-        v.remove(0);
-    }
-    if v.is_empty() {
-        vec![Ratio::zero()]
-    } else {
-        v
-    }
+    dense::trim(&RATIO_CTX, &mut v, POLY1_Q);
+    v
 }
 
 pub fn poly_degree(p: &[Ratio<BigInt>]) -> usize {
-    p.len().saturating_sub(1)
+    dense::poly_degree(p)
 }
 
 pub fn poly_add(a: &[Ratio<BigInt>], b: &[Ratio<BigInt>]) -> CoordsQ {
-    let da = poly_degree(a);
-    let db = poly_degree(b);
-    let d = da.max(db);
-    let mut out = vec![Ratio::zero(); d + 1];
-    for (i, c) in a.iter().enumerate() {
-        out[d - da + i] += c;
-    }
-    for (i, c) in b.iter().enumerate() {
-        out[d - db + i] += c;
-    }
-    trim_leading_zero(out)
+    dense_q(dense::add(&RATIO_CTX, a, b, POLY1_Q))
 }
 
 pub fn poly_sub(a: &[Ratio<BigInt>], b: &[Ratio<BigInt>]) -> CoordsQ {
-    let da = poly_degree(a);
-    let db = poly_degree(b);
-    let d = da.max(db);
-    let mut out = vec![Ratio::zero(); d + 1];
-    for (i, c) in a.iter().enumerate() {
-        out[d - da + i] += c;
-    }
-    for (i, c) in b.iter().enumerate() {
-        out[d - db + i] -= c;
-    }
-    trim_leading_zero(out)
+    dense_q(dense::sub(&RATIO_CTX, a, b, POLY1_Q))
 }
 
 pub fn poly_mul(a: &[Ratio<BigInt>], b: &[Ratio<BigInt>]) -> CoordsQ {
-    if a.is_empty() || b.is_empty() {
-        return vec![Ratio::zero()];
-    }
-    let da = poly_degree(a);
-    let db = poly_degree(b);
-    let mut out = vec![Ratio::zero(); da + db + 1];
-    for (i, ca) in a.iter().enumerate() {
-        for (j, cb) in b.iter().enumerate() {
-            out[i + j] += ca * cb;
-        }
-    }
-    trim_leading_zero(out)
+    dense_q(dense::mul(&RATIO_CTX, a, b, POLY1_Q))
 }
 
 pub fn poly_neg(a: &[Ratio<BigInt>]) -> CoordsQ {
-    trim_leading_zero(a.iter().map(|c| -c).collect())
+    dense_q(dense::neg(&RATIO_CTX, a, POLY1_Q))
 }
 
 pub fn poly_scale(a: &[Ratio<BigInt>], s: &Ratio<BigInt>) -> CoordsQ {
-    if s.is_zero() {
-        return vec![Ratio::zero()];
-    }
-    trim_leading_zero(a.iter().map(|c| c * s).collect())
+    dense_q(dense::scale(&RATIO_CTX, a, s, POLY1_Q))
 }
 
 /// Reduce `p` modulo monic `m` (high-degree-first, leading coeff of `m` is ±1).
 pub fn poly_reduce(p: &[Ratio<BigInt>], m: &[Ratio<BigInt>]) -> CoordsQ {
-    let mut r = p.to_vec();
-    let dm = poly_degree(m);
-    if dm == 0 {
-        return trim_leading_zero(r);
-    }
-    if !matches!(m.first(), Some(c) if *c == Ratio::one() || *c == Ratio::from_integer((-1).into())) {
-        return trim_leading_zero(r);
-    }
-    loop {
-        r = trim_leading_zero(r);
-        let dr = poly_degree(&r);
-        if dr < dm {
-            break;
-        }
-        let q = r.first().cloned().unwrap_or_else(Ratio::zero)
-            / m.first().cloned().unwrap_or_else(Ratio::one);
-        for i in 0..=dm {
-            if i < r.len() {
-                r[i] -= &q * &m[i];
-            }
-        }
-    }
-    trim_leading_zero(r)
+    dense_q(dense::reduce_mod_monic(&RATIO_CTX, p, m, POLY1_Q))
 }
 
 pub fn poly_inv_mod(a: &[Ratio<BigInt>], m: &[Ratio<BigInt>]) -> Result<CoordsQ, EvalError> {
-    let (_, bezout) = poly_ext_gcd(a, m);
-    let inv = poly_reduce(&bezout, m);
-    let check = poly_reduce(&poly_mul(a, &inv), m);
-    if check.len() == 1 && check[0].is_one() {
-        Ok(inv)
-    } else {
-        Err(EvalError::NotImplemented("field inverse"))
-    }
+    dense::inv_mod(&RATIO_CTX, a, m, POLY1_Q)
 }
 
 /// Extended GCD: returns `(g, s)` with `s*a + t*b = g` (only `s` needed for inverse).
@@ -127,69 +67,14 @@ pub fn poly_ext_gcd(
     a: &[Ratio<BigInt>],
     b: &[Ratio<BigInt>],
 ) -> (CoordsQ, CoordsQ) {
-    let mut r_prev = trim_leading_zero(b.to_vec());
-    let mut r = trim_leading_zero(a.to_vec());
-    let mut s_prev = vec![Ratio::zero()];
-    let mut s = vec![Ratio::one()];
-    while !r.iter().all(|c| c.is_zero()) {
-        let (q, _) = poly_divrem(&r_prev, &r);
-        let qr = poly_mul(&q, &r);
-        let r_next = poly_sub(&r_prev, &qr);
-        let sr = poly_mul(&q, &s);
-        let s_next = poly_sub(&s_prev, &sr);
-        r_prev = r;
-        r = trim_leading_zero(r_next);
-        s_prev = s;
-        s = s_next;
-    }
-    let g = r_prev;
-    if let Some(lc) = g.first().cloned() {
-        if !lc.is_zero() && lc != Ratio::one() {
-            let inv_lc = Ratio::one() / lc;
-            let scale = |p: &[Ratio<BigInt>]| p.iter().map(|c| c * &inv_lc).collect::<Vec<_>>();
-            return (scale(&g), scale(&s_prev));
-        }
-    }
-    (g, s_prev)
+    dense_q(dense::ext_gcd(&RATIO_CTX, a, b, POLY1_Q))
 }
 
 pub fn poly_divrem(
     a: &[Ratio<BigInt>],
     b: &[Ratio<BigInt>],
 ) -> (CoordsQ, CoordsQ) {
-    let mut rem = trim_leading_zero(a.to_vec());
-    let b = trim_leading_zero(b.to_vec());
-    if b.iter().all(|c| c.is_zero()) {
-        return (vec![Ratio::zero()], rem);
-    }
-    let db = poly_degree(&b);
-    let da = poly_degree(&rem);
-    if da < db {
-        return (vec![Ratio::zero()], rem);
-    }
-    let lc_b = b.first().cloned().unwrap_or_else(Ratio::one);
-    let orig_da = da;
-    let mut quot = vec![Ratio::zero(); da - db + 1];
-    while poly_degree(&rem) >= db && !rem.iter().all(|c| c.is_zero()) {
-        let dr = poly_degree(&rem);
-        let lc_r = rem.first().cloned().unwrap_or_else(Ratio::zero);
-        if lc_r.is_zero() {
-            rem = trim_leading_zero(rem);
-            continue;
-        }
-        let q = lc_r / lc_b.clone();
-        let qi = orig_da - dr;
-        if qi < quot.len() {
-            quot[qi] = q.clone();
-        }
-        for i in 0..=db {
-            if i < rem.len() {
-                rem[i] -= &q * &b[i];
-            }
-        }
-        rem = trim_leading_zero(rem);
-    }
-    (trim_leading_zero(quot), rem)
+    dense_q(dense::div_rem(&RATIO_CTX, a, b, POLY1_Q))
 }
 
 pub fn pad_to_len(v: &[Ratio<BigInt>], n: usize) -> CoordsQ {
@@ -414,27 +299,51 @@ pub struct ParentCoeffRing<'a> {
     pub is_zero: &'a (dyn Fn(&CoordsQ) -> bool + 'a),
 }
 
-fn trim_leading_zero_blocks(mut blocks: Vec<CoordsQ>, ring: &ParentCoeffRing<'_>) -> Vec<CoordsQ> {
-    while blocks.len() > 1 && (ring.is_zero)(blocks.first().unwrap()) {
-        blocks.remove(0);
-    }
-    if blocks.is_empty() {
-        vec![ring.zero.clone()]
-    } else {
-        blocks
+/// Adapter: parent-field coordinates as dense poly1 coefficients (T3).
+pub struct ParentBlockRing<'a> {
+    inner: &'a ParentCoeffRing<'a>,
+}
+
+impl<'a> ParentBlockRing<'a> {
+    pub fn new(inner: &'a ParentCoeffRing<'a>) -> Self {
+        Self { inner }
     }
 }
 
-fn poly_degree_blocks(blocks: &[CoordsQ], ring: &ParentCoeffRing<'_>) -> usize {
-    if blocks.is_empty() || (blocks.len() == 1 && (ring.is_zero)(&blocks[0])) {
-        0
-    } else {
-        blocks.len() - 1
-    }
-}
+impl<'a> giac_poly::dense::Poly1RingCtx for ParentBlockRing<'a> {
+    type Coeff = CoordsQ;
 
-fn invert_coeff(c: &CoordsQ, ring: &ParentCoeffRing<'_>) -> Result<CoordsQ, EvalError> {
-    (ring.inv)(c)
+    fn zero(&self) -> CoordsQ {
+        self.inner.zero.clone()
+    }
+
+    fn one(&self) -> CoordsQ {
+        self.inner.one.clone()
+    }
+
+    fn is_zero(&self, c: &CoordsQ) -> bool {
+        (self.inner.is_zero)(c)
+    }
+
+    fn add(&self, a: &CoordsQ, b: &CoordsQ) -> giac_poly::PolyResult<CoordsQ> {
+        (self.inner.add)(a, b)
+    }
+
+    fn sub(&self, a: &CoordsQ, b: &CoordsQ) -> giac_poly::PolyResult<CoordsQ> {
+        (self.inner.sub)(a, b)
+    }
+
+    fn neg(&self, c: &CoordsQ) -> giac_poly::PolyResult<CoordsQ> {
+        (self.inner.neg)(c)
+    }
+
+    fn mul(&self, a: &CoordsQ, b: &CoordsQ) -> giac_poly::PolyResult<CoordsQ> {
+        (self.inner.mul)(a, b)
+    }
+
+    fn inv(&self, c: &CoordsQ) -> giac_poly::PolyResult<CoordsQ> {
+        (self.inner.inv)(c)
+    }
 }
 
 /// Add polynomials with coefficients in `ring`.
@@ -443,17 +352,7 @@ pub fn poly_add_with_coeffs_in_field(
     b: &[CoordsQ],
     ring: &ParentCoeffRing<'_>,
 ) -> Result<Vec<CoordsQ>, EvalError> {
-    let da = a.len().saturating_sub(1);
-    let db = b.len().saturating_sub(1);
-    let d = da.max(db);
-    let mut out = vec![ring.zero.clone(); d + 1];
-    for (i, c) in a.iter().enumerate() {
-        out[d - da + i] = (ring.add)(&out[d - da + i], c)?;
-    }
-    for (i, c) in b.iter().enumerate() {
-        out[d - db + i] = (ring.add)(&out[d - db + i], c)?;
-    }
-    Ok(trim_leading_zero_blocks(out, ring))
+    dense::add(&ParentBlockRing::new(ring), a, b, POLY1_Q)
 }
 
 /// Multiply polynomials with coefficients in `ring`.
@@ -462,111 +361,22 @@ pub fn poly_mul_with_coeffs_in_field(
     b: &[CoordsQ],
     ring: &ParentCoeffRing<'_>,
 ) -> Result<Vec<CoordsQ>, EvalError> {
-    if a.is_empty() || b.is_empty() {
-        return Ok(vec![ring.zero.clone()]);
-    }
-    let da = a.len().saturating_sub(1);
-    let db = b.len().saturating_sub(1);
-    let mut out = vec![ring.zero.clone(); da + db + 1];
-    for (i, ca) in a.iter().enumerate() {
-        for (j, cb) in b.iter().enumerate() {
-            let prod = (ring.mul)(ca, cb)?;
-            out[i + j] = (ring.add)(&out[i + j], &prod)?;
-        }
-    }
-    Ok(trim_leading_zero_blocks(out, ring))
-}
-
-fn poly_divrem_blocks(
-    a: &[CoordsQ],
-    b: &[CoordsQ],
-    ring: &ParentCoeffRing<'_>,
-) -> Result<(Vec<CoordsQ>, Vec<CoordsQ>), EvalError> {
-    let mut rem = a.to_vec();
-    let b = b.to_vec();
-    if b.iter().all(|c| (ring.is_zero)(c)) {
-        return Ok((vec![ring.zero.clone()], rem));
-    }
-    let db = poly_degree_blocks(&b, ring);
-    let mut quot = vec![ring.zero.clone(); rem.len().max(1)];
-    while poly_degree_blocks(&rem, ring) >= db && !rem.iter().all(|c| (ring.is_zero)(c)) {
-        let dr = poly_degree_blocks(&rem, ring);
-        let lc_r = rem.first().cloned().unwrap_or_else(|| ring.zero.clone());
-        let lc_b = b.first().cloned().unwrap_or_else(|| ring.zero.clone());
-        if (ring.is_zero)(&lc_r) {
-            rem = trim_leading_zero_blocks(rem, ring);
-            continue;
-        }
-        let q = (ring.mul)(&lc_r, &invert_coeff(&lc_b, ring)?)?;
-        let qi = quot.len().saturating_sub(1) - (dr - db);
-        if qi < quot.len() {
-            quot[qi] = q.clone();
-        }
-        for i in 0..=db {
-            if i < rem.len() {
-                let sub = (ring.mul)(&q, &b[i])?;
-                rem[i] = (ring.sub)(&rem[i], &sub)?;
-            }
-        }
-        rem = trim_leading_zero_blocks(rem, ring);
-    }
-    Ok((trim_leading_zero_blocks(quot, ring), rem))
+    dense::mul(&ParentBlockRing::new(ring), a, b, POLY1_Q)
 }
 
 /// Reduce `p` modulo monic `m` (leading parent-coeff is `one`).
+///
+/// T3 layer minpoly from [`ExtensionField::layer_minpoly_parent_coeffs`](super::ext_tower::ExtensionField)
+/// embeds ℚ minpoly into parent operational coords; **leading block is always `ring.one`**.
+/// Generic [`giac_poly::dense::reduce_mod_monic`] also accepts leading **−1** (ℚ path); that branch
+/// is unreachable for T3 modulus in practice — see
+/// [GIAC-dense-poly1-refactor](.doc/issues/GIAC-dense-poly1-refactor.md) §4.4.
 pub fn poly_reduce_with_coeffs_in_field(
     p: &[CoordsQ],
     m: &[CoordsQ],
     ring: &ParentCoeffRing<'_>,
 ) -> Result<Vec<CoordsQ>, EvalError> {
-    let mut r = p.to_vec();
-    let dm = poly_degree_blocks(m, ring);
-    if dm == 0 {
-        return Ok(trim_leading_zero_blocks(r, ring));
-    }
-    let lead_diff = (ring.sub)(&m[0], &ring.one)?;
-    if !(ring.is_zero)(&lead_diff) {
-        return Ok(trim_leading_zero_blocks(r, ring));
-    }
-    loop {
-        r = trim_leading_zero_blocks(r, ring);
-        let dr = poly_degree_blocks(&r, ring);
-        if dr < dm {
-            break;
-        }
-        let lc_r = r.first().cloned().unwrap_or_else(|| ring.zero.clone());
-        let q = (ring.mul)(&lc_r, &invert_coeff(&ring.one, ring)?)?;
-        for i in 0..=dm {
-            if i < r.len() {
-                let sub = (ring.mul)(&q, &m[i])?;
-                r[i] = (ring.sub)(&r[i], &sub)?;
-            }
-        }
-    }
-    Ok(trim_leading_zero_blocks(r, ring))
-}
-
-fn poly_ext_gcd_blocks(
-    a: &[CoordsQ],
-    b: &[CoordsQ],
-    ring: &ParentCoeffRing<'_>,
-) -> Result<(Vec<CoordsQ>, Vec<CoordsQ>), EvalError> {
-    let mut r_prev = trim_leading_zero_blocks(b.to_vec(), ring);
-    let mut r = trim_leading_zero_blocks(a.to_vec(), ring);
-    let mut s_prev = vec![ring.zero.clone()];
-    let mut s = vec![ring.one.clone()];
-    while !r.iter().all(|c| (ring.is_zero)(c)) {
-        let (q, _) = poly_divrem_blocks(&r_prev, &r, ring)?;
-        let qr = poly_mul_with_coeffs_in_field(&q, &r, ring)?;
-        let r_next = poly_sub_with_coeffs_in_field(&r_prev, &qr, ring)?;
-        let sr = poly_mul_with_coeffs_in_field(&q, &s, ring)?;
-        let s_next = poly_sub_with_coeffs_in_field(&s_prev, &sr, ring)?;
-        r_prev = r;
-        r = trim_leading_zero_blocks(r_next, ring);
-        s_prev = s;
-        s = s_next;
-    }
-    Ok((r_prev, s_prev))
+    dense::reduce_mod_monic(&ParentBlockRing::new(ring), p, m, POLY1_Q)
 }
 
 pub fn poly_sub_with_coeffs_in_field(
@@ -574,24 +384,14 @@ pub fn poly_sub_with_coeffs_in_field(
     b: &[CoordsQ],
     ring: &ParentCoeffRing<'_>,
 ) -> Result<Vec<CoordsQ>, EvalError> {
-    let da = a.len().saturating_sub(1);
-    let db = b.len().saturating_sub(1);
-    let d = da.max(db);
-    let mut out = vec![ring.zero.clone(); d + 1];
-    for (i, c) in a.iter().enumerate() {
-        out[d - da + i] = (ring.add)(&out[d - da + i], c)?;
-    }
-    for (i, c) in b.iter().enumerate() {
-        out[d - db + i] = (ring.sub)(&out[d - db + i], c)?;
-    }
-    Ok(trim_leading_zero_blocks(out, ring))
+    dense::sub(&ParentBlockRing::new(ring), a, b, POLY1_Q)
 }
 
 pub fn poly_neg_with_coeffs_in_field(
     a: &[CoordsQ],
     ring: &ParentCoeffRing<'_>,
 ) -> Result<Vec<CoordsQ>, EvalError> {
-    a.iter().map(|c| (ring.neg)(c)).collect()
+    dense::neg(&ParentBlockRing::new(ring), a, POLY1_Q)
 }
 
 pub fn poly_inv_mod_with_coeffs_in_field(
@@ -599,15 +399,5 @@ pub fn poly_inv_mod_with_coeffs_in_field(
     m: &[CoordsQ],
     ring: &ParentCoeffRing<'_>,
 ) -> Result<Vec<CoordsQ>, EvalError> {
-    let (_, bezout) = poly_ext_gcd_blocks(a, m, ring)?;
-    let inv = poly_reduce_with_coeffs_in_field(&bezout, m, ring)?;
-    let prod = poly_mul_with_coeffs_in_field(a, &inv, ring)?;
-    let check = poly_reduce_with_coeffs_in_field(&prod, m, ring)?;
-    if check.len() == 1 {
-        let diff = (ring.sub)(&check[0], &ring.one)?;
-        if (ring.is_zero)(&diff) {
-            return Ok(inv);
-        }
-    }
-    Err(EvalError::NotImplemented("field inverse"))
+    dense::inv_mod(&ParentBlockRing::new(ring), a, m, POLY1_Q)
 }

@@ -19,6 +19,8 @@ mod chinrem;
 mod ops;
 mod partfrac;
 
+/// Dense poly1 arithmetic (crate-internal; see `dense::poly1`).
+pub mod dense;
 pub use nested::{
     BivariateEmbed, CoeffRingPoly, FlatUni, FlatUniQ, MainVar, MultivariatePoly, PrimitivePart,
     TnEmbed, UnivariateIn, UnivariateOver, UnivariatePoly, UnivariatePolyQ,
