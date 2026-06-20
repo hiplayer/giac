@@ -115,12 +115,15 @@ fn solve_factor_roots(factor: &Poly, var: &Var) -> Result<Vec<ExprArc>, EvalErro
 
 #[cfg(test)]
 mod tests {
+    //! Test tiers — `.doc/test-writing-spec.md` · audit §2
+
     use giac_core::{eval, Expr, FuncKind};
 
     use super::*;
     use crate::plugin::xcas_default;
     use crate::test_verify::test_verify::{assert_froot_has_root, list_items};
 
+    // **A** — eval(Froots); assert_froot_has_root.
     #[test]
     fn froots_flanex_line195() {
         let ctx = xcas_default();
@@ -139,6 +142,7 @@ mod tests {
         }
     }
 
+    // **A** — eval(Froot); rational roots in flat list.
     #[test]
     fn froot_linear_factor() {
         let ctx = xcas_default();

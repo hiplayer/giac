@@ -96,11 +96,14 @@ fn rational_real_roots(
 
 #[cfg(test)]
 mod tests {
+    //! Test tiers — `.doc/test-writing-spec.md` · audit §2
+
     use giac_core::{eval, Expr, FuncKind};
 
     use crate::plugin::xcas_default;
     use crate::test_verify::test_verify::{assert_is_algext_or_rootof, assert_realroot_has, list_items};
 
+    // **A** — eval(Realroot); AlgExt/rootof pairs.
     #[test]
     fn realroot_x_squared_minus_two() {
         let ctx = xcas_default();
@@ -117,6 +120,7 @@ mod tests {
         }
     }
 
+    // **A** — eval(Realroot); assert_realroot_has.
     #[test]
     fn realroot_x_fourth_minus_one() {
         let ctx = xcas_default();

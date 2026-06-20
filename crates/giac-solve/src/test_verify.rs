@@ -1,4 +1,5 @@
 //! Semantic verification for giac-solve unit tests (see `.doc/conformance-testing.md` §3).
+//! Test tier labels on each `#[test]`: `.doc/test-writing-spec.md` · audit §2.
 
 #[cfg(test)]
 pub(crate) mod test_verify {

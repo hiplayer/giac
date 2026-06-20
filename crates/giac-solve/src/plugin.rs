@@ -75,12 +75,15 @@ pub fn xcas_default() -> Context {
 
 #[cfg(test)]
 mod tests {
+    //! Test tiers — `.doc/test-writing-spec.md` · audit §2
+
     use std::sync::Arc;
 
     use giac_core::{eval, format_expr, Expr, FuncKind, RelOp};
 
     use super::xcas_default;
 
+    // **A** — eval(Solve) via plugin; display snapshot of solution list.
     #[test]
     fn eval_solve_via_plugin() {
         let ctx = xcas_default();

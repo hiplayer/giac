@@ -97,11 +97,14 @@ fn newton(f: &ExprArc, var: &Ident, mut x: f64, ctx: &Context) -> Result<f64, Ev
 
 #[cfg(test)]
 mod tests {
+    //! Test tiers — `.doc/test-writing-spec.md` · audit §2
+
     use giac_core::{eval, Expr, FuncKind, RelOp};
 
     use super::*;
     use crate::plugin::xcas_default;
 
+    // **A** — eval(Fsolve); numeric root satisfies x²=2.
     #[test]
     fn fsolve_x_squared_minus_two() {
         let ctx = xcas_default();

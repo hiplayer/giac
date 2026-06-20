@@ -1098,6 +1098,10 @@ pub(crate) fn is_const_wrt(e: &ExprArc, var: &Ident) -> bool {
 
 #[cfg(test)]
 mod tests {
+    //! Test tiers: **A** / **B** / **B+C** / **C** — `.doc/test-writing-spec.md`
+    //! Audit: `.doc/issues/GIAC-expr-api-test-audit.md` §5
+    //! Note: most tests call `integrate()` directly (**B**); only definite bounds uses eval(Integrate) (**A**).
+
     use std::sync::Arc;
 
     use super::*;
@@ -1115,6 +1119,7 @@ mod tests {
         );
     }
 
+    // **B** — smoke: integrate does not fail on tanh-like integrand.
     #[test]
     fn giac223_tanh_exp_frac() {
         let x = Ident::new("x");
@@ -1129,6 +1134,7 @@ mod tests {
         assert!(integrate(&e, &x).is_ok());
     }
 
+    // **B** — smoke: exp-over-linear integrand returns Ok.
     #[test]
     fn giac223_exp_over_linear() {
         let x = Ident::new("x");
@@ -1142,6 +1148,7 @@ mod tests {
         assert!(integrate(&e, &x).is_ok());
     }
 
+    // **B** — integrate(1/x); assert_equiv vs ln(abs(x)) (TODO: duplicate **A** eval(Integrate)).
     #[test]
     fn integrate_reciprocal() {
         let x = Ident::new("x");
@@ -1149,6 +1156,7 @@ mod tests {
         assert_integrate_matches(&e, &x, ln_abs_expr(Expr::sym("x")).as_ref());
     }
 
+    // **C** — partfrac shape; contains ln/atan (TODO: assert_equiv when stable).
     #[test]
     fn integrate_one_minus_x_fourth() {
         let x = Ident::new("x");
@@ -1163,6 +1171,7 @@ mod tests {
         assert!(s.contains("atan"));
     }
 
+    // **B+C** — constant **B** display; sum uses display golden for ln+poly term.
     #[test]
     fn integrate_constant_and_sum() {
         let x = Ident::new("x");
@@ -1178,6 +1187,7 @@ mod tests {
         assert_eq!(format_expr(r.as_ref()), "ln(abs(x))+1*x");
     }
 
+    // **B+C** — direct integrate(); display golden term order.
     #[test]
     fn integrate_const_times_x() {
         let x = Ident::new("x");
@@ -1186,6 +1196,7 @@ mod tests {
         assert_eq!(format_expr(r.as_ref()), "(1/2*x^2)*3");
     }
 
+    // **B+C** — power rule; display golden.
     #[test]
     fn integrate_x_and_x_squared() {
         let x = Ident::new("x");
@@ -1195,6 +1206,7 @@ mod tests {
         assert_eq!(format_expr(r.as_ref()), "1/3*x^3");
     }
 
+    // **B+C** — ∫1 dx display.
     #[test]
     fn integrate_one() {
         let x = Ident::new("x");
@@ -1202,6 +1214,7 @@ mod tests {
         assert_eq!(format_expr(r.as_ref()), "1*x");
     }
 
+    // **B+C** — arctan integral; exact display golden.
     #[test]
     fn integrate_one_over_one_plus_x_squared() {
         let x = Ident::new("x");
@@ -1211,6 +1224,7 @@ mod tests {
         assert_eq!(format_expr(r.as_ref()), "2*2^-1*atan(2^-1*(2*x+0))");
     }
 
+    // **B+C** — ∫(2/x); display golden.
     #[test]
     fn integrate_frac_with_constant_numerator() {
         let x = Ident::new("x");
@@ -1219,6 +1233,7 @@ mod tests {
         assert_eq!(format_expr(r.as_ref()), "2*ln(abs(x))");
     }
 
+    // **B+C** — arctan; display term-order snapshot.
     #[test]
     fn integrate_one_over_x_squared_plus_one_term_order() {
         let x = Ident::new("x");
@@ -1228,6 +1243,7 @@ mod tests {
         assert_eq!(format_expr(r.as_ref()), "2*2^-1*atan(2^-1*(2*x+0))");
     }
 
+    // **C** — ∫x/(x²+1); contains shape (TODO: assert_equiv).
     #[test]
     fn integrate_x_over_x_squared_plus_one() {
         let x = Ident::new("x");
@@ -1239,6 +1255,7 @@ mod tests {
         assert!(s.contains("x^2+1") || s.contains("x^2 + 1"));
     }
 
+    // **B** — unsupported integrand returns NotImplemented.
     #[test]
     fn integrate_unsupported_returns_not_implemented() {
         let x = Ident::new("x");
@@ -1249,6 +1266,7 @@ mod tests {
         ));
     }
 
+    // **C** — ∫1/(4+x²); contains atan.
     #[test]
     fn integrate_const_over_quadratic() {
         let x = Ident::new("x");
@@ -1259,6 +1277,7 @@ mod tests {
         assert!(s.contains("atan"));
     }
 
+    // **B+C** — ∫3/x display golden.
     #[test]
     fn integrate_const_times_reciprocal() {
         let x = Ident::new("x");
@@ -1267,6 +1286,7 @@ mod tests {
         assert_eq!(format_expr(r.as_ref()), "3*ln(abs(x))");
     }
 
+    // **B+C** — constant product integrand.
     #[test]
     fn integrate_product_of_consts_only() {
         let x = Ident::new("x");
@@ -1275,6 +1295,7 @@ mod tests {
         assert_eq!(format_expr(r.as_ref()), "(2*3)*x");
     }
 
+    // **A** — eval(Integrate, bounds); definite integral via full plugin path.
     #[test]
     fn integrate_definite_bounds() {
         let ctx = crate::plugin::xcas_default();
@@ -1291,6 +1312,7 @@ mod tests {
         assert_eq!(format_expr(r.as_ref()), "8/3");
     }
 
+    // **C** — expand (1+x)²; contains power terms.
     #[test]
     fn integrate_product_one_plus_x_squared() {
         let x = Ident::new("x");
@@ -1301,6 +1323,7 @@ mod tests {
         assert!(s.contains("x^3") || s.contains("x^2"));
     }
 
+    // **C** — rational integrand; contains denominator shape.
     #[test]
     fn integrate_x_over_x_squared_plus_one_squared() {
         let x = Ident::new("x");
@@ -1316,6 +1339,7 @@ mod tests {
         assert!(s.contains("x^2+1") || s.contains("x^2 + 1"), "got {s}");
     }
 
+    // **C** — ∫1/x²; contains reciprocal power display.
     #[test]
     fn integrate_x_squared_reciprocal() {
         let x = Ident::new("x");
@@ -1333,6 +1357,7 @@ mod tests {
         }
     }
 
+    // **B+C** — sin·cos → sin²/2 display.
     #[test]
     fn integrate_sin_times_cos() {
         let x = Ident::new("x");
@@ -1344,6 +1369,7 @@ mod tests {
         assert_eq!(format_expr(r.as_ref()), "1/2*sin(x)^2");
     }
 
+    // **B+C** — sec² integrand → tan(x) display.
     #[test]
     fn integrate_one_over_cos_squared() {
         let x = Ident::new("x");
@@ -1358,6 +1384,7 @@ mod tests {
         assert_eq!(format_expr(r.as_ref()), "tan(x)");
     }
 
+    // **B** — Ok vs NotImplemented paths on selected integrands.
     #[test]
     fn integrate_not_implemented_messages() {
         let x = Ident::new("x");
@@ -1381,6 +1408,7 @@ mod tests {
         ));
     }
 
+    // **B+C** — sin/cos primitives; display golden with 1^-1 factors.
     #[test]
     fn integrate_cos_and_sin() {
         let x = Ident::new("x");
@@ -1398,6 +1426,7 @@ mod tests {
         assert_eq!(format_expr(sin_r.as_ref()), "-1*cos(x)*1^-1");
     }
 
+    // **B+C** — ∫x³ display.
     #[test]
     fn integrate_x_cubed() {
         let x = Ident::new("x");

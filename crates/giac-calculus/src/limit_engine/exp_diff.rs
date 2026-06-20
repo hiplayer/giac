@@ -1122,6 +1122,9 @@ fn is_neg_var_exp(e: &ExprArc, var: &Ident) -> bool {
 
 #[cfg(test)]
 mod tests {
+    //! Test tiers: **A** / **A′** / **B** / **C** — `.doc/test-writing-spec.md`
+    //! Audit: `.doc/issues/GIAC-expr-api-test-audit.md` §3
+
     use giac_core::{format_expr, FuncKind, Ident};
     use giac_simplify::assert_equiv;
     use std::sync::Arc;
@@ -1186,6 +1189,7 @@ mod tests {
         }
     }
 
+    // **B** — canonical_exp_diff; match_* + assert_equiv on ε.
     #[test]
     fn fold_mul_shifted_difference_gruntz() {
         let ctx = xcas_default();
@@ -1211,6 +1215,7 @@ mod tests {
         );
     }
 
+    // **B** — exp_scale_times_exp_minus_one (scale may be non-exp); exp_minus_one_epsilon.
     #[test]
     fn rewrite_exp_minus_w_inv_matches_remove_lnexp() {
         use super::super::mrv_w::{mrv_ln_w_expr, mrv_w_expr};
@@ -1238,6 +1243,7 @@ mod tests {
         );
     }
 
+    // **B** — canonical_exp_diff vs exp_scale_times_exp_minus_one(exp(x), 1).
     #[test]
     fn fold_add_exp_difference() {
         let ctx = xcas_default();
@@ -1259,6 +1265,7 @@ mod tests {
         );
     }
 
+    // **C** — balance_exp_arguments_frac_var; display golden only (TODO: B assert_equiv).
     #[test]
     fn balance_frac_minus_var_rewrites_inner_minus_x() {
         let var = Ident::new("x");
@@ -1277,6 +1284,7 @@ mod tests {
         assert_eq!(format_expr(r.as_ref()), "exp((a-1*(x*b))/(b))");
     }
 
+    // **B** — first_order_exp_vanishing_epsilon (Partial tier API).
     #[test]
     fn first_order_vanishing_epsilon_rewrite() {
         let var = Ident::new("x");
@@ -1300,6 +1308,7 @@ mod tests {
         );
     }
 
+    // **A′** — parse → limit_preprocess_struct → limit_at_plus_infinity == -1.
     #[test]
     fn limit_preprocessed_gruntz_minus_one() {
         let ctx = xcas_default();
@@ -1317,6 +1326,7 @@ mod tests {
         assert_eq!(format_expr(r.as_ref()), "-1");
     }
 
+    // **A′** — limit_preprocess_mrv(ratio) → limit == 1.
     #[test]
     fn ratio_preprocess_mrv_cancels_opposing_exp_mul() {
         use crate::limit_engine::ck_int_gruntz_fixture::ratio;
@@ -1328,6 +1338,7 @@ mod tests {
         assert_eq!(format_expr(r.as_ref()), "1");
     }
 
+    // **A′** — limit_at_plus_infinity(ck_int ratio fixture) == 1.
     #[test]
     fn limit_exp_over_exp_ck_int_ratio() {
         use super::super::ck_int_gruntz_fixture::ratio;
@@ -1337,6 +1348,7 @@ mod tests {
         assert_eq!(format_expr(r.as_ref()), "1");
     }
 
+    // **B** + weak preprocess check — canonical_exp_diff; tree_contains on struct pre (TODO: A′ limit).
     #[test]
     fn fold_ck_int_61_shape() {
         use crate::limit_engine::ck_int_gruntz_fixture::{ck_int_61, exp_inner};
@@ -1360,6 +1372,7 @@ mod tests {
         );
     }
 
+    // **B** — detect_exp_difference_add (pipeline private); emit + match_*.
     #[test]
     fn fold_nested_gruntz_add_difference() {
         let ctx = xcas_default();
@@ -1384,6 +1397,7 @@ mod tests {
         );
     }
 
+    // **B** — canonical_exp_diff on full Gruntz expr; match_exp_times_exp_minus_one.
     #[test]
     fn fold_nested_gruntz_full_expr() {
         let ctx = xcas_default();
@@ -1404,6 +1418,7 @@ mod tests {
         let _ = ctx;
     }
 
+    // **B** — parse → exp arg structure for -(x^2).
     #[test]
     fn parse_neg_x_squared_in_exp() {
         let ctx = xcas_default();
@@ -1428,6 +1443,7 @@ mod tests {
         );
     }
 
+    // **A′** — struct preprocess + limit_at_plus_infinity == 1.
     #[test]
     fn limit_nested_gruntz_preprocessed() {
         let ctx = xcas_default();
@@ -1446,6 +1462,7 @@ mod tests {
         assert_eq!(format_expr(r.as_ref()), "1");
     }
 
+    // **B** — exp_scale_times_exp_minus_one stable constructor.
     #[test]
     fn exp_scale_times_exp_minus_one_shape() {
         let ctx = xcas_default();

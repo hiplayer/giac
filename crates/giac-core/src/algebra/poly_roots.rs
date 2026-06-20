@@ -1,7 +1,7 @@
 //! Univariate exact roots of `Poly<AlgExtCPolyCoeff>` (P2-1/6, P3-6).
 //!
 //! ```text
-//! infer K from coefficients → monic → deg dispatch
+//! infer K from coefficients → normalize → monic → FieldSession::new(K) → deg dispatch
 //!   1: linear
 //!   2: quadratic + sqrt(Δ)
 //!   3: one Cardano/cbrt root → deflate → quadratic
@@ -15,25 +15,24 @@
 use std::sync::Arc;
 
 use giac_poly::{PolyCoeff, Var};
-use num_bigint::BigInt;
-use num_rational::Ratio;
-use num_traits::{One, Zero};
 
 use crate::error::EvalError;
 
 use super::alg_ext::{algext_cube_root, algext_square_roots, AlgExtData};
 use super::alg_ext_c::AlgExtCData;
-use super::field_arith::coords_to_expr;
 use super::ext_tower::ExtensionField;
+use super::field_arith::coords_to_expr;
+use super::field_session::FieldSession;
 use super::poly::PolyAlgExt;
 use super::poly_alg_coeff::AlgExtCPolyCoeff;
 
 /// Exact roots of univariate `p` w.r.t. `var` over the coefficient field of `p`.
 /// **Stable (bounded)** — exact AlgExtC roots deg 1–4; quartic resolvent gap
 pub fn poly_algext_roots(p: &PolyAlgExt, var: &Var) -> Result<Vec<AlgExtCPolyCoeff>, EvalError> {
-    let field = infer_field(p)?;
-    let p = normalize_coeffs(p, &field)?;
-    let monic = monic_univariate(&p, var, &field)?;
+    let ambient = infer_field(p)?;
+    let mut session = FieldSession::new(Arc::clone(&ambient));
+    let p = normalize_coeffs(p, &mut session)?;
+    let monic = monic_univariate(&p, var, &session)?;
     let d = monic.degree_wrt(var);
     match d {
         0 => {
@@ -43,10 +42,10 @@ pub fn poly_algext_roots(p: &PolyAlgExt, var: &Var) -> Result<Vec<AlgExtCPolyCoe
                 Err(EvalError::TypeError("constant has no roots"))
             }
         }
-        1 => linear_root(&monic, var, &field),
-        2 => quadratic_roots(&monic, var, &field),
-        3 => cubic_roots(&monic, var, &field),
-        4 => quartic_roots(&monic, var, &field),
+        1 => linear_root(&mut session, &monic, var),
+        2 => quadratic_roots(&mut session, &monic, var),
+        3 => cubic_roots(&mut session, &monic, var),
+        4 => quartic_roots(&mut session, &monic, var),
         _ => Err(EvalError::NotImplemented("PolyAlgExt::roots")),
     }
 }
@@ -68,7 +67,7 @@ fn infer_field(p: &PolyAlgExt) -> Result<Arc<ExtensionField>, EvalError> {
 }
 
 // **Stable** — univariate coefficient at exponent
-fn coeff_at(p: &PolyAlgExt, var: &Var, exp: u64, field: &Arc<ExtensionField>) -> AlgExtCPolyCoeff {
+fn coeff_at(p: &PolyAlgExt, var: &Var, exp: u64, session: &FieldSession) -> AlgExtCPolyCoeff {
     for (m, c) in &p.terms {
         if exp == 0 && m.is_const() {
             return c.clone();
@@ -77,41 +76,17 @@ fn coeff_at(p: &PolyAlgExt, var: &Var, exp: u64, field: &Arc<ExtensionField>) ->
             return c.clone();
         }
     }
-    ring_zero(field)
-}
-
-// **Pipeline private** — `ring_zero`
-fn ring_zero(field: &Arc<ExtensionField>) -> AlgExtCPolyCoeff {
-    AlgExtCPolyCoeff::from(AlgExtCData::zero(Arc::clone(field)).expect("zero"))
-}
-
-// **Pipeline private** — `ring_one`
-fn ring_one(field: &Arc<ExtensionField>) -> AlgExtCPolyCoeff {
-    AlgExtCPolyCoeff::from(AlgExtCData::one(Arc::clone(field)).expect("one"))
-}
-
-// **Pipeline private** — `rat_in_field`
-fn rat_in_field(field: &Arc<ExtensionField>, r: Ratio<BigInt>) -> Result<AlgExtCPolyCoeff, EvalError> {
-    let coords = field.embed_rational(&r);
-    let a = AlgExtData::from_field_coords(Arc::clone(field), coords_to_expr(&coords)?)?;
-    Ok(AlgExtCPolyCoeff::from(AlgExtCData::from_alg_ext(&a)?))
-}
-
-// **Pipeline private** — `ring_int`
-fn ring_int(field: &Arc<ExtensionField>, n: i64) -> Result<AlgExtCPolyCoeff, EvalError> {
-    rat_in_field(field, Ratio::from_integer(BigInt::from(n)))
-}
-
-// **Pipeline private** — `ring_half`
-fn ring_half(field: &Arc<ExtensionField>) -> Result<AlgExtCPolyCoeff, EvalError> {
-    rat_in_field(field, Ratio::new(1.into(), 2.into()))
+    session.zero()
 }
 
 // **Pipeline private** — lift all coeffs to ambient K
-fn normalize_coeffs(p: &PolyAlgExt, field: &Arc<ExtensionField>) -> Result<PolyAlgExt, EvalError> {
+fn normalize_coeffs(
+    p: &PolyAlgExt,
+    session: &mut FieldSession,
+) -> Result<PolyAlgExt, EvalError> {
     let mut out = PolyAlgExt::ring_zero();
     for (m, c) in &p.terms {
-        let c = lift_to_field(c, field)?;
+        let c = session.lift(c)?;
         out = out.try_add(&PolyAlgExt::ring_constant(c).try_mul(&monomial_to_poly(m)?)?)?;
     }
     Ok(out)
@@ -130,10 +105,10 @@ fn monomial_to_poly(m: &giac_poly::Monomial) -> Result<PolyAlgExt, EvalError> {
 fn monic_univariate(
     p: &PolyAlgExt,
     var: &Var,
-    field: &Arc<ExtensionField>,
+    session: &FieldSession,
 ) -> Result<PolyAlgExt, EvalError> {
     let deg = p.degree_wrt(var);
-    let lc = coeff_at(p, var, deg, field);
+    let lc = coeff_at(p, var, deg, session);
     if lc.coeff_is_zero() {
         return Err(EvalError::TypeError("leading coefficient zero"));
     }
@@ -145,7 +120,7 @@ fn monic_univariate(
     let inv = lc.coeff_inv()?;
     let mut out = PolyAlgExt::ring_zero();
     for exp in 0..=deg {
-        let c = coeff_at(p, var, exp, field);
+        let c = coeff_at(p, var, exp, session);
         if c.coeff_is_zero() {
             continue;
         }
@@ -156,65 +131,56 @@ fn monic_univariate(
         }
         out = out.try_add(&term)?;
     }
-    let _ = field;
     Ok(out)
 }
 
 // **Pipeline private** — `linear_root`
 fn linear_root(
+    session: &mut FieldSession,
     p: &PolyAlgExt,
     var: &Var,
-    field: &Arc<ExtensionField>,
 ) -> Result<Vec<AlgExtCPolyCoeff>, EvalError> {
-    let a = coeff_at(p, var, 1, field);
-    let b = coeff_at(p, var, 0, field);
+    let a = coeff_at(p, var, 1, session);
+    let b = coeff_at(p, var, 0, session);
     if a.coeff_is_zero() {
         return Err(EvalError::TypeError("not linear"));
     }
-    Ok(vec![b.coeff_neg()?.coeff_div(&a)?])
-}
-
-// **Pipeline private** — embed coeff into target ExtensionField
-fn lift_to_field(
-    c: &AlgExtCPolyCoeff,
-    field: &Arc<ExtensionField>,
-) -> Result<AlgExtCPolyCoeff, EvalError> {
-    let (a, _) = align_coeff(c, &ring_zero(field))?;
-    Ok(a)
+    Ok(vec![session.div(&b, &a)?])
 }
 
 // **Pipeline private** — `quadratic_roots`
 fn quadratic_roots(
+    session: &mut FieldSession,
     p: &PolyAlgExt,
     var: &Var,
-    field: &Arc<ExtensionField>,
 ) -> Result<Vec<AlgExtCPolyCoeff>, EvalError> {
-    let b = coeff_at(p, var, 1, field);
-    let c = coeff_at(p, var, 0, field);
-    let four = ring_int(field, 4)?;
-    let disc = b.coeff_mul(&b)?.coeff_sub(&c.coeff_mul(&four)?)?;
+    let b = coeff_at(p, var, 1, session);
+    let c = coeff_at(p, var, 0, session);
+    let four = session.int(4)?;
+    let bb = session.mul(&b, &b)?;
+    let c4 = session.mul(&c, &four)?;
+    let disc = bb.coeff_sub(&c4)?;
     if disc.coeff_is_zero() {
-        let ext = Arc::clone(&b.as_inner().field);
-        let two = ring_int(&ext, 2)?;
-        let nb = lift_to_field(&b, &ext)?.coeff_neg()?;
-        return Ok(vec![nb.coeff_div(&two)?]);
+        let two = session.int(2)?;
+        let nb = session.neg(&b)?;
+        return Ok(vec![session.div(&nb, &two)?]);
     }
     let sqrt_d = sqrt_disc(&disc)?;
-    let ext = Arc::clone(&sqrt_d.as_inner().field);
-    let mut nb = lift_to_field(&b, &ext)?.coeff_neg()?;
-    let mut sqrt_d = sqrt_d;
-    let mut two = ring_int(&ext, 2)?;
-    let (nb_a, sqrt_a) = align_coeff(&nb, &sqrt_d)?;
-    let (two_a, nb_a) = align_coeff(&two, &nb_a)?;
-    nb = nb_a;
-    sqrt_d = sqrt_a;
-    two = two_a;
-    let (two_b, sqrt_b) = align_coeff(&two, &sqrt_d)?;
-    two = two_b;
-    Ok(vec![
-        nb.clone().coeff_add(&sqrt_b)?.coeff_div(&two)?,
-        nb.coeff_sub(&sqrt_b)?.coeff_div(&two)?,
-    ])
+    session.bump_to(&sqrt_d.as_inner().field);
+    let b_lift = session.lift(&b)?;
+    let mut nb = session.neg(&b_lift)?;
+    let mut sqrt_d = session.lift(&sqrt_d)?;
+    let two0 = session.int(2)?;
+    let mut two = session.lift(&two0)?;
+    let (nb, sqrt_d) = session.align(&nb, &sqrt_d)?;
+    two = session.lift(&two)?;
+    let (two, sqrt_d) = session.align(&two, &sqrt_d)?;
+    let num_plus = session.add(&nb, &sqrt_d)?;
+    let r_plus = session.div(&num_plus, &two)?;
+    let neg_sqrt = session.neg(&sqrt_d)?;
+    let num_minus = session.add(&nb, &neg_sqrt)?;
+    let r_minus = session.div(&num_minus, &two)?;
+    Ok(vec![r_plus, r_minus])
 }
 
 // **Pipeline private** — `sqrt_disc`
@@ -246,89 +212,109 @@ fn mul_i(z: &AlgExtCPolyCoeff) -> Result<AlgExtCPolyCoeff, EvalError> {
 
 // **Pipeline private** — `cubic_roots`
 fn cubic_roots(
+    session: &mut FieldSession,
     p: &PolyAlgExt,
     var: &Var,
-    field: &Arc<ExtensionField>,
 ) -> Result<Vec<AlgExtCPolyCoeff>, EvalError> {
-    let a2 = coeff_at(p, var, 2, field);
-    let a1 = coeff_at(p, var, 1, field);
+    let a2 = coeff_at(p, var, 2, session);
+    let a1 = coeff_at(p, var, 1, session);
     if a2.coeff_is_zero() && a1.coeff_is_zero() {
-        let a0 = coeff_at(p, var, 0, field);
+        let a0 = coeff_at(p, var, 0, session);
         let r = algext_c_cube_root(&a0.coeff_neg()?)?;
-        return Ok(vec![r]);
+        session.bump_to(&r.as_inner().field);
+        return Ok(vec![session.lift(&r)?]);
     }
-    let r0 = one_cubic_root(p, var, field)?;
+    let r0 = one_cubic_root(session, p, var)?;
     let mut roots = vec![r0.clone()];
-    let quad = deflate_monic(p, var, &r0)?;
-    let ext_field = Arc::clone(&r0.as_inner().field);
-    roots.extend(quadratic_roots(&quad, var, &ext_field)?);
+    let quad = deflate_monic(session, p, var, &r0)?;
+    roots.extend(quadratic_roots(session, &quad, var)?);
     Ok(roots)
 }
 
 // **Pipeline private** — `one_cubic_root`
 fn one_cubic_root(
+    session: &mut FieldSession,
     p: &PolyAlgExt,
     var: &Var,
-    field: &Arc<ExtensionField>,
 ) -> Result<AlgExtCPolyCoeff, EvalError> {
-    let a2 = coeff_at(p, var, 2, field);
-    let a1 = coeff_at(p, var, 1, field);
-    let a0 = coeff_at(p, var, 0, field);
-    let three = ring_int(field, 3)?;
-    let shift = a2.coeff_div(&three)?.coeff_neg()?;
-    let p_dep = a1
-        .coeff_sub(&a2.coeff_mul(&shift)?)?
-        .coeff_div(&three)?;
-    let q_dep = a0
-        .coeff_sub(&a1.coeff_mul(&shift)?)?
-        .coeff_add(&a2.coeff_mul(&shift)?.coeff_mul(&shift)?)?
-        .coeff_add(&shift.coeff_mul(&shift)?.coeff_mul(&shift)?)?;
+    let a2 = coeff_at(p, var, 2, session);
+    let a1 = coeff_at(p, var, 1, session);
+    let a0 = coeff_at(p, var, 0, session);
+    let three = session.int(3)?;
+    let neg_a2 = session.neg(&a2)?;
+    let shift = session.div(&neg_a2, &three)?;
+    let a2_shift = session.mul(&a2, &shift)?;
+    let neg_a2_shift = session.neg(&a2_shift)?;
+    let p_num = session.add(&a1, &neg_a2_shift)?;
+    let p_dep = session.div(&p_num, &three)?;
+    let t1 = session.mul(&a1, &shift)?;
+    let a2s = session.mul(&a2, &shift)?;
+    let t2 = session.mul(&a2s, &shift)?;
+    let ss = session.mul(&shift, &shift)?;
+    let t3 = session.mul(&ss, &shift)?;
+    let neg_t1 = session.neg(&t1)?;
+    let s0 = session.add(&a0, &neg_t1)?;
+    let s1 = session.add(&s0, &t2)?;
+    let q_dep = session.add(&s1, &t3)?;
     if p_dep.coeff_is_zero() {
-        let r = algext_c_cube_root(&q_dep.coeff_neg()?)?;
-        return r.coeff_add(&shift);
+        let neg_q = session.neg(&q_dep)?;
+        let r = algext_c_cube_root(&neg_q)?;
+        session.bump_to(&r.as_inner().field);
+        let r_lift = session.lift(&r)?;
+        let shift_lift = session.lift(&shift)?;
+        return session.add(&r_lift, &shift_lift);
     }
-    let half = ring_half(field)?;
-    let twenty_seven = ring_int(field, 27)?;
-    let delta = q_dep
-        .coeff_mul(&half)?
-        .coeff_mul(&half)?
-        .coeff_add(&p_dep.coeff_mul(&p_dep)?.coeff_mul(&p_dep)?.coeff_div(&twenty_seven)?)?;
+    let half = session.half()?;
+    let twenty_seven = session.int(27)?;
+    let qh = session.mul(&q_dep, &half)?;
+    let qh2 = session.mul(&qh, &qh)?;
+    let p2 = session.mul(&p_dep, &p_dep)?;
+    let p3 = session.mul(&p2, &p_dep)?;
+    let term = session.div(&p3, &twenty_seven)?;
+    let delta = session.add(&qh2, &term)?;
     let sqrt_delta = algext_c_sqrt(&delta)?
         .into_iter()
         .next()
         .ok_or(EvalError::NotImplemented("algext sqrt"))?;
-    let u = algext_c_cube_root(
-        &q_dep.coeff_mul(&half)?.coeff_neg()?.coeff_add(&sqrt_delta)?,
-    )?;
-    let v = algext_c_cube_root(
-        &q_dep.coeff_mul(&half)?.coeff_neg()?.coeff_sub(&sqrt_delta)?,
-    )?;
-    let (u, v) = align_coeff(&u, &v)?;
-    u.coeff_add(&v)?.coeff_add(&shift)
+    session.bump_to(&sqrt_delta.as_inner().field);
+    let q_half = session.mul(&q_dep, &half)?;
+    let neg_q_half = session.neg(&q_half)?;
+    let sqrt_lift = session.lift(&sqrt_delta)?;
+    let u_arg = session.add(&neg_q_half, &sqrt_lift)?;
+    let u = algext_c_cube_root(&u_arg)?;
+    session.bump_to(&u.as_inner().field);
+    let neg_sqrt = session.neg(&sqrt_lift)?;
+    let v_arg = session.add(&neg_q_half, &neg_sqrt)?;
+    let v = algext_c_cube_root(&v_arg)?;
+    let (u, v) = session.align(&u, &v)?;
+    let uv = session.add(&u, &v)?;
+    let shift_lift = session.lift(&shift)?;
+    session.add(&uv, &shift_lift)
 }
 
 // **Pipeline private** — `quartic_roots`
 fn quartic_roots(
+    session: &mut FieldSession,
     p: &PolyAlgExt,
     var: &Var,
-    field: &Arc<ExtensionField>,
 ) -> Result<Vec<AlgExtCPolyCoeff>, EvalError> {
-    let a3 = coeff_at(p, var, 3, field);
-    let a1 = coeff_at(p, var, 1, field);
+    let a3 = coeff_at(p, var, 3, session);
+    let a1 = coeff_at(p, var, 1, session);
     if a3.coeff_is_zero() && a1.coeff_is_zero() {
-        return biquadratic_roots(p, var, field);
+        return biquadratic_roots(session, p, var);
     }
-    let four = ring_int(field, 4)?;
-    let shift = a3.coeff_div(&four)?.coeff_neg()?;
-    let dep = depress_quartic(p, var, &shift, field)?;
-    let p2 = coeff_at(&dep, var, 2, field);
-    let p1 = coeff_at(&dep, var, 1, field);
-    let p0 = coeff_at(&dep, var, 0, field);
-    let res = build_resolvent_cubic(&p2, &p1, &p0, field)?;
-    let z_roots = cubic_roots(&res, &Var::from("_z"), field)?;
+    let four = session.int(4)?;
+    let neg_a3 = session.neg(&a3)?;
+    let shift = session.div(&neg_a3, &four)?;
+    let dep = depress_quartic(session, p, var, &shift)?;
+    let p2 = coeff_at(&dep, var, 2, session);
+    let p1 = coeff_at(&dep, var, 1, session);
+    let p0 = coeff_at(&dep, var, 0, session);
+    let res = build_resolvent_cubic(session, &p2, &p1, &p0)?;
+    let z_roots = cubic_roots(session, &res, &Var::from("_z"))?;
     let mut all = Vec::new();
     for z in z_roots {
-        let mut rs = split_depressed_quartic(&dep, var, &z, field)?;
+        let mut rs = split_depressed_quartic(session, &dep, var, &z)?;
         for r in rs.drain(..) {
             if !all.iter().any(|x: &AlgExtCPolyCoeff| x.eq_mod(&r).unwrap_or(false)) {
                 all.push(r);
@@ -343,17 +329,17 @@ fn quartic_roots(
 
 // **Pipeline private** — `biquadratic_roots`
 fn biquadratic_roots(
+    session: &mut FieldSession,
     p: &PolyAlgExt,
     var: &Var,
-    field: &Arc<ExtensionField>,
 ) -> Result<Vec<AlgExtCPolyCoeff>, EvalError> {
-    let b = coeff_at(p, var, 2, field);
-    let c = coeff_at(p, var, 0, field);
+    let b = coeff_at(p, var, 2, session);
+    let c = coeff_at(p, var, 0, session);
     let u = PolyAlgExt::ring_var(Var::from("u"))
         .try_pow(2)?
         .try_add(&PolyAlgExt::ring_constant(b))?
         .try_add(&PolyAlgExt::ring_constant(c))?;
-    let u_roots = quadratic_roots(&u, &Var::from("u"), field)?;
+    let u_roots = quadratic_roots(session, &u, &Var::from("u"))?;
     let mut out = Vec::new();
     for ur in u_roots {
         out.extend(algext_c_sqrt(&ur)?);
@@ -364,93 +350,101 @@ fn biquadratic_roots(
 
 // **Pipeline private** — `depress_quartic`
 fn depress_quartic(
+    session: &mut FieldSession,
     p: &PolyAlgExt,
     var: &Var,
     shift: &AlgExtCPolyCoeff,
-    field: &Arc<ExtensionField>,
 ) -> Result<PolyAlgExt, EvalError> {
     let x = PolyAlgExt::ring_var(var.clone());
     let t = x.try_add(&PolyAlgExt::ring_constant(shift.clone()))?;
     let mut sum = PolyAlgExt::ring_zero();
     for e in 0..=4 {
-        let c = coeff_at(p, var, e, field);
+        let c = coeff_at(p, var, e, session);
         if c.coeff_is_zero() {
             continue;
         }
         sum = sum.try_add(&PolyAlgExt::ring_constant(c).try_mul(&t.try_pow(e)?)?)?;
     }
-    monic_univariate(&sum, var, field)
+    monic_univariate(&sum, var, session)
 }
 
 // **Pipeline private** — `build_resolvent_cubic`
 fn build_resolvent_cubic(
+    session: &mut FieldSession,
     p: &AlgExtCPolyCoeff,
     q: &AlgExtCPolyCoeff,
     r: &AlgExtCPolyCoeff,
-    field: &Arc<ExtensionField>,
 ) -> Result<PolyAlgExt, EvalError> {
-    let four = ring_int(field, 4)?;
+    let four = session.int(4)?;
     let z = PolyAlgExt::ring_var(Var::from("_z"));
+    let r4 = session.mul(r, &four)?;
+    let neg_r4 = session.neg(&r4)?;
+    let rq = session.mul(r, p)?;
+    let rqp4 = session.mul(&rq, &four)?;
+    let qq = session.mul(q, q)?;
+    let neg_qq = session.neg(&qq)?;
+    let const_term = session.add(&rqp4, &neg_qq)?;
     Ok(z.try_pow(3)?
         .try_sub(&PolyAlgExt::ring_constant(p.clone()).try_mul(&z.try_pow(2)?)?)?
-        .try_sub(&PolyAlgExt::ring_constant(r.coeff_mul(&four)?.coeff_neg()?).try_mul(&z)?)?
-        .try_add(&PolyAlgExt::ring_constant(
-            r.coeff_mul(p)?.coeff_mul(&four)?.coeff_sub(&q.coeff_mul(q)?)?,
-        ))?)
+        .try_sub(&PolyAlgExt::ring_constant(neg_r4).try_mul(&z)?)?
+        .try_add(&PolyAlgExt::ring_constant(const_term))?)
 }
 
 // **Pipeline private** — `split_depressed_quartic`
 fn split_depressed_quartic(
+    session: &mut FieldSession,
     dep: &PolyAlgExt,
     var: &Var,
     z: &AlgExtCPolyCoeff,
-    field: &Arc<ExtensionField>,
 ) -> Result<Vec<AlgExtCPolyCoeff>, EvalError> {
-    let q = coeff_at(dep, var, 1, field);
-    let r = coeff_at(dep, var, 0, field);
-    let four = ring_int(field, 4)?;
-    let two = ring_int(field, 2)?;
-    let m = algext_c_sqrt(&z.coeff_mul(z)?.coeff_sub(&r.coeff_mul(&four)?)?)?
+    let q = coeff_at(dep, var, 1, session);
+    let r = coeff_at(dep, var, 0, session);
+    let four = session.int(4)?;
+    let zz = session.mul(z, z)?;
+    let r4 = session.mul(&r, &four)?;
+    let neg_r4 = session.neg(&r4)?;
+    let disc = session.add(&zz, &neg_r4)?;
+    let m = algext_c_sqrt(&disc)?
         .into_iter()
         .next()
         .ok_or(EvalError::NotImplemented("algext sqrt"))?;
-    let half = ring_half(field)?;
+    session.bump_to(&m.as_inner().field);
+    let half = session.half()?;
+    let m_lift = session.lift(&m)?;
+    let neg_m = session.neg(&m_lift)?;
     let mut out = Vec::new();
-    for mp in [z.coeff_add(&m.clone())?, z.coeff_sub(&m)?] {
-        let c0 = mp.coeff_mul(&half)?;
+    for mp in [session.add(z, &m_lift)?, session.add(z, &neg_m)?] {
+        let c0 = session.mul(&mp, &half)?;
         let c1 = if q.coeff_is_zero() {
-            ring_zero(field)
+            session.zero()
         } else {
-            q.coeff_div(&m)?.coeff_mul(&half)?
+            let q_over_m = session.div(&q, &m_lift)?;
+            session.mul(&q_over_m, &half)?
         };
         let quad = PolyAlgExt::ring_var(var.clone())
             .try_pow(2)?
             .try_add(&PolyAlgExt::ring_constant(c1).try_mul(&PolyAlgExt::ring_var(var.clone()))?)?
             .try_add(&PolyAlgExt::ring_constant(c0))?;
-        out.extend(quadratic_roots(&quad, var, field)?);
+        out.extend(quadratic_roots(session, &quad, var)?);
     }
     Ok(out)
 }
 
-// **Pipeline private** — align two AlgExtCPolyCoeff to common field; retire FieldSession
-fn align_coeff(a: &AlgExtCPolyCoeff, b: &AlgExtCPolyCoeff) -> Result<(AlgExtCPolyCoeff, AlgExtCPolyCoeff), EvalError> {
-    let (aa, bb) = AlgExtCData::align_pair(a.as_inner(), b.as_inner())?;
-    Ok((AlgExtCPolyCoeff::from(aa), AlgExtCPolyCoeff::from(bb)))
-}
-
 // **Pipeline private** — `deflate_monic`
 fn deflate_monic(
+    session: &mut FieldSession,
     p: &PolyAlgExt,
     var: &Var,
     root: &AlgExtCPolyCoeff,
 ) -> Result<PolyAlgExt, EvalError> {
+    session.bump_to(&root.as_inner().field);
     let n = p.degree_wrt(var) as usize;
-    let field = Arc::clone(&root.as_inner().field);
-    let mut qs = vec![ring_zero(&field); n];
-    qs[n - 1] = ring_one(&field);
+    let mut qs = vec![session.zero(); n];
+    qs[n - 1] = session.one();
     for k in (0..n - 1).rev() {
-        let ak = coeff_at(p, var, k as u64, &field);
-        qs[k] = ak.coeff_add(&root.coeff_mul(&qs[k + 1])?)?;
+        let ak = session.lift(&coeff_at(p, var, k as u64, session))?;
+        let term = session.mul(root, &qs[k + 1])?;
+        qs[k] = session.add(&ak, &term)?;
     }
     let mut out = PolyAlgExt::ring_zero();
     for (exp, c) in qs.iter().enumerate() {
@@ -469,7 +463,7 @@ fn deflate_monic(
 // **Pipeline private** — `algext_c_sqrt`
 fn algext_c_sqrt(z: &AlgExtCPolyCoeff) -> Result<Vec<AlgExtCPolyCoeff>, EvalError> {
     let inner = z.as_inner();
-    if inner.im.iter().all(|e| matches!(e.as_ref(), crate::Expr::Int(n) if n.is_zero())) {
+    if inner.im.iter().all(|e| e.is_zero()) {
         let re = AlgExtData::from_field_coords(Arc::clone(&inner.field), inner.re.clone())?;
         let mut out = Vec::new();
         for a in algext_square_roots(&re)? {
@@ -483,7 +477,7 @@ fn algext_c_sqrt(z: &AlgExtCPolyCoeff) -> Result<Vec<AlgExtCPolyCoeff>, EvalErro
 // **Pipeline private** — `algext_c_cube_root`
 fn algext_c_cube_root(z: &AlgExtCPolyCoeff) -> Result<AlgExtCPolyCoeff, EvalError> {
     let inner = z.as_inner();
-    if inner.im.iter().all(|e| matches!(e.as_ref(), crate::Expr::Int(n) if n.is_zero())) {
+    if inner.im.iter().all(|e| e.is_zero()) {
         let re = AlgExtData::from_field_coords(Arc::clone(&inner.field), inner.re.clone())?;
         let a = algext_cube_root(&re)?;
         return Ok(AlgExtCPolyCoeff::from(AlgExtCData::from_alg_ext(&a)?));
@@ -511,11 +505,37 @@ impl CoeffInv for AlgExtCPolyCoeff {
     }
 }
 
+// **Pipeline private** — verify root vanishes mod minpoly
+fn verify_root(p: &PolyAlgExt, var: &Var, root: &AlgExtCPolyCoeff) {
+    let ambient = infer_field(p).expect("infer field");
+    let mut session = FieldSession::new(ambient);
+    let p = monic_univariate(
+        &normalize_coeffs(p, &mut session).expect("normalize"),
+        var,
+        &session,
+    )
+    .expect("monic");
+    session.bump_to(&root.as_inner().field);
+    let mut val = session.zero();
+    for (m, c) in &p.terms {
+        let exp = m.exp_of(var);
+        let mut pow = session.one();
+        for _ in 0..exp {
+            pow = session.mul(root, &pow).unwrap();
+        }
+        let c = session.lift(c).unwrap();
+        let (c, pow) = session.align(&c, &pow).unwrap();
+        let term = session.mul(&c, &pow).unwrap();
+        val = session.add(&val, &term).unwrap();
+    }
+    assert!(val.coeff_is_zero(), "root does not vanish");
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
 
-    use giac_poly::Var;
+    use giac_poly::{PolyCoeff, Var};
     use num_rational::Ratio;
     use serial_test::serial;
 
@@ -526,76 +546,59 @@ mod tests {
     use super::super::alg_ext_c::AlgExtCData;
     use super::super::poly::poly_alg_from_expr;
 
-    fn q_field() -> Arc<ExtensionField> {
-        ExtensionField::rational()
+    fn q_session() -> FieldSession {
+        FieldSession::new(ExtensionField::rational())
     }
 
-    fn rat_coeff(n: i64) -> AlgExtCPolyCoeff {
-        rat_in_field(&q_field(), Ratio::from_integer(BigInt::from(n))).unwrap()
-    }
-
-    fn verify_root(p: &PolyAlgExt, var: &Var, root: &AlgExtCPolyCoeff) {
-        let poly_field = infer_field(p).expect("infer field");
-        let p = monic_univariate(
-            &normalize_coeffs(p, &poly_field).expect("normalize"),
-            var,
-            &poly_field,
-        )
-        .expect("monic");
-        let eval_field = Arc::clone(&root.as_inner().field);
-        let mut val = ring_zero(&eval_field);
-        for (m, c) in &p.terms {
-            let exp = m.exp_of(var);
-            let mut pow = ring_one(&eval_field);
-            for _ in 0..exp {
-                pow = pow.coeff_mul(root).unwrap();
-            }
-            let c = lift_to_field(c, &eval_field).unwrap();
-            let (c, pow) = align_coeff(&c, &pow).unwrap();
-            val = val.coeff_add(&c.coeff_mul(&pow).unwrap()).unwrap();
-        }
-        assert!(val.coeff_is_zero(), "root does not vanish");
+    fn rat_coeff(session: &FieldSession, n: i64) -> AlgExtCPolyCoeff {
+        session.int(n).unwrap()
     }
 
     #[serial]
     #[test]
     fn cubic_one_root_vanishes() {
+        let mut session = q_session();
         let t = PolyAlgExt::ring_var("t");
         let p = t
             .try_pow(3)
             .unwrap()
-            .try_sub(&PolyAlgExt::ring_constant(rat_coeff(2)))
+            .try_sub(&PolyAlgExt::ring_constant(rat_coeff(&session, 2)))
             .unwrap();
-        let field = q_field();
-        let r = one_cubic_root(&p, &Var::from("t"), &field).unwrap();
+        let r = one_cubic_root(&mut session, &p, &Var::from("t")).unwrap();
         verify_root(&p, &Var::from("t"), &r);
     }
 
     #[serial]
     #[test]
     fn quadratic_sqrt_four_times_sqrt2_over_k1() {
+        let k1 = Arc::clone(
+            &AlgExtCPolyCoeff::from(AlgExtCData::from_alg_ext(&sqrt2_algext()).unwrap())
+                .as_inner()
+                .field,
+        );
+        let mut session = FieldSession::new(k1);
         let sqrt2 = AlgExtCPolyCoeff::from(AlgExtCData::from_alg_ext(&sqrt2_algext()).unwrap());
-        let four = ring_int(&Arc::clone(&sqrt2.as_inner().field), 4).unwrap();
-        let disc = sqrt2.coeff_mul(&four).unwrap();
+        let four = session.int(4).unwrap();
+        let disc = session.mul(&sqrt2, &four).unwrap();
         let rs = algext_c_sqrt(&disc).unwrap();
         assert_eq!(rs.len(), 2);
         for beta in &rs {
-            let sq = beta.coeff_mul(beta).unwrap();
-            let (sq_a, d_a) = align_coeff(&sq, &disc).unwrap();
+            session.bump_to(&beta.as_inner().field);
+            let sq = session.mul(beta, beta).unwrap();
+            let (sq_a, d_a) = session.align(&sq, &disc).unwrap();
             assert!(sq_a.coeff_sub(&d_a).unwrap().coeff_is_zero());
-            let field = Arc::clone(&beta.as_inner().field);
-            let two = ring_int(&field, 2).unwrap();
-            let half = ring_half(&field).unwrap();
-            let root_mul = beta.coeff_mul(&half).unwrap();
-            let root_div = beta.coeff_div(&two).unwrap();
-            let (rm, rd) = align_coeff(&root_mul, &root_div).unwrap();
+            let two = session.int(2).unwrap();
+            let half = session.half().unwrap();
+            let root_mul = session.mul(beta, &half).unwrap();
+            let root_div = session.div(beta, &two).unwrap();
+            let (rm, rd) = session.align(&root_mul, &root_div).unwrap();
             assert!(
                 rm.coeff_sub(&rd).unwrap().coeff_is_zero(),
                 "mul/2 and div/2 should agree"
             );
             let sqrt2 = AlgExtCPolyCoeff::from(AlgExtCData::from_alg_ext(&sqrt2_algext()).unwrap());
-            let root_sq = root_div.coeff_mul(&root_div).unwrap();
-            let (rsq, s2) = align_coeff(&root_sq, &sqrt2).unwrap();
+            let root_sq = session.mul(&root_div, &root_div).unwrap();
+            let (rsq, s2) = session.align(&root_sq, &sqrt2).unwrap();
             assert!(
                 rsq.coeff_sub(&s2).unwrap().coeff_is_zero(),
                 "root^2 should equal sqrt2"
@@ -606,13 +609,14 @@ mod tests {
     #[serial]
     #[test]
     fn quadratic_x2_minus_sqrt2_roots_vanish() {
+        let mut session = q_session();
         let e = Expr::add(vec![
             Expr::pow(Expr::sym("x"), Expr::int(2)),
             Expr::mul(vec![Expr::int(-1), sqrt2_algext().into_expr()]),
         ]);
         let p = poly_alg_from_expr(&e).unwrap();
-        let field = infer_field(&p).unwrap();
-        let rs = quadratic_roots(&p, &Var::from("x"), &field).unwrap();
+        session = FieldSession::new(infer_field(&p).unwrap());
+        let rs = quadratic_roots(&mut session, &p, &Var::from("x")).unwrap();
         assert_eq!(rs.len(), 2);
         for r in &rs {
             verify_root(&p, &Var::from("x"), r);
@@ -623,10 +627,11 @@ mod tests {
     #[test]
     fn roots_quadratic_x2_minus_2() {
         let x = PolyAlgExt::ring_var("x");
+        let mut session = q_session();
         let p = x
             .try_pow(2)
             .unwrap()
-            .try_sub(&PolyAlgExt::ring_constant(rat_coeff(2)))
+            .try_sub(&PolyAlgExt::ring_constant(rat_coeff(&session, 2)))
             .unwrap();
         let rs = poly_algext_roots(&p, &Var::from("x")).unwrap();
         assert_eq!(rs.len(), 2);
@@ -638,6 +643,7 @@ mod tests {
     #[serial]
     #[test]
     fn roots_quadratic_x2_minus_sqrt2_over_k() {
+        let mut session = q_session();
         let e = Expr::add(vec![
             Expr::pow(Expr::sym("x"), Expr::int(2)),
             Expr::mul(vec![Expr::int(-1), sqrt2_algext().into_expr()]),
@@ -648,7 +654,8 @@ mod tests {
         let sqrt2 = AlgExtCPolyCoeff::from(AlgExtCData::from_alg_ext(&sqrt2_algext()).unwrap());
         for r in &rs {
             let sq = r.coeff_mul(r).unwrap();
-            let (sq, s2) = align_coeff(&sq, &sqrt2).unwrap();
+            session = FieldSession::new(infer_field(&p).unwrap());
+            let (sq, s2) = session.align(&sq, &sqrt2).unwrap();
             assert!(
                 sq.coeff_sub(&s2).unwrap().coeff_is_zero(),
                 "root^2 should equal sqrt2"
@@ -660,11 +667,12 @@ mod tests {
     #[serial]
     #[test]
     fn roots_cubic_t3_minus_2() {
+        let mut session = q_session();
         let t = PolyAlgExt::ring_var("t");
         let p = t
             .try_pow(3)
             .unwrap()
-            .try_sub(&PolyAlgExt::ring_constant(rat_coeff(2)))
+            .try_sub(&PolyAlgExt::ring_constant(rat_coeff(&session, 2)))
             .unwrap();
         let rs = poly_algext_roots(&p, &Var::from("t")).unwrap();
         assert_eq!(rs.len(), 1);
@@ -675,13 +683,14 @@ mod tests {
     #[test]
     #[ignore = "quartic resolvent Cardano exceeds 10s; needs common-field optimization"]
     fn roots_quartic_t4_plus_t_plus_1() {
+        let mut session = q_session();
         let t = PolyAlgExt::ring_var("t");
         let p = t
             .try_pow(4)
             .unwrap()
-            .try_add(&PolyAlgExt::ring_constant(rat_coeff(1)).try_mul(&t).unwrap())
+            .try_add(&PolyAlgExt::ring_constant(rat_coeff(&session, 1)).try_mul(&t).unwrap())
             .unwrap()
-            .try_add(&PolyAlgExt::ring_constant(rat_coeff(1)))
+            .try_add(&PolyAlgExt::ring_constant(rat_coeff(&session, 1)))
             .unwrap();
         let rs = poly_algext_roots(&p, &Var::from("t")).unwrap();
         assert_eq!(rs.len(), 4);
@@ -693,11 +702,12 @@ mod tests {
     #[serial]
     #[test]
     fn roots_biquadratic_t4_minus_2() {
+        let mut session = q_session();
         let t = PolyAlgExt::ring_var("t");
         let p = t
             .try_pow(4)
             .unwrap()
-            .try_sub(&PolyAlgExt::ring_constant(rat_coeff(2)))
+            .try_sub(&PolyAlgExt::ring_constant(rat_coeff(&session, 2)))
             .unwrap();
         let rs = poly_algext_roots(&p, &Var::from("t")).unwrap();
         assert_eq!(rs.len(), 4);

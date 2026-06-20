@@ -71,6 +71,8 @@ fn rootof_expr(num: &[i64], minpoly: &ExprArc) -> ExprArc {
 
 #[cfg(test)]
 mod tests {
+    //! Test tiers: **A** / **B** — `.doc/test-writing-spec.md` · audit §2
+
     use std::sync::Arc;
 
     use giac_core::{eval, contains_algext, Ident, Context, FuncKind, RelOp};
@@ -93,6 +95,7 @@ mod tests {
         )))
     }
 
+    // **B** — quadratic_rootof_roots; assert_roots_zero_poly.
     #[test]
     fn quadratic_rootof_has_two_branches() {
         let p = t_sq_minus(2);
@@ -109,6 +112,7 @@ mod tests {
         assert_roots_zero_poly(&poly, &Ident::new("t"), &rs, &ctx);
     }
 
+    // **A** — eval(Solve); assert_equation_solutions.
     #[test]
     fn solve_t_squared_minus_two_uses_rootof() {
         let ctx = xcas_default();
@@ -129,6 +133,7 @@ mod tests {
         assert_equation_solutions(&eq, &Ident::new("t"), &r, &ctx);
     }
 
+    // **A** — eval(Solve); equation + AlgExt shape.
     #[test]
     fn solve_t_fourth_minus_two_uses_rootof() {
         let ctx = xcas_default();
@@ -147,6 +152,7 @@ mod tests {
         assert_equation_solutions(&eq, &Ident::new("t"), &r, &ctx);
     }
 
+    // **B** — biquadratic_rootof_roots branch count.
     #[test]
     fn biquadratic_t_fourth_minus_two_has_four_roots() {
         let p = x().pow(4).sub(&Poly::constant(num_rational::Ratio::from_integer(
@@ -156,6 +162,7 @@ mod tests {
         assert_eq!(rs.len(), 4);
     }
 
+    // **B** — roots() over ℚ when no AlgExt needed.
     #[test]
     fn rational_quadratic_still_uses_roots() {
         let p = x().pow(2).sub(&Poly::one());

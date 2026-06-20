@@ -82,6 +82,9 @@ fn is_sin_of_var(e: &Expr, var: &Ident) -> bool {
 
 #[cfg(test)]
 mod tests {
+    //! Test tiers: **A** / **A′** / **B** / **C** — `.doc/test-writing-spec.md`
+    //! Audit: `.doc/issues/GIAC-expr-api-test-audit.md` §2
+
     use giac_core::{FuncKind, Ident, RelOp};
     use giac_simplify::assert_equiv;
     use num_traits::One;
@@ -106,6 +109,7 @@ mod tests {
         }
     }
 
+    // **A** — eval(Solve); assert_equiv on unique root.
     #[test]
     fn solve_quadratic_double_root() {
         let ctx = xcas_default();
@@ -130,6 +134,7 @@ mod tests {
         assert!(assert_equiv(&Expr::int(1), items[0].as_ref(), &ctx).unwrap());
     }
 
+    // **A** — eval(Solve) → linsolve; verify x+y/x-y via eval_const_expr (TODO: test_verify).
     #[test]
     fn solve_linear_system_delegates_to_linsolve() {
         let ctx = xcas_default();

@@ -65,10 +65,13 @@ pub fn xcas_default() -> Context {
 
 #[cfg(test)]
 mod tests {
+    //! Test tiers — `.doc/test-writing-spec.md` · audit §5 (integrate/limit **A**)
+
     use giac_core::{eval, format_expr, Expr, FuncKind};
 
     use super::xcas_default;
 
+    // **A** + **C** — eval(Integrate); contains shape (TODO: assert_equiv).
     #[test]
     fn eval_integrate_via_plugin() {
         let ctx = xcas_default();
@@ -81,6 +84,7 @@ mod tests {
         assert!(s.contains("1/2") && s.contains("x^2"), "got {s}");
     }
 
+    // **A** — eval(Limit); limit(x⁻¹, x→+∞) == 0.
     #[test]
     fn eval_limit_via_plugin() {
         let ctx = xcas_default();
@@ -96,6 +100,7 @@ mod tests {
         assert_eq!(format_expr(r.as_ref()), "0");
     }
 
+    // **A** — eval(Series) via plugin smoke.
     #[test]
     fn eval_series_via_plugin() {
         let ctx = xcas_default();

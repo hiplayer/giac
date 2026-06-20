@@ -591,12 +591,16 @@ fn sqrt_minpoly_via_matrix(f: &[Ratio<BigInt>], m: &[Ratio<BigInt>]) -> Result<C
 
 #[cfg(test)]
 mod tests {
+    //! Test tiers: **A** / **B** — `.doc/test-writing-spec.md`
+    //! Audit: `.doc/issues/GIAC-expr-api-test-audit.md` §6
+
     use super::*;
     use crate::algebra::test_fixtures::{
         algext_on_t1b_k2, algext_with_coords, cbrt2_algext, duplicate_field_arc,
         neg_sqrt2_algext, sqrt2_algext, sqrt3_algext, t1b_k2_adjoin_sqrt3_over_k1,
     };
 
+    // **B** — AlgExt::mul; eq_mod α² = 2.
     #[test]
     fn algext_mul_squares_to_two() {
         let alpha = sqrt2_algext();
@@ -609,6 +613,7 @@ mod tests {
         assert!(sq.eq_mod(&two).unwrap());
     }
 
+    // **B** — AlgExt add cancellation.
     #[test]
     fn algext_add_neg_cancels() {
         let pos = sqrt2_algext();
@@ -617,6 +622,7 @@ mod tests {
         assert!(z.is_zero());
     }
 
+    // **B** — algext_square_roots; subfield embedding β² = √2.
     #[test]
     fn algext_sqrt_of_sqrt2() {
         let sqrt2 = sqrt2_algext();
@@ -636,6 +642,7 @@ mod tests {
         );
     }
 
+    // **B** — algext_cube_root; eq_mod β³ = 2.
     #[test]
     fn algext_cube_root_of_two() {
         let q = ExtensionField::rational();
@@ -645,6 +652,7 @@ mod tests {
         assert!(b3.eq_mod(&two).unwrap(), "cbrt(2)^3 should equal 2");
     }
 
+    // **B** — algext_sqrt_branches on -√2; eq_mod branch².
     #[test]
     fn algext_sqrt_of_neg_sqrt2_is_complex() {
         let neg_sqrt2 = neg_sqrt2_algext();
@@ -657,6 +665,7 @@ mod tests {
         }
     }
 
+    // **B** — fold_complex_algext_sum cancellation.
     #[test]
     fn complex_algext_sum_cancels() {
         let alpha = sqrt2_algext();
@@ -669,6 +678,7 @@ mod tests {
         assert!(sum.is_zero());
     }
 
+    // **B** — to_rootof_expr / try_as_algext_data roundtrip; eq_mod.
     #[test]
     fn algext_to_rootof_roundtrip_display() {
         let alpha = sqrt2_algext();
@@ -677,6 +687,7 @@ mod tests {
         assert!(back.eq_mod(&alpha).unwrap());
     }
 
+    // **B** — AlgExt::inv; α·α⁻¹ = 1.
     #[test]
     fn algext_inv_divides_to_one() {
         let alpha = sqrt2_algext();
@@ -685,6 +696,7 @@ mod tests {
         assert!(one.is_one() || one.eq_mod(&AlgExtData::one(Arc::clone(&alpha.field))).unwrap());
     }
 
+    // **B** — ℚ ↪ Q(√2) embed; dimension after add.
     #[test]
     fn subfield_embed_rational_into_sqrt2() {
         let sqrt2 = sqrt2_algext();
@@ -697,6 +709,7 @@ mod tests {
         assert_eq!(sum.field.dimension(), 2);
     }
 
+    // **B** — common_ext(√2,∛2); slow/ignored perf case.
     #[test]
     #[ignore = "primitive-element common(√2,∛2) char poly is slow; see ext_tower perf follow-up"]
     fn common_ext_sqrt2_cbrt2() {
@@ -708,6 +721,7 @@ mod tests {
         assert_eq!(sum.field.dimension(), 6);
     }
 
+    // **B** — common_over_q cache; add commutativity in compositum.
     #[test]
     fn algext_add_reverse_order_after_common_cache() {
         let sqrt2 = sqrt2_algext();
@@ -724,6 +738,7 @@ mod tests {
         assert!(!sum_ab.is_zero());
     }
 
+    // **B** — fold_algext_sum merges equal fields without Arc::ptr_eq.
     #[test]
     fn fold_algext_sum_merges_equal_fields_without_ptr_eq() {
         let alpha = sqrt2_algext();
@@ -740,6 +755,7 @@ mod tests {
         }
     }
 
+    // **B** — from_coords_q roundtrip on K2 tensor fixture.
     #[test]
     fn from_coords_q_preserves_k2_tensor_coords_roundtrip() {
         let fix = t1b_k2_adjoin_sqrt3_over_k1();
@@ -752,6 +768,7 @@ mod tests {
         }
     }
 
+    // **B** — fold_algext_sum merges ℚ(5) into K2 via embed_rational.
     #[test]
     fn fold_algext_sum_rat_on_k2_merges_via_embed_rational() {
         let fix = t1b_k2_adjoin_sqrt3_over_k1();
@@ -775,6 +792,7 @@ mod tests {
         assert!(!wrong.eq_mod(&expected).unwrap());
     }
 
+    // **B** — embed_rational block layout in K2.
     #[test]
     fn embed_rational_on_k2_places_constant_in_block_u0() {
         let fix = t1b_k2_adjoin_sqrt3_over_k1();
@@ -789,6 +807,7 @@ mod tests {
         );
     }
 
+    // **B** — fold_algext_sum_mode Canonical order independence.
     #[test]
     fn fold_algext_sum_canonical_order_independent() {
         let sqrt2 = sqrt2_algext();
@@ -803,6 +822,7 @@ mod tests {
         }
     }
 
+    // **B** — fold_algext_sum lazy common(√2,√3).
     #[test]
     fn fold_algext_sum_split_two_fields_merges_via_lazy_common() {
         let sqrt2 = sqrt2_algext();
@@ -815,6 +835,7 @@ mod tests {
         }
     }
 
+    // **B** — fold_algext_sum rat + AlgExt on K1.
     #[test]
     fn fold_algext_sum_rat_on_k1_still_merges_into_algext() {
         let alpha = sqrt2_algext();
@@ -831,6 +852,7 @@ mod tests {
         }
     }
 
+    // **A** — eval(Expr::Frac) on AlgExt; division in extension field.
     #[test]
     fn algext_frac_via_eval() {
         use crate::{eval, Context};

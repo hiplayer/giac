@@ -84,11 +84,14 @@ fn eval_to_rational(e: &ExprArc, ctx: &Context) -> Result<Ratio<BigInt>, EvalErr
 
 #[cfg(test)]
 mod tests {
+    //! Test tiers — `.doc/test-writing-spec.md` · audit §2
+
     use giac_core::{eval, format_expr, Expr, FuncKind};
 
     use super::*;
     use crate::plugin::xcas_default;
 
+    // **A** — eval(Sturm); list length only (TODO: semantic Sturm sequence).
     #[test]
     fn sturm_x_cubed_plus_one_squared() {
         let ctx = xcas_default();
@@ -101,6 +104,7 @@ mod tests {
         assert!(matches!(r.as_ref(), Expr::List(items) if items.len() >= 2));
     }
 
+    // **A** — eval(Sturm); sequence length (TODO: coefficient checks).
     #[test]
     fn sturm_x_cubed_plus_one() {
         let ctx = xcas_default();
@@ -115,6 +119,7 @@ mod tests {
         assert!(matches!(r.as_ref(), Expr::List(items) if items.len() == 3));
     }
 
+    // **A** + **C** — eval(Sturmab); display golden root count in interval.
     #[test]
     fn sturmab_counts_root_in_interval() {
         let ctx = xcas_default();

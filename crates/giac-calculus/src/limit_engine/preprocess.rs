@@ -328,11 +328,15 @@ pub(crate) fn merge_exp_quotients(expr: &ExprArc) -> ExprArc {
 
 #[cfg(test)]
 mod tests {
+    //! Test tiers: **A′** / **B** / **C** — `.doc/test-writing-spec.md`
+    //! Audit: `.doc/issues/GIAC-expr-api-test-audit.md` §4
+
     use giac_core::{format_expr, Expr, FuncKind, Ident};
     use giac_simplify::assert_equiv;
 
     use super::*;
 
+    // **C** — merge_exp_quotients; multi-alternative display (TODO: B assert_equiv → exp(-n)).
     #[test]
     fn merge_exp_quotient_frac() {
         let e = Arc::new(Expr::Frac(
@@ -347,6 +351,7 @@ mod tests {
         );
     }
 
+    // **A′** — limit_preprocess_plus_infinity(7^n/8^n) → limit == 0.
     #[test]
     fn preprocess_seven_pow_n_over_eight() {
         let ctx = crate::plugin::xcas_default();
@@ -360,6 +365,7 @@ mod tests {
         assert_eq!(format_expr(r.as_ref()), "0");
     }
 
+    // **B** — surd2pow; assert_equiv to x^(1/2).
     #[test]
     fn preprocess_surd2pow_sqrt() {
         let ctx = crate::plugin::xcas_default();
@@ -373,6 +379,7 @@ mod tests {
         );
     }
 
+    // **B** — normalize_sqrt_conjugates; output is Frac.
     #[test]
     fn preprocess_sqrt_conjugate_minus_var() {
         let e = Expr::add(vec![
@@ -390,6 +397,7 @@ mod tests {
         );
     }
 
+    // **A′** — nested Gruntz preprocess chain → limit == 1 (includes B checks on fold).
     #[test]
     fn preprocess_nested_gruntz_exp_diff_factor() {
         use crate::limit_engine::asymptotic::limit_at_plus_infinity;
@@ -426,6 +434,7 @@ mod tests {
         assert_eq!(format_expr(r.as_ref()), "1");
     }
 
+    // **A′** — factor_exp_shifted_difference + struct pre → limit == -1.
     #[test]
     fn preprocess_gruntz_exp_diff_factor() {
         use crate::limit_engine::exp_diff::match_exp_times_exp_minus_one;
