@@ -1,6 +1,6 @@
 # GIAC — Lazy `common` + 塔式 `ExtensionTower` 改动计划
 
-**状态:** draft（S0 ✅、S1 ✅、T1 ✅、T2 ✅、T3 ✅、T4a 🚧、T4b 🚧；review 补充已并入 §3 S0、§6、§7、§9）  
+**状态:** draft（S0 ✅、S1 ✅、T1 ✅、T2 ✅、T3 ✅、T4a ✅、T4b ✅；review 补充已并入 §3 S0、§6、§7、§9）  
 **类型:** 实施计划 / AFK  
 **相关:** [GIAC-algext-adoption](GIAC-algext-adoption.md) §8.2、B-05；[GIAC-poly-algext-backlog](GIAC-poly-algext-backlog.md)  
 **Rust 落点:** `giac-core::algebra::{ext_tower, alg_ext, alg_ext_c, field_arith}`  
@@ -163,16 +163,16 @@
 
 拆为两个子阶段（review）：
 
-#### T4a — 并列简单域 compositum（新 `Adj` 层） 🚧
+#### T4a — 并列简单域 compositum（新 `Adj` 层） ✅ 2026-06-20
 
 | 任务 | 文件 | 状态 |
 |------|------|------|
-| `compute_common_tower(a, b)`：并列 simple-over-ℚ → 塔 adjoin | `ext_tower.rs` | ✅ `--features tower-common` |
-| flatten fallback 仍为默认 | `ext_tower.rs` | ✅ |
+| `compute_common_tower(a, b)`：并列 simple-over-ℚ → 塔 adjoin | `ext_tower.rs` | ✅ 默认 `tower-common` |
+| flatten fallback bisect | `ext_tower.rs` | ✅ `--no-default-features` |
 | `CommonFieldPair` 文档：embed = `source → target` | `ext_tower.rs` | ✅ |
-| 形式化验证工程做法 | `.doc/giac-tower-common-math.md` §4 | ✅ |
-| 验收：√2+∛2 快测、逆序 align、cache | `ext_tower` tests | ✅（`-F tower-common`） |
-| 改默认路径 / 去 feature | — | ☐ 待 CI 稳定后 |
+| 可审计的正确性验证（§4） | `.doc/giac-tower-common-math.md` §4 | ✅ |
+| 验收：√2+∛2 快测、逆序 align、cache | `ext_tower` tests | ✅ |
+| 改默认路径 / 去 feature | `Cargo.toml` | ✅ `default = ["tower-common"]` |
 
 **T4a 验收：**
 
@@ -181,7 +181,7 @@
 - `field_registry_dedup` / cache 仍有效；第二次 `common(√2,∛2)` cache hit
 - （可选）flatten 与 tower 两条路径小域对 `eq_mod` 一致
 
-#### T4b — 子塔包含 = 仅提升嵌入（与 T2 闭环） 🚧
+#### T4b — 子塔包含 = 仅提升嵌入（与 T2 闭环） ✅
 
 | 任务 | 文件 | 状态 |
 |------|------|------|
@@ -266,7 +266,7 @@ S0 → S1 [→ S1-opt 可选] → T1 → T2 → T3 → T4a → T4b → (S2 可�
 
 ## 8. 开放决策（实施前需确认）
 
-1. **T4a 前** flatten common 是否保留为默认路径？（建议：**是**，T4a 塔路径先走 feature，验收通过后改默认）
+1. **T4a 前** flatten common 是否保留为默认路径？（**已决 2026-06-20：** 否；`default = ["tower-common"]`；bisect 用 `--no-default-features`）
 2. **`CommonFieldPair` 命名**是否改为 `embed_for(source)` 消灭 a/b？（建议：S0 先修语义，T4b 再改名）
 
 **已决（review 并入）：**
@@ -288,7 +288,7 @@ S0 → S1 [→ S1-opt 可选] → T1 → T2 → T3 → T4a → T4b → (S2 可�
 - [ ] `.doc/issues/GIAC-poly-algext-backlog.md` M-塔 或等价项登记
 - [ ] `giac-core` / 相关 crate 测试绿
 - [ ] 无新增 `poly_error_compat` 类双错误映射
-- [ ] T4a：`tower-common` off = Phase 0 行为等价
+- [x] T4a：`tower-common` 默认开；`--no-default-features` = Phase 0 flatten（bisect，测 `flatten_bisect::*`）
 
 ---
 

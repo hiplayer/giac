@@ -120,7 +120,7 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `sub` | **Stable** | construct `a - b` as an expression tree. |
 | `is_zero` | **Stable** | true when `normal(e)` simplifies to zero. |
 | `assert_equiv` | **Stable** | true when `a` and `b` are mathematically equivalent under `normal`. |
-| `canonical_radical` | **Pipeline private** | `canonical_radical` |
+| `canonical_radical` | **Temporary** | drift: 1/sqrt(n)↔sqrt(n)/n for assert_equiv |
 | `inv_sqrt_to_mul` | **Temporary** | drift helper for canonical_radical |
 | `equiv_commutative_add` | **Pipeline private** | `equiv_commutative_add` |
 | `equiv_expanded_square` | **Pipeline private** | `equiv_expanded_square` |
@@ -173,7 +173,6 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `flatten_mul` | **Pipeline private** | flatten Mul to factor vec |
 | `factor_poly_form` | **Pipeline private** | normal→poly→factor_into chain |
 | `try_factor_quadratic_rootof` | **Temporary** | Partial internal: quadratic → rootof when discriminant non-square. |
-| `poly1_from_univariate` | **Pipeline private** | Poly → Poly1 minpoly Expr |
 | `try_factor_quadratic_sqrt` | **Temporary** | Partial internal: `ctx.with_sqrt` quadratic sqrt factors. |
 | `rational_num_den` | **Pipeline private** | Expr leaf to (num,den) Poly |
 

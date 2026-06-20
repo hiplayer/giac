@@ -234,27 +234,23 @@ giac-rs 路径：`giac-rs/tests/conformance/fixtures/{maxima,sympy,rubi}/`。
 
 ---
 
-## 7. 代数 `ext_tower` 与形式化验证（工程证据）
+## 7. 代数 `ext_tower` 与可审计的正确性验证
 
 Golden 覆盖端到端表达式；**域扩张 / compositum** 另有一套分层证据，不替代 check golden，与之互补。
 
 | 文档 | 内容 |
 |------|------|
-| [giac-tower-common-math.md](giac-tower-common-math.md) | compositum 数学参考、Lean 分层引理、**§4 工程验证四层做法** |
+| [giac-tower-common-math.md](giac-tower-common-math.md) | compositum 数学参考、Lean 分层引理、**§4 可审计验证四层做法** |
 | [GIAC-lazy-common-tower-plan.md](issues/GIAC-lazy-common-tower-plan.md) | T4a/T4b 实施与坐标基 §11.9 |
 
 **日常命令：**
 
 ```bash
-cargo test -p giac-core                                    # 默认 flatten common
-cargo test -p giac-core --features tower-common            # T4a 塔 common + 快测
-cargo test -p giac-core --features tower-common -- --ignored  # 含 flatten 慢对照
+cargo test -p giac-core                                    # 默认 T4a 塔 common
+cargo test -p giac-core --no-default-features            # bisect：Phase 0 flatten
+cargo test -p giac-core tower_common_matches_flatten -- --ignored  # flatten 慢对照
 ```
 
 **原则：** 数学正确性以 oracle + 不变量为主；Lean 证引理、Rust 测实例（见 giac-tower-common-math §4.2 层 D）。
 
-**并发：** `ExtensionField` 使用进程内全局 `field_registry` / `common_cache`；`ext_tower` 相关单元测在并行 `cargo test` 下可能 flaky，本地/CI 验证 T4a 时建议：
-
-```bash
-cargo test -p giac-core --features tower-common -- --test-threads=1
-```
+**并发：** `ext_tower` 单元测已 `#[serial]`；`cargo nextest` 对 `giac-core` 串行（`giac-rs/.config/nextest.toml`）。

@@ -2,7 +2,7 @@
 
 **规范来源:** [algorithm-expr-api.md](algorithm-expr-api.md)  
 **上游缺口:** [issues/GIAC-simplify-poly-upstream-gaps.md](issues/GIAC-simplify-poly-upstream-gaps.md) §2  
-**Expr ↔ Poly 边界:** 仅 **`giac-core::expr_to_poly` / `poly_to_expr`** 做跨表示转换；本 crate 全程 `Poly`。
+**Expr ↔ Poly 边界:** [expr-poly-conversion.md](expr-poly-conversion.md)（normative）。P1 表示层：[giac-poly-p1-representation.md](giac-poly-p1-representation.md)。**ℚ 路径：** `expr_to_poly`；**代数系数：** `poly_alg_from_expr` → `PolyAlgExt`。本 crate 算法管线仍全程 `Poly`（ℚ）；`Poly<C>` 骨架见 P1。
 
 ---
 
@@ -37,7 +37,10 @@
 
 | 符号 | 模块 | 说明 |
 |------|------|------|
-| `Poly`, `Monomial`, `Var` | `poly`, `monomial` | 多项式表示 |
+| `Poly`, `PolyQ`, `Poly<C>` | `poly` | 稀疏多项式；默认 `Poly` = ℚ |
+| `PolyCoeff` | `poly_coeff` | 系数环 trait |
+| `Monomial`, `Var` | `monomial` | 指数向量（与 `C` 无关，P1-5） |
+| `UnivariateIn<C>`, `UnivariatePoly<C>`, `FlatUni<C>` | `nested` | 单变量视图；`divides`/`div_rem` 仅 ℚ |
 | `PolyError`, `PolyResult` | `error` | |
 | `quo`, `rem`, `egcd`, `simp2`, `abcuv` | `poly` | 精确除法；失败 → Err |
 | `content`, `gauss` | `ops` | |
@@ -127,6 +130,8 @@
 | `factor_univariate_flat`, `factor_univariate_pairs` | `factor/univariate` | **Partial** |
 | `try_zassenhaus_factor` | `factor/zassenhaus` | **Partial** |
 | `try_hensel_lift_bivariate` | `factor/hensel` | **Partial** — FAC-G3 |
+| `try_unitary_factor` | `factor/unitary` | **Partial** — FAC-G1；`unitaryfactor` / `pzadic` / P2a；失败 `None` |
+| `unitary_factor_rev` | `factor/unitary` | **Partial** — 核心 peel 循环（`vars_rev`）；crate 内由 `try_unitary_factor` 调用 |
 | `try_factor_patterns` | `factor/patterns` | **Partial** — cyclotomic/二项式模式 |
 | `try_factor_xn_minus_one` 等 | `factor/cyclotomic` | **Partial** |
 | `factor_fpx`, `degree` | `factor/fpx` | **Stable**（模域） |
@@ -146,6 +151,12 @@
 | `matching_embed_factor`, `reconstruct_factor_two_aux` | `sparse.rs` | sparse_bi 嵌入重建 |
 | `try_hensel_lift_interp` | `hensel.rs` | Hensel 插值 fallback |
 | `hensel_lift_at_zero` | `hensel.rs` | y=0 处 Hensel |
+| `try_lift_and_peel` | `unitary.rs` | pzadic peel → P2a `lift_factor_multi_eval` |
+| `lift_factor_multi_eval` | `unitary.rs` | P2a 局部窗 Lagrange 抬升 |
+| `pzadic` (`PzadicLift`) | `unitary.rs` | base-`B` digit 抬升 |
+| `unitarize` / `ununitarize` | `unitary.rs` | 非 monic 首项尾链 |
+| `trunc1_drop_var` / `untrunc1_insert_var` | `unitary.rs` | 常数项尾部 `trunc1` |
+| `reverse_var_order` | `unitary.rs` | sqff 块 `reverse()`（U5 边界待补） |
 | `try_factor_biquadratic`, `try_factor_two_cubics` | `univariate.rs` | 低次模式 |
 | `try_nth_root`, `try_binomial_square` | `power.rs` | 完美幂 |
 
@@ -161,7 +172,7 @@
 
 | 缺口 ID | upstream (`gausspol.cc`) | giac-rs 状态 |
 |---------|---------------------------|--------------|
-| **FAC-G1** | `try_sparse_factor` + `try_sparse_factor_bi` + `unitaryfactor` | **Partial** — P0–P2b 已落地（`pzadic`/`unitarize`/`trunc1`/multi-eval；sparse_bi sum-coeff）；line25 ✅；U5 `reverse` 边界待补（[unitaryfactor-gaps](issues/GIAC-poly-unitaryfactor-gaps.md)） |
+| **FAC-G1** | `try_sparse_factor` + `try_sparse_factor_bi` + `unitaryfactor` | **Partial** — P0–P2b + **U-P2c tier 复审** ✅；line25 ✅；U5 `reverse` 边界待补。原理：[giac-poly-factor-unitary-principles](giac-poly-factor-unitary-principles.md)；缺口：[unitaryfactor-gaps](issues/GIAC-poly-unitaryfactor-gaps.md) |
 | **FAC-G2** | 参系数 `poly_factor` 塔 | **Partial** — `try_lift_factors_in_aux_var` 覆盖 L20 |
 | **FAC-G3** | 混合次数二元 Hensel + fallback | **Partial** — L22 ✅（`hensel_lift_two_at_zero`） |
 | — | partfrac 重复二次 / 实二次分裂 | **Partial** — 线性/重根/实分裂已覆盖；高次仍缺 |
@@ -177,6 +188,8 @@
 | `testfactor_line16/17/21/12/24` | `factor/tracer.rs` | enabled |
 | `testfactor_line20` | `factor/tracer.rs` | enabled ✅ |
 | `testfactor_line22` | `factor/tracer.rs` | enabled ✅ |
+| `testfactor_line25` / `testfactor_line26` | `factor/tracer.rs` | enabled ✅（unitary + P2a gate） |
+| `p2a_line25_*`, `unitary_factor_line25_*` | `factor/unitary.rs` | 单元测试 |
 | `sparse_factor_*`, `hensel_*` | `factor/sparse.rs`, `hensel.rs` | 单元测试 |
 
 ---
@@ -227,6 +240,33 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 |----------|------|-------------|
 | `bigint_pow` | **Pipeline private** | BigInt pow with overflow check |
 
+### `factor/ctx.rs`
+
+| Function | Tier | Description |
+|----------|------|-------------|
+| `new` | **Stable** | `new` |
+| `as_slice` | **Stable** | `as_slice` |
+| `len` | **Stable** | `len` |
+| `is_empty` | **Stable** | `is_empty` |
+| `refs` | **Stable** | `refs` |
+| `new` | **Stable** | `new` |
+| `main_degree` | **Stable** | `main_degree` |
+| `with_main_and_others` | **Stable** | `with_main_and_others` |
+| `irreducible` | **Stable** | `Poly::irreducible` |
+| `from_polys` | **Stable** | `Poly::from_polys` |
+| `into_polys` | **Stable** | `into_polys` |
+| `product_equals` | **Stable** | `product_equals` |
+| `verify_divides_chain` | **Stable** | `verify_divides_chain` |
+| `new` | **Stable** | `new` |
+| `first_value` | **Stable** | `Poly::first_value` |
+| `try_new` | **Partial** | optional algorithm path `try_new` |
+| `as_view` | **Stable** | `as_view` |
+| `div_rem_wrt_aux_indep` | **Stable** | `div_rem_wrt_aux_indep` |
+| `try_new` | **Partial** | optional algorithm path `try_new` |
+| `factor_set_product_equals` | **Pipeline private** | `factor_set_product_equals` |
+| `aux_indep_factor_rejects_aux_dep` | **Pipeline private** | `aux_indep_factor_rejects_aux_dep` |
+| `hensel_pair_requires_aux_indep` | **Pipeline private** | `hensel_pair_requires_aux_indep` |
+
 ### `factor/cyclotomic.rs`
 
 | Function | Tier | Description |
@@ -245,6 +285,19 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `factor_x100_plus_x50_plus_1` | **Pipeline private** | `factor_x100_plus_x50_plus_1` |
 | `factor_x10_minus_1` | **Pipeline private** | `factor_x10_minus_1` |
 
+### `factor/eval.rs`
+
+| Function | Tier | Description |
+|----------|------|-------------|
+| `peval_at_main` | **Pipeline private** | substitute auxiliary vars with scalars; keep `main` univariate. |
+| `find_good_eval` | **Pipeline private** | find evaluation preserving `main`-degree (upstream `find_good_eval`). |
+| `eval_point_candidates` | **Pipeline private** | trial points: `start` first, then small integers / shifts. |
+| `looks_irreducible_by_good_eval` | **Pipeline private** | upstream `do_factor_hensel`: two good evals, single factor → irreducible. |
+| `find_good_eval_preserves_degree` | **Pipeline private** | `find_good_eval_preserves_degree` |
+| `find_good_eval_skips_bad_start` | **Pipeline private** | `find_good_eval_skips_bad_start` |
+| `irreducibility_probe_detects_x2_plus_y2_plus_1` | **Pipeline private** | `irreducibility_probe_detects_x2_plus_y2_plus_1` |
+| `irreducibility_probe_rejects_reducible` | **Pipeline private** | `irreducibility_probe_rejects_reducible` |
+
 ### `factor/fpx.rs`
 
 | Function | Tier | Description |
@@ -252,9 +305,8 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `x_var` | **Pipeline private** | `x_var` |
 | `mi` | **Pipeline private** | `mi` |
 | `is_poly_one` | **Pipeline private** | `is_poly_one` |
-| `degree` | **Stable** | total degree |
+| `degree` | **Stable** | total degree in `x` |
 | `coeff` | **Pipeline private** | `coeff` |
-| `set_coeff` | **Pipeline private** | `set_coeff` |
 | `from_coeffs` | **Pipeline private** | `from_coeffs` |
 | `x_poly` | **Pipeline private** | `x_poly` |
 | `one_poly` | **Pipeline private** | `one_poly` |
@@ -284,6 +336,23 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `fpx_x2_plus_1_mod_5` | **Pipeline private** | `fpx_x2_plus_1_mod_5` |
 | `fpx_cubic_irreducible_mod_7` | **Pipeline private** | `fpx_cubic_irreducible_mod_7` |
 
+### `factor/fpx_uni.rs`
+
+| Function | Tier | Description |
+|----------|------|-------------|
+| `monomial_pow` | **Pipeline private** | `monomial_pow` |
+| `mod_int` | **Pipeline private** | `mod_int` |
+| `univariate_degree` | **Pipeline private** | `univariate_degree` |
+| `coeff_at` | **Pipeline private** | `coeff_at` |
+| `set_coeff` | **Pipeline private** | `set_coeff` |
+| `from_modint_coeffs` | **Pipeline private** | `from_modint_coeffs` |
+| `from_bigint_coeffs` | **Pipeline private** | `from_bigint_coeffs` |
+| `var_poly` | **Pipeline private** | `var_poly` |
+| `make_monic` | **Pipeline private** | `make_monic` |
+| `derivative` | **Pipeline private** | `derivative` |
+| `at_modulus` | **Pipeline private** | `at_modulus` |
+| `to_centered_int_poly` | **Pipeline private** | `to_centered_int_poly` |
+
 ### `factor/hensel.rs`
 
 | Function | Tier | Description |
@@ -298,12 +367,23 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `poly_from_rat` | **Pipeline private** | `poly_from_rat` |
 | `egcd_factor_list` | **Pipeline private** | `egcd_factor_list` |
 | `truncate_y` | **Pipeline private** | `truncate_y` |
-| `is_independent_of_y` | **Pipeline private** | `is_independent_of_y` |
+| `div_rem_x_over_qy` | **Pipeline private** | `div_rem_x_over_qy` via nested-ring API (divisor independent of aux) |
 | `leading_coeff_x` | **Pipeline private** | `leading_coeff_x` |
 | `scale_univariate_x` | **Pipeline private** | `scale_univariate_x` |
-| `div_rem_x_over_qy` | **Pipeline private** | `div_rem_x_over_qy` |
-| `hensel_lift_two_at_zero` | **Pipeline private** | `hensel_lift_two_at_zero` |
+| `hensel_lift_two_at_zero` | **Pipeline private** | legacy y-degree truncation Hensel (2 factors); fallback when total-degree lift fails |
 | `normalize_univariate_factors` | **Pipeline private** | `normalize_univariate_factors` |
+| `truncate_total_degree` | **Pipeline private** | `truncate_total_degree` |
+| `total_degree_poly` | **Pipeline private** | `total_degree_poly` |
+| `scalar_at_y_zero` | **Pipeline private** | scalar value of `p(y=0)` when constant |
+| `lcp_depends_on_aux` | **Pipeline private** | true when `lcp` depends on auxiliary var `aux` |
+| `lcm_rat` | **Pipeline private** | lcm of two rationals |
+| `lcm_poly_denoms` | **Pipeline private** | lcm of denominators of all coeffs in `p` |
+| `scale_f0_factors` | **Pipeline private** | scale `f0[i]` by `lcoeff(y=0)/lc(f0[i])` (upstream `mulmodpoly` on `F0fact`) |
+| `build_hensel_lift_seeds` | **Pipeline private** | `build_hensel_lift_seeds` |
+| `egcd_factor_list_normalized` | **Pipeline private** | `egcd_factor_list` + lcm denominator `D` (upstream `lcmdeno` / `D`) |
+| `hensel_lift_factor_loop` | **Pipeline private** | total-degree Hensel iteration (upstream `EZGCD_DEGONLY`, `b=0`) |
+| `try_hensel_lift_factor` | **Pipeline private** | `try_hensel_lift_factor` |
+| `normalize_hensel_lift_result` | **Pipeline private** | normalize lifted factors whose product is `p` or `p_adj` |
 | `hensel_lift_at_zero` | **Pipeline private** | `hensel_lift_at_zero` |
 | `as_rational_constant` | **Pipeline private** | `as_rational_constant` |
 | `linear_root` | **Pipeline private** | `linear_root` |
@@ -316,7 +396,7 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `lift_factor_from_aux_evals_with_rest` | **Pipeline private** | `lift_factor_from_aux_evals_with_rest` |
 | `try_lift_factors_in_aux_var` | **Pipeline private** | lift bivariate factors via aux variable |
 | `try_hensel_lift_interp` | **Pipeline private** | optional fallback `try_hensel_lift_interp` |
-| `try_hensel_lift_bivariate` | **Partial** | Factor `p(x,y)` in ℚ[y][x]: Hensel lift at `y=0`, then interpolation fallback. |
+| `try_hensel_lift_bivariate` | **Partial** | Factor `p(x,y)` in ℚ[y][x]: Hensel lift at `aux=0`, both main orders, then interpolation fallback. |
 | `hensel_three_linear_shifted` | **Pipeline private** | `hensel_three_linear_shifted` |
 | `hensel_two_bilinear_factors` | **Pipeline private** | `hensel_two_bilinear_factors` |
 | `hensel_egcd_two_factors` | **Pipeline private** | `hensel_egcd_two_factors` |
@@ -326,6 +406,10 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `factor_non_monic_product_at_zero` | **Pipeline private** | `factor_non_monic_product_at_zero` |
 | `hensel_two_simple_non_monic` | **Pipeline private** | `hensel_two_simple_non_monic` |
 | `aux_lift_line21` | **Pipeline private** | `aux_lift_line21` |
+| `try_hensel_lift_factor_line22_debug_steps` | **Pipeline private** | `try_hensel_lift_factor_line22_debug_steps` |
+| `try_hensel_lift_factor_line22` | **Pipeline private** | `try_hensel_lift_factor_line22` |
+| `two_factor_hensel_at_zero_line22` | **Pipeline private** | `two_factor_hensel_at_zero_line22` |
+| `interp_line22_mixed_bivariate` | **Pipeline private** | `interp_line22_mixed_bivariate` |
 | `hensel_line22_mixed_bivariate` | **Pipeline private** | `hensel_line22_mixed_bivariate` |
 | `hensel_uses_lift_at_zero_for_linears` | **Pipeline private** | `hensel_uses_lift_at_zero_for_linears` |
 
@@ -368,6 +452,7 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `factor_multivariate` | **Stable (bounded)** | multivariate factorization |
 | `factor_multivariate_rec` | **Pipeline private** | multivariate factor recursion (patterns→uni→main var) |
 | `factor_wrt_main_var` | **Pipeline private** | `factor_wrt_main_var` |
+| `factor_multivariate_rec_sqff` | **Pipeline private** | [`SqffFactorRecFn`] adapter for multivariate recursion |
 | `factor_bivariate_product` | **Pipeline private** | `factor_bivariate_product` |
 | `factor_bivariate_mixed` | **Pipeline private** | `factor_bivariate_mixed` |
 | `factor_three_shifted_linears` | **Pipeline private** | `factor_three_shifted_linears` |
@@ -394,16 +479,15 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `term_with_var` | **Stable** | coeff * var^exp as Poly |
 | `derivative_wrt` | **Stable** | ∂p/∂var treating coefficients in ℚ[others]. |
 | `square_free_wrt` | **Stable** | Square-free factorization w.r.t. `var` over ℚ[others] (Yun-style via gcd). |
-| `square_free_wrt_impl` | **Pipeline private** | Yun sqff loop; uses `quo_exact_wrt` |
+| `square_free_wrt_impl` | **Pipeline private** | `square_free_wrt_impl` |
 | `substitute_poly` | **Stable** | Substitute `sub_var -> sub_poly` in `p`. |
 | `factor_sqff_over_coeff_ring` | **Partial** | Factor square-free `g` in ℚ[others][var] recursively. |
-| `try_factor_bivariate_eval` | **Temporary (retired)** | `#[cfg(test)]` eval+interp lift |
-| `try_lift_bivariate_from_eval` | **Temporary (retired)** | `#[cfg(test)]` |
-| `lift_univariate_factor` | **Temporary (retired)** | `#[cfg(test)]` |
-| `try_kronecker_bivariate` | **Temporary (retired)** | `#[cfg(test)]` Kronecker embed |
-| `kronecker_lift` | **Pipeline private** | Kronecker coeff decode (test-only caller) |
+| `factor_sqff_over_coeff_ring_ctx` | **Pipeline private** | typed sqff factor chain |
 | `as_constant` | **Pipeline private** | `as_constant` |
 | `as_constant` | **Stable** | `Poly::as_constant` |
+| `sqff_rec` | **Pipeline private** | `sqff_rec` |
+| `sqff_chain_l20_via_factor_sqff_over_coeff_ring` | **Pipeline private** | `sqff_chain_l20_via_factor_sqff_over_coeff_ring` |
+| `sqff_chain_l21_ternary_linears` | **Pipeline private** | `sqff_chain_l21_ternary_linears` |
 | `content_wrt_xy_plus_y_squared` | **Pipeline private** | `content_wrt_xy_plus_y_squared` |
 | `rational_content_vs_wrt_content` | **Pipeline private** | `rational_content_vs_wrt_content` |
 
@@ -416,6 +500,82 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `try_binomial_square` | **Pipeline private** | optional fallback `try_binomial_square` |
 | `try_linear_power` | **Partial** | detect (linear)^n |
 
+### `factor/sparse.rs`
+
+| Function | Tier | Description |
+|----------|------|-------------|
+| `try_sparse_factor` | **Partial** | Sparse reconstruction from univariate factors at `other = 0` (FAC-G1). |
+| `try_sparse_factor_at` | **Partial** | sparse factor with optional auxiliary evaluation point (upstream `b0`). |
+| `try_sparse_factor_impl` | **Pipeline private** | single `(main, other)` attempt via typed sparse stages |
+| `prepare` | **Pipeline private** | `prepare` |
+| `into_system` | **Pipeline private** | `into_system` |
+| `solve` | **Pipeline private** | `solve` |
+| `leading_coeff_main` | **Pipeline private** | leading coefficient of `p` in `main` (poly in remaining vars) |
+| `factor_unknown_count` | **Pipeline private** | non-leading term count in univariate factor `f` |
+| `build_factor_templates` | **Pipeline private** | assign global `la` indices to non-leading terms |
+| `scale_by_lcp_power` | **Pipeline private** | `lcp^(pow) * p` |
+| `zero` | **Stable** | Poly zero |
+| `is_zero` | **Stable** | Poly is zero |
+| `add` | **Stable** | Poly addition |
+| `mul` | **Stable** | Poly multiplication |
+| `is_zero` | **Stable** | Poly is zero |
+| `from_parts` | **Stable** | `Poly::from_parts` |
+| `is_linear` | **Stable** | `Poly::is_linear` |
+| `substitute` | **Pipeline private** | `substitute` |
+| `merge_linear` | **Pipeline private** | `merge_linear` |
+| `merge_bilinear` | **Pipeline private** | `merge_bilinear` |
+| `poly_to_sparse_map` | **Pipeline private** | known `(main, other)` exponent map |
+| `template_to_sparse_map` | **Pipeline private** | one factor template as sparse map with `la` unknowns |
+| `sparse_map_mul` | **Pipeline private** | multiply sparse maps, tracking bilinear per monomial |
+| `sparse_map_sub` | **Pipeline private** | `sparse_map_sub` |
+| `build_sparse_equations` | **Pipeline private** | `build_sparse_equations` |
+| `c_from_target_x0` | **Pipeline private** | `x^0` coefficients of `target` by `other`-degree |
+| `lcp_coeffs_in_other` | **Pipeline private** | `lcp` as univariate poly in `other`: `[lcp_0, lcp_1, …]` |
+| `x1_target_coeffs` | **Pipeline private** | `x^1` coefficients of `target` by `other`-degree |
+| `solve_lcp_convolution_x1` | **Pipeline private** | `solve_lcp_convolution_x1` |
+| `solve_sparse_two_factor` | **Pipeline private** | 2-factor path: `b_k = s_k - a_k`, bilinear in `a_k` |
+| `a0_quadratic_roots` | **Pipeline private** | `a0_quadratic_roots` |
+| `complete_two_factor_a` | **Pipeline private** | `complete_two_factor_a` |
+| `bilinear_at_m` | **Pipeline private** | `bilinear_at_m` |
+| `solve_a_j_at_m` | **Pipeline private** | `solve_a_j_at_m` |
+| `rational_sqrt` | **Pipeline private** | `rational_sqrt` |
+| `integer_sqrt_bigint` | **Pipeline private** | `integer_sqrt_bigint` |
+| `solve_sparse_system` | **Pipeline private** | upstream iterative linear extraction + bilinear finish |
+| `solve_linear_equations` | **Pipeline private** | extract one linear equation and solve via Gaussian elimination |
+| `solve_bilinear_remaining` | **Pipeline private** | handle remaining bilinear equations (2-factor `A*B` terms) |
+| `gaussian_elimination` | **Pipeline private** | Gaussian elimination over ℚ |
+| `la_poly_from_sol` | **Pipeline private** | `la_poly_from_sol` |
+| `build_factors` | **Pipeline private** | `build_factors` |
+| `divide_poly_coeffs_by` | **Pipeline private** | divide each `main`-coefficient by `den` when exact |
+| `try_adjust_sparse_scale` | **Pipeline private** | `try_adjust_sparse_scale` |
+| `verify_sparse_factors` | **Pipeline private** | accept only `∏ f_i = p` (upstream `divbylgcd` applied above) |
+| `try_sparse_factor_bi` | **Partial** | sparse factor via bivariate `eval_tn` embedding (FAC-G1, 3+ vars). |
+| `embed_sorted_monomials` | **Pipeline private** | build `Poly` from sorted embed monomials + aux exponents |
+| `bivariate_x_degrees_ok` | **Pipeline private** | distinct `main`-degrees with pairwise distinct coeffs (upstream `x_degrees`). |
+| `factor_bivariate_flat` | **Stable** | `factor_bivariate_flat` |
+| `select_bivariate_factor` | **Pipeline private** | pick sparsest bivariate factor candidate. |
+| `matching_embed_factor` | **Pipeline private** | factor of `eval_tn(p)` with matching `main`-degree pattern. |
+| `reconstruct_sparse_bi_monomials` | **Pipeline private** | `reconstruct_sparse_bi_monomials` |
+| `reconstruct_factor_dual_embed` | **Pipeline private** | `reconstruct_factor_dual_embed` |
+| `reconstruct_sparse_bi_factor` | **Pipeline private** | `reconstruct_sparse_bi_factor` |
+| `exact_quo_wrt` | **Pipeline private** | exact quotient `p / factor` in ℚ[others][main]. |
+| `dilate_poly` | **Pipeline private** | substitute `aux -> factor * aux` |
+| `undilate_poly` | **Pipeline private** | undo dilation: `factor*aux -> aux` |
+| `try_dilation_sparse_bi` | **Pipeline private** | upstream random dilation fallback (deterministic seeds) |
+| `try_sparse_factor_bi_two_aux` | **Pipeline private** | two auxiliary variables; upstream `n` sweep then dilation fallback. |
+| `try_sparse_factor_bi_two_aux_inner` | **Pipeline private** | optional fallback `try_sparse_factor_bi_two_aux_inner` |
+| `try_sparse_factor_bi_single_n` | **Pipeline private** | one embed exponent vector `n` |
+| `try_heuristic_factor_bivariate` | **Partial** | Heuristic factorization via large eval + `pzadic` lift (FAC-G1/G3). |
+| `l22_poly` | **Pipeline private** | `l22_poly` |
+| `lcp_convolution_deconv_line22` | **Pipeline private** | `lcp_convolution_deconv_line22` |
+| `factor_bivariate_flat_bilinear` | **Pipeline private** | `factor_bivariate_flat_bilinear` |
+| `factor_bivariate_flat_univariate_fallback` | **Pipeline private** | `factor_bivariate_flat_univariate_fallback` |
+| `sparse_factor_tri_var` | **Pipeline private** | `sparse_factor_tri_var` |
+| `sparse_factor_tri_var_sum_coeff` | **Pipeline private** | `sparse_factor_tri_var_sum_coeff` |
+| `sparse_factor_bilinear` | **Pipeline private** | `sparse_factor_bilinear` |
+| `sparse_factor_non_monic_quadratic` | **Pipeline private** | `sparse_factor_non_monic_quadratic` |
+| `heuristic_factors_line22` | **Pipeline private** | `heuristic_factors_line22` |
+
 ### `factor/sqrt.rs`
 
 | Function | Tier | Description |
@@ -424,6 +584,41 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `format_ratio` | **Pipeline private** | `format_ratio` |
 | `format_sqrt_ratio` | **Pipeline private** | `format_sqrt_ratio` |
 | `sqrt_factor_x2_minus_2` | **Pipeline private** | `sqrt_factor_x2_minus_2` |
+
+### `factor/tower.rs`
+
+| Function | Tier | Description |
+|----------|------|-------------|
+| `new` | **Stable** | `new` |
+| `from_slice` | **Stable** | `from_slice` |
+| `inner_dim` | **Stable** | `inner_dim` |
+| `as_slice` | **Stable** | `as_slice` |
+| `new` | **Stable** | `new` |
+| `from_sqff_ctx` | **Stable** | `from_sqff_ctx` |
+| `main_degree` | **Stable** | `main_degree` |
+| `flat_dim` | **Stable** | `flat_dim` |
+| `all_vars` | **Stable** | `all_vars` |
+| `is_parametric_tower` | **Stable** | `is_parametric_tower` |
+| `unsplit_to_flat` | **Stable** | `unsplit_to_flat` |
+| `split_factor` | **Stable** | `split_factor` |
+| `try_factor_aux_lift` | **Partial** | optional algorithm path `try_factor_aux_lift` |
+| `factor_sqff_chain` | **Stable** | `factor_sqff_chain` |
+| `try_sparse_bi` | **Partial** | optional algorithm path `try_sparse_bi` |
+| `try_factor` | **Partial** | optional algorithm path `try_factor` |
+| `as_poly_factor_tower` | **Stable** | `as_poly_factor_tower` |
+| `l20_poly` | **Pipeline private** | `l20_poly` |
+| `l20_others` | **Pipeline private** | `l20_others` |
+| `l21_poly` | **Pipeline private** | `l21_poly` |
+| `tower_factor_sqff_chain_l20` | **Pipeline private** | `tower_factor_sqff_chain_l20` |
+| `tower_factor_sqff_chain_l21` | **Pipeline private** | `tower_factor_sqff_chain_l21` |
+| `tower_try_factor_skips_good_eval` | **Pipeline private** | `tower_try_factor_skips_good_eval` |
+| `l24_poly` | **Pipeline private** | `l24_poly` |
+| `tower_l24_irreducible_skips_sparse_bi` | **Pipeline private** | `tower_l24_irreducible_skips_sparse_bi` |
+| `tower_l23_cubic_factors_are_irreducible` | **Pipeline private** | `tower_l23_cubic_factors_are_irreducible` |
+| `tower_unsplit_is_flat_poly` | **Pipeline private** | `tower_unsplit_is_flat_poly` |
+| `tower_aux_lift_factors_l20` | **Pipeline private** | `tower_aux_lift_factors_l20` |
+| `tower_from_sqff_ctx` | **Pipeline private** | `tower_from_sqff_ctx` |
+| `split_factor_tags_main` | **Pipeline private** | `split_factor_tags_main` |
 
 ### `factor/tracer.rs`
 
@@ -442,6 +637,63 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `testfactor_line22_bivariate_mixed_degree` | **Pipeline private** | `testfactor_line22_bivariate_mixed_degree` |
 | `testfactor_line12_two_cubics` | **Pipeline private** | `testfactor_line12_two_cubics` |
 | `testfactor_line24_x6_minus_y6` | **Pipeline private** | `testfactor_line24_x6_minus_y6` |
+| `testfactor_unitary_bilinear_gate` | **Pipeline private** | `testfactor_unitary_bilinear_gate` |
+| `testfactor_line25_unitaryfactor_gate` | **Pipeline private** | `testfactor_line25_unitaryfactor_gate` |
+| `testfactor_line26_y3_x2y_gate` | **Pipeline private** | `testfactor_line26_y3_x2y_gate` |
+
+### `factor/unitary.rs`
+
+| Function | Tier | Description |
+|----------|------|-------------|
+| `initial` | **Pipeline private** | GCDHEU eval base 2·‖p‖∞+2 |
+| `base` | **Pipeline private** | eval base accessor |
+| `set_base` | **Pipeline private** | set eval base |
+| `bump_sqff` | **Pipeline private** | sqff micro-bump base += 1 |
+| `advance` | **Pipeline private** | upstream eval step ⌊base·73794/27011⌋+1 |
+| `as_ratio` | **Pipeline private** | eval base as Ratio<BigInt> |
+| `new` | **Pipeline private** | EvalBaseStream from poly norm |
+| `current` | **Pipeline private** | current EvalBaseStream point |
+| `current_mut` | **Pipeline private** | mutable current EvalBaseStream point |
+| `next` | **Pipeline private** | advance outer eval base or stop when bits > 256 |
+| `upstream_bases` | **Pipeline private** | first N bases on EvalBaseStream (tests) |
+| `reverse_var_order` | **Pipeline private** | upstream tensor reverse on variable indices |
+| `trunc1_drop_var` | **Pipeline private** | drop eval_var tail (upstream trunc1) |
+| `untrunc1_insert_var` | **Pipeline private** | reinsert eval_var with zero exp (upstream untrunc1) |
+| `eval_coeff_groups` | **Pipeline private** | group terms by eval_var exponent |
+| `unitarize` | **Pipeline private** | scale to unitary leading coeff w.r.t. eval_var |
+| `ununitarize` | **Pipeline private** | undo unitarize scaling factor |
+| `pow_poly` | **Pipeline private** | integer exponentiation in Poly ring |
+| `new` | **Pipeline private** | PzadicLift builder |
+| `draft_from` | **Pipeline private** | build PzadicDraft from eval factor |
+| `lift_candidates` | **Pipeline private** | pzadic lift candidates from draft |
+| `pzadic` | **Pipeline private** | faithful base-B digit lift (dim+1 via eval_var) |
+| `factor_sort_key` | **Pipeline private** | sort key (deg, lc) for eval factors |
+| `sort_eval_factors` | **Pipeline private** | stable sort eval factor slots |
+| `lagrange_interp_coeff` | **Pipeline private** | P2a Lagrange coeff in eval_var |
+| `monic_wrt_main` | **Pipeline private** | normalize factor monic w.r.t. main |
+| `lift_factor_multi_eval` | **Pipeline private** | P2a local-window multi-point coeff lift |
+| `try_lift_and_peel` | **Pipeline private** | pzadic peel then P2a fallback + divides check |
+| `sym_mod_digit` | **Pipeline private** | symmetric mod digit for pzadic expansion |
+| `try_unitary_factor` | **Partial** | FAC-G1 last-resort; sparse/Hensel fallback; bounded GCDHEU eval stream |
+| `unitary_factor_rev` | **Partial** | core unitaryfactor loop on vars_rev; pzadic peel + P2a fallback |
+| `factor_constant_tail_into` | **Pipeline private** | recurse constant tail into factor list |
+| `factor_constant_tail` | **Pipeline private** | factor tail when main degree → 0 |
+| `try_peel_all_at_eval` | **Pipeline private** | batch peel all slots at one eval base |
+| `factor_at_eval` | **Pipeline private** | factor eval image w.r.t. main |
+| `verified_product` | **Pipeline private** | check factor product equals orig |
+| `is_sqff_wrt_main` | **Pipeline private** | sqff test w.r.t. main var |
+| `linfnorm` | **Pipeline private** | L∞ norm of Poly coefficients |
+| `l22_y3_product` | **Pipeline private** | `l22_y3_product` |
+| `l22_y3_x2y_product` | **Pipeline private** | `l22_y3_x2y_product` |
+| `pzadic_lift_linear_via_digits` | **Pipeline private** | `pzadic_lift_linear_via_digits` |
+| `reverse_roundtrip` | **Pipeline private** | `reverse_roundtrip` |
+| `eval_base_stream_upstream_only` | **Pipeline private** | `eval_base_stream_upstream_only` |
+| `p2a_line25_upstream_trajectory` | **Pipeline private** | `p2a_line25_upstream_trajectory` |
+| `p2a_sample_window_anchors_below_base0` | **Pipeline private** | `p2a_sample_window_anchors_below_base0` |
+| `unitary_bilinear_via_single_entry` | **Pipeline private** | `unitary_bilinear_via_single_entry` |
+| `unitarize_extracts_leading_coeff` | **Pipeline private** | `unitarize_extracts_leading_coeff` |
+| `unitary_factor_line25_l22_y3` | **Pipeline private** | `unitary_factor_line25_l22_y3` |
+| `unitary_factor_line26_l22_y3_x2y` | **Pipeline private** | `unitary_factor_line26_l22_y3_x2y` |
 
 ### `factor/univariate.rs`
 
@@ -486,22 +738,13 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 
 | Function | Tier | Description |
 |----------|------|-------------|
-| `x_var` | **Pipeline private** | `x_var` |
-| `monomial_x_pow` | **Pipeline private** | `monomial_x_pow` |
 | `is_int_poly` | **Pipeline private** | `is_int_poly` |
 | `integer_coeffs` | **Pipeline private** | `integer_coeffs` |
 | `mignotte_bound` | **Pipeline private** | `mignotte_bound` |
-| `coeff_mod` | **Pipeline private** | `coeff_mod` |
-| `poly_mod_from_coeffs` | **Pipeline private** | `poly_mod_from_coeffs` |
 | `poly_mod_from_poly` | **Pipeline private** | `poly_mod_from_poly` |
-| `make_monic_mod` | **Pipeline private** | `make_monic_mod` |
-| `at_modulus` | **Pipeline private** | `at_modulus` |
-| `derivative_mod` | **Pipeline private** | `derivative_mod` |
 | `is_square_free_mod` | **Pipeline private** | `is_square_free_mod` |
 | `extgcd_mod` | **Pipeline private** | `extgcd_mod` |
 | `egcd_factor_list_mod` | **Pipeline private** | `egcd_factor_list_mod` |
-| `polymod_to_int_poly` | **Pipeline private** | `polymod_to_int_poly` |
-| `divides_exact` | **Pipeline private** | `divides_exact` |
 | `divides_exact_quotient` | **Pipeline private** | `divides_exact_quotient` |
 | `coeff_div_mod` | **Pipeline private** | `coeff_div_mod` |
 | `lift_correction` | **Pipeline private** | `lift_correction` |
@@ -568,6 +811,90 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `divides` | **Stable** | `divides` |
 | `lcm` | **Stable** | Poly lcm |
 
+### `nested.rs`
+
+| Function | Tier | Description |
+|----------|------|-------------|
+| `new` | **Stable** | wrap a variable name as main indeterminate. |
+| `as_var` | **Stable** | underlying [`Var`]. |
+| `from` | **Stable** | `Poly::from` |
+| `new` | **Stable** | view `p` as a coefficient-ring element. |
+| `gcd` | **Stable** | gcd in ℚ[others] via subresultant (typed coefficient-ring path). |
+| `exact_quo` | **Stable** | exact quotient in ℚ[others]; `None` if `den` does not divide `self`. |
+| `new` | **Stable** | view `poly` as univariate in `main`. |
+| `main_var` | **Stable** | main variable. |
+| `degree` | **Stable** | degree w.r.t. `main`. |
+| `coeff_at` | **Stable** | coefficient of `main^exp` as ℚ[others]. |
+| `leading_coeff` | **Stable** | leading coefficient w.r.t. `main` (element of ℚ[others]). |
+| `divides` | **Stable** | whether `self` divides `p` in ℚ[others][main]. |
+| `exact_quo_dividing` | **Stable** | exact quotient `p / self` in ℚ[others][main]. |
+| `div_rem_wrt_aux_indep` | **Stable** | `div_rem_wrt_aux_indep` |
+| `eval_aux` | **Stable** | substitute `aux ↦ value` in ℚ[others][main]; `main` unchanged. |
+| `new` | **Stable** | construct owned nested-ring element. |
+| `as_view` | **Stable** | borrowed view. |
+| `new` | **Stable** | view `poly` as univariate in `var` over ℚ. |
+| `try_new` | **Stable** | construct when `poly` is genuinely univariate in `var`. |
+| `as_poly` | **Stable** | underlying polynomial (explicit downgrade). |
+| `into_poly` | **Stable** | consume and return inner [`Poly`]. |
+| `var` | **Stable** | main variable. |
+| `div_rem` | **Stable** | Euclidean `(q, r)` in ℚ[var] via [`univariate_div_rem_wrt`]. |
+| `divides` | **Stable** | whether `divisor` divides `self` in ℚ[var]. |
+| `exact_quo` | **Stable** | exact quotient `self / divisor` when remainder is zero. |
+| `new` | **Stable** | wrap a general sparse polynomial. |
+| `as_poly` | **Stable** | underlying [`Poly`] (explicit downgrade). |
+| `into_inner` | **Stable** | consume and return inner [`Poly`]. |
+| `div_rem` | **Stable** | multivariate leading-monomial division (display / heuristic contexts only). |
+| `wrt` | **Stable** | `p / content_wrt(p, var)` in ℚ[others][var]. |
+| `as_poly` | **Stable** | primitive part polynomial. |
+| `main_var` | **Stable** | variable the part is primitive w.r.t. |
+| `into_inner` | **Stable** | consume into `(poly, main)`. |
+| `pair` | **Stable** | `Poly::pair` |
+| `apply` | **Stable** | `Poly::apply` |
+| `undo` | **Stable** | `undo` |
+| `is_flat_univariate_in` | **Pipeline private** | `is_flat_univariate_in` |
+| `substitute_wrt` | **Pipeline private** | substitute `sub_var ↦ sub_poly` (coefficients may depend on other vars). |
+| `dilate_one` | **Pipeline private** | `dilate_one` |
+| `undilate_one` | **Pipeline private** | `undilate_one` |
+| `dilate_aux` | **Stable** | `dilate_aux` |
+| `undilate_aux` | **Stable** | `undilate_aux` |
+| `unit` | **Stable** | `n = [1, 1]` embed with fresh `t` variable. |
+| `with_n` | **Stable** | copy with new exponent vector. |
+| `embed` | **Stable** | map `p ∈ ℚ[main, aux…]` into ℚ[main, t] (typed embed result). |
+| `view_main` | **Stable** | view embedded poly as univariate in `main` (coeffs in ℚ[t]). |
+| `view_t` | **Stable** | view embedded poly as univariate in `t`. |
+| `new` | **Stable** | construct from polynomial and embed configuration. |
+| `as_poly` | **Stable** | underlying polynomial (explicit downgrade). |
+| `into_poly` | **Stable** | consume and return the inner [`Poly`]. |
+| `config` | **Stable** | embed configuration. |
+| `view_main` | **Stable** | view as univariate in `main` (coeffs in ℚ[t]). |
+| `view_t` | **Stable** | view as univariate in `t`. |
+| `to_recon_draft` | **Stable** | `to_recon_draft` |
+| `from_embedded` | **Stable** | `Poly::from_embedded` |
+| `from_poly` | **Stable** | `Poly::from_poly` |
+| `materialize` | **Stable** | `materialize` |
+| `from_eval_factor` | **Stable** | `Poly::from_eval_factor` |
+| `new` | **Stable** | `new` |
+| `as_univariate_in` | **Stable** | `Poly::as_univariate_in` |
+| `is_independent_of_var` | **Stable** | `is_independent_of_var` |
+| `div_rem_wrt_aux_indep` | **Stable** | `div_rem_wrt_aux_indep` |
+| `sorted_from_poly` | **Stable** | `Poly::sorted_from_poly` |
+| `embed_monomials_to_poly` | **Pipeline private** | build `Poly` from sorted embed monomials + aux exponents |
+| `term_with_var` | **Pipeline private** | shared with `poly_uni::term_with_var` |
+| `coeff_wrt_impl` | **Pipeline private** | `coeff_wrt_impl` |
+| `eval_tn_impl` | **Pipeline private** | `eval_tn` |
+| `flat_uni_div_rem_vs_multivariate_div_rem` | **Pipeline private** | `flat_uni_div_rem_vs_multivariate_div_rem` |
+| `primitive_part_wrt_tags_main` | **Pipeline private** | `primitive_part_wrt_tags_main` |
+| `dilation_map_apply_undo` | **Pipeline private** | `dilation_map_apply_undo` |
+| `multivariate_poly_div_rem_extract_powers` | **Pipeline private** | `multivariate_poly_div_rem_extract_powers` |
+| `coeff_ring_gcd_divides_both` | **Pipeline private** | `coeff_ring_gcd_divides_both` |
+| `univariate_in_divides_vs_div_rem` | **Pipeline private** | `univariate_in_divides_vs_div_rem` |
+| `lifted_factor_peel_vs_div_rem` | **Pipeline private** | `lifted_factor_peel_vs_div_rem` |
+| `coeff_ring_exact_quo` | **Pipeline private** | `coeff_ring_exact_quo` |
+| `eval_aux_preserves_main` | **Pipeline private** | `eval_aux_preserves_main` |
+| `tn_embed_maps_aux_to_t` | **Pipeline private** | `tn_embed_maps_aux_to_t` |
+| `embed_factor_draft_materialize_with_aux_exps` | **Pipeline private** | `embed_factor_draft_materialize_with_aux_exps` |
+| `div_rem_wrt_aux_indep_matches_univariate` | **Pipeline private** | `div_rem_wrt_aux_indep_matches_univariate` |
+
 ### `ops.rs`
 
 | Function | Tier | Description |
@@ -606,6 +933,9 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `partfrac_one_over_x_times_x_squared_plus_one` | **Pipeline private** | `partfrac_one_over_x_times_x_squared_plus_one` |
 | `partfrac_xplus1_over_x_squared_minus_one` | **Pipeline private** | `partfrac_xplus1_over_x_squared_minus_one` |
 | `partfrac_ck_int_05_denominator` | **Pipeline private** | `partfrac_ck_int_05_denominator` |
+| `partfrac_one_over_x_minus_one_squared` | **Pipeline private** | `partfrac_one_over_x_minus_one_squared` |
+| `partfrac_x_over_x_minus_one_squared` | **Pipeline private** | `partfrac_x_over_x_minus_one_squared` |
+| `partfrac_one_over_x_squared_minus_four` | **Pipeline private** | `partfrac_one_over_x_squared_minus_four` |
 | `partfrac_one_over_one_minus_x_squared` | **Pipeline private** | `partfrac_one_over_one_minus_x_squared` |
 
 ### `poly.rs`
@@ -636,7 +966,7 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `gcd` | **Stable** | Poly gcd via subresultant |
 | `lcm` | **Stable** | Poly lcm |
 | `horner` | **Stable** | Horner eval at rational point |
-| `integer_content_gcd` | **Pipeline private** | `integer_content_gcd` |
+| `integer_content_gcd` | **Pipeline private** | gcd of rational coeffs as Ratio |
 | `quo` | **Stable** | exact quotient Poly/ Poly |
 | `rem` | **Stable** | remainder Poly/ Poly |
 | `egcd` | **Stable** | extended gcd (s,t,g) |
@@ -690,15 +1020,15 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `is_univariate_in` | **Pipeline private** | `is_univariate_in` |
 | `main_var_for_gcd` | **Pipeline private** | `main_var_for_gcd` |
 | `rational_primitive` | **Pipeline private** | `rational_primitive` |
-| `div_exact_coeff` | **Stable (crate-internal)** | exact quotient in coefficient ring when `b \| a` |
-| `quo_exact_coeff` | **Stable (crate-internal)** | `div_exact_coeff` → `PolyResult` |
-| `univariate_div_rem_wrt` | **Stable (crate-internal)** | division in ℚ[others][var] |
-| `quo_exact_wrt` | **Stable (crate-internal)** | exact quotient w.r.t. `var`; use instead of `Poly::div_rem` for nested rings |
-| `pseudo_rem_wrt` | **Pipeline private** | pseudo-remainder w.r.t. `var` |
+| `div_exact_coeff` | **Stable** | `div_exact_coeff` |
+| `quo_exact_coeff` | **Stable** | `quo_exact_coeff` |
+| `univariate_div_rem_wrt` | **Stable** | `univariate_div_rem_wrt` |
+| `quo_exact_wrt` | **Stable** | `quo_exact_wrt` |
+| `pseudo_rem_wrt` | **Pipeline private** | `pseudo_rem_wrt` |
 | `content_wrt` | **Stable** | content w.r.t. main var |
 | `primitive_part_wrt` | **Stable** | primitive part w.r.t. var |
-| `content_wrt_impl` | **Stable (crate-internal)** | gcd of coefficient polys w.r.t. `var` |
-| `primitive_part_wrt_impl` | **Stable (crate-internal)** | primitive part implementation |
+| `content_wrt_impl` | **Stable** | `content_wrt_impl` |
+| `primitive_part_wrt_impl` | **Stable** | `primitive_part_wrt_impl` |
 | `gcd_constant_wrt` | **Pipeline private** | `gcd_constant_wrt` |
 | `subresultant_gcd_wrt` | **Pipeline private** | `subresultant_gcd_wrt` |
 | `subresultant_gcd` | **Stable** | multivariate gcd subresultant |

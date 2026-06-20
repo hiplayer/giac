@@ -91,10 +91,12 @@
 
 ## 6. `at_*` 注册规模
 
+**MVP API** = **M**inimum **V**iable **P**roduct **API** — giac-rs 以测试规格定义的最小 builtin 子集（~210），非全库 ~1852 个 `at_*`。定义见 [`builtin-api-map.md`](builtin-api-map.md) §「MVP API 是什么」。
+
 | 范围 | 数量 | 说明 |
 |------|------|------|
 | giac 全库 `define_unary_function_ptr5(at_*)` | **~1852** | 含 GUI/兼容 |
-| 测试覆盖 API | **~210** | 见 [`builtin-api-map.md`](builtin-api-map.md) |
+| 测试覆盖 API（= **MVP API**） | **~210** | 见 [`builtin-api-map.md`](builtin-api-map.md) |
 | MVP 需实现 | **~210** | 以测试为准，非全库 |
 
 注册机制：`define_unary_function_ptr5(at_foo, …, &__foo, …)` 将字符串 `"foo"` 绑定到 `at_foo` 函数指针；解析器 `T_UNARY_OP` 直接产生 `gen(at_foo, arity)`。

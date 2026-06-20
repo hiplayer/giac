@@ -1,10 +1,10 @@
 # GIAC-poly-unitaryfactor — `unitaryfactor` / `pzadic` 缺口与优先级
 
-**状态:** open（P0/P1/P2a/P2b 已落地；P2c API 复审待做）  
+**状态:** open（P0/P1/P2a/P2b/P2c 已落地；U5 reverse 边界待补）  
 **类型:** 算法 / FAC-G1 尾部  
 **上游基线:** `giac/giac-2.0.0` `gausspol.cc` `unitaryfactor` / `pzadic` / `unitarize` / `do_factor_hensel` L7044–7077  
 **实现:** `giac-rs/crates/giac-poly/src/factor/unitary.rs`  
-**相关:** [GIAC-simplify-poly-upstream-gaps](GIAC-simplify-poly-upstream-gaps.md) §2.2、[GIAC-poly-nested-ring-types](GIAC-poly-nested-ring-types.md)、[giac-poly-api-stability.md](../giac-poly-api-stability.md) §FAC-G1  
+**相关:** [GIAC-simplify-poly-upstream-gaps](GIAC-simplify-poly-upstream-gaps.md) §2.2、[GIAC-poly-nested-ring-types](GIAC-poly-nested-ring-types.md)、[giac-poly-api-stability.md](../giac-poly-api-stability.md) §FAC-G1、[giac-poly-factor-unitary-principles.md](../giac-poly-factor-unitary-principles.md)（**数学原理**）  
 **快照日期:** 2026-06-19
 
 ---
@@ -25,7 +25,7 @@ giac-rs 已接入 `factor/unitary.rs`（`UnitaryEvalPoint`、`PzadicLift`、`Pza
 |----|------|
 | 类型分层 | `UnitaryEvalPoint`、`PzadicLift`、`PzadicDraft`、`LiftedFactor`、`UnivariateIn::divides` |
 | 管线接线 | `poly_uni`：`|others|≥1` 统一 `try_unitary_factor` → `unitary_factor_rev`（无二元旁路） |
-| 赋值搜索 | `x0 = 2‖p‖∞+2`；sqff 微调；`x0 ← x0·73794/27011`；**无** `2..N` 小整数扫描；base 位长 ≤256 |
+| 赋值搜索 | `x0 = 2‖p‖∞+2`；sqff 微调；`x0 ← ⌊x0·73794/27011⌋`（giac-rs `advance` 另 `+1`）；**无** `2..N` 小整数扫描；base 位长 ≤256 | 原理 §3、[giac-poly-factor-unitary-principles.md](../giac-poly-factor-unitary-principles.md) |
 | P1 尾链 | 忠实 `pzadic`；`unitarize`/`ununitarize`；`trunc1` 常数项尾部 |
 | P2a | `lift_factor_multi_eval`（局部窗 `[base0-(need-1),…]` + monic 插值）；`try_lift_and_peel` fallback |
 | P2b | `reconstruct_factor_dual_embed` sum-coeff；`sparse_factor_tri_var_sum_coeff` ✅ |
@@ -66,15 +66,15 @@ giac-rs 已接入 `factor/unitary.rs`（`UnitaryEvalPoint`、`PzadicLift`、`Pza
 
 ---
 
-### U5 — 缺 `reverse()` 统一入口（**管线**）
+### U5 — `reverse()` 统一入口（**管线**） — **Partial**
 
-上游对 sqff 块先 `pcur.reverse()` 再 `unitaryfactor`。giac-rs 仅用 `vars_rev`，3+ 元符号翻转风险未消。
+上游对 sqff 块先 `pcur.reverse()` 再 `unitaryfactor`。giac-rs 在 `|vars|≥3` 时对 `p`/因子做 `reverse_var_order`；**二元**仅 `vars_rev`（对 `p` reverse 会 misalign `EvalBaseStream`，line25/26 超时）。
 
 ---
 
 ### U6 — 单点赋值信息不足 — ✅ P2a 已闭合（增强路径）
 
-`lift_factor_multi_eval`：在 `pzadic` 不整除时，对赋值因子各 `main` 系数做 Lagrange 插值（`MULTI_EVAL_MAX_SAMPLES=8`）。
+`lift_factor_multi_eval`：在 `pzadic` 不整除时，对赋值因子各 `main` 系数做 Lagrange 插值（`MULTI_EVAL_MAX_SAMPLES=8`）。详见 [giac-poly-factor-unitary-principles.md](../giac-poly-factor-unitary-principles.md) §5。
 
 ---
 
@@ -121,7 +121,7 @@ p  = f1 * f2
 |----|------|------|
 | **U-P2a** | 多点赋值 coeff 插值 | ✅ line 25 gate |
 | **U-P2b** | `sparse_bi` sum-coeff 重建 | ✅ `sparse_factor_tri_var_sum_coeff` |
-| **U-P2c** | `giac-poly-api-stability.md` / `unitary.rs` tier 复审 | 待做 |
+| **U-P2c** | `giac-poly-api-stability.md` / `unitary.rs` tier 复审 | ✅ 2026-06-19 |
 
 ---
 
@@ -131,7 +131,7 @@ p  = f1 * f2
 |------|------|
 | `eval_base_stream_upstream_only` | 首基 = `initial`，次基 = `advance(initial)` |
 | `p2a_sample_window_anchors_below_base0` | 局部采样窗低于 `initial` |
-| `p2a_line25_upstream_trajectory` | 前 4 个 upstream 基 ≥1 次 partial peel |
+| `p2a_line25_upstream_trajectory` | 前 4 个 upstream 基 ≥1 次 partial peel（**debug 下 `#[ignore]`**，release 跑） |
 | `unitary_factor_line25_l22_y3` + `testfactor_line25_unitaryfactor_gate` | 端到端 2 因子 |
 
 ---

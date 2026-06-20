@@ -1,5 +1,23 @@
 # 测试覆盖 API → at_* → Rust crate 对照
 
+## MVP API 是什么
+
+**MVP API** = **M**inimum **V**iable **P**roduct **API**（最小可行产品 API）。
+
+giac-rs Phase 4 要实现的 **builtin 函数子集**，以 **`bin/` + `check/` 黄金回归** 能 eval 为准，**不是** upstream giac-2.0.0 全库 1:1 移植。
+
+| 范围 | 数量 | 说明 |
+|------|------|------|
+| giac 全库 `at_*` 注册 | **~1852** | 含 GUI、TI/Maple 兼容、极少用函数 |
+| **MVP API**（本表） | **~210** | `functional-coverage.md` / 测试规格归纳；Rust 侧见 `FuncKind` / `BUILTINS` |
+| 本表行数 | **~250** | 含别名、多 crate 映射；与「~210 种 API」为同一批能力的不同计数口径 |
+
+**判定：** 某函数在 MVP 内 ⟺ 出现在本表且被 conformance / check 覆盖；缺口以「黄金行能否 eval」为准，而非 upstream 是否有对应 C++ 实现。
+
+**不做 MVP：** 全库其余 ~1600+ 个 `at_*`（如 `gbasis` 依赖 CoCoA stub、TI 方言等）— 见 [module-division.md](module-division.md) §6、[rust-migration-plan.md](rust-migration-plan.md) §1.1。
+
+---
+
 来源：`functional-coverage.md` 中 **250** 个 API；giac 全库约 **1852** 个 `at_*` 注册，MVP 仅实现本表。
 
 | API | C++ `at_*` | 主注册文件 | 功能域 | Rust crate |

@@ -13,7 +13,8 @@
 | 表示 | 类型（crate） | 适用场景 | 不适用 |
 |------|---------------|----------|--------|
 | 符号表达式树 | `ExprArc`（`giac-core`） | 含 `exp`/`ln`/参数化/代数扩域；管线编排 | 需要 guaranteed 多项式环运算时直接当 Poly 用 |
-| 多项式 | `Poly`（`giac-poly`） | 已知变量上多项式 GCD、valuation、度数比 | 子树含 `exp`、`ln`、MRV 系数语义 |
+| 有理多项式 | `Poly`（`giac-poly`，系数 **ℚ**） | `expr_to_poly` → GCD、valuation、factor（ℚ） | 系数含 `AlgExt`/`rootof` |
+| 代数系数多项式 | `Poly<AlgExtC>`（规划，P1） | `poly_alg_from_expr` → partfrac/factor/roots over K | P1 未实现前勿假设存在 |
 | 其他 | `SparseSeries`、`AlgExt`、矩阵… | 见各子模块文档 | 跨表示混用且不经过转换 API |
 
 **通用规则：**
@@ -72,7 +73,9 @@
 | Crate / 子模块 | 主表示 | 规范 / 边界 API | 专项文档 |
 |----------------|--------|-----------------|----------|
 | `giac-simplify` | `ExprArc` | `normal`, `ratnormal`, `expand`（各有适用范围） | [giac-simplify-api-stability.md](giac-simplify-api-stability.md) |
-| `giac-poly` | `Poly` | `factor_into`, `partfrac_rational_terms`, `Poly` 环运算；`expr_to_poly` 在 giac-core | [giac-poly-api-stability.md](giac-poly-api-stability.md) |
+| `giac-poly` | `Poly` | `factor_into`, `partfrac_rational_terms`, `Poly` 环运算；Expr 边界见下 | [giac-poly-api-stability.md](giac-poly-api-stability.md) |
+| `giac-core` / `algebra::poly` | `Poly`（ℚ）/ `PolyAlgExt` / `Expr` | **`expr_to_poly`** / **`poly_to_expr`** / **`poly_alg_from_expr`** / **`algext_poly_to_expr`** / **`expr_contains_alg_coeff`** | [expr-poly-conversion.md](expr-poly-conversion.md) |
+| `giac-poly` | `Poly<C>` / `PolyCoeff` | 系数环泛化；ℚ 默认 `Poly`；`ring_*` 构造非 ℚ 多项式 | [giac-poly-api-stability.md](giac-poly-api-stability.md) |
 | `giac-calculus` / `limit_engine` | `ExprArc` + `SparseSeries` | `mrv_w::canonical_mrv_coeff`, `decompose_mrv_coeff`, `remove_lnexp` | [limit-engine-expr-api.md](limit-engine-expr-api.md) |
 | `giac-calculus`（全 crate） | `ExprArc` | `integrate`, `eval_limit`, `depends_on_var`；源码 `/// **Stable**` 标记 | [giac-calculus-api-stability.md](giac-calculus-api-stability.md) |
 | `giac-calculus` / `exp_diff` | `ExprArc`（x 层 `exp` 差分） | `canonical_exp_diff`, `match_exp_times_exp_minus_one`, `is_exp_minus_one_factor` | [exp-diff-expr-api.md](exp-diff-expr-api.md) |

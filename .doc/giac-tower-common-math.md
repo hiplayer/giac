@@ -1,4 +1,4 @@
-# GIAC 塔式 `common` — 数学背景与形式化路线
+# GIAC 塔式 `common` — 数学背景与可审计正确性
 
 **状态:** living doc（T4a/T4b 实现参考）  
 **代码:** `giac-core::algebra::ext_tower`（`compute_common_tower` / `compute_common_flatten` / `subfield_common_pair`）  
@@ -135,13 +135,15 @@ Rust `compute_common_tower` 的正确性陈述（伪规范）：
 1. **双路径等价测** — `tower-common` 开：`min_poly_over_q` 次数、生成元平方、align 后和（快测见 `t4a::tower_common_invariants_*`；完整 flatten 对照见 `#[ignore]` 的 `tower_common_matches_flatten_*`）。
 2. **已知偏离登记** — 坐标基不同但 `eq_mod` 同；写入 `known-divergences.md`。
 3. **不可约性** — 当前 `adjoin` 不验证 irreducible；形式化前应在 Rust 加可选 `debug_assert` 或文档假设。
-4. **CI 分层** — 默认 flatten；`-F tower-common` 跑 T4a；证明脚本与 CI 解耦。
+4. **CI 分层** — 默认 T4a（`default = ["tower-common"]`）；bisect 用 `--no-default-features` 跑 flatten；证明脚本与 CI 解耦。
 
 ---
 
-## 4. 形式化验证的工程做法（giac-rs 口径）
+## 4. 可审计的正确性验证（giac-rs 口径）
 
-本节回答：**不把整个 CAS 写进 Lean 时，工程上如何积累「可审计的正确性证据」。**
+本节所称 **可审计的正确性验证** 指：用文档、测试与交叉对照积累可复查的证据链；**不是**狭义 machine-checked 全库形式化证明（后者见 §3 层 D / Lean 引理，长期可选）。
+
+**不把整个 CAS 写进 Lean 时，工程上如何积累这类证据：**
 
 ### 4.1 证据光谱（由重到轻）
 
@@ -171,13 +173,13 @@ Lean/Coq 全证明  →  Refinement/提取  →  性质测试  →  Golden oracl
 
 | 做法 | giac-rs 实例 |
 |------|----------------|
-| 同算法两实现 | `compute_common_tower` vs `compute_common_flatten`（`-F tower-common`） |
+| 同算法两实现 | `compute_common_tower`（默认） vs `compute_common_flatten`（`--no-default-features`） |
 | 不变量对齐 | 次数乘积、α²=2、embed 后 `element_add` 非零 |
 | 外部 oracle | 可选 Sage/SymPy snippet 对 dim≤4 算 minpoly（未强制进 CI） |
 
 **注意：** 两路径 **coords 字面可不同**（flatten θ 基 vs 塔张量基）；比较用 `min_poly_over_q` 次数、域内 `element_eq_mod`，勿比坐标向量逐分量（除非同一 `field` 句柄）。
 
-**慢测策略：** flatten 特征多项式对照放 `#[ignore]`，文档注明 `cargo test --features tower-common -- --ignored`；日常 CI 只跑塔路径快测。
+**慢测策略：** flatten 特征多项式对照放 `#[ignore]`，文档注明 `cargo test -p giac-core -- --ignored`；日常 CI 跑默认塔路径快测。
 
 #### 层 C — 性质测试 + 有限模型（下一步，性价比高）
 
@@ -205,7 +207,7 @@ Lean/Coq 全证明  →  Refinement/提取  →  性质测试  →  Golden oracl
 |--------|------------|----------|
 | P0 | `align_elements`, `embedding_for` | S0 逆序 + cache 预热 |
 | P0 | `fold_algext_sum` + `embed_rational` | K₂ 有理项 merge 回归 |
-| P1 | `compute_common_tower` | 塔结构 + dim；√2+∛2 快测（`-F tower-common`） |
+| P1 | `compute_common_tower` | 塔结构 + dim；√2+∛2 快测（默认） |
 | P1 | `subfield_common_pair` (T4b) | `common(K₁,K₂)=K₂`、不 flatten |
 | P2 | `compute_common_flatten` | `#[ignore]` 与 tower 对照；bisect fallback |
 | P3 | `poly_reduce` monic 假设 | 文档 + `debug_assert`（形式化前） |
@@ -213,19 +215,19 @@ Lean/Coq 全证明  →  Refinement/提取  →  性质测试  →  Golden oracl
 ### 4.4 CI 与 feature 约定
 
 ```bash
-# 默认：Phase 0 flatten（与改 T4a 前行为一致）
+# 默认：T4a 塔 compositum + 快测
 cargo test -p giac-core
 
-# T4a 塔 compositum + 快测（含 √2+∛2 等非 ignore）
-cargo test -p giac-core --features tower-common
+# bisect / Phase 0 flatten 回滚
+cargo test -p giac-core --no-default-features
 
-# 可选：flatten 交叉对照（慢）
-cargo test -p giac-core --features tower-common tower_common_matches_flatten -- --ignored
+# 可选：flatten 与 tower minpoly 慢对照
+cargo test -p giac-core tower_common_matches_flatten -- --ignored
 ```
 
 Lean 证明仓库（若另建 `giac-proofs/`）**不**阻塞 Rust CI。
 
-**并发：** 全局 `field_registry` 非并行测试隔离；`cargo test -p giac-core --features tower-common -- --test-threads=1` 为 T4a 推荐命令（见 [conformance-testing.md](conformance-testing.md) §7）。
+**并发：** 全局 `field_registry`；`ext_tower` 测已 `#[serial]`；`cargo nextest` 对 `giac-core` 串行（见 `giac-rs/.config/nextest.toml`）。
 
 ### 4.5 与项目其它文档的关系
 

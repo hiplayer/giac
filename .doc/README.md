@@ -47,4 +47,4 @@ CTest (53)
 - 测试输入文件：**51** 个（bin **41** + check **10**）
 - CTest 目标：**53** 个（41 bin + 10 check + 1 tommath + 1 segfault）
 - 表达式总数：约 **1210** 条
-- 涉及 API：**~210** 种（giac 全库 ~1852 个 `at_*` 注册）
+- 涉及 API：**~210** 种 **MVP API**（**M**inimum **V**iable **P**roduct **API**；giac 全库 ~1852 个 `at_*` 注册）— 定义见 [builtin-api-map.md](builtin-api-map.md) §「MVP API 是什么」

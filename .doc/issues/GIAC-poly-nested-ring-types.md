@@ -18,6 +18,8 @@ FAC-G1/G3 排错中反复暴露：**`Poly::div_rem`（多元 leading-monomial �
 
 已落地 MVP（`giac-rs/crates/giac-poly/src/nested.rs`）：
 
+**P1-3（2026-06）：** [`UnivariateIn<C>`](giac-poly-p1-representation.md)、[`UnivariatePoly<C>`](giac-poly-p1-representation.md)、[`FlatUni<C>`](giac-poly-p1-representation.md) 已泛型化；`degree` / `degree_wrt` 与系数环无关。**整除 API**（`divides`、`div_rem`、`coeff_at`）仍仅 `C = ℚ`；`Poly<AlgExtC>` 嵌套塔 → **P3-5**。
+
 | 数学对象 | Rust 类型 | 整除 / 商 |
 |----------|-----------|-----------|
 | ℚ[others][main] | `MainVar` + `UnivariateIn` / `UnivariatePoly` | `.divides()` / `.exact_quo_dividing()` |

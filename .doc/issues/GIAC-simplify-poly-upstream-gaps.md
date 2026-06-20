@@ -92,7 +92,8 @@ giac-rs Phase 4 目标是 **headless CAS 子集**，不是 giac-2.0.0 全库 1:1
 
 **partfrac 连带缺口:** 高次因子仍 `NotImplemented`；重复/实二次已部分覆盖（`disc=0` 重根、`disc>0` 有理分裂）。
 
-→ API 分层见 [giac-poly-api-stability.md](../giac-poly-api-stability.md)
+→ API 分层见 [giac-poly-api-stability.md](../giac-poly-api-stability.md)  
+→ P0 剩余项见 [GIAC-poly-p0-backlog](GIAC-poly-p0-backlog.md)
 
 ### 2.3 表示层缺口（架构，非上游算法）
 

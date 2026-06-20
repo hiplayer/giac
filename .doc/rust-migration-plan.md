@@ -10,6 +10,8 @@
 
 ### 1.1 MVP（必须实现）
 
+**MVP** = **M**inimum **V**iable **P**roduct；**MVP API** = 测试规格定义的 ~210 个 builtin（见 [builtin-api-map.md](builtin-api-map.md) §「MVP API 是什么」），非 giac 全库 ~1852 个 `at_*`。
+
 | 阶段 | 功能域 | 代表测试 | API 约数 |
 |------|--------|----------|----------|
 | P0 | 基础设施 | — | Expr/解析/上下文 |
