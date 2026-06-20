@@ -163,13 +163,8 @@ impl AlgExtData {
 }
 
 fn align_pair(a: &AlgExtData, b: &AlgExtData) -> Result<(Arc<ExtensionField>, CoordsQ, CoordsQ), EvalError> {
-    if Arc::ptr_eq(&a.field, &b.field) || a.field == b.field {
-        return Ok((Arc::clone(&a.field), a.coords_q()?, b.coords_q()?));
-    }
-    let common = ExtensionField::common_over_q(&a.field, &b.field)?;
-    let ae = common.embed_a.apply(&a.coords_q()?);
-    let be = common.embed_b.apply(&b.coords_q()?);
-    Ok((Arc::clone(&common.field), ae, be))
+    let aligned = ExtensionField::align_elements(&a.field, &a.coords_q()?, &b.field, &b.coords_q()?)?;
+    Ok((aligned.field, aligned.left, aligned.right))
 }
 
 pub fn fold_algext_sum(terms: &[ExprArc]) -> Result<ExprArc, EvalError> {
@@ -426,20 +421,20 @@ pub fn common_ext(
     a: &AlgExtData,
     b: &AlgExtData,
 ) -> Result<(AlgExtData, AlgExtData, AlgExtData), EvalError> {
-    let common = ExtensionField::common_over_q(&a.field, &b.field)?;
+    let aligned = ExtensionField::align_elements(&a.field, &a.coords_q()?, &b.field, &b.coords_q()?)?;
     let gamma = AlgExtData::from_coords_q(
-        Arc::clone(&common.field),
-        common.field.generator_coords(),
+        Arc::clone(&aligned.field),
+        aligned.field.generator_coords(),
         None,
     )?;
     let ae = AlgExtData::from_coords_q(
-        Arc::clone(&common.field),
-        common.embed_a.apply(&a.coords_q()?),
+        Arc::clone(&aligned.field),
+        aligned.left,
         a.root_index,
     )?;
     let be = AlgExtData::from_coords_q(
-        Arc::clone(&common.field),
-        common.embed_b.apply(&b.coords_q()?),
+        Arc::clone(&aligned.field),
+        aligned.right,
         b.root_index,
     )?;
     Ok((gamma, ae, be))
@@ -637,6 +632,26 @@ mod tests {
         let sum = ae.add(&be).unwrap();
         assert!(!sum.is_zero());
         assert_eq!(sum.field.dimension(), 6);
+    }
+
+    #[test]
+    fn algext_add_reverse_order_after_common_cache() {
+        let sqrt2 = AlgExtData::from_rootof(
+            &Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])),
+            &q_minpoly(),
+        )
+        .unwrap();
+        let one = AlgExtData::from_field_coords(
+            ExtensionField::rational(),
+            vec![Expr::int(1)],
+        )
+        .unwrap();
+        let _ = ExtensionField::common_over_q(&one.field, &sqrt2.field).unwrap();
+        let sum_ab = one.add(&sqrt2).unwrap();
+        let sum_ba = sqrt2.add(&one).unwrap();
+        assert!(sum_ab.eq_mod(&sum_ba).unwrap());
+        assert_eq!(sum_ab.field.id(), sqrt2.field.id());
+        assert!(!sum_ab.is_zero());
     }
 
     #[test]

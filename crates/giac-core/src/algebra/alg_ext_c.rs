@@ -13,7 +13,7 @@ use crate::error::EvalError;
 use crate::expr::{Expr, ExprArc, FuncKind};
 
 use super::alg_ext::AlgExtData;
-use super::ext_tower::{CommonFieldPair, ExtensionField};
+use super::ext_tower::ExtensionField;
 use super::field_arith::{
     coords_to_expr, min_poly_exprs_to_q, pad_to_len, poly1_coeffs, rationalize_poly1,
     ratio_to_expr_arc, CoordsQ,
@@ -51,17 +51,11 @@ impl AlgExtCData {
     pub fn from_complex_parts(re: &ExprArc, im: &ExprArc) -> Result<Self, EvalError> {
         let (re_field, re_q) = expr_to_field_element(re)?;
         let (im_field, im_q) = expr_to_field_element(im)?;
-        let common = if Arc::ptr_eq(&re_field, &im_field) {
-            CommonFieldPair::identity(&re_field)
-        } else {
-            ExtensionField::common_over_q(&re_field, &im_field)?
-        };
-        let re_emb = common.embed_a.apply(&re_q);
-        let im_emb = common.embed_b.apply(&im_q);
+        let aligned = ExtensionField::align_elements(&re_field, &re_q, &im_field, &im_q)?;
         Self::from_coords_q(
-            Arc::clone(&common.field),
-            &re_emb,
-            &im_emb,
+            aligned.field,
+            &aligned.left,
+            &aligned.right,
             None,
         )
     }
@@ -215,12 +209,14 @@ impl AlgExtCData {
             });
         }
         let common = ExtensionField::common_over_q(&self.field, &other.field)?;
+        let self_emb = ExtensionField::embedding_for(&self.field, &common)?;
+        let other_emb = ExtensionField::embedding_for(&other.field, &common)?;
         Ok(AlignedPair {
             field: Arc::clone(&common.field),
-            self_re: common.embed_a.apply(&self.re_q()?),
-            self_im: common.embed_a.apply(&self.im_q()?),
-            other_re: common.embed_b.apply(&other.re_q()?),
-            other_im: common.embed_b.apply(&other.im_q()?),
+            self_re: self_emb.apply(&self.re_q()?),
+            self_im: self_emb.apply(&self.im_q()?),
+            other_re: other_emb.apply(&other.re_q()?),
+            other_im: other_emb.apply(&other.im_q()?),
         })
     }
 }

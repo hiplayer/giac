@@ -250,6 +250,47 @@ impl ExtensionField {
         }
         field_registry().common_cached(a, b)
     }
+
+    /// Pick the embedding whose [`FieldEmbedding::source`] matches `source`.
+    ///
+    /// `CommonFieldPair::embed_a` / `embed_b` are keyed by sorted field id in the cache,
+    /// not by caller operand order — always use this when applying a cached pair.
+    pub fn embedding_for<'a>(
+        source: &Arc<ExtensionField>,
+        pair: &'a CommonFieldPair,
+    ) -> Result<&'a FieldEmbedding, EvalError> {
+        if Arc::ptr_eq(source, &pair.embed_a.source) || **source == *pair.embed_a.source {
+            Ok(&pair.embed_a)
+        } else if Arc::ptr_eq(source, &pair.embed_b.source) || **source == *pair.embed_b.source {
+            Ok(&pair.embed_b)
+        } else {
+            Err(EvalError::TypeError("field not in common pair"))
+        }
+    }
+
+    /// Align two field elements into a common ambient field (S0 unified entry point).
+    pub fn align_elements(
+        a_field: &Arc<ExtensionField>,
+        a_coords: &CoordsQ,
+        b_field: &Arc<ExtensionField>,
+        b_coords: &CoordsQ,
+    ) -> Result<AlignedElements, EvalError> {
+        if Arc::ptr_eq(a_field, b_field) || **a_field == **b_field {
+            return Ok(AlignedElements {
+                field: Arc::clone(a_field),
+                left: pad_to_len(a_coords, a_field.dimension()),
+                right: pad_to_len(b_coords, b_field.dimension()),
+            });
+        }
+        let common = Self::common_over_q(a_field, b_field)?;
+        let left = Self::embedding_for(a_field, &common)?.apply(a_coords);
+        let right = Self::embedding_for(b_field, &common)?.apply(b_coords);
+        Ok(AlignedElements {
+            field: Arc::clone(&common.field),
+            left,
+            right,
+        })
+    }
 }
 
 /// Linear embedding from a subfield into a common superfield.
@@ -307,6 +348,14 @@ impl CommonFieldPair {
             },
         })
     }
+}
+
+/// Two extension elements aligned into a common ambient field.
+#[derive(Clone, Debug)]
+pub struct AlignedElements {
+    pub field: Arc<ExtensionField>,
+    pub left: CoordsQ,
+    pub right: CoordsQ,
 }
 
 struct FieldRegistry {
@@ -676,5 +725,59 @@ mod tests {
         let k1 = sqrt2_field();
         let k2 = sqrt2_field();
         assert_eq!(k1.id(), k2.id());
+    }
+
+    #[test]
+    fn embedding_for_matches_source_not_operand_order() {
+        let sqrt2 = sqrt2_field();
+        let cbrt2 = cbrt2_field();
+        let (low, high) = if sqrt2.id() <= cbrt2.id() {
+            (&sqrt2, &cbrt2)
+        } else {
+            (&cbrt2, &sqrt2)
+        };
+        let id = crate::algebra::field_arith::identity_matrix;
+        let pair = CommonFieldPair {
+            field: Arc::clone(high),
+            embed_a: FieldEmbedding {
+                source: Arc::clone(low),
+                target: Arc::clone(high),
+                matrix: id(low.dimension()),
+            },
+            embed_b: FieldEmbedding {
+                source: Arc::clone(high),
+                target: Arc::clone(high),
+                matrix: id(high.dimension()),
+            },
+        };
+        assert_eq!(
+            ExtensionField::embedding_for(low, &pair).unwrap().source.id(),
+            low.id()
+        );
+        assert_eq!(
+            ExtensionField::embedding_for(high, &pair).unwrap().source.id(),
+            high.id()
+        );
+    }
+
+    #[test]
+    fn align_elements_reverse_order_after_cache_warm() {
+        let q = ExtensionField::rational();
+        let sqrt2 = sqrt2_field();
+        let _ = ExtensionField::common_over_q(&q, &sqrt2).unwrap();
+
+        let one_q = q.one_coords();
+        let alpha = sqrt2.generator_coords();
+
+        let qr = ExtensionField::align_elements(&q, &one_q, &sqrt2, &alpha).unwrap();
+        let rq = ExtensionField::align_elements(&sqrt2, &alpha, &q, &one_q).unwrap();
+
+        assert_eq!(qr.field.id(), rq.field.id());
+        assert_eq!(qr.field.id(), sqrt2.id());
+        assert!(qr.field.element_eq_mod(&qr.left, &rq.right).unwrap());
+        assert!(qr.field.element_eq_mod(&qr.right, &rq.left).unwrap());
+
+        let sum = qr.field.element_add(&qr.left, &qr.right).unwrap();
+        assert!(!qr.field.element_is_zero(&sum));
     }
 }
