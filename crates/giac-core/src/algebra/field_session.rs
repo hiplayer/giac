@@ -12,6 +12,7 @@ use std::sync::Arc;
 use giac_poly::PolyCoeff;
 use num_bigint::BigInt;
 use num_rational::Ratio;
+use num_traits::One;
 
 use crate::error::EvalError;
 
@@ -129,6 +130,30 @@ impl FieldSession {
         let re = AlgExtData::from_field_coords(Arc::clone(&inner.field), inner.re.clone())?;
         let beta = algext_cube_root(&re)?;
         let out = AlgExtCPolyCoeff::from(AlgExtCData::from_alg_ext(&beta)?);
+        self.bump_to(&out.as_inner().field);
+        Ok(out)
+    }
+
+    /// Adjoin a primitive cube root of unity ω (ω²+ω+1=0) over **L**.
+    /// **Stable (bounded)** — adjoin ω for pure cubic roots
+    pub fn adjoin_primitive_cube_root_of_unity(
+        &mut self,
+    ) -> Result<AlgExtCPolyCoeff, EvalError> {
+        let parent = Arc::clone(self.working());
+        let one = parent.one_coords();
+        let layer = vec![one.clone(), one.clone(), one];
+        let omega_field = if parent.dimension() == 1 {
+            let one = Ratio::one();
+            ExtensionField::adjoin_irreducible_over_q(vec![one.clone(), one.clone(), one])?
+        } else {
+            ExtensionField::adjoin_irreducible_parent_coeffs(&parent, layer)?
+        };
+        let coords = omega_field.generator_coords();
+        let omega = AlgExtData::from_field_coords(
+            Arc::clone(&omega_field),
+            coords_to_expr(&coords)?,
+        )?;
+        let out = AlgExtCPolyCoeff::from(AlgExtCData::from_alg_ext(&omega)?);
         self.bump_to(&out.as_inner().field);
         Ok(out)
     }
