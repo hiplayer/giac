@@ -20,3 +20,15 @@ fail-fast = false
 inherit = "default"
 # 0.9.85: fail-fast must be bool (map form needs nextest 0.9.89+).
 fail-fast = false
+
+# giac-core ext_tower uses a process-global field registry; run serially.
+[test-groups]
+giac-core-serial = { max-threads = 1 }
+
+[[profile.default.overrides]]
+filter = 'package(giac-core)'
+test-group = 'giac-core-serial'
+
+[[profile.ci.overrides]]
+filter = 'package(giac-core)'
+test-group = 'giac-core-serial'

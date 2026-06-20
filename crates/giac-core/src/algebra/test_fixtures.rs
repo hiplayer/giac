@@ -91,6 +91,11 @@ pub fn k1_adjoin_sqrt2() -> Arc<ExtensionField> {
     .unwrap()
 }
 
+/// ℚ(√3) simple extension (plan: distinct from K₃ = ℚ(∛2) in §11.4).
+pub fn k1_adjoin_sqrt3() -> Arc<ExtensionField> {
+    ExtensionField::adjoin_irreducible_over_q(minpoly_x2_plus_c(-3)).unwrap()
+}
+
 /// K₃ = ℚ(∛2) via legacy `adjoin_irreducible_over_q`.
 pub fn k1_adjoin_cbrt2() -> Arc<ExtensionField> {
     ExtensionField::adjoin_irreducible_over_q(minpoly_x3_minus_2()).unwrap()

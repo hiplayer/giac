@@ -368,12 +368,15 @@ impl ExtensionField {
             .parent_field
             .as_ref()
             .ok_or(EvalError::TypeError("tower field without parent"))?;
+        let pd = parent.dimension();
+        let e = self.layer_ext_degree()?;
         let mut blocks = blocks.to_vec();
         blocks.reverse();
-        Ok(pad_to_len(
-            &flatten_layer_blocks(&blocks, parent.dimension()),
-            self.dimension(),
-        ))
+        // Missing high-u blocks were trimmed; append zero blocks (u^1, u^2, …).
+        while blocks.len() < e {
+            blocks.push(parent.zero_coords());
+        }
+        Ok(flatten_layer_blocks(&blocks, pd))
     }
 
     pub fn element_add(&self, a: &CoordsQ, b: &CoordsQ) -> Result<CoordsQ, EvalError> {
@@ -673,6 +676,11 @@ impl FieldEmbedding {
 }
 
 /// Result of merging two extension fields into a common ambient field.
+///
+/// Each [`FieldEmbedding`] maps **`source` → `target`** (the common ambient field is
+/// [`Self::field`]). Cache entries sort operands by `field.id`; use
+/// [`ExtensionField::embedding_for`] to pick the matrix for a given operand, not
+/// `embed_a` / `embed_b` position.
 #[derive(Clone, Debug)]
 pub struct CommonFieldPair {
     pub field: Arc<ExtensionField>,
@@ -842,10 +850,18 @@ impl FieldRegistry {
         } else {
             (b, a)
         };
-        let pair = compute_common_over_q(fa, fb)?;
+        let pair = compute_common_dispatch(fa, fb)?;
         self.common_cache.lock().unwrap().insert(key, Arc::clone(&pair));
         Ok(pair)
     }
+}
+
+#[cfg(test)]
+pub(crate) fn compute_common_flatten_for_test(
+    a: &Arc<ExtensionField>,
+    b: &Arc<ExtensionField>,
+) -> Result<Arc<CommonFieldPair>, EvalError> {
+    compute_common_flatten(a, b)
 }
 
 fn field_registry() -> &'static FieldRegistry {
@@ -978,7 +994,185 @@ fn compose_field_embeddings(
     })
 }
 
-fn compute_common_over_q(
+fn compute_common_dispatch(
+    a: &Arc<ExtensionField>,
+    b: &Arc<ExtensionField>,
+) -> Result<Arc<CommonFieldPair>, EvalError> {
+    if ExtensionField::is_subfield_of(a, b) || ExtensionField::is_subfield_of(b, a) {
+        return subfield_common_pair(a, b);
+    }
+    #[cfg(feature = "tower-common")]
+    if tower_common_eligible(a, b) {
+        return compute_common_tower(a, b);
+    }
+    compute_common_flatten(a, b)
+}
+
+/// T4b: `common(sub, sup)` = inclusion into the superfield (no new compositum, no flatten search).
+fn subfield_common_pair(
+    fa: &Arc<ExtensionField>,
+    fb: &Arc<ExtensionField>,
+) -> Result<Arc<CommonFieldPair>, EvalError> {
+    let (sub, sup) = if ExtensionField::is_subfield_of(fa, fb) {
+        (fa, fb)
+    } else if ExtensionField::is_subfield_of(fb, fa) {
+        (fb, fa)
+    } else {
+        return Err(EvalError::TypeError("subfield_common_pair: unrelated fields"));
+    };
+    let embed_sub = ExtensionField::try_subfield_embedding(sub, sup)?
+        .ok_or(EvalError::TypeError("subfield common: embed missing"))?;
+    let dim = sup.dimension();
+    let embed_sup = FieldEmbedding {
+        source: Arc::clone(sup),
+        target: Arc::clone(sup),
+        matrix: super::field_arith::identity_matrix(dim),
+    };
+    let pick = |op: &Arc<ExtensionField>| {
+        if Arc::ptr_eq(op, sub) || **op == **sub {
+            embed_sub.clone()
+        } else {
+            embed_sup.clone()
+        }
+    };
+    Ok(Arc::new(CommonFieldPair {
+        field: Arc::clone(sup),
+        embed_a: pick(fa),
+        embed_b: pick(fb),
+    }))
+}
+
+/// True when T4a tower adjoin can replace flatten `k=1..12` search.
+#[cfg(feature = "tower-common")]
+fn tower_common_eligible(a: &Arc<ExtensionField>, b: &Arc<ExtensionField>) -> bool {
+    !a.is_base()
+        && !b.is_base()
+        && a.tower().is_simple_over_q()
+        && b.tower().is_simple_over_q()
+        && !ExtensionField::is_subfield_of(a, b)
+        && !ExtensionField::is_subfield_of(b, a)
+}
+
+/// Pick the smaller-degree field as adjoin parent (tie-break: lower `field.id`).
+#[cfg(feature = "tower-common")]
+fn pick_tower_adjoin_parent<'a>(
+    a: &'a Arc<ExtensionField>,
+    b: &'a Arc<ExtensionField>,
+) -> (&'a Arc<ExtensionField>, &'a Arc<ExtensionField>) {
+    match a.dimension().cmp(&b.dimension()) {
+        std::cmp::Ordering::Less => (a, b),
+        std::cmp::Ordering::Greater => (b, a),
+        std::cmp::Ordering::Equal => {
+            if a.id() <= b.id() {
+                (a, b)
+            } else {
+                (b, a)
+            }
+        }
+    }
+}
+
+#[cfg(feature = "tower-common")]
+fn embedding_for_common_operand(
+    operand: &Arc<ExtensionField>,
+    parent: &Arc<ExtensionField>,
+    embed_parent: &FieldEmbedding,
+    embed_sibling: &FieldEmbedding,
+) -> FieldEmbedding {
+    if Arc::ptr_eq(operand, parent) || **operand == **parent {
+        embed_parent.clone()
+    } else {
+        embed_sibling.clone()
+    }
+}
+
+/// T4a: compositum as a tower adjoin `parent(sibling.min_poly)` with subfield + sibling embeddings.
+///
+/// Math notes: see `.doc/giac-tower-common-math.md` (compositum, primitive element, formalization).
+#[cfg(feature = "tower-common")]
+fn compute_common_tower(
+    a: &Arc<ExtensionField>,
+    b: &Arc<ExtensionField>,
+) -> Result<Arc<CommonFieldPair>, EvalError> {
+    debug_assert!(tower_common_eligible(a, b));
+    let (parent, sibling) = pick_tower_adjoin_parent(a, b);
+    let layer = sibling.min_poly_over_q().to_vec();
+    let common = ExtensionField::adjoin_irreducible(parent, layer)?;
+    let expected_dim = parent.dimension() * sibling.dimension();
+    if common.dimension() != expected_dim {
+        return Err(EvalError::TypeError("tower common: compositum degree mismatch"));
+    }
+    let embed_parent = ExtensionField::try_subfield_embedding(parent, &common)?
+        .ok_or(EvalError::TypeError("tower common: parent embed missing"))?;
+    let embed_sibling = simple_over_q_embedding(sibling, &common)?;
+    Ok(Arc::new(CommonFieldPair {
+        field: Arc::clone(&common),
+        embed_a: embedding_for_common_operand(a, parent, &embed_parent, &embed_sibling),
+        embed_b: embedding_for_common_operand(b, parent, &embed_parent, &embed_sibling),
+    }))
+}
+
+/// Embed `source` ≅ ℚ(α) into `target` when `target` adjoins the same layer minpoly over a superfield.
+#[cfg(feature = "tower-common")]
+fn simple_over_q_embedding(
+    source: &Arc<ExtensionField>,
+    target: &Arc<ExtensionField>,
+) -> Result<FieldEmbedding, EvalError> {
+    let src_dim = source.dimension();
+    let tgt_dim = target.dimension();
+    let mut matrix = vec![vec![Ratio::zero(); src_dim]; tgt_dim];
+    for j in 0..src_dim {
+        let mut unit = source.zero_coords();
+        unit[j] = Ratio::one();
+        let image = embed_simple_over_q_coords(source, target, &unit)?;
+        for i in 0..tgt_dim {
+            matrix[i][j] = image[i].clone();
+        }
+    }
+    Ok(FieldEmbedding {
+        source: Arc::clone(source),
+        target: Arc::clone(target),
+        matrix,
+    })
+}
+
+/// Evaluate `coords` (poly1 in `source`) at the adjoin generator of `target`.
+#[cfg(feature = "tower-common")]
+fn embed_simple_over_q_coords(
+    source: &ExtensionField,
+    target: &ExtensionField,
+    coords: &CoordsQ,
+) -> Result<CoordsQ, EvalError> {
+    let src_dim = source.dimension();
+    let coords = pad_to_len(coords, src_dim);
+    let gen = target.generator_coords();
+    let mut powers = vec![target.one_coords()];
+    for _ in 1..src_dim {
+        powers.push(target.element_mul(powers.last().unwrap(), &gen)?);
+    }
+    let mut acc = target.zero_coords();
+    for i in 0..src_dim {
+        let c = coords[i].clone();
+        if c.is_zero() {
+            continue;
+        }
+        let exp = src_dim - 1 - i;
+        let term = target.element_mul(&target.embed_rational(&c), &powers[exp])?;
+        acc = target.element_add(&acc, &term)?;
+    }
+    Ok(acc)
+}
+
+#[cfg(all(test, feature = "tower-common"))]
+pub(crate) fn tower_adjoin_parent_for_test<'a>(
+    a: &'a Arc<ExtensionField>,
+    b: &'a Arc<ExtensionField>,
+) -> &'a Arc<ExtensionField> {
+    pick_tower_adjoin_parent(a, b).0
+}
+
+/// Phase 0 flatten compositum: primitive element θ = α + k·β, search `k = 1..12`.
+fn compute_common_flatten(
     a: &Arc<ExtensionField>,
     b: &Arc<ExtensionField>,
 ) -> Result<Arc<CommonFieldPair>, EvalError> {
@@ -1161,6 +1355,7 @@ pub fn embed_coords(embedding: &FieldEmbedding, coords: &CoordsQ) -> CoordsQ {
 
 #[cfg(test)]
 mod tests {
+    //! `ExtensionField` registry is process-global; run with `--test-threads=1` if flaky.
     use super::*;
     use crate::algebra::test_fixtures::{
         common_cache_len, k1_adjoin_cbrt2, k1_adjoin_sqrt2, minpoly_u2_minus,
@@ -1184,7 +1379,10 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "primitive-element common(√2,∛2) char poly is slow; see ext_tower perf follow-up"]
+    #[cfg_attr(
+        not(feature = "tower-common"),
+        ignore = "flatten common(√2,∛2) is slow; run with --features tower-common"
+    )]
     fn common_sqrt2_cbrt2_has_degree_six() {
         let a = k1_adjoin_sqrt2();
         let b = k1_adjoin_cbrt2();
@@ -1205,7 +1403,10 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "primitive-element common(√2,∛2) char poly is slow; see ext_tower perf follow-up"]
+    #[cfg_attr(
+        not(feature = "tower-common"),
+        ignore = "flatten common(√2,∛2) is slow; run with --features tower-common"
+    )]
     fn common_cache_hits_same_pair() {
         let a = k1_adjoin_sqrt2();
         let b = k1_adjoin_cbrt2();
@@ -1313,6 +1514,23 @@ mod tests {
     }
 
     #[test]
+    fn t4b_common_subfield_is_superfield_not_compositum() {
+        let k1 = k1_adjoin_sqrt2();
+        let k2 = ExtensionField::adjoin_irreducible(&k1, minpoly_u2_minus(-3)).unwrap();
+        let pair = ExtensionField::common_over_q(&k1, &k2).unwrap();
+        assert_eq!(pair.field.id(), k2.id());
+        assert_eq!(pair.field.parent_field().map(|p| p.id()), Some(k1.id()));
+        let alpha = k1.generator_coords();
+        let emb = ExtensionField::embedding_for(&k1, &pair).unwrap();
+        let img = emb.apply(&alpha);
+        let alpha_k2 = ExtensionField::try_subfield_embedding(&k1, &k2)
+            .unwrap()
+            .unwrap()
+            .apply(&alpha);
+        assert!(pair.field.element_eq_mod(&img, &alpha_k2).unwrap());
+    }
+
+    #[test]
     fn t2_align_subfield_does_not_grow_common_cache() {
         let k1 = k1_adjoin_sqrt2();
         let k2 = ExtensionField::adjoin_irreducible(&k1, minpoly_u2_minus(-3)).unwrap();
@@ -1352,6 +1570,20 @@ mod tests {
     }
 
     #[test]
+    fn k2_embedded_sqrt2_squared_is_two() {
+        use crate::algebra::test_fixtures::t1b_k2_adjoin_sqrt3_over_k1;
+        let fix = t1b_k2_adjoin_sqrt3_over_k1();
+        let sq = fix
+            .k2
+            .element_mul(&fix.sqrt2_in_k2, &fix.sqrt2_in_k2)
+            .unwrap();
+        let two = fix
+            .k2
+            .embed_rational(&Ratio::from_integer(2.into()));
+        assert!(fix.k2.element_eq_mod(&sq, &two).unwrap());
+    }
+
+    #[test]
     fn t3_k1_sqrt2_squared_is_two() {
         let k1 = k1_adjoin_sqrt2();
         let alpha = k1.generator_coords();
@@ -1374,5 +1606,129 @@ mod tests {
         let three = k2.embed_rational(&Ratio::from_integer(3.into()));
         let expected = k2.element_mul(&sqrt2, &three).unwrap();
         assert!(k2.element_eq_mod(&prod, &expected).unwrap());
+    }
+
+    #[cfg(feature = "tower-common")]
+    mod t4a {
+        use super::*;
+        use crate::algebra::test_fixtures::{k1_adjoin_cbrt2, k1_adjoin_sqrt2, k1_adjoin_sqrt3};
+
+        #[test]
+        fn common_sqrt2_sqrt3_has_tower_parent() {
+            let k1 = k1_adjoin_sqrt2();
+            let k3 = k1_adjoin_sqrt3();
+            let pair = ExtensionField::common_over_q(&k1, &k3).unwrap();
+            assert_eq!(pair.field.dimension(), 4);
+            let expected_parent = tower_adjoin_parent_for_test(&k1, &k3);
+            assert_eq!(
+                pair.field.parent_field().map(|p| p.id()),
+                Some(expected_parent.id())
+            );
+            assert!(pair.field.parent_field().is_some());
+        }
+
+        #[test]
+        fn align_sqrt2_plus_sqrt3_reverse_order() {
+            let k1 = k1_adjoin_sqrt2();
+            let k3 = k1_adjoin_sqrt3();
+            let _ = ExtensionField::common_over_q(&k1, &k3).unwrap();
+            let alpha = k1.generator_coords();
+            let beta = k3.generator_coords();
+            let ab = ExtensionField::align_elements(&k1, &alpha, &k3, &beta).unwrap();
+            let ba = ExtensionField::align_elements(&k3, &beta, &k1, &alpha).unwrap();
+            assert_eq!(ab.field.id(), ba.field.id());
+            let sum_ab = ab.field.element_add(&ab.left, &ab.right).unwrap();
+            let sum_ba = ba.field.element_add(&ba.left, &ba.right).unwrap();
+            assert!(ab.field.element_eq_mod(&sum_ab, &sum_ba).unwrap());
+            assert!(!ab.field.element_is_zero(&sum_ab));
+        }
+
+        #[test]
+        fn common_cache_hits_after_tower_common() {
+            let k1 = k1_adjoin_sqrt2();
+            let k3 = k1_adjoin_sqrt3();
+            let before = common_cache_len();
+            let c1 = ExtensionField::common_over_q(&k1, &k3).unwrap();
+            let after_first = common_cache_len();
+            let c2 = ExtensionField::common_over_q(&k3, &k1).unwrap();
+            assert_eq!(after_first, common_cache_len());
+            assert_eq!(c1.field.id(), c2.field.id());
+            assert!(after_first >= before);
+        }
+
+        #[test]
+        fn align_sqrt2_cbrt2_dim_six() {
+            let sqrt2 = k1_adjoin_sqrt2();
+            let cbrt2 = k1_adjoin_cbrt2();
+            let alpha = sqrt2.generator_coords();
+            let beta = cbrt2.generator_coords();
+            let aligned =
+                ExtensionField::align_elements(&sqrt2, &alpha, &cbrt2, &beta).unwrap();
+            assert_eq!(aligned.field.dimension(), 6);
+            let sum = aligned
+                .field
+                .element_add(&aligned.left, &aligned.right)
+                .unwrap();
+            assert!(!aligned.field.element_is_zero(&sum));
+        }
+
+        #[test]
+        fn tower_common_invariants_sqrt2_sqrt3() {
+            let k1 = k1_adjoin_sqrt2();
+            let k3 = k1_adjoin_sqrt3();
+            let pair = ExtensionField::common_over_q(&k1, &k3).unwrap();
+            assert_eq!(pair.field.dimension(), k1.dimension() * k3.dimension());
+            let alpha = k1.generator_coords();
+            let beta = k3.generator_coords();
+            let a = ExtensionField::embedding_for(&k1, &pair).unwrap().apply(&alpha);
+            let b = ExtensionField::embedding_for(&k3, &pair).unwrap().apply(&beta);
+            let two = pair.field.embed_rational(&Ratio::from_integer(2.into()));
+            assert!(pair
+                .field
+                .element_eq_mod(&pair.field.element_mul(&a, &a).unwrap(), &two)
+                .unwrap());
+            let three = pair.field.embed_rational(&Ratio::from_integer(3.into()));
+            assert!(pair
+                .field
+                .element_eq_mod(&pair.field.element_mul(&b, &b).unwrap(), &three)
+                .unwrap());
+        }
+
+        #[test]
+        #[ignore = "flatten char-poly cross-check is slow; cargo test --features tower-common -- --ignored"]
+        fn tower_common_matches_flatten_minpoly_on_sqrt2_sqrt3() {
+            let k1 = k1_adjoin_sqrt2();
+            let k3 = k1_adjoin_sqrt3();
+            let tower = ExtensionField::common_over_q(&k1, &k3).unwrap();
+            let flatten = compute_common_flatten_for_test(&k1, &k3).unwrap();
+            assert_eq!(tower.field.dimension(), flatten.field.dimension());
+            assert_eq!(
+                tower.field.min_poly_over_q(),
+                flatten.field.min_poly_over_q()
+            );
+            let alpha = k1.generator_coords();
+            let beta = k3.generator_coords();
+            let t_left = ExtensionField::embedding_for(&k1, &tower)
+                .unwrap()
+                .apply(&alpha);
+            let t_right = ExtensionField::embedding_for(&k3, &tower)
+                .unwrap()
+                .apply(&beta);
+            let f_left = ExtensionField::embedding_for(&k1, &flatten)
+                .unwrap()
+                .apply(&alpha);
+            let f_right = ExtensionField::embedding_for(&k3, &flatten)
+                .unwrap()
+                .apply(&beta);
+            let t_sum = tower.field.element_add(&t_left, &t_right).unwrap();
+            let f_sum = flatten.field.element_add(&f_left, &f_right).unwrap();
+            assert!(!tower.field.element_is_zero(&t_sum));
+            assert!(!flatten.field.element_is_zero(&f_sum));
+            let t_alpha_sq = tower.field.element_mul(&t_left, &t_left).unwrap();
+            let two = tower.field.embed_rational(&Ratio::from_integer(2.into()));
+            assert!(tower.field.element_eq_mod(&t_alpha_sq, &two).unwrap());
+            let f_alpha_sq = flatten.field.element_mul(&f_left, &f_left).unwrap();
+            assert!(flatten.field.element_eq_mod(&f_alpha_sq, &two).unwrap());
+        }
     }
 }
