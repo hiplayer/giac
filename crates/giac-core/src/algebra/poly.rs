@@ -8,33 +8,62 @@ use num_traits::{One, Zero};
 
 use crate::{EvalError, Expr, ExprArc, FuncKind, Ident};
 
+use super::poly_conv::{
+    rational_poly_reject, ERR_POLY_ALG_NO_ALG_COEFF, ERR_POLY_ALG_UNIMPL,
+};
+
+pub use super::poly_conv::expr_contains_alg_coeff;
+
 fn var(id: &Ident) -> Var {
     Arc::from(id.as_str())
 }
-/// Convert an expression to a polynomial over ℚ in its variables.
+
+/// Convert an expression to a polynomial over **ℚ** in its variables.
 ///
-/// Algebraic extension constants (`Expr::AlgExt`, concrete `rootof(...)`) are
-/// not polynomial coefficients; conversion fails with [`EvalError::TypeError`].
+/// **Stable** — path A in [expr-poly-conversion.md](../../../../.doc/expr-poly-conversion.md).
+///
+/// Coefficients must be rational (`Int` / `Rat`). Algebraic constants (`AlgExt`, `AlgExtC`,
+/// concrete `rootof(...)`) are rejected with [`EvalError::TypeError`]; use
+/// [`expr_contains_alg_coeff`] to detect them and [`poly_alg_from_expr`] for the future
+/// `Poly<AlgExtC>` path.
 pub fn expr_to_poly(expr: &Expr) -> Result<Poly, EvalError> {
+    if expr_contains_alg_coeff(expr) {
+        return Err(rational_poly_reject(expr));
+    }
+    expr_to_poly_inner(expr)
+}
+
+/// Lift an expression to a polynomial over algebraic coefficients (`Poly<AlgExtC>`).
+///
+/// **Stable (stub)** — path B; implementation blocked on P1-2/P1-4
+/// ([GIAC-poly-algext-backlog.md](../../../../.doc/issues/GIAC-poly-algext-backlog.md)).
+///
+/// Returns `NotImplemented` when the expression contains algebraic coefficients.
+/// Returns `TypeError` when the expression is purely rational (caller should use
+/// [`expr_to_poly`] instead).
+pub fn poly_alg_from_expr(expr: &Expr) -> Result<Poly, EvalError> {
+    if !expr_contains_alg_coeff(expr) {
+        return Err(EvalError::TypeError(ERR_POLY_ALG_NO_ALG_COEFF));
+    }
+    let _ = expr;
+    Err(EvalError::NotImplemented(ERR_POLY_ALG_UNIMPL))
+}
+
+fn expr_to_poly_inner(expr: &Expr) -> Result<Poly, EvalError> {
     match expr {
-        Expr::AlgExt(_) => Err(EvalError::TypeError("alg ext not allowed in polynomial")),
-        Expr::AlgExtC(_) => Err(EvalError::TypeError("alg ext not allowed in polynomial")),
-        Expr::Func(FuncKind::RootOf, _) => {
-            Err(EvalError::TypeError("rootof not allowed in polynomial"))
-        }
         Expr::Int(n) => Ok(Poly::constant(Ratio::from_integer(n.clone()))),
         Expr::Rat(r) => Ok(Poly::constant(r.clone())),
         Expr::Symbol(id) => Ok(Poly::var(var(id))),
         Expr::Add(terms) => terms
             .iter()
-            .map(|t| expr_to_poly(t))
+            .map(|t| expr_to_poly_inner(t))
             .try_fold(Poly::zero(), |acc, p| Ok(acc.add(&p?))),
         Expr::Mul(factors) => factors
             .iter()
-            .map(|f| expr_to_poly(f))
+            .map(|f| expr_to_poly_inner(f))
             .try_fold(Poly::one(), |acc, p| Ok(acc.mul(&p?))),
         Expr::Pow(base, exp) => {
-            let base_p = expr_to_poly(base)?;
+            let base_p = expr_to_poly_inner(base)?;
             if let Expr::Int(e) = exp.as_ref() {
                 let e_u = crate::num_util::bigint_to_poly_exponent(e)?;
                 return Ok(base_p.pow(e_u));
@@ -45,6 +74,7 @@ pub fn expr_to_poly(expr: &Expr) -> Result<Poly, EvalError> {
     }
 }
 
+/// **Stable** — `Poly` over ℚ → `Expr` (coefficients remain rational).
 pub fn poly_to_expr(poly: &Poly) -> ExprArc {
     if poly.is_zero() {
         return Expr::int(0);
@@ -152,6 +182,7 @@ fn collect_vars(expr: &Expr, out: &mut Vec<Var>) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use super::super::poly_conv::{ERR_ALG_EXT_COEFF, ERR_POLY_ALG_NO_ALG_COEFF, ERR_POLY_ALG_UNIMPL, ERR_ROOTOF_COEFF};
     use crate::AlgExtData;
 
     #[test]
@@ -218,7 +249,67 @@ mod tests {
         .into_expr();
         assert!(matches!(
             expr_to_poly(e.as_ref()),
-            Err(EvalError::TypeError("alg ext not allowed in polynomial"))
+            Err(EvalError::TypeError(ERR_ALG_EXT_COEFF))
+        ));
+    }
+
+    #[test]
+    fn expr_to_poly_rejects_nested_rootof() {
+        let min = Arc::new(Expr::Func(
+            FuncKind::Poly1,
+            vec![Arc::new(Expr::Seq(vec![
+                Expr::int(1),
+                Expr::int(0),
+                Expr::int(-2),
+            ]))],
+        ));
+        let e = Expr::add(vec![
+            Expr::sym("x"),
+            Expr::func(
+                FuncKind::RootOf,
+                vec![
+                    Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])),
+                    min,
+                ],
+            ),
+        ]);
+        assert!(matches!(
+            expr_to_poly(&e),
+            Err(EvalError::TypeError(ERR_ROOTOF_COEFF))
+        ));
+    }
+
+    #[test]
+    fn poly_alg_from_expr_rejects_rational() {
+        let e = Expr::add(vec![
+            Expr::pow(Expr::sym("x"), Expr::int(2)),
+            Expr::int(1),
+        ]);
+        assert!(matches!(
+            poly_alg_from_expr(&e),
+            Err(EvalError::TypeError(ERR_POLY_ALG_NO_ALG_COEFF))
+        ));
+    }
+
+    #[test]
+    fn poly_alg_from_expr_stub_for_alg_coeff() {
+        let min = Arc::new(Expr::Func(
+            FuncKind::Poly1,
+            vec![Arc::new(Expr::Seq(vec![
+                Expr::int(1),
+                Expr::int(0),
+                Expr::int(-2),
+            ]))],
+        ));
+        let e = AlgExtData::from_rootof(
+            &Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])),
+            &min,
+        )
+        .unwrap()
+        .into_expr();
+        assert!(matches!(
+            poly_alg_from_expr(e.as_ref()),
+            Err(EvalError::NotImplemented(ERR_POLY_ALG_UNIMPL))
         ));
     }
 }

@@ -46,7 +46,12 @@ pub use algebra::alg_ext::{
 pub use algebra::alg_ext_c::{canonicalize_to_algext_c, AlgExtCData};
 pub use algebra::ext_tower::{CommonFieldPair, ExtensionField, ExtensionTower, FieldEmbedding};
 pub use algebra::poly::{
-    expr_to_poly, poly_mod_to_expr, poly_to_expr, ratio_to_expr, vars_from_expr,
+    expr_contains_alg_coeff, expr_to_poly, poly_alg_from_expr, poly_mod_to_expr, poly_to_expr,
+    ratio_to_expr, vars_from_expr,
+};
+pub use algebra::poly_conv::{
+    ERR_ALG_EXT_COEFF, ERR_ALG_EXT_C_COEFF, ERR_POLY_ALG_NO_ALG_COEFF, ERR_POLY_ALG_UNIMPL,
+    ERR_ROOTOF_COEFF,
 };
 pub use num_util::{
     bigint_to_i64, bigint_to_nonneg_u32, bigint_to_u32_abs, reduce_rational_pair,
