@@ -115,9 +115,31 @@ pub fn cbrt2_algext() -> AlgExtData {
     AlgExtData::from_rootof(&cbrt2_rootof_num_expr(), &cbrt2_minpoly_expr()).unwrap()
 }
 
+/// Rootof numerator `[1, 0]` = √3 in ℚ(√3).
+pub fn sqrt3_rootof_num_expr() -> ExprArc {
+    Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)]))
+}
+
+/// `Expr` minpoly for x²−3.
+pub fn sqrt3_minpoly_expr() -> ExprArc {
+    Arc::new(Expr::Func(
+        FuncKind::Poly1,
+        vec![Arc::new(Expr::Seq(vec![
+            Expr::int(1),
+            Expr::int(0),
+            Expr::int(-3),
+        ]))],
+    ))
+}
+
 /// [`AlgExtData`] for √2 in K₁.
 pub fn sqrt2_algext() -> AlgExtData {
     AlgExtData::from_rootof(&sqrt2_rootof_num_expr(), &sqrt2_minpoly_expr()).unwrap()
+}
+
+/// [`AlgExtData`] for √3 in ℚ(√3).
+pub fn sqrt3_algext() -> AlgExtData {
+    AlgExtData::from_rootof(&sqrt3_rootof_num_expr(), &sqrt3_minpoly_expr()).unwrap()
 }
 
 /// [`Expr::AlgExt`] for √2 in K₁.

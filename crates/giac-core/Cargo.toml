@@ -10,8 +10,9 @@ authors.workspace = true
 workspace = true
 
 [features]
-default = []
+default = ["tower-common"]
 ## T4a: compositum via tower adjoin instead of flatten primitive-element search.
+## Bisect / rollback: `cargo … -p giac-core --no-default-features` → Phase 0 flatten only.
 tower-common = []
 
 [dependencies]

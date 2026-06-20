@@ -186,6 +186,16 @@ fn align_pair(a: &AlgExtData, b: &AlgExtData) -> Result<(Arc<ExtensionField>, Co
     Ok((aligned.field, aligned.left, aligned.right))
 }
 
+/// How [`fold_algext_sum_mode`] merges unlike [`ExtensionField`] groups.
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub enum FoldAlgExtMode {
+    /// Default: Expr traversal order; unlike fields may stay an `Add` tree (S1).
+    #[default]
+    Split,
+    /// Sort groups by `field.id()` then pairwise `add` (S1-opt); order-independent.
+    Canonical,
+}
+
 /// Fold a sum of `AlgExt` / rational leaves (eval `Add` patch).
 ///
 /// **Lazy common (Split):** group by same [`ExtensionField`] (`Arc::ptr_eq` or `field ==`);
@@ -194,6 +204,11 @@ fn align_pair(a: &AlgExtData, b: &AlgExtData) -> Result<(Arc<ExtensionField>, Co
 /// `common`; otherwise unlike fields stay as an `Add` tree. See
 /// [GIAC-lazy-common-tower-plan.md] §11.6 E.
 pub fn fold_algext_sum(terms: &[ExprArc]) -> Result<ExprArc, EvalError> {
+    fold_algext_sum_mode(terms, FoldAlgExtMode::Split)
+}
+
+/// Like [`fold_algext_sum`] with explicit merge mode (plan S1-opt).
+pub fn fold_algext_sum_mode(terms: &[ExprArc], mode: FoldAlgExtMode) -> Result<ExprArc, EvalError> {
     let mut groups: Vec<(Arc<ExtensionField>, AlgExtData)> = Vec::new();
     let mut rat_sum = Ratio::<BigInt>::zero();
     let mut rest = Vec::new();
@@ -202,7 +217,7 @@ pub fn fold_algext_sum(terms: &[ExprArc]) -> Result<ExprArc, EvalError> {
             Expr::AlgExt(a) => {
                 if let Some((_, acc)) = groups.iter_mut().find(|(f, _)| fields_same(f, &a.field)) {
                     *acc = acc.add(a)?;
-                } else if groups.len() == 1 {
+                } else if groups.len() == 1 && mode == FoldAlgExtMode::Split {
                     let (f, acc) = groups.remove(0);
                     let sum = acc.add(a)?;
                     groups.push((Arc::clone(&sum.field), sum));
@@ -215,6 +230,14 @@ pub fn fold_algext_sum(terms: &[ExprArc]) -> Result<ExprArc, EvalError> {
             Expr::Rat(r) => rat_sum += r.clone(),
             _ => rest.push(Arc::clone(t)),
         }
+    }
+    if mode == FoldAlgExtMode::Canonical && groups.len() > 1 {
+        groups.sort_by_key(|(f, _)| f.id());
+        let mut acc = groups.remove(0).1;
+        for (_, next) in groups {
+            acc = acc.add(&next)?;
+        }
+        groups = vec![(Arc::clone(&acc.field), acc)];
     }
     if !rat_sum.is_zero() {
         if groups.len() == 1 {
@@ -479,7 +502,7 @@ mod tests {
     use super::*;
     use crate::algebra::test_fixtures::{
         algext_on_t1b_k2, algext_with_coords, cbrt2_algext, duplicate_field_arc,
-        neg_sqrt2_algext, sqrt2_algext, t1b_k2_adjoin_sqrt3_over_k1,
+        neg_sqrt2_algext, sqrt2_algext, sqrt3_algext, t1b_k2_adjoin_sqrt3_over_k1,
     };
 
     #[test]
@@ -666,6 +689,32 @@ mod tests {
                 Ratio::zero(),
             ]
         );
+    }
+
+    #[test]
+    fn fold_algext_sum_canonical_order_independent() {
+        let sqrt2 = sqrt2_algext();
+        let sqrt3 = sqrt3_algext();
+        let terms_a = [sqrt2.clone().into_expr(), sqrt3.clone().into_expr()];
+        let terms_b = [sqrt3.clone().into_expr(), sqrt2.clone().into_expr()];
+        let folded_a = fold_algext_sum_mode(&terms_a, FoldAlgExtMode::Canonical).unwrap();
+        let folded_b = fold_algext_sum_mode(&terms_b, FoldAlgExtMode::Canonical).unwrap();
+        match (folded_a.as_ref(), folded_b.as_ref()) {
+            (Expr::AlgExt(a), Expr::AlgExt(b)) => assert!(a.eq_mod(b).unwrap()),
+            _ => panic!("expected single AlgExt from canonical fold"),
+        }
+    }
+
+    #[test]
+    fn fold_algext_sum_split_two_fields_merges_via_lazy_common() {
+        let sqrt2 = sqrt2_algext();
+        let sqrt3 = sqrt3_algext();
+        let expected = sqrt2.add(&sqrt3).unwrap();
+        let folded = fold_algext_sum(&[sqrt2.into_expr(), sqrt3.into_expr()]).unwrap();
+        match folded.as_ref() {
+            Expr::AlgExt(a) => assert!(a.eq_mod(&expected).unwrap()),
+            other => panic!("expected merged AlgExt, got {other:?}"),
+        }
     }
 
     #[test]

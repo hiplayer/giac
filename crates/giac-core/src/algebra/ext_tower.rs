@@ -1404,7 +1404,7 @@ mod tests {
     #[test]
     #[cfg_attr(
         not(feature = "tower-common"),
-        ignore = "flatten common(√2,∛2) is slow; run with --features tower-common"
+        ignore = "flatten common(√2,∛2) is slow; default enables tower-common (T4a)"
     )]
     fn common_sqrt2_cbrt2_has_degree_six() {
         let a = k1_adjoin_sqrt2();
@@ -1430,7 +1430,7 @@ mod tests {
     #[test]
     #[cfg_attr(
         not(feature = "tower-common"),
-        ignore = "flatten common(√2,∛2) is slow; run with --features tower-common"
+        ignore = "flatten common(√2,∛2) is slow; default enables tower-common (T4a)"
     )]
     fn common_cache_hits_same_pair() {
         let a = k1_adjoin_sqrt2();
@@ -1645,6 +1645,34 @@ mod tests {
         assert!(k2.element_eq_mod(&prod, &expected).unwrap());
     }
 
+    #[cfg(not(feature = "tower-common"))]
+    mod flatten_bisect {
+        use super::*;
+        use crate::algebra::test_fixtures::{k1_adjoin_sqrt2, k1_adjoin_sqrt3};
+
+        /// Fast smoke: `--no-default-features` still builds and common(Q,√2) works.
+        #[serial]
+        #[test]
+        fn common_q_sqrt2_without_tower_common() {
+            let q = ExtensionField::rational();
+            let sqrt2 = k1_adjoin_sqrt2();
+            let pair = ExtensionField::common_over_q(&q, &sqrt2).unwrap();
+            assert_eq!(pair.field.id(), sqrt2.id());
+        }
+
+        /// DoD: `--no-default-features` restores Phase 0 flatten compositum shape (slow).
+        #[serial]
+        #[test]
+        #[ignore = "flatten common(√2,√3) slow; cargo test -p giac-core --no-default-features flatten_bisect -- --ignored"]
+        fn common_sqrt2_sqrt3_has_flatten_parent_none() {
+            let k1 = k1_adjoin_sqrt2();
+            let k3 = k1_adjoin_sqrt3();
+            let pair = ExtensionField::common_over_q(&k1, &k3).unwrap();
+            assert_eq!(pair.field.dimension(), 4);
+            assert!(pair.field.parent_field().is_none());
+        }
+    }
+
     #[cfg(feature = "tower-common")]
     mod t4a {
         use super::*;
@@ -1738,7 +1766,7 @@ mod tests {
 
         #[serial]
     #[test]
-        #[ignore = "flatten char-poly cross-check is slow; cargo test --features tower-common -- --ignored"]
+        #[ignore = "flatten char-poly cross-check is slow; cargo test -p giac-core -- --ignored"]
         fn tower_common_matches_flatten_minpoly_on_sqrt2_sqrt3() {
             let k1 = k1_adjoin_sqrt2();
             let k3 = k1_adjoin_sqrt3();
