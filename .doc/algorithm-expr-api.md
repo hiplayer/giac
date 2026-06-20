@@ -158,15 +158,18 @@
 4. **对齐内聚** — `add/mul/div` 仅接受 `session.align(a,b)` 后的对，或 session 上的方法；禁止在 Cardano/resolvent 各层手写 `align_coeff` 链。
 5. **与表示层分离** — `poly_alg_from_expr` 可产生 ℚ/K 混合系数；**算法入口** normalize 到 K 后再进 session；`verify` 与算法共用同一 normalize+monic 路径。
 
-**最小 API 草图：**
+**最小 API（已实现，见 [giac-core-algebra-api-stability.md](giac-core-algebra-api-stability.md) `field_session.rs`）：**
 
 ```text
 FieldSession { ambient: K, working: L }
-  .int(n) / .half() / .zero() / .one()     // 总在 working 上
-  .lift(c: &AlgExtCPolyCoeff)              // 嵌入 working
-  .adjoin_sqrt(u) -> Result<_, _>          // bump working
-  .align(a, b) -> (a', b')                 // 唯一对齐入口
+  .int / .half / .zero / .one          // 总在 working 上
+  .lift / .align / .add / .mul / .div
+  .adjoin_sqrt / .adjoin_cbrt
+  .adjoin_primitive_cube_root_of_unity  // 纯三次 ω 分支（PR-C′）
 ```
+
+**`build_resolvent_cubic`（PR-D′）：** 对 depressed 四次 \(y^4+py^2+qy+r\)，
+\(R(z)=z^3-pz^2-4rz+(4pr-q^2)\)；golden：`t^4+t+1` → \((p,q,r)=(0,1,1)\) → \(z^3-4z-1\)。
 
 **适用：** `poly_algext_roots`、resolvent cubic、Cardano、双二次 split、将来 `Poly<AlgExtC>::factor/gcd` over K。  
 **索引：** [GIAC-poly-roots-field-session-plan.md](issues/GIAC-poly-roots-field-session-plan.md)；[GIAC-poly-p3-6-quartic-roots-gaps.md](issues/GIAC-poly-p3-6-quartic-roots-gaps.md) G5；[expr-poly-conversion.md](expr-poly-conversion.md) path B。

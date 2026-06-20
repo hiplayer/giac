@@ -74,8 +74,8 @@
 |------|------|
 | **输入** | `&PolyAlgExt`, `&Var` |
 | **输出** | `Vec<AlgExtCPolyCoeff>` |
-| **上下文** | ambient K via `infer_field`；**技术债:** 待 `FieldSession`（working L） |
-| **边界** | deg≤4；可约四次待 P3-7；一般四次 resolvent 见 `#[ignore]` 单测 |
+| **上下文** | `FieldSession`：ambient K + working L（PR-B′）；Cardano/resolvent 在 L 上 |
+| **边界** | deg≤4；纯三次 `t³+a` 三根（ω 分支）；resolvent 公式见 `resolvent_golden_*`；一般四次 e2e 见 `#[ignore]` |
 
 ### `expr_contains_alg_coeff`
 
@@ -91,7 +91,8 @@
 
 | 模块 | 函数 | 说明 |
 |------|------|------|
-| `poly_roots` | `infer_field`, `normalize_coeffs`, `align_coeff`, `lift_to_field` | 待收敛到 `FieldSession` |
+| `poly_roots` | `infer_field`, `normalize_coeffs`, `pure_cubic_roots`, `build_resolvent_cubic` | 算术在 `FieldSession`；入口 normalize 到 K |
+| `field_session` | `adjoin_sqrt`, `adjoin_cbrt`, `adjoin_primitive_cube_root_of_unity` | working L 单调扩大 |
 | `field_arith` | `poly_*_with_coeffs_in_field` | 坐标多项式算术 |
 | `ext_tower` | `align_elements`, `embedding_for` | 域嵌入与对齐 |
 
@@ -458,49 +459,57 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `detects_algext_in_product` | **Pipeline private** | `detects_algext_in_product` |
 | `rational_poly_has_no_alg_coeff` | **Pipeline private** | `rational_poly_has_no_alg_coeff` |
 
+### `field_session.rs`
+
+| Function | Tier | Description |
+|----------|------|-------------|
+| `FieldSession` | **Stable (bounded)** | ambient K + working L for `poly_algext_roots` |
+| `new` | **Stable** | `FieldSession::new` |
+| `ambient` | **Stable** | ambient K (normalized poly coefficients) |
+| `working` | **Stable** | current working L |
+| `zero` / `one` / `int` / `half` | **Stable** | constants in L |
+| `lift` | **Stable** | embed coeff into working L |
+| `align` | **Stable** | align pair; bump L to common field |
+| `adjoin_sqrt` | **Stable (bounded)** | adjoin √u (real); return generator in L |
+| `adjoin_cbrt` | **Stable (bounded)** | adjoin ∛u (real); return generator in L |
+| `adjoin_primitive_cube_root_of_unity` | **Stable (bounded)** | adjoin ω with ω²+ω+1=0; pure cubic roots |
+| `add` / `mul` / `div` / `neg` | **Stable** | arithmetic with auto-align |
+| `bump_to` | **Pipeline private** | grow working L toward superfield or align target |
+
 ### `poly_roots.rs`
 
 | Function | Tier | Description |
 |----------|------|-------------|
-| `poly_algext_roots` | **Stable (bounded)** | exact AlgExtC roots deg 1–4; quartic resolvent gap |
+| `poly_algext_roots` | **Stable (bounded)** | exact AlgExtC roots deg 1–4; quartic e2e gap |
 | `infer_field` | **Pipeline private** | infer ambient K from PolyAlgExt coefficients |
-| `coeff_at` | **Stable** | univariate coefficient at exponent |
-| `ring_zero` | **Pipeline private** | `ring_zero` |
-| `ring_one` | **Pipeline private** | `ring_one` |
-| `rat_in_field` | **Pipeline private** | `rat_in_field` |
-| `ring_int` | **Pipeline private** | `ring_int` |
-| `ring_half` | **Pipeline private** | `ring_half` |
-| `normalize_coeffs` | **Pipeline private** | lift all coeffs to ambient K |
+| `coeff_at` | **Stable** | univariate coefficient at exponent (uses session.zero) |
+| `normalize_coeffs` | **Pipeline private** | lift all coeffs to ambient K via session |
 | `monomial_to_poly` | **Pipeline private** | `monomial_to_poly` |
 | `monic_univariate` | **Pipeline private** | `monic_univariate` |
 | `linear_root` | **Pipeline private** | `linear_root` |
-| `lift_to_field` | **Pipeline private** | embed coeff into target ExtensionField |
-| `quadratic_roots` | **Pipeline private** | `quadratic_roots` |
-| `sqrt_disc` | **Pipeline private** | `sqrt_disc` |
-| `mul_i` | **Pipeline private** | `mul_i` |
-| `cubic_roots` | **Pipeline private** | `cubic_roots` |
-| `one_cubic_root` | **Pipeline private** | `one_cubic_root` |
-| `quartic_roots` | **Pipeline private** | `quartic_roots` |
+| `quadratic_roots` | **Pipeline private** | quadratic via session + sqrt_disc |
+| `sqrt_disc` | **Pipeline private** | √Δ via session.adjoin_sqrt; imaginary via mul_i |
+| `mul_i` | **Pipeline private** | formal i·z on working field |
+| `cubic_roots` | **Pipeline private** | pure cubic or Cardano+deflate |
+| `pure_cubic_roots` | **Pipeline private** | t³+a₀: β=∛(−a₀), roots β·ω^k |
+| `dedup_roots` | **Pipeline private** | merge roots modulo eq_mod |
+| `one_cubic_root` | **Pipeline private** | one Cardano root (session adjoin) |
+| `quartic_roots` | **Pipeline private** | resolvent cubic + split |
 | `biquadratic_roots` | **Pipeline private** | `biquadratic_roots` |
 | `depress_quartic` | **Pipeline private** | `depress_quartic` |
-| `build_resolvent_cubic` | **Pipeline private** | `build_resolvent_cubic` |
-| `split_depressed_quartic` | **Pipeline private** | `split_depressed_quartic` |
-| `align_coeff` | **Pipeline private** | align two AlgExtCPolyCoeff to common field; retire FieldSession |
+| `build_resolvent_cubic` | **Pipeline private** | R(z)=z³−pz²−4rz+(4pr−q²) on session |
+| `split_depressed_quartic` | **Pipeline private** | split via session.adjoin_sqrt |
 | `deflate_monic` | **Pipeline private** | `deflate_monic` |
-| `algext_c_sqrt` | **Pipeline private** | `algext_c_sqrt` |
-| `algext_c_cube_root` | **Pipeline private** | `algext_c_cube_root` |
-| `coeff_inv` | **Pipeline private** | `coeff_inv` |
-| `eq_mod` | **Pipeline private** | `eq_mod` |
-| `coeff_inv` | **Stable** | `Poly::coeff_inv` |
-| `eq_mod` | **Stable** | `Poly::eq_mod` |
-| `q_field` | **Pipeline private** | `q_field` |
-| `rat_coeff` | **Pipeline private** | `rat_coeff` |
-| `verify_root` | **Pipeline private** | `verify_root` |
-| `cubic_one_root_vanishes` | **Pipeline private** | `cubic_one_root_vanishes` |
-| `quadratic_sqrt_four_times_sqrt2_over_k1` | **Pipeline private** | `quadratic_sqrt_four_times_sqrt2_over_k1` |
-| `quadratic_x2_minus_sqrt2_roots_vanish` | **Pipeline private** | `quadratic_x2_minus_sqrt2_roots_vanish` |
-| `roots_quadratic_x2_minus_2` | **Pipeline private** | `roots_quadratic_x2_minus_2` |
-| `roots_quadratic_x2_minus_sqrt2_over_k` | **Pipeline private** | `roots_quadratic_x2_minus_sqrt2_over_k` |
-| `roots_cubic_t3_minus_2` | **Pipeline private** | `roots_cubic_t3_minus_2` |
-| `roots_quartic_t4_plus_t_plus_1` | **Pipeline private** | `roots_quartic_t4_plus_t_plus_1` |
-| `roots_biquadratic_t4_minus_2` | **Pipeline private** | `roots_biquadratic_t4_minus_2` |
+| `algext_c_sqrt` | **Pipeline private** | legacy sqrt for biquadratic u-roots |
+| `algext_c_cube_root` | **Pipeline private** | legacy cbrt (biquadratic path) |
+| `verify_root` | **Pipeline private** | monic+normalize eval via session |
+| `cubic_one_root_vanishes` | **B** | one_cubic_root Cardano; verify_root |
+| `quadratic_sqrt_four_times_sqrt2_over_k1` | **B** | session.adjoin_sqrt on K₁ |
+| `quadratic_x2_minus_sqrt2_roots_vanish` | **B** | quadratic_roots over K₁ |
+| `roots_quadratic_x2_minus_2` | **B** | poly_algext_roots deg=2 over ℚ |
+| `roots_quadratic_x2_minus_sqrt2_over_k` | **B** | poly_algext_roots over ℚ(√2) |
+| `roots_cubic_t3_minus_2` | **B** | pure cubic: 3 roots β·ω^k; verify_root each |
+| `resolvent_golden_t4_plus_t_plus_1` | **B** | PR-D′: depressed (0,1,1) → R(z)=z³−4z−1 |
+| `depressed_t4_plus_t_plus_1_coeffs` | **B** | PR-D′: t⁴+t+1 depression coeffs |
+| `roots_quartic_t4_plus_t_plus_1` | **B** | quartic e2e (ignored: PR-E′ perf) |
+| `roots_biquadratic_t4_minus_2` | **B** | biquadratic four roots |

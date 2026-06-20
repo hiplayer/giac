@@ -6,7 +6,7 @@
 **相关:** [GIAC-lazy-common-tower-plan](GIAC-lazy-common-tower-plan.md) §Phase T3+、§11；[GIAC-dense-poly1-refactor](GIAC-dense-poly1-refactor.md) §D5；[giac-tower-common-math.md](../giac-tower-common-math.md)  
 **上游参考:** `giac/giac-1.5.0/src/gausspol.cc`（`_EXT` 系数 `roots` / resolvent）、`alg_ext.cc`  
 **Rust 落点:** `giac-core::algebra::poly`（`PolyAlgExt`）、`giac-poly`（泛型 `roots`）；**非** `giac-solve/rootof.rs` 新特判  
-**快照:** 2026-06-20
+**快照:** 2026-06-20（§2 与代码复核：`poly_roots.rs`、`ext_tower.rs`、`solve.rs`）
 
 ---
 
@@ -30,22 +30,55 @@
 
 ## 2. 现状快照
 
-| 组件 | 状态 | 说明 |
-|------|------|------|
+> **初版（同日早）** 将 P3-6 记为「全未实现」；下列为与当前 Rust 对齐后的复核表。算法骨架在 `giac-core/src/algebra/poly_roots.rs`；**用户可见 `solve` 与 DoD 仍未过关**。
+
+| 组件 | 状态 | 说明 / 落点 |
+|------|------|-------------|
 | `Poly<AlgExtC>` 表示 + `PolyCoeff` | ✅ P1-1/2/4 | `poly_alg_coeff.rs`、`poly.rs` 桥接 |
 | `AlgExtC` 同域 ±×、`inv`、`common` | ✅ P0-A/B + T4a | 塔默认 `tower-common` |
-| T3 parent 系数 `element_*` | ✅ | T1b \(u^2-3\) 等；**不含** parent 系数层 **登记** |
-| **T3+** `adjoin(K, u²−α)` | ❌ **硬阻塞** | `adjoin_irreducible` 仍拒 `layer_minpoly_rational_constants`（`ext_tower.rs` ~164） |
-| `giac_poly::roots` | ❌ deg≤2（ℚ） | `resultant.rs`；无 `Poly<C>` 泛化 |
-| **`Poly<AlgExtC>::roots`** | ❌ **未实现** | 无二次/三次/四次 AlgExt 路径 |
-| P2-1 二次 roots over K | ❌ | 仍靠 `giac-solve/rootof.rs` `quadratic_rootof_roots` |
-| P2-2 双二次 | ⚠️ 过渡态 | `biquadratic_rootof_roots`；**非** `Poly<AlgExtC>::roots` |
-| P2-6 三次 roots over K | ❌ | resolvent 内层缺失 |
-| P3-1 gcd/quo/rem over K | ❌ | resolvent / split 可能需要；至少需可测 remainder |
-| P3-3 factor over K | ❌ | 可约四次应先降次（P3-7）；一般式仍要 P3-6 |
-| 一般四次 `rootof` | ❌ | `rootof.rs:26` → `NotImplemented("general quartic rootof")` |
+| T3 parent 系数 `element_*` | ✅ | T1b \(u^2-3\) 等；在已登记塔顶上运算 |
+| **T3+** `adjoin(K, u²−α)` | ✅ API / ⚠️ roots 未接 | `ExtensionField::adjoin_irreducible_parent_coeffs`（`ext_tower.rs`）；T3+a 单测 `t3a_adjoin_k1_u2_minus_sqrt2_has_dimension_four` 绿；**`poly_roots` 未按 resolvent 分支显式 register**，仍靠 `align_coeff` / `AlgExtCData::align_pair` 隐式扩域 |
+| **G5 FieldSession** | ✅ PR-B′ | `field_session.rs`；`poly_roots` 全程 `&mut FieldSession` |
+| `giac_poly::roots` | ❌ deg≤2（ℚ） | `resultant.rs`；deg≥3 一般式 → `NotImplemented`；无 `Poly<C>` 泛化 |
+| **`poly_algext_roots`（poly 层入口）** | ⚠️ deg 1–4 骨架 | `giac-core::poly_algext_roots` 按次数分发；**非** `giac-poly::roots` 泛型；deg≥5 → `NotImplemented` |
+| P2-1 二次 roots over K | ✅ poly / ⚠️ solve 重复 | `quadratic_roots`；单测 `roots_quadratic_x2_minus_2`、`roots_quadratic_x2_minus_sqrt2_over_k` 绿；`giac-solve` 仍保留 `quadratic_rootof_roots` |
+| P2-2 双二次 | ✅ poly / ⚠️ solve 重复 | `biquadratic_roots`；单测 `roots_biquadratic_t4_minus_2` 四根绿；solve 仍 `biquadratic_rootof_roots` |
+| P2-6 三次 roots over K | ✅ 纯三次 / ⚠️ 一般 | `pure_cubic_roots`（ω 分支）三根；`roots_cubic_t3_minus_2` 绿；一般三次 Cardano+deflate |
+| 四次 resolvent + split | ⚠️ 公式✅ / e2e❌ | resolvent z 系数符号已修；`resolvent_golden_t4_plus_t_plus_1` 绿；`roots_quartic_t4_plus_t_plus_1` **`#[ignore]`**（PR-E′） |
+| P3-1 gcd/quo/rem over K | ❌ | 仅 `poly.rs` 内 `gcd_linear_bridge`；roots 路径未用形式 remainder |
+| P3-2 sqff / primitive over K | ❌ | `poly_algext_roots` 入口无 sqff；重根四次可能 resolvent 失效 |
+| P3-3 factor over K | ❌ | `giac-poly` factor 仍 ℚ-only；可约四次（P3-7）未 factor 降次 |
+| 一般四次 `rootof` | ❌ | `rootof.rs:31` → `NotImplemented("general quartic rootof")` |
+| **`eval_solve` 接线（P4-6）** | ❌ | `solve.rs` 仍 `giac_poly::roots` + `quadratic_rootof_roots` / `biquadratic_rootof_roots` fallback；**从不**调用 `poly_algext_roots` |
 | dense poly1（D1–D4） | ✅ | T3 `ParentBlockRing` 已收敛；**不挡** P3-6 主路径（sparse + `PolyCoeff`） |
 | D5 `FlatUni<AlgExtC>` ↔ dense | ☐ 可选 | 见 §5.3 |
+
+### 2.1 PR 竖切进度（对照 §4）
+
+| PR | 状态 | 备注 |
+|----|------|------|
+| PR-A T3+ | ✅ API / ⚠️ roots 未接 | 塔层与 T3+a 绿；resolvent 管线未显式 adjoin |
+| PR-B 二次 P2-1 | ✅ | `poly_algext_roots` deg=2 |
+| PR-B′ FieldSession | ✅ | 二次/双二次 on session |
+| PR-C′ 三次 | ✅ | `pure_cubic_roots` + session adjoin；`t³−2` 三根 |
+| PR-D′ resolvent golden | ✅ | `resolvent_golden_t4_plus_t_plus_1`；z 项 −4r |
+| PR-E′ 四次 e2e | ❌ | `t⁴+t+1` 单测 ignore |
+| PR-F solve 接线 | ❌ | `solve` 仍 rootof 旁路 |
+
+### 2.2 验收用例（对照 §6.1）
+
+| 用例 | 状态 |
+|------|------|
+| `roots(x²−2)` over ℚ | ✅ `roots_quadratic_x2_minus_2` |
+| `roots(x²−√2)` over K=ℚ(√2) | ✅ `roots_quadratic_x2_minus_sqrt2_over_k` |
+| `roots(t³−2)` | ✅ 3 根 `roots_cubic_t3_minus_2` |
+| resolvent `t⁴+t+1` | ✅ `resolvent_golden_t4_plus_t_plus_1` → z³−4z−1 |
+| `roots(t⁴+t+1)` | ❌ 单测 `#[ignore]` |
+| `roots(t⁴−2)` 双二次 | ✅ `roots_biquadratic_t4_minus_2` |
+| T3+a `adjoin(ℚ(√2), u²−√2)` | ✅ `ext_tower` / `test_fixtures` |
+| `solve(t⁴+t+1=0)` | ❌ 未接线 + poly 层未绿 |
+| `solve(t⁴−2=0)` | ⚠️ 经 solve/rootof 双二次，非 `poly_algext_roots` |
+| 可约 `(t²+1)(t²+2)` factor 降次 | ❌ P3-7 |
 
 ---
 

@@ -223,10 +223,11 @@ verify_root(session, p_raw, root):
 
 ## 9. 完成定义（P3-6 + G5）
 
-- [ ] `field_session.rs` + 单测
-- [ ] `poly_roots` 无自由 `align_coeff` / `ring_int(ambient, …)`（grep 为 0）
-- [ ] `roots_cubic_t3_minus_2`：3 根
-- [ ] `roots_quartic_t4_plus_t_plus_1`：4 根，无 ignore，≤10s
+- [x] `field_session.rs` + 单测（PR-B′）
+- [x] `poly_roots` 无自由 `align_coeff` / `ring_int(ambient, …)`（grep 为 0）
+- [x] `roots_cubic_t3_minus_2`：3 根（PR-C′）
+- [x] resolvent golden `resolvent_golden_t4_plus_t_plus_1`（PR-D′）
+- [ ] `roots_quartic_t4_plus_t_plus_1`：4 根，无 ignore，≤10s（PR-E′）
 - [ ] [GIAC-poly-p3-6-quartic-roots-gaps.md](GIAC-poly-p3-6-quartic-roots-gaps.md) G0–G5 行更新
 - [ ] [algorithm-expr-api.md](../algorithm-expr-api.md) §6.3 草图改为 **Stable API** 表（实现后）
 
