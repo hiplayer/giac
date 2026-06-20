@@ -1,3 +1,6 @@
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-ode-api-stability.md`.
+//!
 use std::sync::Arc;
 
 use giac_core::{
@@ -8,6 +11,7 @@ use num_rational::Ratio;
 use num_traits::{One, Signed, Zero};
 
 /// `desolve(equation, y(x))` — linear constant-coefficient ODEs (GIAC-218).
+/// **Stable (bounded)** — linear constant-coefficient ODE subset
 pub fn eval_desolve(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     if args.len() != 2 {
         return Err(EvalError::TooFewArgs("desolve"));
@@ -30,6 +34,7 @@ struct LinOde {
     forcing: ExprArc,
 }
 
+// **Pipeline private** — `parse_dep_fn`
 fn parse_dep_fn(e: &ExprArc) -> Result<(Ident, Ident), EvalError> {
     match e.as_ref() {
         Expr::Func(FuncKind::Apply, args) if args.len() == 2 => {
@@ -47,10 +52,12 @@ fn parse_dep_fn(e: &ExprArc) -> Result<(Ident, Ident), EvalError> {
     }
 }
 
+// **Pipeline private** — `dep_fn_expr`
 fn dep_fn_expr(dep: &Ident, indep: &Ident) -> ExprArc {
     Expr::func(FuncKind::Apply, vec![Expr::sym(dep.as_str()), Expr::sym(indep.as_str())])
 }
 
+// **Pipeline private** — `parse_linear_ode`
 fn parse_linear_ode(
     eq: &Expr,
     dep: &Ident,
@@ -91,6 +98,7 @@ fn parse_linear_ode(
     })
 }
 
+// **Pipeline private** — `flatten_add`
 fn flatten_add(e: &Expr) -> Vec<ExprArc> {
     match e {
         Expr::Add(terms) => terms.clone(),
@@ -98,6 +106,7 @@ fn flatten_add(e: &Expr) -> Vec<ExprArc> {
     }
 }
 
+// **Pipeline private** — `add_expr`
 fn add_expr(a: ExprArc, b: ExprArc) -> ExprArc {
     if is_zero_expr(&a) {
         return b;
@@ -108,6 +117,7 @@ fn add_expr(a: ExprArc, b: ExprArc) -> ExprArc {
     Expr::add(vec![a, b])
 }
 
+// **Pipeline private** — `derivative_order`
 fn derivative_order(e: &ExprArc, dep: &Ident, indep: &Ident) -> Option<u8> {
     match e.as_ref() {
         Expr::Func(FuncKind::Prime, args) if args.len() == 2 => {
@@ -134,6 +144,7 @@ fn derivative_order(e: &ExprArc, dep: &Ident, indep: &Ident) -> Option<u8> {
     }
 }
 
+// **Pipeline private** — `is_dep`
 fn is_dep(e: &ExprArc, dep: &Ident, indep: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Symbol(id) if id == dep)
         || matches!(
@@ -145,6 +156,7 @@ fn is_dep(e: &ExprArc, dep: &Ident, indep: &Ident) -> bool {
         )
 }
 
+// **Pipeline private** — `strip_derivative_factor`
 fn strip_derivative_factor(
     t: &ExprArc,
     dep: &Ident,
@@ -188,6 +200,7 @@ fn strip_derivative_factor(
     }
 }
 
+// **Pipeline private** — `solve_linear_ode`
 fn solve_linear_ode(ode: &LinOde, dep: &Ident, indep: &Ident) -> Result<ExprArc, EvalError> {
     if !is_zero_expr(&ode.a2) {
         return solve_second_order(ode, dep, indep);
@@ -202,6 +215,7 @@ fn solve_linear_ode(ode: &LinOde, dep: &Ident, indep: &Ident) -> Result<ExprArc,
     Err(EvalError::TypeError("degenerate ode"))
 }
 
+// **Pipeline private** — `solve_first_order`
 fn solve_first_order(ode: &LinOde, indep: &Ident) -> Result<ExprArc, EvalError> {
     let x = Expr::sym(indep.as_str());
     if is_one_expr(&ode.a1) && is_zero_expr(&ode.forcing) {
@@ -236,10 +250,12 @@ fn solve_first_order(ode: &LinOde, indep: &Ident) -> Result<ExprArc, EvalError> 
     Err(EvalError::NotImplemented("desolve"))
 }
 
+// **Pipeline private** — `is_one_expr`
 fn is_one_expr(e: &ExprArc) -> bool {
     matches!(e.as_ref(), Expr::Int(n) if n.is_one())
 }
 
+// **Pipeline private** — `is_neg_var`
 fn is_neg_var(e: &ExprArc, indep: &Ident) -> bool {
     matches!(
         e.as_ref(),
@@ -249,10 +265,12 @@ fn is_neg_var(e: &ExprArc, indep: &Ident) -> bool {
     )
 }
 
+// **Pipeline private** — `is_var_expr`
 fn is_var_expr(e: &ExprArc, indep: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Symbol(id) if id.as_str() == indep.as_str())
 }
 
+// **Pipeline private** — `solve_second_order`
 fn solve_second_order(ode: &LinOde, dep: &Ident, indep: &Ident) -> Result<ExprArc, EvalError> {
     let a2 = expr_to_ratio(&ode.a2)?;
     let a1 = expr_to_ratio(&ode.a1)? / a2.clone();
@@ -276,6 +294,7 @@ fn solve_second_order(ode: &LinOde, dep: &Ident, indep: &Ident) -> Result<ExprAr
     Ok(sol)
 }
 
+// **Pipeline private** — `expr_to_ratio`
 fn expr_to_ratio(e: &ExprArc) -> Result<Ratio<BigInt>, EvalError> {
     match e.as_ref() {
         Expr::Int(n) => Ok(Ratio::from_integer(n.clone())),
@@ -288,6 +307,7 @@ fn expr_to_ratio(e: &ExprArc) -> Result<Ratio<BigInt>, EvalError> {
     }
 }
 
+// **Pipeline private** — `homogeneous_second_order`
 fn homogeneous_second_order(
     a1: &Ratio<BigInt>,
     a0: &Ratio<BigInt>,
@@ -327,6 +347,7 @@ fn homogeneous_second_order(
     ]))
 }
 
+// **Pipeline private** — `particular_sin`
 fn particular_sin(
     a0: &Ratio<BigInt>,
     forcing: &ExprArc,
@@ -345,6 +366,7 @@ fn particular_sin(
     Ok(None)
 }
 
+// **Pipeline private** — `exp_rat_times_x`
 fn exp_rat_times_x(r: &Ratio<BigInt>, indep: &Ident) -> ExprArc {
     if r.is_zero() {
         return Expr::int(1);
@@ -355,6 +377,7 @@ fn exp_rat_times_x(r: &Ratio<BigInt>, indep: &Ident) -> ExprArc {
     )
 }
 
+// **Pipeline private** — `trig_rat_times_x`
 fn trig_rat_times_x(kind: FuncKind, r: &Ratio<BigInt>, indep: &Ident) -> ExprArc {
     Expr::func(
         kind,
@@ -362,10 +385,12 @@ fn trig_rat_times_x(kind: FuncKind, r: &Ratio<BigInt>, indep: &Ident) -> ExprArc
     )
 }
 
+// **Pipeline private** — `const_sym`
 fn const_sym(n: u8) -> ExprArc {
     Expr::sym(&format!("c{n}"))
 }
 
+// **Pipeline private** — `ratio_sqrt`
 fn ratio_sqrt(r: &Ratio<BigInt>) -> Result<Ratio<BigInt>, EvalError> {
     if r.is_negative() {
         return Err(EvalError::TypeError("negative under sqrt"));
@@ -375,6 +400,7 @@ fn ratio_sqrt(r: &Ratio<BigInt>) -> Result<Ratio<BigInt>, EvalError> {
     Ok(Ratio::new(sn, sd))
 }
 
+// **Pipeline private** — `integer_sqrt`
 fn integer_sqrt(n: &BigInt) -> Option<BigInt> {
     if n.is_negative() {
         return None;
@@ -396,10 +422,12 @@ fn integer_sqrt(n: &BigInt) -> Option<BigInt> {
     None
 }
 
+// **Pipeline private** — `is_zero_expr`
 fn is_zero_expr(e: &ExprArc) -> bool {
     matches!(e.as_ref(), Expr::Int(n) if n.is_zero())
 }
 
+// **Pipeline private** — `is_sin_of_var`
 fn is_sin_of_var(e: &ExprArc, indep: &Ident) -> bool {
     matches!(
         e.as_ref(),

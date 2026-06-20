@@ -9,6 +9,10 @@
 //! | **Pipeline** | `limit_preprocess_*`、`merge_exp_quotients`、`surd2pow` 等 |
 //! | **Pipeline private** | `sqrt` 共轭与分式辅助 |
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-calculus-api-stability.md`.
+//!
 use std::sync::Arc;
 
 use giac_core::{Context, EvalError, Expr, ExprArc, FuncKind, Ident};

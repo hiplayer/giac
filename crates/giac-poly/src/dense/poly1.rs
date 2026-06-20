@@ -7,6 +7,10 @@
 //!
 //! **Tier:** Stable (crate-internal).
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
 use crate::error::{EvalError, PolyResult};
 
 /// Coefficient order for dense univariate polynomials.
@@ -23,26 +27,37 @@ pub enum Poly1Order {
 /// **Stable (crate-internal)** — distinct from sparse [`PolyCoeff`](crate::PolyCoeff).
 pub trait Poly1RingCtx {
     type Coeff: Clone;
+    // **Stable** — Poly zero
     fn zero(&self) -> Self::Coeff;
+    // **Stable** — Poly one
     fn one(&self) -> Self::Coeff;
+    // **Stable** — Poly is zero
     fn is_zero(&self, c: &Self::Coeff) -> bool;
+    // **Stable** — Poly addition
     fn add(&self, a: &Self::Coeff, b: &Self::Coeff) -> PolyResult<Self::Coeff>;
+    // **Stable** — Poly subtraction
     fn sub(&self, a: &Self::Coeff, b: &Self::Coeff) -> PolyResult<Self::Coeff>;
+    // **Stable** — Poly negation
     fn neg(&self, c: &Self::Coeff) -> PolyResult<Self::Coeff>;
+    // **Stable** — Poly multiplication
     fn mul(&self, a: &Self::Coeff, b: &Self::Coeff) -> PolyResult<Self::Coeff>;
+    // **Pipeline private** — `inv`
     fn inv(&self, c: &Self::Coeff) -> PolyResult<Self::Coeff>;
 }
 
+// **Stable** — Poly is one
 fn is_one<R: Poly1RingCtx>(ctx: &R, c: &R::Coeff) -> bool {
     ctx.sub(c, &ctx.one())
         .map(|d| ctx.is_zero(&d))
         .unwrap_or(false)
 }
 
+// **Pipeline private** — `div_coeff`
 fn div_coeff<R: Poly1RingCtx>(ctx: &R, a: &R::Coeff, b: &R::Coeff) -> PolyResult<R::Coeff> {
     ctx.mul(a, &ctx.inv(b)?)
 }
 
+// **Pipeline private** — `to_high_first`
 fn to_high_first<C: Clone>(p: &[C], order: Poly1Order) -> Vec<C> {
     match order {
         Poly1Order::HighFirst => p.to_vec(),
@@ -50,6 +65,7 @@ fn to_high_first<C: Clone>(p: &[C], order: Poly1Order) -> Vec<C> {
     }
 }
 
+// **Pipeline private** — `from_high_first`
 fn from_high_first<C: Clone>(p: Vec<C>, order: Poly1Order) -> Vec<C> {
     match order {
         Poly1Order::HighFirst => p,
@@ -62,6 +78,7 @@ pub fn poly_degree<C: Clone>(p: &[C]) -> usize {
     p.len().saturating_sub(1)
 }
 
+// **Pipeline private** — `trim_high_first`
 fn trim_high_first<R: Poly1RingCtx>(ctx: &R, v: &mut Vec<R::Coeff>) {
     while v.len() > 1 && v.first().is_some_and(|c| ctx.is_zero(c)) {
         v.remove(0);
@@ -78,6 +95,7 @@ pub fn trim<R: Poly1RingCtx>(ctx: &R, p: &mut Vec<R::Coeff>, order: Poly1Order) 
     *p = from_high_first(work, order);
 }
 
+// **Pipeline private** — `trim_high_first_collect`
 fn trim_high_first_collect<R: Poly1RingCtx>(ctx: &R, mut v: Vec<R::Coeff>) -> Vec<R::Coeff> {
     trim_high_first(ctx, &mut v);
     v

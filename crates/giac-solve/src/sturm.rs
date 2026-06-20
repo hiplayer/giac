@@ -1,3 +1,6 @@
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-solve-api-stability.md`.
+//!
 use std::sync::Arc;
 
 use giac_core::{
@@ -9,6 +12,7 @@ use giac_poly::{
 use num_bigint::BigInt;
 use num_rational::Ratio;
 
+/// **Stable** — Sturm sequence for univariate poly
 pub fn eval_sturm(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     let (poly, var) = poly_and_var(args, ctx)?;
     let mut q = giac_poly::odd_multiplicity_part(&poly, &var)?;
@@ -26,6 +30,7 @@ pub fn eval_sturm(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError>
     Ok(Arc::new(Expr::List(items)))
 }
 
+/// **Stable** — root count in (a,b) via Sturm
 pub fn eval_sturmab(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     if args.len() != 4 {
         return Err(EvalError::TooFewArgs("sturmab"));
@@ -42,6 +47,7 @@ pub fn eval_sturmab(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalErro
     Ok(Expr::int(i64::try_from(count).unwrap_or(0)))
 }
 
+// **Pipeline private** — `poly_and_var`
 fn poly_and_var(args: &[ExprArc], ctx: &Context) -> Result<(giac_poly::Poly, Var), EvalError> {
     match args.len() {
         1 => {
@@ -57,6 +63,7 @@ fn poly_and_var(args: &[ExprArc], ctx: &Context) -> Result<(giac_poly::Poly, Var
     }
 }
 
+// **Pipeline private** — `ident_from_expr`
 fn ident_from_expr(e: &Expr) -> Result<Ident, EvalError> {
     match e {
         Expr::Symbol(id) => Ok(id.clone()),
@@ -64,6 +71,7 @@ fn ident_from_expr(e: &Expr) -> Result<Ident, EvalError> {
     }
 }
 
+// **Pipeline private** — `eval_to_rational`
 fn eval_to_rational(e: &ExprArc, ctx: &Context) -> Result<Ratio<BigInt>, EvalError> {
     let ev = eval(e.as_ref(), ctx)?;
     match ev.as_ref() {

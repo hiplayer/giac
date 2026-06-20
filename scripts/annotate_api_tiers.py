@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
-"""Add API tier comments to giac-simplify and giac-poly sources.
+"""Add API tier comments to algorithm crate sources.
 
 Idempotent: skips functions that already have a tier marker in the preceding lines.
-Run from giac-rs/:  python3 scripts/annotate_api_tiers.py
+Run from giac-rs/:
+  python3 scripts/annotate_api_tiers.py              # annotate missing tiers
+  python3 scripts/annotate_api_tiers.py --inventory    # refresh *-api-stability.md Per-file tables
 """
 
 from __future__ import annotations
@@ -16,10 +18,23 @@ ROOT = Path(__file__).resolve().parents[1]
 TIER_MARKERS = (
     "**Stable**",
     "**Stable (bounded)**",
+    "**Stable (crate-internal)**",
     "**Partial**",
+    "**Pipeline**",
     "**Pipeline private**",
     "**Temporary**",
 )
+
+# (src_root relative to giac-rs/crates, stability doc basename, skip filenames)
+CRATE_TARGETS: list[tuple[str, str, frozenset[str]]] = [
+    ("giac-simplify/src", "giac-simplify-api-stability.md", frozenset()),
+    ("giac-poly/src", "giac-poly-api-stability.md", frozenset({"tests_phase2.rs"})),
+    ("giac-calculus/src", "giac-calculus-api-stability.md", frozenset()),
+    ("giac-core/src/algebra", "giac-core-algebra-api-stability.md", frozenset({"test_fixtures.rs"})),
+    ("giac-solve/src", "giac-solve-api-stability.md", frozenset()),
+    ("giac-ode/src", "giac-ode-api-stability.md", frozenset()),
+    ("giac-groebner/src", "giac-groebner-api-stability.md", frozenset()),
+]
 
 # name -> (tier, short description)
 FN_TIERS: dict[str, tuple[str, str]] = {
@@ -229,6 +244,71 @@ FN_TIERS: dict[str, tuple[str, str]] = {
     "verified_product": ("Pipeline private", "check factor product equals orig"),
     "is_sqff_wrt_main": ("Pipeline private", "sqff test w.r.t. main var"),
     "linfnorm": ("Pipeline private", "L∞ norm of Poly coefficients"),
+    # --- giac-core / algebra ---
+    "expr_to_poly": ("Stable", "path A: Expr → Poly over Q"),
+    "poly_alg_from_expr": ("Stable", "path B: Expr → PolyAlgExt over K"),
+    "poly_to_expr": ("Stable", "Poly over Q → Expr"),
+    "algext_poly_to_expr": ("Stable", "PolyAlgExt → Expr"),
+    "univariate_poly_to_poly1_expr": ("Stable", "univariate Poly → poly1 Expr (high-degree-first)"),
+    "poly_mod_to_expr": ("Stable", "PolyMod → Expr"),
+    "ratio_to_expr": ("Stable", "Ratio<BigInt> → Expr"),
+    "vars_from_expr": ("Stable", "sorted variables in Expr"),
+    "expr_contains_alg_coeff": ("Stable", "predicate: choose expr_to_poly vs poly_alg_from_expr"),
+    "poly_algext_roots": ("Stable (bounded)", "exact AlgExtC roots deg 1–4; quartic resolvent gap"),
+    "contains_algext": ("Stable", "subtree contains AlgExt or rootof"),
+    "try_as_algext_data": ("Stable", "view Expr as AlgExtData if present"),
+    "try_rootof_to_algext": ("Stable", "Func(RootOf) → AlgExt Expr"),
+    "fold_algext_sum": ("Stable", "canonical sum of AlgExt terms"),
+    "fold_algext_sum_mode": ("Stable", "fold_algext_sum with mode"),
+    "fold_algext_product": ("Stable", "canonical product of AlgExt terms"),
+    "fold_complex_algext_sum": ("Stable", "sum with complex AlgExtC parts"),
+    "fold_complex_algext_product": ("Stable", "product with complex AlgExtC parts"),
+    "algext_square_roots": ("Stable (bounded)", "square roots in extension field"),
+    "algext_cube_root": ("Stable (bounded)", "cube root in extension field"),
+    "algext_sqrt_branches": ("Stable (bounded)", "sqrt branches as Expr list"),
+    "common_ext": ("Stable", "common extension for two AlgExt values"),
+    "canonicalize_to_algext_c": ("Stable", "Expr → canonical AlgExtCData"),
+    "infer_field": ("Pipeline private", "infer ambient K from PolyAlgExt coefficients"),
+    "normalize_coeffs": ("Pipeline private", "lift all coeffs to ambient K"),
+    "align_coeff": ("Pipeline private", "align two AlgExtCPolyCoeff to common field; retire FieldSession"),
+    "lift_to_field": ("Pipeline private", "embed coeff into target ExtensionField"),
+    # --- giac-solve ---
+    "eval_solve": ("Stable (bounded)", "solve via poly roots, rootof, or linsolve"),
+    "eval_froot": ("Stable (bounded)", "rational roots of univariate poly"),
+    "eval_realroot": ("Stable (bounded)", "real roots via Sturm isolation"),
+    "eval_fsolve": ("Partial", "Newton numeric solve stub"),
+    "eval_sturm": ("Stable", "Sturm sequence for univariate poly"),
+    "eval_sturmab": ("Stable", "root count in (a,b) via Sturm"),
+    "quadratic_rootof_roots": ("Stable (bounded)", "two rootof branches for quadratic"),
+    "biquadratic_rootof_roots": ("Partial", "biquadratic rootof; general quartic NotImplemented"),
+    "install_solve": ("Stable", "register DefaultSolvePlugin"),
+    # --- giac-ode ---
+    "eval_desolve": ("Stable (bounded)", "linear constant-coefficient ODE subset"),
+    "install_ode": ("Stable", "register DefaultOdePlugin"),
+    # --- giac-groebner ---
+    "greduce": ("Stable (bounded)", "multivariate reduce mod ideal (lex)"),
+    "greduce_mod": ("Stable (bounded)", "reduce PolyMod mod basis"),
+    # --- giac-calculus (stable API not yet inline-marked) ---
+    "diff": ("Stable", "symbolic derivative"),
+    "eval_diff": ("Stable", "builtin diff evaluator"),
+    "integrate": ("Stable", "symbolic integration"),
+    "eval_integrate": ("Stable", "builtin integrate evaluator"),
+    "eval_limit": ("Stable", "limit evaluator"),
+    "eval_series": ("Stable", "series expansion evaluator"),
+    "eval_risch": ("Partial", "Risch integration subset"),
+    "hermite_reduce": ("Stable", "Hermite reduction on rational tower"),
+    "pow2expln": ("Stable", "pow → exp/ln tower rewrite"),
+    "risch_tower": ("Stable", "build Risch integration tower"),
+    "rlvarx": ("Stable", "Risch log extension variable"),
+    "rothstein_trager_integrate": ("Partial", "Rothstein–Trager narrow path"),
+    "depends_on_var": ("Stable", "Expr depends on variable"),
+    "is_const_wrt": ("Stable", "Expr constant w.r.t. variable"),
+    "install_calculus": ("Stable", "register DefaultCalculusPlugin"),
+    "canonical_mrv_coeff": ("Stable", "MRV coefficient canonical form"),
+    "decompose_mrv_coeff": ("Stable", "decompose MRV coeff into parts"),
+    "canonical_exp_diff": ("Stable", "canonical exp-times-(exp-1) form"),
+    "match_exp_times_exp_minus_one": ("Stable", "match exp*(exp-1) pattern"),
+    "is_exp_minus_one_factor": ("Stable", "predicate: factor is exp(ε)-1"),
 }
 
 FN_RE = re.compile(
@@ -329,16 +409,13 @@ def process_file(path: Path) -> int:
     return added
 
 
-def add_module_inventory_header(path: Path) -> None:
+def add_module_inventory_header(path: Path, doc_name: str) -> None:
     text = path.read_text()
     if "**API inventory:**" in text:
         return
-    rel = path.relative_to(ROOT / "crates")
-    crate = rel.parts[0]
-    doc = "giac-simplify-api-stability.md" if crate == "giac-simplify" else "giac-poly-api-stability.md"
     header = (
         f"//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;\n"
-        f"//! full module index in `.doc/{doc}`.\n//!\n"
+        f"//! full module index in `.doc/{doc_name}`.\n//!\n"
     )
     if text.startswith("#!"):
         # insert after first line block of #!
@@ -372,16 +449,20 @@ def add_module_inventory_header(path: Path) -> None:
 
 def write_inventory_docs() -> None:
     doc_root = ROOT.parent / ".doc"
-    for crate, doc_name in [
-        ("giac-simplify", "giac-simplify-api-stability.md"),
-        ("giac-poly", "giac-poly-api-stability.md"),
-    ]:
-        by_file = {}
-        for path in sorted((ROOT / "crates" / crate / "src").rglob("*.rs")):
-            if path.name == "tests_phase2.rs":
+    tier_re = re.compile(
+        r"\*\*(Stable \(crate-internal\)|Stable \(bounded\)|Stable|Partial|Temporary|Pipeline private|Pipeline)\*\* — (.+)"
+    )
+    for src_rel, doc_name, skip in CRATE_TARGETS:
+        src_root = ROOT / "crates" / src_rel
+        if not src_root.is_dir():
+            print(f"skip missing {src_rel}", file=sys.stderr)
+            continue
+        by_file: dict[str, list[tuple[str, str, str]]] = {}
+        for path in sorted(src_root.rglob("*.rs")):
+            if path.name in skip:
                 continue
-            rel = str(path.relative_to(ROOT / "crates" / crate / "src"))
-            items = []
+            rel = str(path.relative_to(src_root))
+            items: list[tuple[str, str, str]] = []
             lines = path.read_text().splitlines()
             for i, line in enumerate(lines):
                 m = FN_RE.match(line)
@@ -393,10 +474,7 @@ def write_inventory_docs() -> None:
                     s = lines[j].strip()
                     if not s:
                         continue
-                    tm = re.search(
-                        r"\*\*(Stable \(bounded\)|Stable|Partial|Temporary|Pipeline private)\*\* — (.+)",
-                        s,
-                    )
+                    tm = tier_re.search(s)
                     if tm:
                         tier, desc = tm.group(1), tm.group(2)
                         break
@@ -422,6 +500,9 @@ def write_inventory_docs() -> None:
             out.append("")
         inv = "\n".join(out)
         doc = doc_root / doc_name
+        if not doc.exists():
+            print(f"skip inventory (no doc): {doc_name}", file=sys.stderr)
+            continue
         text = doc.read_text()
         marker = "## Per-file function inventory"
         if marker in text:
@@ -437,14 +518,15 @@ def main() -> int:
     if len(sys.argv) > 1 and sys.argv[1] == "--inventory":
         write_inventory_docs()
         return 0
-    crates = [ROOT / "crates" / "giac-simplify" / "src", ROOT / "crates" / "giac-poly" / "src"]
-    skip = {"tests_phase2.rs"}
     total = 0
-    for crate_root in crates:
-        for path in sorted(crate_root.rglob("*.rs")):
+    for src_rel, doc_name, skip in CRATE_TARGETS:
+        src_root = ROOT / "crates" / src_rel
+        if not src_root.is_dir():
+            continue
+        for path in sorted(src_root.rglob("*.rs")):
             if path.name in skip:
                 continue
-            add_module_inventory_header(path)
+            add_module_inventory_header(path, doc_name)
             total += process_file(path)
     print(f"annotated {total} functions")
     return 0

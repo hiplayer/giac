@@ -7,6 +7,10 @@
 //! | **Stable** | `diff` |
 //! | **Pipeline private** | `diff_*`, `is_var`, `is_const_wrt` |
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-calculus-api-stability.md`.
+//!
 use std::sync::Arc;
 
 use giac_core::{

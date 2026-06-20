@@ -1,3 +1,6 @@
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-core-algebra-api-stability.md`.
+//!
 use std::sync::Arc;
 
 pub use giac_poly::{Monomial, Poly, PolyCoeff, Var};
@@ -19,6 +22,7 @@ pub use super::poly_conv::expr_contains_alg_coeff;
 /// Polynomial over algebraic coefficients (`Poly<AlgExtCPolyCoeff>`).
 pub type PolyAlgExt = Poly<AlgExtCPolyCoeff>;
 
+// **Stable** — Poly univariate generator
 fn var(id: &Ident) -> Var {
     Arc::from(id.as_str())
 }
@@ -34,6 +38,7 @@ struct PolyExprRing<C: PolyCoeff> {
 }
 
 /// Shared polynomial-shaped Expr descent (path A and path B).
+// **Pipeline private** — `poly_from_expr_shape`
 fn poly_from_expr_shape<C: PolyCoeff>(
     expr: &Expr,
     leaf: fn(&Expr) -> Result<C, EvalError>,
@@ -66,6 +71,7 @@ fn poly_from_expr_shape<C: PolyCoeff>(
     }
 }
 
+// **Pipeline private** — `rational_leaf`
 fn rational_leaf(expr: &Expr) -> Result<Ratio<BigInt>, EvalError> {
     match expr {
         Expr::Int(n) => Ok(Ratio::from_integer(n.clone())),
@@ -74,6 +80,7 @@ fn rational_leaf(expr: &Expr) -> Result<Ratio<BigInt>, EvalError> {
     }
 }
 
+// **Pipeline private** — `rational_poly_ring`
 fn rational_poly_ring() -> PolyExprRing<Ratio<BigInt>> {
     PolyExprRing {
         zero: Poly::zero,
@@ -85,6 +92,7 @@ fn rational_poly_ring() -> PolyExprRing<Ratio<BigInt>> {
     }
 }
 
+// **Pipeline private** — `algext_leaf`
 fn algext_leaf(expr: &Expr) -> Result<AlgExtCPolyCoeff, EvalError> {
     match expr {
         Expr::Int(_) | Expr::Rat(_) | Expr::AlgExt(_) | Expr::AlgExtC(_)
@@ -95,6 +103,7 @@ fn algext_leaf(expr: &Expr) -> Result<AlgExtCPolyCoeff, EvalError> {
     }
 }
 
+// **Pipeline private** — `algext_poly_ring`
 fn algext_poly_ring() -> PolyExprRing<AlgExtCPolyCoeff> {
     PolyExprRing {
         zero: PolyAlgExt::ring_zero,
@@ -127,6 +136,7 @@ pub fn poly_alg_from_expr(expr: &Expr) -> Result<PolyAlgExt, EvalError> {
 }
 
 /// Assemble sparse terms into a sum expression (M1).
+// **Pipeline private** — `assemble_poly_expr`
 fn assemble_poly_expr<I>(terms: I, zero: ExprArc) -> ExprArc
 where
     I: IntoIterator<Item = (Monomial, ExprArc)>,
@@ -176,6 +186,7 @@ pub fn univariate_poly_to_poly1_expr(poly: &Poly, var: &Var) -> ExprArc {
 }
 
 /// Format a polynomial over ℤ/pℤ with per-coefficient `(c % p)` display (giac style).
+/// **Stable** — PolyMod → Expr
 pub fn poly_mod_to_expr(pm: &PolyMod) -> ExprArc {
     let modulus = pm
         .modulus
@@ -200,6 +211,7 @@ pub fn poly_mod_to_expr(pm: &PolyMod) -> ExprArc {
     )
 }
 
+// **Stable** — `u64_to_expr_int`
 pub(crate) fn u64_to_expr_int(n: u64) -> ExprArc {
     match i64::try_from(n) {
         Ok(v) => Expr::int(v),
@@ -222,6 +234,7 @@ pub fn ratio_to_expr(r: &Ratio<BigInt>) -> ExprArc {
     }
 }
 
+// **Pipeline private** — `monomial_to_expr`
 fn monomial_to_expr(m: &Monomial, coeff: ExprArc) -> ExprArc {
     if m.is_const() {
         return coeff;
@@ -247,6 +260,7 @@ fn monomial_to_expr(m: &Monomial, coeff: ExprArc) -> ExprArc {
     }
 }
 
+/// **Stable** — sorted variables in Expr
 pub fn vars_from_expr(expr: &Expr) -> Vec<Var> {
     let mut out = Vec::new();
     collect_vars(expr, &mut out);
@@ -255,6 +269,7 @@ pub fn vars_from_expr(expr: &Expr) -> Vec<Var> {
     out
 }
 
+// **Pipeline private** — `collect_vars`
 fn collect_vars(expr: &Expr, out: &mut Vec<Var>) {
     match expr {
         Expr::Symbol(id) => out.push(var(id)),

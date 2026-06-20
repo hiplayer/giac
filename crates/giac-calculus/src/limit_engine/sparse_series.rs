@@ -11,6 +11,10 @@
 //!
 //! Bounded: no `expand`, capped term count, no Taylor on heavy `exp` forms.
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-calculus-api-stability.md`.
+//!
 use std::collections::HashMap;
 use std::sync::Arc;
 

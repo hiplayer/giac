@@ -6,6 +6,10 @@
 //! |------|------|
 //! | **Stable** | `install_calculus`, `xcas_default`, `DefaultCalculusPlugin` trait hooks |
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-calculus-api-stability.md`.
+//!
 use std::sync::Arc;
 
 use giac_core::{CalculusPlugin, Context, EvalError, ExprArc};

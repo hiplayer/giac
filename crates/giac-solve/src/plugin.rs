@@ -1,5 +1,9 @@
 //! giac-solve plugin: wires equation solving into `giac-core::Context`.
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-solve-api-stability.md`.
+//!
 use std::sync::Arc;
 
 use giac_core::{Context, EvalError, ExprArc, SolvePlugin};
@@ -14,10 +18,12 @@ use crate::fsolve::eval_fsolve;
 pub struct DefaultSolvePlugin;
 
 impl SolvePlugin for DefaultSolvePlugin {
+    // **Stable (bounded)** — solve via poly roots, rootof, or linsolve
     fn eval_solve(&self, args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
         eval_solve(args, ctx)
     }
 
+    // **Stable** — `Poly::eval_linsolve`
     fn eval_linsolve(
         &self,
         eqs: &ExprArc,
@@ -27,33 +33,40 @@ impl SolvePlugin for DefaultSolvePlugin {
         giac_linalg::eval_linsolve(eqs, vars, ctx)
     }
 
+    // **Partial** — Newton numeric solve stub
     fn eval_fsolve(&self, args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
         eval_fsolve(args, ctx)
     }
 
+    // **Stable** — Sturm sequence for univariate poly
     fn eval_sturm(&self, args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
         eval_sturm(args, ctx)
     }
 
+    // **Stable** — root count in (a,b) via Sturm
     fn eval_sturmab(&self, args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
         eval_sturmab(args, ctx)
     }
 
+    // **Stable (bounded)** — real roots via Sturm isolation
     fn eval_realroot(&self, args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
         eval_realroot(args, ctx)
     }
 
+    // **Stable (bounded)** — rational roots of univariate poly
     fn eval_froot(&self, args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
         eval_froot(args, ctx)
     }
 }
 
 /// Install the default solve plugin on `ctx`.
+/// **Stable** — register DefaultSolvePlugin
 pub fn install_solve(ctx: &mut Context) {
     ctx.set_solve_plugin(Arc::new(DefaultSolvePlugin));
 }
 
 /// `giac_linalg::xcas_default()` with equation solving enabled.
+/// **Stable** — Context with simplify plugin
 pub fn xcas_default() -> Context {
     let mut ctx = giac_linalg::xcas_default();
     install_solve(&mut ctx);

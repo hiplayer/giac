@@ -4,6 +4,10 @@
 //! Complex algebraic numbers use [`AlgExtCData`](super::alg_ext_c::AlgExtCData) or legacy
 //! `Expr::Complex(re, im)`.
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-core-algebra-api-stability.md`.
+//!
 use std::sync::Arc;
 
 use num_bigint::BigInt;
@@ -15,8 +19,9 @@ use crate::expr::{Expr, ExprArc, FuncKind};
 
 use super::ext_tower::ExtensionField;
 use super::field_arith::{
-    canonical_poly1_expr, coords_to_expr, embed_in_square_extension, generator_coords,
-    min_poly_exprs_to_q, minpoly_at_square, mult_matrix_of_element, pad_to_len, poly1_coeffs,
+    canonical_poly1_expr, coords_to_expr, embed_in_cube_extension, embed_in_square_extension,
+    generator_coords, min_poly_exprs_to_q, minpoly_at_cube, minpoly_at_square,
+    mult_matrix_of_element, pad_to_len, poly1_coeffs,
     poly_degree, rationalize_poly1, ratio_to_expr_arc, CoordsQ,
 };
 
@@ -32,26 +37,31 @@ pub struct AlgExtData {
 
 impl AlgExtData {
     /// Backward-compatible `min_poly` view (defining polynomial over ℚ).
+    /// **Stable** — `Poly::min_poly`
     pub fn min_poly(&self) -> Vec<ExprArc> {
         self.field.top_min_poly_exprs().unwrap_or_default()
     }
 
+    /// **Stable** — Poly zero
     pub fn zero(field: Arc<ExtensionField>) -> Self {
         let coords = field.zero_coords();
         Self::from_coords_q(field, coords, None).unwrap()
     }
 
+    /// **Stable** — Poly one
     pub fn one(field: Arc<ExtensionField>) -> Self {
         let coords = field.one_coords();
         Self::from_coords_q(field, coords, None).unwrap()
     }
 
+    /// **Stable** — `from_field_coords`
     pub fn from_field_coords(field: Arc<ExtensionField>, coords: Vec<ExprArc>) -> Result<Self, EvalError> {
         let q = rationalize_poly1(&coords)?;
         let dim = field.dimension();
         Self::from_coords_q(field, pad_to_len(&q, dim), None)
     }
 
+    // **Pipeline private** — `from_coords_q`
     fn from_coords_q(
         field: Arc<ExtensionField>,
         coords: CoordsQ,
@@ -68,15 +78,18 @@ impl AlgExtData {
         })
     }
 
+    /// **Stable** — `into_expr`
     pub fn into_expr(self) -> ExprArc {
         Arc::new(Expr::AlgExt(Arc::new(self)))
     }
 
+    /// **Stable** — `from_rootof`
     pub fn from_rootof(num: &ExprArc, min_poly: &ExprArc) -> Result<Self, EvalError> {
         Self::from_rootof_over(num, min_poly, &ExtensionField::rational())
     }
 
     /// Like [`Self::from_rootof`] but adjoin over `parent` (default `parent = ℚ` in [`Self::from_rootof`]).
+    /// **Stable** — `from_rootof_over`
     pub fn from_rootof_over(
         num: &ExprArc,
         min_poly: &ExprArc,
@@ -92,39 +105,46 @@ impl AlgExtData {
         Self::from_coords_q(field, coords, None)
     }
 
+    /// **Stable** — Poly addition
     pub fn add(&self, other: &Self) -> Result<Self, EvalError> {
         let (field, a, b) = align_pair(self, other)?;
         let sum = field.element_add(&a, &b)?;
         Self::from_coords_q(field, sum, None)
     }
 
+    /// **Stable** — Poly subtraction
     pub fn sub(&self, other: &Self) -> Result<Self, EvalError> {
         let (field, a, b) = align_pair(self, other)?;
         let diff = field.element_sub(&a, &b)?;
         Self::from_coords_q(field, diff, None)
     }
 
+    /// **Stable** — Poly multiplication
     pub fn mul(&self, other: &Self) -> Result<Self, EvalError> {
         let (field, a, b) = align_pair(self, other)?;
         let prod = field.element_mul(&a, &b)?;
         Self::from_coords_q(field, prod, None)
     }
 
+    /// **Stable** — `inv`
     pub fn inv(&self) -> Result<Self, EvalError> {
         let a = self.coords_q()?;
         let inv = self.field.element_inv(&a)?;
         Self::from_coords_q(Arc::clone(&self.field), inv, self.root_index)
     }
 
+    /// **Stable** — `eq_mod`
     pub fn eq_mod(&self, other: &Self) -> Result<bool, EvalError> {
         let (field, a, b) = align_pair(self, other)?;
         field.element_eq_mod(&a, &b)
     }
 
+    /// **Stable** — Poly negation
     pub fn neg(&self) -> Result<Self, EvalError> {
         self.mul_rational(&Ratio::from_integer(-BigInt::one()))
     }
 
+    /// **Stable** — `mul_rational`
     pub fn mul_rational(&self, r: &Ratio<BigInt>) -> Result<Self, EvalError> {
         if r.is_zero() {
             return Ok(Self::zero(Arc::clone(&self.field)));
@@ -139,10 +159,12 @@ impl AlgExtData {
         Self::from_coords_q(Arc::clone(&self.field), scaled, self.root_index)
     }
 
+    /// **Stable** — Poly is zero
     pub fn is_zero(&self) -> bool {
         self.coords.iter().all(|c| c.is_zero())
     }
 
+    /// **Stable** — Poly is one
     pub fn is_one(&self) -> bool {
         matches!(self.coords.as_slice(), [c] if c.is_one())
             && self.field.dimension() == 1
@@ -152,6 +174,7 @@ impl AlgExtData {
     ///
     /// Does **not** call `common` / `align_elements` — display stays on the element's
     /// minimal ambient field. See [GIAC-lazy-common-tower-plan.md] §11.1 L0/L1.
+    /// **Stable** — `to_rootof_expr`
     pub fn to_rootof_expr(&self) -> ExprArc {
         let coords = canonical_poly1_expr(&self.coords);
         let min_poly = canonical_poly1_expr(&self.min_poly());
@@ -169,6 +192,7 @@ impl AlgExtData {
         Expr::func(FuncKind::RootOf, vec![num, min])
     }
 
+    // **Pipeline private** — `coords_q`
     fn coords_q(&self) -> Result<CoordsQ, EvalError> {
         Ok(pad_to_len(
             &rationalize_poly1(&self.coords)?,
@@ -177,10 +201,12 @@ impl AlgExtData {
     }
 }
 
+// **Pipeline private** — `fields_same`
 fn fields_same(a: &Arc<ExtensionField>, b: &Arc<ExtensionField>) -> bool {
     Arc::ptr_eq(a, b) || **a == **b
 }
 
+// **Pipeline private** — `align_pair`
 fn align_pair(a: &AlgExtData, b: &AlgExtData) -> Result<(Arc<ExtensionField>, CoordsQ, CoordsQ), EvalError> {
     let aligned = ExtensionField::align_elements(&a.field, &a.coords_q()?, &b.field, &b.coords_q()?)?;
     Ok((aligned.field, aligned.left, aligned.right))
@@ -203,11 +229,13 @@ pub enum FoldAlgExtMode {
 /// one group exists and a new term lies in a different field, that pairwise `add` may
 /// `common`; otherwise unlike fields stay as an `Add` tree. See
 /// [GIAC-lazy-common-tower-plan.md] §11.6 E.
+/// **Stable** — canonical sum of AlgExt terms
 pub fn fold_algext_sum(terms: &[ExprArc]) -> Result<ExprArc, EvalError> {
     fold_algext_sum_mode(terms, FoldAlgExtMode::Split)
 }
 
 /// Like [`fold_algext_sum`] with explicit merge mode (plan S1-opt).
+/// **Stable** — fold_algext_sum with mode
 pub fn fold_algext_sum_mode(terms: &[ExprArc], mode: FoldAlgExtMode) -> Result<ExprArc, EvalError> {
     let mut groups: Vec<(Arc<ExtensionField>, AlgExtData)> = Vec::new();
     let mut rat_sum = Ratio::<BigInt>::zero();
@@ -261,6 +289,7 @@ pub fn fold_algext_sum_mode(terms: &[ExprArc], mode: FoldAlgExtMode) -> Result<E
     }
 }
 
+// **Pipeline private** — `complex_algext_parts`
 fn complex_algext_parts(e: &Expr) -> Option<(ExprArc, ExprArc)> {
     match e {
         Expr::Complex(re, im) => Some((Arc::clone(re), Arc::clone(im))),
@@ -271,6 +300,7 @@ fn complex_algext_parts(e: &Expr) -> Option<(ExprArc, ExprArc)> {
     }
 }
 
+// **Pipeline private** — `complex_algext_to_expr`
 fn complex_algext_to_expr(re: ExprArc, im: ExprArc) -> Result<ExprArc, EvalError> {
     if im.is_zero() {
         Ok(re)
@@ -281,6 +311,7 @@ fn complex_algext_to_expr(re: ExprArc, im: ExprArc) -> Result<ExprArc, EvalError
     }
 }
 
+/// **Stable** — sum with complex AlgExtC parts
 pub fn fold_complex_algext_sum(terms: &[ExprArc]) -> Result<ExprArc, EvalError> {
     let mut res_re = Vec::new();
     let mut res_im = Vec::new();
@@ -307,6 +338,7 @@ pub fn fold_complex_algext_sum(terms: &[ExprArc]) -> Result<ExprArc, EvalError> 
     complex_algext_to_expr(re_sum, im_sum)
 }
 
+/// **Stable** — product with complex AlgExtC parts
 pub fn fold_complex_algext_product(factors: &[ExprArc]) -> Result<ExprArc, EvalError> {
     let mut acc_re = Expr::int(1);
     let mut acc_im = Expr::int(0);
@@ -320,6 +352,7 @@ pub fn fold_complex_algext_product(factors: &[ExprArc]) -> Result<ExprArc, EvalE
     complex_algext_to_expr(acc_re, acc_im)
 }
 
+// **Pipeline private** — `complex_algext_mul_parts`
 fn complex_algext_mul_parts(
     ar: ExprArc,
     ai: ExprArc,
@@ -335,6 +368,7 @@ fn complex_algext_mul_parts(
     Ok((re, im))
 }
 
+/// **Stable** — canonical product of AlgExt terms
 pub fn fold_algext_product(factors: &[ExprArc]) -> Result<ExprArc, EvalError> {
     let mut acc_ext: Option<AlgExtData> = None;
     let mut rat_prod = Ratio::<BigInt>::one();
@@ -379,6 +413,7 @@ pub fn fold_algext_product(factors: &[ExprArc]) -> Result<ExprArc, EvalError> {
     }
 }
 
+/// **Stable** — Func(RootOf) → AlgExt Expr
 pub fn try_rootof_to_algext(args: &[ExprArc]) -> Result<ExprArc, EvalError> {
     if args.len() != 2 {
         return Err(EvalError::TooFewArgs("rootof"));
@@ -386,6 +421,7 @@ pub fn try_rootof_to_algext(args: &[ExprArc]) -> Result<ExprArc, EvalError> {
     Ok(AlgExtData::from_rootof(&args[0], &args[1])?.into_expr())
 }
 
+/// **Stable** — subtree contains AlgExt or rootof
 pub fn contains_algext(e: &Expr) -> bool {
     match e {
         Expr::AlgExt(_) | Expr::AlgExtC(_) => true,
@@ -400,6 +436,7 @@ pub fn contains_algext(e: &Expr) -> bool {
     }
 }
 
+/// **Stable** — view Expr as AlgExtData if present
 pub fn try_as_algext_data(e: &Expr) -> Option<AlgExtData> {
     match e {
         Expr::AlgExt(a) => Some((**a).clone()),
@@ -413,36 +450,89 @@ pub fn try_as_algext_data(e: &Expr) -> Option<AlgExtData> {
     }
 }
 
+/// **Stable (bounded)** — square roots in extension field
 pub fn algext_square_roots(u: &AlgExtData) -> Result<Vec<AlgExtData>, EvalError> {
     if u.is_zero() {
         return Ok(vec![AlgExtData::zero(Arc::clone(&u.field))]);
     }
-    let m = u.field.min_poly_over_q();
     let f = u.coords_q()?;
-    let min_s = if f == generator_coords(poly_degree(m)) {
-        minpoly_at_square(m)
-    } else {
-        sqrt_minpoly_via_matrix(&f, m)?
-    };
-    let sqrt_field = ExtensionField::adjoin_irreducible_over_q(min_s)?;
-    let n = sqrt_field.dimension();
-    let u_embedded = AlgExtData::from_coords_q(
-        Arc::clone(&sqrt_field),
-        embed_in_square_extension(&f, poly_degree(m), n),
-        None,
-    )?;
-    for trial in 0..n {
-        let mut coords = vec![Ratio::zero(); n];
-        coords[n - 1 - trial] = Ratio::one();
-        let beta = AlgExtData::from_coords_q(Arc::clone(&sqrt_field), coords, None)?;
-        if beta.mul(&beta)?.eq_mod(&u_embedded)? {
-            let neg = beta.neg()?;
-            return Ok(vec![beta, neg]);
-        }
+    if u.field.dimension() == 1 {
+        let u_val = pad_to_len(&f, 1)[0].clone();
+        let min_s = vec![Ratio::one(), Ratio::zero(), -u_val];
+        let sqrt_field = ExtensionField::adjoin_irreducible_over_q(min_s)?;
+        let beta = AlgExtData::from_coords_q(
+            Arc::clone(&sqrt_field),
+            sqrt_field.generator_coords(),
+            None,
+        )?;
+        return Ok(vec![beta.clone(), beta.neg()?]);
     }
-    Err(EvalError::NotImplemented("alg ext square root"))
+    {
+        let field = Arc::clone(&u.field);
+        let one = field.one_coords();
+        let zero = field.zero_coords();
+        let neg = field.element_neg(&f)?;
+        let sqrt_field =
+            ExtensionField::adjoin_irreducible_parent_coeffs(&field, vec![one, zero, neg])?;
+        let beta = AlgExtData::from_coords_q(
+            Arc::clone(&sqrt_field),
+            sqrt_field.generator_coords(),
+            None,
+        )?;
+        return Ok(vec![beta.clone(), beta.neg()?]);
+    }
 }
 
+/// One cube root of `u` in an adjoin extension (Cardano / resolvent helper).
+/// **Stable (bounded)** — cube root in extension field
+pub fn algext_cube_root(u: &AlgExtData) -> Result<AlgExtData, EvalError> {
+    if u.is_zero() {
+        return Ok(AlgExtData::zero(Arc::clone(&u.field)));
+    }
+    let f = u.coords_q()?;
+    if u.field.dimension() == 1 {
+        let u_val = pad_to_len(&f, 1)[0].clone();
+        let min_c = vec![Ratio::one(), Ratio::zero(), Ratio::zero(), -u_val];
+        let cbrt_field = ExtensionField::adjoin_irreducible_over_q(min_c)?;
+        return AlgExtData::from_coords_q(
+            Arc::clone(&cbrt_field),
+            cbrt_field.generator_coords(),
+            None,
+        );
+    }
+    {
+        let field = Arc::clone(&u.field);
+        let one = field.one_coords();
+        let zero = field.zero_coords();
+        let neg = field.element_neg(&f)?;
+        let cbrt_field = ExtensionField::adjoin_irreducible_parent_coeffs(
+            &field,
+            vec![one, zero.clone(), zero, neg],
+        )?;
+        return AlgExtData::from_coords_q(
+            Arc::clone(&cbrt_field),
+            cbrt_field.generator_coords(),
+            None,
+        );
+    }
+}
+
+// **Pipeline private** — `cube_minpoly_via_matrix`
+fn cube_minpoly_via_matrix(f: &[Ratio<BigInt>], m: &[Ratio<BigInt>]) -> Result<CoordsQ, EvalError> {
+    let n = poly_degree(m);
+    let mat_u = mult_matrix_of_element(f, m);
+    let mut block = vec![vec![Ratio::zero(); 3 * n]; 3 * n];
+    for i in 0..n {
+        block[i][n + i] = Ratio::one();
+        block[n + i][2 * n + i] = Ratio::one();
+        for j in 0..n {
+            block[2 * n + i][j] = mat_u[i][j].clone();
+        }
+    }
+    Ok(super::field_arith::char_poly_matrix(&block))
+}
+
+/// **Stable (bounded)** — sqrt branches as Expr list
 pub fn algext_sqrt_branches(u: &AlgExtData) -> Result<Vec<ExprArc>, EvalError> {
     if let Ok(real) = algext_square_roots(u) {
         return Ok(real.into_iter().map(|a| a.into_expr()).collect());
@@ -461,6 +551,7 @@ pub fn algext_sqrt_branches(u: &AlgExtData) -> Result<Vec<ExprArc>, EvalError> {
 }
 
 /// Merge two extension elements into a common field (`common_EXT`).
+/// **Stable** — common extension for two AlgExt values
 pub fn common_ext(
     a: &AlgExtData,
     b: &AlgExtData,
@@ -484,6 +575,7 @@ pub fn common_ext(
     Ok((gamma, ae, be))
 }
 
+// **Pipeline private** — `sqrt_minpoly_via_matrix`
 fn sqrt_minpoly_via_matrix(f: &[Ratio<BigInt>], m: &[Ratio<BigInt>]) -> Result<CoordsQ, EvalError> {
     let n = poly_degree(m);
     let mat_u = mult_matrix_of_element(f, m);
@@ -528,19 +620,29 @@ mod tests {
     #[test]
     fn algext_sqrt_of_sqrt2() {
         let sqrt2 = sqrt2_algext();
+        let k1 = Arc::clone(&sqrt2.field);
         let roots = algext_square_roots(&sqrt2).unwrap();
         assert_eq!(roots.len(), 2);
-        let m = sqrt2.field.min_poly_over_q();
-        let f = sqrt2.coords_q().unwrap();
-        let n = roots[0].field.dimension();
-        let u_embedded = AlgExtData::from_coords_q(
-            Arc::clone(&roots[0].field),
-            embed_in_square_extension(&f, poly_degree(m), n),
-            None,
-        )
-        .unwrap();
-        let prod = roots[0].mul(&roots[0]).unwrap();
-        assert!(prod.eq_mod(&u_embedded).unwrap());
+        let beta = &roots[0];
+        let k4 = Arc::clone(&beta.field);
+        let emb = ExtensionField::try_subfield_embedding(&k1, &k4)
+            .unwrap()
+            .expect("K1 embeds in sqrt adjoin");
+        let sqrt2_in_k4 = emb.apply(&sqrt2.coords_q().unwrap());
+        let beta_sq = beta.mul(beta).unwrap();
+        assert!(
+            k4.element_eq_mod(&beta_sq.coords_q().unwrap(), &sqrt2_in_k4).unwrap(),
+            "beta^2 should equal sqrt2"
+        );
+    }
+
+    #[test]
+    fn algext_cube_root_of_two() {
+        let q = ExtensionField::rational();
+        let two = AlgExtData::from_field_coords(Arc::clone(&q), vec![Expr::int(2)]).unwrap();
+        let beta = algext_cube_root(&two).unwrap();
+        let b3 = beta.mul(&beta).unwrap().mul(&beta).unwrap();
+        assert!(b3.eq_mod(&two).unwrap(), "cbrt(2)^3 should equal 2");
     }
 
     #[test]

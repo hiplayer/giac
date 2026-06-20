@@ -11,6 +11,10 @@
 //! `ln_expand`: `ln(exp(f))→f`, product/power/inv rules.
 //! `exp_series`: `exp(a*ln(v)+b) → exp(b)*v^a` when linear in a single `ln(v)`.
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-calculus-api-stability.md`.
+//!
 use std::sync::Arc;
 
 use giac_core::{bigint_to_i64, Context, Expr, ExprArc, FuncKind};

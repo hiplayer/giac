@@ -192,6 +192,7 @@ pub fn rational_factor_pairs(a0: &Ratio<BigInt>) -> Vec<(Ratio<BigInt>, Ratio<Bi
 
 /// **Stable** — Coefficient of `var^exp` (quotient by `var^exp` on matching terms).
 pub use crate::subresultant::coeff_wrt;
+/// **Stable** — `is_monic_univariate`
 pub fn is_monic_univariate(p: &Poly, var: &Var) -> bool {
     let d = univariate_degree(p, var);
     coeff_at(p, var, d) == Ratio::one()

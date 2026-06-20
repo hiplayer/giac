@@ -2,6 +2,10 @@
 //!
 //! **Tier:** Stable (crate-internal) — see [GIAC-dense-poly1-refactor](.doc/issues/GIAC-dense-poly1-refactor.md) D1.
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
 mod convert;
 mod poly1;
 mod ratio_ring;

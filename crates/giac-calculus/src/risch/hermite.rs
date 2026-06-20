@@ -6,6 +6,10 @@
 //! |------|------|
 //! | **Stable** | `hermite_reduce`, `HermiteTerm` |
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-calculus-api-stability.md`.
+//!
 use giac_core::EvalError;
 use giac_poly::{
     abcuv, quo, rem, univariate_degree, univariate_derivative, Poly, PolyResult, Var,

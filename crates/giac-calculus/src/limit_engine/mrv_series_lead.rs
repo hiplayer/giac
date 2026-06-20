@@ -7,6 +7,10 @@
 //! | **Pipeline** | `try_as_quotient`、`normalize_*`、`canonicalize_limit_entry` |
 //! | **Pipeline private** | `normalize_inverse_products`、`normalize_inverse_with` |
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-calculus-api-stability.md`.
+//!
 use std::sync::Arc;
 
 use giac_core::{Expr, ExprArc};

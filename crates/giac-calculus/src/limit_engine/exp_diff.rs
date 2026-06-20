@@ -17,6 +17,10 @@
 //! all shapes reduce to `exp(scale_log) * (exp(ε) - 1)` via [`detect_exp_difference`] + [`emit_exp_difference`].
 
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-calculus-api-stability.md`.
+//!
 use std::sync::Arc;
 
 use giac_core::{Context, Expr, ExprArc, FuncKind, Ident};

@@ -7,6 +7,10 @@
 //! | **Partial** | `rothstein_trager_integrate`, `try_algebraic_rt_even_quartic`, `try_integrate_x4_plus_one` |
 //! | **Pipeline private** | `ratio_to_expr` |
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-calculus-api-stability.md`.
+//!
 use std::sync::Arc;
 
 use giac_core::{bigint_to_i64, poly_to_expr, ratio_to_expr, EvalError, Expr, ExprArc, Ident};

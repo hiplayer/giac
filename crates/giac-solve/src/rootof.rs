@@ -1,3 +1,6 @@
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-solve-api-stability.md`.
+//!
 use std::sync::Arc;
 
 use giac_core::{algext_sqrt_branches, univariate_poly_to_poly1_expr, AlgExtData, EvalError, Expr, ExprArc, FuncKind};
@@ -6,6 +9,7 @@ use num_rational::Ratio;
 use num_traits::{One, Zero};
 
 /// Two `rootof` branches for quadratic irrational roots of `poly` in `var`.
+/// **Stable (bounded)** — two rootof branches for quadratic
 pub fn quadratic_rootof_roots(poly: &Poly, var: &Var) -> Result<Vec<ExprArc>, EvalError> {
     if univariate_degree(poly, var) != 2 {
         return Err(EvalError::TypeError("expected quadratic"));
@@ -18,6 +22,7 @@ pub fn quadratic_rootof_roots(poly: &Poly, var: &Var) -> Result<Vec<ExprArc>, Ev
 }
 
 /// Four `rootof` branches for biquadratic `a·t⁴ + b·t² + c` (odd terms zero).
+/// **Partial** — biquadratic rootof; general quartic NotImplemented
 pub fn biquadratic_rootof_roots(poly: &Poly, var: &Var) -> Result<Vec<ExprArc>, EvalError> {
     if univariate_degree(poly, var) != 4 {
         return Err(EvalError::TypeError("expected quartic"));
@@ -56,6 +61,7 @@ pub fn biquadratic_rootof_roots(poly: &Poly, var: &Var) -> Result<Vec<ExprArc>, 
 }
 
 
+// **Pipeline private** — `rootof_expr`
 fn rootof_expr(num: &[i64], minpoly: &ExprArc) -> ExprArc {
     let num_seq = Arc::new(Expr::Seq(num.iter().map(|&n| Expr::int(n)).collect()));
     AlgExtData::from_rootof(&num_seq, minpoly)

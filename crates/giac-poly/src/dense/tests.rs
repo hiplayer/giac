@@ -4,6 +4,10 @@
 //! (core has no `#[cfg(test)]` on that module). See
 //! [GIAC-dense-poly1-refactor](.doc/issues/GIAC-dense-poly1-refactor.md) §7.
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
 use num_bigint::BigInt;
 use num_rational::Ratio;
 
@@ -13,15 +17,18 @@ use super::poly1::{
 };
 use super::ratio_ring::RatioRingCtx;
 
+// **Pipeline private** — `q`
 fn q(n: i64) -> Ratio<BigInt> {
     Ratio::from_integer(BigInt::from(n))
 }
 
+// **Pipeline private** — `ctx`
 fn ctx() -> RatioRingCtx {
     RatioRingCtx
 }
 
 #[test]
+// **Pipeline private** — `high_first_degree_and_trim`
 fn high_first_degree_and_trim() {
     let c = ctx();
     // x^2 - 2
@@ -42,6 +49,7 @@ fn high_first_degree_and_trim() {
 }
 
 #[test]
+// **Pipeline private** — `high_first_add_sub`
 fn high_first_add_sub() {
     let c = ctx();
     // (x+1) + (x+2) = 2x + 3 → [2, 3]
@@ -53,6 +61,7 @@ fn high_first_add_sub() {
 }
 
 #[test]
+// **Pipeline private** — `high_first_mul_x_plus_1_times_x_plus_2`
 fn high_first_mul_x_plus_1_times_x_plus_2() {
     let c = ctx();
     // (x+1)(x+2) = x^2 + 3x + 2
@@ -65,6 +74,7 @@ fn high_first_mul_x_plus_1_times_x_plus_2() {
 }
 
 #[test]
+// **Pipeline private** — `high_first_neg_and_scale`
 fn high_first_neg_and_scale() {
     let c = ctx();
     let p = vec![q(1), q(0), q(-2)];
@@ -74,6 +84,7 @@ fn high_first_neg_and_scale() {
 }
 
 #[test]
+// **Pipeline private** — `high_first_div_rem`
 fn high_first_div_rem() {
     let c = ctx();
     // x^2 + 3x + 2 = (x+1) * (x+2) + 0
@@ -92,6 +103,7 @@ fn high_first_div_rem() {
 }
 
 #[test]
+// **Pipeline private** — `high_first_reduce_mod_x_squared_minus_2`
 fn high_first_reduce_mod_x_squared_minus_2() {
     let c = ctx();
     // x^3 mod (x^2 - 2) = 2x  →  [2, 0]
@@ -111,6 +123,7 @@ fn high_first_reduce_mod_x_squared_minus_2() {
 }
 
 #[test]
+// **Pipeline private** — `high_first_reduce_skips_non_monic_modulus`
 fn high_first_reduce_skips_non_monic_modulus() {
     let c = ctx();
     let p = vec![q(1), q(0), q(0), q(0)];
@@ -123,6 +136,7 @@ fn high_first_reduce_skips_non_monic_modulus() {
 }
 
 #[test]
+// **Pipeline private** — `high_first_inv_mod_and_ext_gcd`
 fn high_first_inv_mod_and_ext_gcd() {
     let c = ctx();
     // gcd(x, x^2-2) = 1 (coprime); ext_gcd returns constant gcd
@@ -142,6 +156,7 @@ fn high_first_inv_mod_and_ext_gcd() {
 }
 
 #[test]
+// **Pipeline private** — `ascending_order_matches_reversed_high_first_mul`
 fn ascending_order_matches_reversed_high_first_mul() {
     let c = ctx();
     // (1+x)(2+x) = 2 + 3x + x^2
@@ -154,6 +169,7 @@ fn ascending_order_matches_reversed_high_first_mul() {
 }
 
 #[test]
+// **Pipeline private** — `reverse_coeffs_involution`
 fn reverse_coeffs_involution() {
     let hi = vec![q(1), q(3), q(2)];
     assert_eq!(super::convert::reverse_coeffs(&super::convert::reverse_coeffs(&hi)), hi);
@@ -163,6 +179,7 @@ fn reverse_coeffs_involution() {
 }
 
 #[test]
+// **Pipeline private** — `sparse_dense_high_first_roundtrip`
 fn sparse_dense_high_first_roundtrip() {
     use std::sync::Arc;
 
@@ -183,6 +200,7 @@ fn sparse_dense_high_first_roundtrip() {
 }
 
 #[test]
+// **Pipeline private** — `dense_div_rem_matches_univariate_div_rem_wrt`
 fn dense_div_rem_matches_univariate_div_rem_wrt() {
     use std::sync::Arc;
 

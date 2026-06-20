@@ -7,6 +7,10 @@
 //! | **Pipeline** | `expr_nodes`/`expr_depth`、MRV 资格门禁、`expr_contains_*` |
 //! | **Pipeline private** | （本模块无私有 `fn`） |
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-calculus-api-stability.md`.
+//!
 use giac_core::{Expr, ExprArc, FuncKind, Ident};
 
 pub(crate) const MAX_SERIES_ORDER: usize = 10;

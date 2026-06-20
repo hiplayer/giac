@@ -1,4 +1,7 @@
 #![deny(unsafe_code)]
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-solve-api-stability.md`.
+//!
 #![cfg_attr(not(test), warn(clippy::unwrap_used))]
 #![cfg_attr(not(test), warn(clippy::expect_used))]
 

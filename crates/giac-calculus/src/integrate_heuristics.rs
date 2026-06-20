@@ -8,6 +8,10 @@
 //! | **Partial** | `try_integrate_*` 规则表（启发式；逐步迁入 Risch/partfrac） |
 //! | **Pipeline private** | Chebyshev / Weierstrass / sqrt 形状检测辅助 |
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-calculus-api-stability.md`.
+//!
 use std::sync::Arc;
 
 use num_bigint::BigInt;

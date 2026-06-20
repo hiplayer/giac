@@ -6,6 +6,10 @@
 //! |------|------|
 //! | **Stable** | `eval_diff` |
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-calculus-api-stability.md`.
+//!
 use giac_core::{Context, EvalError, Expr, ExprArc};
 use std::sync::Arc;
 

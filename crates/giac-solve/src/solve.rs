@@ -1,3 +1,6 @@
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-solve-api-stability.md`.
+//!
 use std::sync::Arc;
 
 use giac_core::{eval, expr_to_poly, poly_to_expr, Context, EvalError, Expr, ExprArc, FuncKind, Ident, RelOp};
@@ -8,6 +11,7 @@ use giac_poly::{roots, Var};
 use crate::rootof::{biquadratic_rootof_roots, quadratic_rootof_roots};
 
 /// `solve(equation, var)` or `solve([equations], [vars])`.
+/// **Stable (bounded)** — solve via poly roots, rootof, or linsolve
 pub fn eval_solve(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     if args.len() != 2 {
         return Err(EvalError::TooFewArgs("solve"));
@@ -30,6 +34,7 @@ pub fn eval_solve(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError>
     eval(Arc::new(Expr::List(items)).as_ref(), ctx)
 }
 
+// **Pipeline private** — `equation_to_poly`
 fn equation_to_poly(eq: &Expr, ctx: &Context) -> Result<giac_poly::Poly, EvalError> {
     let diff = match eq {
         Expr::Relation(RelOp::Eq, lhs, rhs) => Expr::add(vec![
@@ -42,6 +47,7 @@ fn equation_to_poly(eq: &Expr, ctx: &Context) -> Result<giac_poly::Poly, EvalErr
     expr_to_poly(diff.as_ref())
 }
 
+// **Pipeline private** — `ident_from_expr`
 fn ident_from_expr(e: &Expr) -> Result<Ident, EvalError> {
     match e {
         Expr::Symbol(id) => Ok(id.clone()),
@@ -49,6 +55,7 @@ fn ident_from_expr(e: &Expr) -> Result<Ident, EvalError> {
     }
 }
 
+// **Pipeline private** — optional fallback `try_transcendental_solve`
 fn try_transcendental_solve(eq: &Expr, var: &Ident) -> Option<Vec<ExprArc>> {
     let (lhs, rhs) = match eq {
         Expr::Relation(RelOp::Eq, l, r) => (l.as_ref(), r.as_ref()),
@@ -63,10 +70,12 @@ fn try_transcendental_solve(eq: &Expr, var: &Ident) -> Option<Vec<ExprArc>> {
     None
 }
 
+// **Stable** — Poly is zero
 fn is_zero(e: &Expr) -> bool {
     matches!(e, Expr::Int(n) if *n == BigInt::from(0))
 }
 
+// **Pipeline private** — `is_sin_of_var`
 fn is_sin_of_var(e: &Expr, var: &Ident) -> bool {
     matches!(e, Expr::Func(FuncKind::Sin, args) if args.len() == 1 && matches!(args[0].as_ref(), Expr::Symbol(id) if id == var))
 }

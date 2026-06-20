@@ -7,6 +7,10 @@
 //! | **Partial** | `integrate_monic_x4_plus_one`, `try_algebraic_rt_log_part`, `is_monic_x4_plus_one`, `is_monic_even_quartic` |
 //! | **Pipeline private** | factorization, conjugate pairing, sqrt/ratio helpers |
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-calculus-api-stability.md`.
+//!
 use std::sync::Arc;
 
 use giac_core::{bigint_to_i64, ratio_to_expr, Expr, ExprArc, FuncKind, Ident};

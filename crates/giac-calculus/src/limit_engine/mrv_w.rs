@@ -23,6 +23,10 @@
 //!
 //! 仅服务于 [`canonical_mrv_coeff`]；退役见 follow-up issue Phase 3A。
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-calculus-api-stability.md`.
+//!
 use std::sync::Arc;
 
 use giac_core::{Expr, ExprArc, FuncKind, Ident};

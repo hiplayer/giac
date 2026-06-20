@@ -6,6 +6,10 @@
 //!
 //! **Tier:** Stable (crate-internal).
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
 use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::Zero;
@@ -39,6 +43,7 @@ pub fn dense_high_first_to_sparse(p: &[Ratio<BigInt>], var: &Var) -> Poly {
     poly_from_ascending_coeffs(var, &dense_high_first_to_ascending(p))
 }
 
+// **Pipeline private** — `poly_from_ascending_coeffs`
 fn poly_from_ascending_coeffs(var: &Var, coeffs: &[Ratio<BigInt>]) -> Poly {
     let mut out = Poly::zero();
     for (e, c) in coeffs.iter().enumerate() {

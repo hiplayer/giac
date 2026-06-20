@@ -11,6 +11,10 @@
 //! - **CK-INT-60** — `exp(inner)/x → +infinity`
 //! - **CK-INT-61** — `(exp(inner)-exp(x))/x → -exp(2)`
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-calculus-api-stability.md`.
+//!
 #[cfg(test)]
 use std::sync::Arc;
 

@@ -1,3 +1,6 @@
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-solve-api-stability.md`.
+//!
 use std::sync::Arc;
 
 use giac_core::{eval, expr_to_poly, poly_to_expr, Context, EvalError, Expr, ExprArc};
@@ -8,6 +11,7 @@ use num_rational::Ratio;
 use num_traits::Zero;
 
 /// `realroot(poly)` — exact rational real roots with multiplicity (GIAC-207 minimal).
+/// **Stable (bounded)** — real roots via Sturm isolation
 pub fn eval_realroot(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     if args.is_empty() || args.len() > 2 {
         return Err(EvalError::TooFewArgs("realroot"));
@@ -30,6 +34,7 @@ pub fn eval_realroot(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalErr
     Ok(Arc::new(Expr::List(items)))
 }
 
+// **Pipeline private** — `algebraic_real_roots`
 fn algebraic_real_roots(
     p: &Poly,
     var: &Var,
@@ -53,6 +58,7 @@ fn algebraic_real_roots(
     })
 }
 
+// **Pipeline private** — `rational_real_roots`
 fn rational_real_roots(
     p: &Poly,
     var: &Var,
@@ -94,6 +100,7 @@ mod tests {
     use crate::plugin::xcas_default;
 
     #[test]
+    // **Pipeline private** — `realroot_x_squared_minus_two`
     fn realroot_x_squared_minus_two() {
         let ctx = xcas_default();
         let p = Expr::add(vec![
@@ -107,6 +114,7 @@ mod tests {
     }
 
     #[test]
+    // **Pipeline private** — `realroot_x_fourth_minus_one`
     fn realroot_x_fourth_minus_one() {
         let ctx = xcas_default();
         let p = Expr::add(vec![

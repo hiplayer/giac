@@ -4,6 +4,10 @@
 //! `Poly<Ratio<BigInt>>` → `Poly<C: PolyCoeff>` changes only the coefficient map
 //! (`BTreeMap<Monomial, C>`); exponent vectors, lex order, and `MainVar` tagging are unchanged.
 //! See [giac-poly-p1-representation.md](../../../../.doc/giac-poly-p1-representation.md).
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-poly-api-stability.md`.
+//!
 use std::collections::BTreeMap;
 use std::sync::Arc;
 

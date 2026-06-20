@@ -8,6 +8,10 @@
 //! | **Partial** | `eval_risch`, `rothstein_trager_integrate`, `try_algebraic_rt_*`, `try_integrate_x4_plus_one` |
 //! | **Pipeline private** | `algebraic_rt.rs` / `tower.rs` 内部分解 |
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-calculus-api-stability.md`.
+//!
 mod tower;
 mod pow2expln;
 mod hermite;

@@ -3,6 +3,10 @@
 //! `i` is formal with i² = −1; it is **not** adjoined to the tower until explicitly
 //! required (Phase 2b+). Normative: [GIAC-algext-adoption.md](../../../../.doc/issues/GIAC-algext-adoption.md) §8.3.
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-core-algebra-api-stability.md`.
+//!
 use std::sync::Arc;
 
 use num_bigint::BigInt;
@@ -31,23 +35,27 @@ pub struct AlgExtCData {
 }
 
 impl AlgExtCData {
+    /// **Stable** — Poly zero
     pub fn zero(field: Arc<ExtensionField>) -> Result<Self, EvalError> {
         let z = field.zero_coords();
         Self::from_coords_q(field, &z, &z, None)
     }
 
+    /// **Stable** — Poly one
     pub fn one(field: Arc<ExtensionField>) -> Result<Self, EvalError> {
         let re = field.one_coords();
         let im = field.zero_coords();
         Self::from_coords_q(field, &re, &im, None)
     }
 
+    /// **Stable** — `Poly::from_alg_ext`
     pub fn from_alg_ext(a: &AlgExtData) -> Result<Self, EvalError> {
         let re = rationalize_poly1(&a.coords)?;
         let im = a.field.zero_coords();
         Self::from_coords_q(Arc::clone(&a.field), &re, &im, a.root_index)
     }
 
+    /// **Stable** — `from_complex_parts`
     pub fn from_complex_parts(re: &ExprArc, im: &ExprArc) -> Result<Self, EvalError> {
         let (re_field, re_q) = expr_to_field_element(re)?;
         let (im_field, im_q) = expr_to_field_element(im)?;
@@ -60,6 +68,7 @@ impl AlgExtCData {
         )
     }
 
+    // **Pipeline private** — `from_coords_q`
     fn from_coords_q(
         field: Arc<ExtensionField>,
         re: &CoordsQ,
@@ -75,6 +84,7 @@ impl AlgExtCData {
         })
     }
 
+    // **Pipeline private** — `re_q`
     fn re_q(&self) -> Result<CoordsQ, EvalError> {
         Ok(pad_to_len(
             &rationalize_poly1(&self.re)?,
@@ -82,6 +92,7 @@ impl AlgExtCData {
         ))
     }
 
+    // **Pipeline private** — `im_q`
     fn im_q(&self) -> Result<CoordsQ, EvalError> {
         Ok(pad_to_len(
             &rationalize_poly1(&self.im)?,
@@ -89,6 +100,7 @@ impl AlgExtCData {
         ))
     }
 
+    // **Pipeline private** — `ensure_same_field`
     fn ensure_same_field(&self, other: &Self) -> Result<(), EvalError> {
         if !Arc::ptr_eq(&self.field, &other.field) && self.field != other.field {
             return Err(EvalError::TypeError("AlgExtC field mismatch"));
@@ -96,6 +108,7 @@ impl AlgExtCData {
         Ok(())
     }
 
+    /// **Stable** — Poly addition
     pub fn add(&self, other: &Self) -> Result<Self, EvalError> {
         let pair = self.align_with(other)?;
         let re = pair
@@ -107,6 +120,7 @@ impl AlgExtCData {
         Self::from_coords_q(Arc::clone(&pair.field), &re, &im, None)
     }
 
+    /// **Stable** — Poly subtraction
     pub fn sub(&self, other: &Self) -> Result<Self, EvalError> {
         let pair = self.align_with(other)?;
         let re = pair
@@ -118,6 +132,7 @@ impl AlgExtCData {
         Self::from_coords_q(Arc::clone(&pair.field), &re, &im, None)
     }
 
+    /// **Stable** — Poly multiplication
     pub fn mul(&self, other: &Self) -> Result<Self, EvalError> {
         let pair = self.align_with(other)?;
         let f = &pair.field;
@@ -130,6 +145,7 @@ impl AlgExtCData {
         Self::from_coords_q(Arc::clone(f), &re, &im, None)
     }
 
+    /// **Stable** — Poly negation
     pub fn neg(&self) -> Result<Self, EvalError> {
         let re = self.field.element_neg(&self.re_q()?)?;
         let im = self.field.element_neg(&self.im_q()?)?;
@@ -137,6 +153,7 @@ impl AlgExtCData {
     }
 
     /// Multiplicative inverse using N(z) = re² + im² ∈ K.
+    /// **Stable** — `inv`
     pub fn inv(&self) -> Result<Self, EvalError> {
         let re = self.re_q()?;
         let im = self.im_q()?;
@@ -150,27 +167,32 @@ impl AlgExtCData {
         Self::from_coords_q(Arc::clone(&self.field), &re_part, &im_neg, self.root_index)
     }
 
+    /// **Stable** — `eq_mod`
     pub fn eq_mod(&self, other: &Self) -> Result<bool, EvalError> {
         let pair = self.align_with(other)?;
         Ok(pair.field.element_eq_mod(&pair.self_re, &pair.other_re)?
             && pair.field.element_eq_mod(&pair.self_im, &pair.other_im)?)
     }
 
+    /// **Stable** — Poly is zero
     pub fn is_zero(&self) -> Result<bool, EvalError> {
         Ok(self.field.element_is_zero(&self.re_q()?)
             && self.field.element_is_zero(&self.im_q()?))
     }
 
+    /// **Stable** — Poly is one
     pub fn is_one(&self) -> Result<bool, EvalError> {
         Ok(self.field.element_eq_mod(&self.re_q()?, &self.field.one_coords())?
             && self.field.element_is_zero(&self.im_q()?))
     }
 
     /// Convert to legacy `Expr` shapes for display / eval compatibility.
+    /// **Stable** — `into_expr`
     pub fn into_expr(self) -> ExprArc {
         Arc::new(self.to_expr())
     }
 
+    /// **Stable** — `to_expr`
     pub fn to_expr(&self) -> Expr {
         if self.im.iter().all(|c| c.is_zero()) {
             if self.re.iter().all(|c| c.is_zero()) {
@@ -184,6 +206,7 @@ impl AlgExtCData {
         Expr::AlgExtC(Arc::new(self.clone()))
     }
 
+    // **Pipeline private** — `re_to_legacy_expr`
     fn re_to_legacy_expr(&self) -> Expr {
         match AlgExtData::from_field_coords(Arc::clone(&self.field), self.re.clone()) {
             Ok(a) => Expr::AlgExt(Arc::new(a)),
@@ -191,6 +214,7 @@ impl AlgExtCData {
         }
     }
 
+    // **Pipeline private** — `im_to_legacy_expr`
     fn im_to_legacy_expr(&self) -> ExprArc {
         match AlgExtData::from_field_coords(Arc::clone(&self.field), self.im.clone()) {
             Ok(a) => a.into_expr(),
@@ -198,6 +222,29 @@ impl AlgExtCData {
         }
     }
 
+    // **Stable** — `align_pair`
+    pub(crate) fn align_pair(
+        a: &Self,
+        b: &Self,
+    ) -> Result<(Self, Self), EvalError> {
+        let pair = a.align_with(b)?;
+        Ok((
+            Self::from_coords_q(
+                Arc::clone(&pair.field),
+                &pair.self_re,
+                &pair.self_im,
+                None,
+            )?,
+            Self::from_coords_q(
+                Arc::clone(&pair.field),
+                &pair.other_re,
+                &pair.other_im,
+                None,
+            )?,
+        ))
+    }
+
+    // **Pipeline private** — `align_with`
     fn align_with(&self, other: &Self) -> Result<AlignedPair, EvalError> {
         if Arc::ptr_eq(&self.field, &other.field) || self.field == other.field {
             return Ok(AlignedPair {
@@ -232,6 +279,7 @@ struct AlignedPair {
 }
 
 /// Canonicalize `Expr` leaves to [`AlgExtCData`].
+/// **Stable** — Expr → canonical AlgExtCData
 pub fn canonicalize_to_algext_c(e: &Expr) -> Result<AlgExtCData, EvalError> {
     match e {
         Expr::AlgExtC(z) => Ok((**z).clone()),
@@ -263,6 +311,7 @@ pub fn canonicalize_to_algext_c(e: &Expr) -> Result<AlgExtCData, EvalError> {
     }
 }
 
+// **Pipeline private** — `expr_to_field_element`
 fn expr_to_field_element(e: &ExprArc) -> Result<(Arc<ExtensionField>, CoordsQ), EvalError> {
     match e.as_ref() {
         Expr::AlgExt(a) => {

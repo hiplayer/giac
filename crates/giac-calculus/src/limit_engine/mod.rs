@@ -7,6 +7,10 @@
 //! | **Pipeline** | `limit_*_algebraic`、`expr_has_nested_exp` |
 //! | **Pipeline private** | L'Hôpital、有理商、倒数换元辅助 |
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-calculus-api-stability.md`.
+//!
 use std::collections::HashMap;
 use std::sync::Arc;
 

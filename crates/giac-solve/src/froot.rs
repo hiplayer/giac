@@ -1,3 +1,6 @@
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-solve-api-stability.md`.
+//!
 use std::sync::Arc;
 
 use giac_core::{eval, expr_to_poly, poly_to_expr, Context, EvalError, Expr, ExprArc, FuncKind, Ident};
@@ -8,6 +11,7 @@ use num_rational::Ratio;
 use num_traits::{Signed, Zero};
 
 /// `froot(p)` or `froot(p,x)` — factor roots with signed multiplicities (upstream `misc.cc` `_froot`).
+/// **Stable (bounded)** — rational roots of univariate poly
 pub fn eval_froot(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     let (expr, var) = parse_froot_args(args, ctx)?;
     let ev = eval(expr.as_ref(), ctx)?;
@@ -23,6 +27,7 @@ pub fn eval_froot(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError>
     Ok(Arc::new(Expr::List(items)))
 }
 
+// **Pipeline private** — `parse_froot_args`
 fn parse_froot_args(args: &[ExprArc], ctx: &Context) -> Result<(ExprArc, Ident), EvalError> {
     match args.len() {
         1 => Ok((Arc::clone(&args[0]), Ident::new("x"))),
@@ -37,6 +42,7 @@ fn parse_froot_args(args: &[ExprArc], ctx: &Context) -> Result<(ExprArc, Ident),
     }
 }
 
+// **Pipeline private** — Expr leaf to (num,den) Poly
 fn rational_num_den(expr: &Expr, ctx: &Context) -> Result<(Poly, Poly), EvalError> {
     match expr {
         Expr::Pow(base, exp) if matches!(exp.as_ref(), Expr::Int(n) if n.is_negative()) => Ok((
@@ -64,6 +70,7 @@ fn rational_num_den(expr: &Expr, ctx: &Context) -> Result<(Poly, Poly), EvalErro
     }
 }
 
+// **Pipeline private** — `append_factor_roots`
 fn append_factor_roots(
     poly: &Poly,
     var: &Var,
@@ -84,6 +91,7 @@ fn append_factor_roots(
     Ok(())
 }
 
+// **Pipeline private** — `solve_factor_roots`
 fn solve_factor_roots(factor: &Poly, var: &Var) -> Result<Vec<ExprArc>, EvalError> {
     let d = univariate_degree(factor, var);
     match d {

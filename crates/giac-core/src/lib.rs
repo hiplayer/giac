@@ -51,6 +51,7 @@ pub use algebra::poly::{
     PolyAlgExt,
 };
 pub use algebra::poly_alg_coeff::AlgExtCPolyCoeff;
+pub use algebra::poly_roots::poly_algext_roots;
 pub use algebra::poly_conv::{
     ERR_ALG_EXT_COEFF, ERR_ALG_EXT_C_COEFF, ERR_POLY_ALG_NO_ALG_COEFF, ERR_ROOTOF_COEFF,
 };

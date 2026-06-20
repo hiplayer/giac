@@ -7,6 +7,10 @@
 //! | **Stable** | `rlvarx`, `risch_tower` |
 //! | **Pipeline private** | `collect_rlvarx`, `is_exp_or_ln`, `contains_non_elementary_transcendental`, `extension_rank` |
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-calculus-api-stability.md`.
+//!
 use std::sync::Arc;
 
 use giac_core::{Expr, ExprArc, FuncKind, Ident};

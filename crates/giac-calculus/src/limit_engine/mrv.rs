@@ -8,6 +8,10 @@
 //! | **Stable** | `mrv_at_plus_infinity`、`mrv_compare`、`vanishes_faster_than_*`、`choose_mrv_w` |
 //! | **Pipeline private** | `collect_mrv`、`growth_rank*`、`merge_mrv_pair` 等遍历/合并 |
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-calculus-api-stability.md`.
+//!
 use std::cmp::Ordering;
 use std::sync::Arc;
 

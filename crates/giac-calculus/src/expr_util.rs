@@ -6,6 +6,10 @@
 //! |------|------|
 //! | **Stable** | `depends_on_var`, `is_const_wrt` |
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-calculus-api-stability.md`.
+//!
 use giac_core::{Expr, ExprArc, Ident};
 
 /// **Stable** — whether `e` syntactically depends on `var`.

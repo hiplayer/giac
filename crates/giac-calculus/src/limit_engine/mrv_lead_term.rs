@@ -8,6 +8,10 @@
 //! | **Stable** | `mrv_lead_term_plus_infinity`、`limit_from_mrv_lead_term`、`limit_unidirectional_plus_infinity` |
 //! | **Pipeline private** | `peel_neg_ln_w_inv`、`rewrite_in_mrv_w`、`mrv_series_lead_loop*` |
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-calculus-api-stability.md`.
+//!
 use std::collections::HashMap;
 use std::sync::Arc;
 

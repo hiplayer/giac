@@ -7,6 +7,10 @@
 //! | **Pipeline** | `simplify_limit_expr`、`int_pow_growth_sub_rank` |
 //! | **Pipeline private** | （本模块无私有 `fn`） |
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-calculus-api-stability.md`.
+//!
 use std::sync::Arc;
 
 use giac_core::{bigint_to_i64, Context, Expr, ExprArc};

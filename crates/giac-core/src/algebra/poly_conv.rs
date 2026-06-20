@@ -2,6 +2,10 @@
 //!
 //! Normative contract: [expr-poly-conversion.md](../../../../.doc/expr-poly-conversion.md)
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-core-algebra-api-stability.md`.
+//!
 use crate::error::EvalError;
 use crate::expr::{Expr, FuncKind};
 
@@ -42,10 +46,12 @@ pub fn expr_contains_alg_coeff(expr: &Expr) -> bool {
 }
 
 /// Error for [`super::poly::expr_to_poly`] when [`expr_contains_alg_coeff`] holds.
+// **Stable** — `rational_poly_reject`
 pub(crate) fn rational_poly_reject(expr: &Expr) -> EvalError {
     EvalError::TypeError(first_alg_coeff_message(expr))
 }
 
+// **Pipeline private** — `first_alg_coeff_message`
 fn first_alg_coeff_message(expr: &Expr) -> &'static str {
     match expr {
         Expr::AlgExt(_) => ERR_ALG_EXT_COEFF,

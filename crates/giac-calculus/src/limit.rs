@@ -7,6 +7,10 @@
 //! | **Stable** | `eval_limit` |
 //! | **Pipeline private** | `limit_*`, `try_known_limit*`, `classify_limit_point`, `is_*` shape detectors |
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-calculus-api-stability.md`.
+//!
 use std::collections::HashMap;
 use std::sync::Arc;
 

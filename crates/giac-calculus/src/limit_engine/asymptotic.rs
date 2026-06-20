@@ -8,6 +8,10 @@
 //! | **Pipeline** | `limit_at_plus_infinity`、`asymptotic_series_at_infinity`、`limit_at_zero_fallback` |
 //! | **Pipeline private** | 有理 lead、倒数换元、Laurent 估值辅助 |
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-calculus-api-stability.md`.
+//!
 use std::collections::HashMap;
 use std::sync::Arc;
 

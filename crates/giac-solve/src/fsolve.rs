@@ -1,3 +1,6 @@
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-solve-api-stability.md`.
+//!
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -6,6 +9,7 @@ use giac_core::{
 };
 use giac_linalg::f64_to_expr_numeric;
 
+/// **Partial** — Newton numeric solve stub
 pub fn eval_fsolve(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     if args.len() != 2 {
         return Err(EvalError::TooFewArgs("fsolve"));
@@ -16,6 +20,7 @@ pub fn eval_fsolve(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError
     Ok(f64_to_expr_numeric(root))
 }
 
+// **Pipeline private** — `equation_to_expr`
 fn equation_to_expr(e: &ExprArc) -> Result<ExprArc, EvalError> {
     match e.as_ref() {
         Expr::Relation(RelOp::Eq, lhs, rhs) => Ok(Expr::add(vec![
@@ -26,6 +31,7 @@ fn equation_to_expr(e: &ExprArc) -> Result<ExprArc, EvalError> {
     }
 }
 
+// **Pipeline private** — `ident_from_expr`
 fn ident_from_expr(e: &Expr) -> Result<Ident, EvalError> {
     match e {
         Expr::Symbol(id) => Ok(id.clone()),
@@ -33,6 +39,7 @@ fn ident_from_expr(e: &Expr) -> Result<Ident, EvalError> {
     }
 }
 
+// **Pipeline private** — `eval_at`
 fn eval_at(f: &ExprArc, var: &Ident, x: f64, ctx: &Context) -> Result<f64, EvalError> {
     let mut subs = HashMap::new();
     subs.insert(var.clone(), f64_to_expr_numeric(x));
@@ -41,6 +48,7 @@ fn eval_at(f: &ExprArc, var: &Ident, x: f64, ctx: &Context) -> Result<f64, EvalE
     expr_to_f64(&ev)
 }
 
+// **Pipeline private** — `expr_to_f64`
 fn expr_to_f64(e: &ExprArc) -> Result<f64, EvalError> {
     match e.as_ref() {
         Expr::Int(n) => n
@@ -64,6 +72,7 @@ fn expr_to_f64(e: &ExprArc) -> Result<f64, EvalError> {
     }
 }
 
+// **Pipeline private** — `newton`
 fn newton(f: &ExprArc, var: &Ident, mut x: f64, ctx: &Context) -> Result<f64, EvalError> {
     const TOL: f64 = 1e-12;
     const H: f64 = 1e-8;

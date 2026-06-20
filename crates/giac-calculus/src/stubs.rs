@@ -5,3 +5,7 @@
 //! | Tier | 函数 |
 //! |------|------|
 //! | — | (no functions; layout placeholder only) |
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-calculus-api-stability.md`.
+//!

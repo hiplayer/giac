@@ -1,5 +1,9 @@
 //! giac-ode plugin: wires `desolve` into `giac-core::Context`.
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-ode-api-stability.md`.
+//!
 use std::sync::Arc;
 
 use giac_core::{Context, EvalError, ExprArc, OdePlugin};
@@ -10,17 +14,20 @@ use crate::desolve::eval_desolve;
 pub struct DefaultOdePlugin;
 
 impl OdePlugin for DefaultOdePlugin {
+    // **Stable (bounded)** — linear constant-coefficient ODE subset
     fn eval_desolve(&self, args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
         eval_desolve(args, ctx)
     }
 }
 
 /// Install the default ODE plugin on `ctx`.
+/// **Stable** — register DefaultOdePlugin
 pub fn install_ode(ctx: &mut Context) {
     ctx.set_ode_plugin(Arc::new(DefaultOdePlugin));
 }
 
 /// Full CAS context: linear algebra, solve, calculus, and ODE.
+/// **Stable** — Context with simplify plugin
 pub fn xcas_default() -> Context {
     let mut ctx = giac_calculus::xcas_default();
     install_ode(&mut ctx);

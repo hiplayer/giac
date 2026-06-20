@@ -171,6 +171,17 @@ pub fn t1b_k2_adjoin_sqrt3_over_k1() -> T1bK2 {
     }
 }
 
+/// T3+a: K₂ = K₁(u), u² = √2 (layer minpoly has parent non-constant coefficient).
+pub fn t3a_k2_adjoin_u2_minus_sqrt2_over_k1() -> (Arc<ExtensionField>, Arc<ExtensionField>) {
+    let k1 = k1_adjoin_sqrt2();
+    let zero = k1.zero_coords();
+    let one = k1.one_coords();
+    let neg_alpha = k1.element_neg(&k1.generator_coords()).unwrap();
+    let layer = vec![one, zero, neg_alpha];
+    let k2 = ExtensionField::adjoin_irreducible_parent_coeffs(&k1, layer).unwrap();
+    (k1, k2)
+}
+
 /// Build [`AlgExtData`] from rational coords in the field's operational basis.
 pub fn algext_with_coords(field: Arc<ExtensionField>, coords: CoordsQ) -> AlgExtData {
     AlgExtData::from_field_coords(field, coords_to_expr(&coords).unwrap()).unwrap()

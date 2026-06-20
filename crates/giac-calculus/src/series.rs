@@ -7,6 +7,10 @@
 //! | **Stable** | `eval_series` |
 //! | **Pipeline private** | `taylor_series*`, `parse_series_*`, `series_*`, `fold_elementary`, `factorial` |
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-calculus-api-stability.md`.
+//!
 use std::collections::HashMap;
 use std::sync::Arc;
 

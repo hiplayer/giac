@@ -8,6 +8,10 @@
 //! | **Partial** | `try_integrate_*` 启发式规则 |
 //! | **Pipeline private** | `integrate_*`, `is_*`, 分部 / 换元辅助 |
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-calculus-api-stability.md`.
+//!
 use std::sync::Arc;
 
 use num_bigint::BigInt;
@@ -37,6 +41,7 @@ use giac_simplify::expand;
 /// | `"integrate product"` | Product with multiple non-constant factors after expand |
 /// | `"integrate pow"` | General power bases |
 /// | `"integrate quadratic"` | Unsupported quadratic denominators |
+/// **Stable** — symbolic integration
 pub fn integrate(expr: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     if let Some(r) = crate::integrate_heuristics::try_integrate_heuristic(expr, var) {
         return r;

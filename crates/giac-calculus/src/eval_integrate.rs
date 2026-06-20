@@ -6,6 +6,10 @@
 //! |------|------|
 //! | **Stable** | `eval_integrate` |
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-calculus-api-stability.md`.
+//!
 use std::collections::HashMap;
 
 use giac_core::{eval, eval_subst_map, Context, EvalError, Expr, ExprArc};

@@ -7,6 +7,10 @@
 //! | **Stable** | `integrate_one_over_quadratic`, `integrate_const_over_rational` |
 //! | **Pipeline private** | `integrate_*`, `den_*`, `hermite_*`, `ratio_*`, `sqrt_*` |
 
+//!
+//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
+//! full module index in `.doc/giac-calculus-api-stability.md`.
+//!
 use std::sync::Arc;
 
 use giac_core::{bigint_to_i64, expr_to_poly, poly_to_expr, EvalError, Expr, ExprArc, FuncKind, Ident};
