@@ -115,10 +115,11 @@ fn solve_factor_roots(factor: &Poly, var: &Var) -> Result<Vec<ExprArc>, EvalErro
 
 #[cfg(test)]
 mod tests {
-    use giac_core::{eval, format_expr, Expr, FuncKind};
+    use giac_core::{eval, Expr, FuncKind};
 
     use super::*;
     use crate::plugin::xcas_default;
+    use crate::test_verify::test_verify::{assert_froot_has_root, list_items};
 
     #[test]
     fn froots_flanex_line195() {
@@ -132,10 +133,10 @@ mod tests {
         let rat = Expr::mul(vec![num, Expr::pow(den, Expr::int(-1))]);
         let e = Expr::func(FuncKind::Froots, vec![rat]);
         let r = eval(e.as_ref(), &ctx).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("0"), "got {s}");
-        assert!(s.contains("1"), "got {s}");
-        assert!(s.contains("2"), "got {s}");
+        let items = list_items(&r);
+        for root in [Expr::int(0), Expr::int(1), Expr::int(2)] {
+            assert_froot_has_root(items, &root, &ctx);
+        }
     }
 
     #[test]
@@ -147,8 +148,8 @@ mod tests {
         ]);
         let e = Expr::func(FuncKind::Froot, vec![p]);
         let r = eval(e.as_ref(), &ctx).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("3"), "got {s}");
-        assert!(s.contains("-1"), "got {s}");
+        let items = list_items(&r);
+        assert_froot_has_root(items, &Expr::int(3), &ctx);
+        assert_froot_has_root(items, &Expr::int(-1), &ctx);
     }
 }

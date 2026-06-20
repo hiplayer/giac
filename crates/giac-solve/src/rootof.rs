@@ -71,70 +71,80 @@ fn rootof_expr(num: &[i64], minpoly: &ExprArc) -> ExprArc {
 
 #[cfg(test)]
 mod tests {
-    use giac_core::{eval, format_expr, Context, FuncKind, RelOp};
+    use std::sync::Arc;
+
+    use giac_core::{eval, contains_algext, Ident, Context, FuncKind, RelOp};
     use giac_poly::{roots, Poly, Var};
 
     use super::*;
     use crate::plugin::xcas_default;
+    use crate::test_verify::test_verify::{
+        assert_equation_solutions, assert_is_algext_or_rootof, assert_roots_zero_poly,
+        list_items,
+    };
 
     fn x() -> Poly {
         Poly::var("t")
     }
 
+    fn t_sq_minus(n: i64) -> Poly {
+        x().pow(2).sub(&Poly::constant(num_rational::Ratio::from_integer(
+            num_bigint::BigInt::from(n),
+        )))
+    }
+
     #[test]
     fn quadratic_rootof_has_two_branches() {
-        let p = x().pow(2).sub(&Poly::constant(num_rational::Ratio::from_integer(
-            num_bigint::BigInt::from(2),
-        )));
+        let p = t_sq_minus(2);
         let rs = quadratic_rootof_roots(&p, &Var::from("t")).unwrap();
         assert_eq!(rs.len(), 2);
-        assert!(format_expr(rs[0].as_ref()).contains("rootof"));
+        for r in &rs {
+            assert_is_algext_or_rootof(r);
+        }
+        let poly = Arc::new(Expr::add(vec![
+            Expr::pow(Expr::sym("t"), Expr::int(2)),
+            Expr::int(-2),
+        ]));
+        let ctx = xcas_default();
+        assert_roots_zero_poly(&poly, &Ident::new("t"), &rs, &ctx);
     }
 
     #[test]
     fn solve_t_squared_minus_two_uses_rootof() {
         let ctx = xcas_default();
-        let e = Expr::func(
-            FuncKind::Solve,
-            vec![
-                Arc::new(Expr::Relation(
-                    RelOp::Eq,
-                    Expr::add(vec![
-                        Expr::pow(Expr::sym("t"), Expr::int(2)),
-                        Expr::int(-2),
-                    ]),
-                    Expr::int(0),
-                )),
-                Expr::sym("t"),
-            ],
-        );
+        let eq = Arc::new(Expr::Relation(
+            RelOp::Eq,
+            Expr::add(vec![
+                Expr::pow(Expr::sym("t"), Expr::int(2)),
+                Expr::int(-2),
+            ]),
+            Expr::int(0),
+        ));
+        let e = Expr::func(FuncKind::Solve, vec![eq.clone(), Expr::sym("t")]);
         let r = eval(e.as_ref(), &ctx).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("rootof"), "got {s}");
+        assert_eq!(list_items(&r).len(), 2);
+        for sol in list_items(&r) {
+            assert_is_algext_or_rootof(sol);
+        }
+        assert_equation_solutions(&eq, &Ident::new("t"), &r, &ctx);
     }
 
     #[test]
     fn solve_t_fourth_minus_two_uses_rootof() {
         let ctx = xcas_default();
-        let e = Expr::func(
-            FuncKind::Solve,
-            vec![
-                Arc::new(Expr::Relation(
-                    RelOp::Eq,
-                    Expr::add(vec![
-                        Expr::pow(Expr::sym("t"), Expr::int(4)),
-                        Expr::int(-2),
-                    ]),
-                    Expr::int(0),
-                )),
-                Expr::sym("t"),
-            ],
-        );
+        let eq = Arc::new(Expr::Relation(
+            RelOp::Eq,
+            Expr::add(vec![
+                Expr::pow(Expr::sym("t"), Expr::int(4)),
+                Expr::int(-2),
+            ]),
+            Expr::int(0),
+        ));
+        let e = Expr::func(FuncKind::Solve, vec![eq.clone(), Expr::sym("t")]);
         let r = eval(e.as_ref(), &ctx).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("rootof"), "got {s}");
-        assert!(s.matches("rootof").count() >= 2, "got {s}");
-        assert!(s.contains("*i") || s.contains("i"), "expected complex roots, got {s}");
+        assert_eq!(list_items(&r).len(), 4);
+        assert!(list_items(&r).iter().any(|s| contains_algext(s.as_ref())));
+        assert_equation_solutions(&eq, &Ident::new("t"), &r, &ctx);
     }
 
     #[test]

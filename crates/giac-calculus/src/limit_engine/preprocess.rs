@@ -328,7 +328,8 @@ pub(crate) fn merge_exp_quotients(expr: &ExprArc) -> ExprArc {
 
 #[cfg(test)]
 mod tests {
-    use giac_core::{format_expr, Expr, FuncKind};
+    use giac_core::{format_expr, Expr, FuncKind, Ident};
+    use giac_simplify::assert_equiv;
 
     use super::*;
 
@@ -355,16 +356,21 @@ mod tests {
             Expr::pow(Expr::int(8), Expr::sym("n")),
         ));
         let pre = limit_preprocess_plus_infinity(&e, &var, &ctx).unwrap();
-        let s = format_expr(pre.as_ref());
-        assert!(s.contains("exp"), "expected exp form, got {s}");
+        let r = crate::limit_engine::asymptotic::limit_at_plus_infinity(&pre, &var, &ctx).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "0");
     }
 
     #[test]
     fn preprocess_surd2pow_sqrt() {
+        let ctx = crate::plugin::xcas_default();
         let e = Expr::func(FuncKind::Sqrt, vec![Expr::sym("x")]);
         let r = surd2pow(&e);
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("x") && s.contains("1/2"), "got {s}");
+        let expected = Expr::pow(Expr::sym("x"), Expr::rat(1, 2));
+        assert!(
+            assert_equiv(r.as_ref(), expected.as_ref(), &ctx).unwrap(),
+            "got {}",
+            format_expr(r.as_ref())
+        );
     }
 
     #[test]
@@ -377,8 +383,11 @@ mod tests {
             Expr::mul(vec![Expr::int(-1), Expr::sym("x")]),
         ]);
         let r = normalize_sqrt_conjugates(&e);
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("Frac") || s.contains("/"), "expected quotient, got {s}");
+        assert!(
+            matches!(r.as_ref(), Expr::Frac(_, _)),
+            "expected quotient, got {}",
+            format_expr(r.as_ref())
+        );
     }
 
     #[test]
@@ -396,8 +405,11 @@ mod tests {
             panic!();
         };
         let folded = canonical_exp_diff(e);
-        let fs = format_expr(folded.as_ref());
-        assert!(fs.contains("-1"), "fold step: {fs}");
+        assert!(
+            match_exp_times_exp_minus_one(&folded).is_some(),
+            "fold step: {}",
+            format_expr(folded.as_ref())
+        );
         let after_pow = merge_exp_quotients(&pow2expln(
             &normalize_sqrt_conjugates(&surd2pow(&folded)),
             &var,
@@ -405,7 +417,8 @@ mod tests {
         let ps = format_expr(after_pow.as_ref());
         assert!(
             match_exp_times_exp_minus_one(&after_pow).is_some(),
-            "expected exp(L)*(exp(S)-1) after pow2expln, got {ps} (fold was {fs})"
+            "expected exp(L)*(exp(S)-1) after pow2expln, got {ps} (fold was {})",
+            format_expr(folded.as_ref())
         );
         let pre = limit_preprocess_struct(e, &var);
         let r = limit_at_plus_infinity(&pre, &var, &ctx)
@@ -415,6 +428,7 @@ mod tests {
 
     #[test]
     fn preprocess_gruntz_exp_diff_factor() {
+        use crate::limit_engine::exp_diff::match_exp_times_exp_minus_one;
         let ctx = crate::plugin::xcas_default();
         let var = Ident::new("x");
         let stmts = giac_parse::parse_program(
@@ -426,18 +440,20 @@ mod tests {
             panic!();
         };
         let factored = factor_exp_shifted_difference(e);
-        let s = format_expr(factored.as_ref());
+        let (_, epsilon) = match_exp_times_exp_minus_one(&factored)
+            .unwrap_or_else(|| panic!("expected exp(L)*(exp(S)-1), got {}", format_expr(factored.as_ref())));
+        let neg_exp_neg_x = Expr::mul(vec![
+            Expr::int(-1),
+            Expr::func(FuncKind::Exp, vec![Expr::mul(vec![Expr::int(-1), Expr::sym("x")])]),
+        ]);
         assert!(
-            s.contains("exp(-exp(-x))")
-                || s.contains("exp(-exp(-1*x))")
-                || s.contains("exp(-1*exp(-x))"),
-            "got {s}"
+            assert_equiv(epsilon.as_ref(), neg_exp_neg_x.as_ref(), &ctx).unwrap(),
+            "factored epsilon got {}",
+            format_expr(epsilon.as_ref())
         );
         let pre = limit_preprocess_struct(e, &var);
-        let ps = format_expr(pre.as_ref());
-        assert!(
-            ps.contains("exp(") && (ps.contains("1*x^-1") || ps.contains("x^-1") || ps.contains("1/x")),
-            "expected algebraized gruntz L1 pre, got {ps}"
-        );
+        let r = crate::limit_engine::asymptotic::limit_at_plus_infinity(&pre, &var, &ctx)
+            .unwrap_or_else(|e| panic!("limit failed for {}: {e:?}", format_expr(pre.as_ref())));
+        assert_eq!(format_expr(r.as_ref()), "-1");
     }
 }

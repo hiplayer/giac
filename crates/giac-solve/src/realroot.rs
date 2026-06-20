@@ -94,13 +94,14 @@ fn rational_real_roots(
     Err(EvalError::NotImplemented("realroot"))
 }
 
+#[cfg(test)]
 mod tests {
-    use giac_core::{eval, format_expr, Expr, FuncKind};
+    use giac_core::{eval, Expr, FuncKind};
 
     use crate::plugin::xcas_default;
+    use crate::test_verify::test_verify::{assert_is_algext_or_rootof, assert_realroot_has, list_items};
 
     #[test]
-    // **Pipeline private** — `realroot_x_squared_minus_two`
     fn realroot_x_squared_minus_two() {
         let ctx = xcas_default();
         let p = Expr::add(vec![
@@ -109,12 +110,14 @@ mod tests {
         ]);
         let e = Expr::func(FuncKind::Realroot, vec![p]);
         let r = eval(e.as_ref(), &ctx).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("rootof"), "got {s}");
+        let entries = list_items(&r);
+        assert_eq!(entries.len(), 2);
+        for pair in entries {
+            assert_is_algext_or_rootof(&list_items(pair)[0]);
+        }
     }
 
     #[test]
-    // **Pipeline private** — `realroot_x_fourth_minus_one`
     fn realroot_x_fourth_minus_one() {
         let ctx = xcas_default();
         let p = Expr::add(vec![
@@ -123,8 +126,8 @@ mod tests {
         ]);
         let e = Expr::func(FuncKind::Realroot, vec![p]);
         let r = eval(e.as_ref(), &ctx).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("-1"), "got {s}");
-        assert!(s.contains("1"), "got {s}");
+        let items = list_items(&r);
+        assert_realroot_has(items, &Expr::int(-1), &ctx);
+        assert_realroot_has(items, &Expr::int(1), &ctx);
     }
 }

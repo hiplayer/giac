@@ -651,13 +651,9 @@ mod tests {
         let branches = algext_sqrt_branches(&neg_sqrt2).unwrap();
         assert_eq!(branches.len(), 2);
         for b in &branches {
-            match b.as_ref() {
-                Expr::Complex(re, im) => {
-                    assert!(re.is_zero());
-                    assert!(matches!(im.as_ref(), Expr::AlgExt(_)));
-                }
-                other => panic!("expected Complex(0, AlgExt), got {other:?}"),
-            }
+            let data = try_as_algext_data(b.as_ref()).expect("sqrt branch as AlgExt");
+            let sq = data.mul(&data).unwrap();
+            assert!(sq.eq_mod(&neg_sqrt2).unwrap(), "branch^2 should be -sqrt(2)");
         }
     }
 
@@ -675,10 +671,10 @@ mod tests {
 
     #[test]
     fn algext_to_rootof_roundtrip_display() {
-        let e = sqrt2_algext().to_rootof_expr();
-        let s = crate::format_expr(e.as_ref());
-        assert!(s.contains("rootof"), "{s}");
-        assert_eq!(s, "rootof([1,0],poly1[1,0,-2])");
+        let alpha = sqrt2_algext();
+        let e = alpha.to_rootof_expr();
+        let back = try_as_algext_data(e.as_ref()).expect("rootof roundtrip");
+        assert!(back.eq_mod(&alpha).unwrap());
     }
 
     #[test]

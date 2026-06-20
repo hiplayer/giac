@@ -1122,11 +1122,69 @@ fn is_neg_var_exp(e: &ExprArc, var: &Ident) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use giac_core::{format_expr, FuncKind};
+    use giac_core::{format_expr, FuncKind, Ident};
+    use giac_simplify::assert_equiv;
     use std::sync::Arc;
 
     use super::*;
     use crate::plugin::xcas_default;
+
+    fn exp_inner_arg(e: &ExprArc) -> &ExprArc {
+        match e.as_ref() {
+            Expr::Func(FuncKind::Exp, args) if args.len() == 1 => &args[0],
+            other => panic!("expected exp(...), got {other:?}"),
+        }
+    }
+
+    fn expr_mentions_symbol(e: &Expr, name: &str) -> bool {
+        match e {
+            Expr::Symbol(id) => id.as_str() == name,
+            Expr::Add(ts) | Expr::Mul(ts) => ts.iter().any(|t| expr_mentions_symbol(t, name)),
+            Expr::Pow(b, exp) => expr_mentions_symbol(b, name) || expr_mentions_symbol(exp, name),
+            Expr::Frac(n, d) => expr_mentions_symbol(n, name) || expr_mentions_symbol(d, name),
+            Expr::Func(_, args) => args.iter().any(|a| expr_mentions_symbol(a, name)),
+            Expr::Int(_) | Expr::Rat(_) => false,
+            _ => false,
+        }
+    }
+
+    fn is_exp_var_times_x_inv(e: &ExprArc, var: &Ident) -> bool {
+        let Expr::Mul(fs) = e.as_ref() else {
+            return false;
+        };
+        let has_exp_var = fs.iter().any(|f| {
+            matches!(
+                f.as_ref(),
+                Expr::Func(FuncKind::Exp, args)
+                    if args.len() == 1 && is_var(&args[0], var)
+            )
+        });
+        let has_inv = fs.iter().any(|f| {
+            matches!(
+                f.as_ref(),
+                Expr::Pow(b, exp)
+                    if is_var(b, var)
+                        && matches!(exp.as_ref(), Expr::Int(n) if *n == BigInt::from(-1))
+            )
+        });
+        has_exp_var && has_inv
+    }
+
+    fn tree_contains_exp_of_sym(e: &Expr, name: &str) -> bool {
+        match e {
+            Expr::Func(FuncKind::Exp, args) if args.len() == 1 => {
+                expr_mentions_symbol(args[0].as_ref(), name)
+                    || tree_contains_exp_of_sym(args[0].as_ref(), name)
+            }
+            Expr::Add(ts) | Expr::Mul(ts) => ts.iter().any(|t| tree_contains_exp_of_sym(t, name)),
+            Expr::Pow(b, exp) => {
+                tree_contains_exp_of_sym(b, name) || tree_contains_exp_of_sym(exp, name)
+            }
+            Expr::Frac(n, d) => tree_contains_exp_of_sym(n, name) || tree_contains_exp_of_sym(d, name),
+            Expr::Func(_, args) => args.iter().any(|a| tree_contains_exp_of_sym(a, name)),
+            _ => false,
+        }
+    }
 
     #[test]
     fn fold_mul_shifted_difference_gruntz() {
@@ -1140,32 +1198,49 @@ mod tests {
             panic!();
         };
         let r = canonical_exp_diff(e);
-        let s = format_expr(r.as_ref());
+        let (_, epsilon) = match_exp_times_exp_minus_one(&r)
+            .unwrap_or_else(|| panic!("expected exp(L)*(exp(S)-1), got {}", format_expr(r.as_ref())));
+        let neg_exp_neg_x = Expr::mul(vec![
+            Expr::int(-1),
+            Expr::func(FuncKind::Exp, vec![Expr::mul(vec![Expr::int(-1), Expr::sym("x")])]),
+        ]);
         assert!(
-            s.contains("exp(-exp(-x))") || s.contains("exp(-exp(-1*x))"),
-            "got {s}"
+            assert_equiv(epsilon.as_ref(), neg_exp_neg_x.as_ref(), &ctx).unwrap(),
+            "epsilon should be -exp(-x), got {}",
+            format_expr(epsilon.as_ref())
         );
     }
 
     #[test]
     fn rewrite_exp_minus_w_inv_matches_remove_lnexp() {
         use super::super::mrv_w::{mrv_ln_w_expr, mrv_w_expr};
+        let ctx = xcas_default();
         let w = mrv_w_expr();
         let inner = Expr::add(vec![
             Expr::mul(vec![Expr::int(-1), mrv_ln_w_expr()]),
             Expr::sym("eps"),
         ]);
         let r = exp_scale_times_exp_minus_one(Expr::pow(w, Expr::int(-1)), inner);
-        let s = format_expr(r.as_ref());
+        let Expr::Mul(fs) = r.as_ref() else {
+            panic!("expected product form, got {}", format_expr(r.as_ref()));
+        };
+        assert_eq!(fs.len(), 2);
+        assert!(expr_mentions_symbol(fs[0].as_ref(), "_mrv_w"));
+        let eps = exp_minus_one_epsilon(&fs[1]).expect("expected exp(eps)-1 factor");
+        let expected_eps = Expr::add(vec![
+            Expr::mul(vec![Expr::int(-1), mrv_ln_w_expr()]),
+            Expr::sym("eps"),
+        ]);
         assert!(
-            s.contains("exp(eps)") || s.contains("exp(-ln(_mrv_w)+eps)"),
-            "expected w^-1*(exp(eps)-1) style, got {s}"
+            assert_equiv(eps.as_ref(), expected_eps.as_ref(), &ctx).unwrap(),
+            "epsilon got {}",
+            format_expr(eps.as_ref())
         );
-        assert!(s.contains("_mrv_w"), "got {s}");
     }
 
     #[test]
     fn fold_add_exp_difference() {
+        let ctx = xcas_default();
         let a = Expr::func(FuncKind::Exp, vec![Expr::add(vec![Expr::sym("x"), Expr::int(1)])]);
         let b = Expr::mul(vec![
             Expr::int(-1),
@@ -1173,8 +1248,15 @@ mod tests {
         ]);
         let e = Expr::add(vec![a, b]);
         let r = canonical_exp_diff(&e);
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("exp(x)") && s.contains("-1"), "got {s}");
+        let expected = exp_scale_times_exp_minus_one(
+            Expr::func(FuncKind::Exp, vec![Expr::sym("x")]),
+            Expr::int(1),
+        );
+        assert!(
+            assert_equiv(r.as_ref(), expected.as_ref(), &ctx).unwrap(),
+            "got {}",
+            format_expr(r.as_ref())
+        );
     }
 
     #[test]
@@ -1192,12 +1274,7 @@ mod tests {
             &Expr::func(FuncKind::Exp, vec![e]),
             &var,
         );
-        let s = format_expr(r.as_ref());
-        assert!(
-            s.contains("a") && s.contains("b") && s.contains("x"),
-            "expected (a-x*b)/b inside exp, got {s}"
-        );
-        assert!(!s.contains("a+-1*b") && !s.contains("a+(-1)*b"), "wrong coeff-only balance: {s}");
+        assert_eq!(format_expr(r.as_ref()), "exp((a-1*(x*b))/(b))");
     }
 
     #[test]
@@ -1211,14 +1288,15 @@ mod tests {
             ]),
         ]);
         let r = first_order_exp_vanishing_epsilon(&e, &var);
-        let s = format_expr(r.as_ref());
         assert!(
             !match_exp_times_exp_minus_one(&r).is_some(),
-            "should not keep exp()-1: {s}"
+            "should not keep exp()-1: {}",
+            format_expr(r.as_ref())
         );
         assert!(
-            s.contains("x^-1") || s.contains("1*x^-1") || s.contains("1/x"),
-            "expected exp(x)*x^-1 style, got {s}"
+            is_exp_var_times_x_inv(&r, &var),
+            "expected exp(x)*x^-1 style, got {}",
+            format_expr(r.as_ref())
         );
     }
 
@@ -1243,13 +1321,11 @@ mod tests {
     fn ratio_preprocess_mrv_cancels_opposing_exp_mul() {
         use crate::limit_engine::ck_int_gruntz_fixture::ratio;
         use crate::limit_engine::preprocess::limit_preprocess_mrv;
+        let ctx = xcas_default();
         let var = Ident::new("x");
         let pre = limit_preprocess_mrv(&ratio(), &var);
-        let s = format_expr(pre.as_ref());
-        assert!(
-            !s.contains("x*exp(-1*x)+(-1*x)*exp(-1*x)"),
-            "pre={s}"
-        );
+        let r = super::super::asymptotic::limit_at_plus_infinity(&pre, &var, &ctx).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "1");
     }
 
     #[test]
@@ -1278,7 +1354,7 @@ mod tests {
         );
         let pre = crate::limit_engine::preprocess::limit_preprocess_struct(&e, &var);
         assert!(
-            format_expr(pre.as_ref()).contains("exp(x)"),
+            tree_contains_exp_of_sym(pre.as_ref(), "x"),
             "struct preprocess: {}",
             format_expr(pre.as_ref())
         );
@@ -1300,8 +1376,12 @@ mod tests {
         };
         assert_eq!(ts.len(), 2);
         let form = detect_exp_difference_add(&ts[0], &ts[1]).expect("nested gruntz exp diff");
-        let s = format_expr(&emit_exp_difference(form));
-        assert!(s.contains("-1") && s.contains("exp("), "got {s}");
+        let folded = emit_exp_difference(form);
+        assert!(
+            match_exp_times_exp_minus_one(&folded).is_some(),
+            "got {}",
+            format_expr(folded.as_ref())
+        );
     }
 
     #[test]
@@ -1326,16 +1406,25 @@ mod tests {
 
     #[test]
     fn parse_neg_x_squared_in_exp() {
-        use giac_core::format_expr;
         let ctx = xcas_default();
         let stmts = giac_parse::parse_program("exp(-(x^2));", &ctx).unwrap();
         let giac_core::Stmt::ExprStmt(e) = stmts.first().unwrap() else {
             panic!();
         };
-        let s = format_expr(e.as_ref());
+        let arg = exp_inner_arg(e);
         assert!(
-            s.contains("-x^2") || s.contains("-1*x^2"),
-            "expected -(x^2) in exp arg, got {s}"
+            matches!(
+                arg.as_ref(),
+                Expr::Mul(fs) if fs.iter().any(|f| matches!(f.as_ref(), Expr::Int(n) if n.is_negative()))
+                    && fs.iter().any(|f| matches!(
+                        f.as_ref(),
+                        Expr::Pow(b, exp)
+                            if matches!(b.as_ref(), Expr::Symbol(id) if id.as_str() == "x")
+                                && matches!(exp.as_ref(), Expr::Int(n) if *n == BigInt::from(2))
+                    ))
+            ),
+            "expected -(x^2) in exp arg, got {}",
+            format_expr(arg)
         );
     }
 
@@ -1359,9 +1448,23 @@ mod tests {
 
     #[test]
     fn exp_scale_times_exp_minus_one_shape() {
+        let ctx = xcas_default();
         let r = exp_scale_times_exp_minus_one(Expr::sym("s"), Expr::sym("eps"));
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("exp(eps)") && s.contains("-1"), "got {s}");
+        let Expr::Mul(fs) = r.as_ref() else {
+            panic!("expected product form, got {}", format_expr(r.as_ref()));
+        };
+        assert_eq!(fs.len(), 2);
+        assert!(
+            assert_equiv(fs[0].as_ref(), Expr::sym("s").as_ref(), &ctx).unwrap(),
+            "scale got {}",
+            format_expr(fs[0].as_ref())
+        );
+        let eps = exp_minus_one_epsilon(&fs[1]).expect("expected exp(eps)-1 factor");
+        assert!(
+            assert_equiv(eps.as_ref(), Expr::sym("eps").as_ref(), &ctx).unwrap(),
+            "epsilon got {}",
+            format_expr(eps.as_ref())
+        );
     }
 }
 

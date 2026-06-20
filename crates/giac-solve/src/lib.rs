@@ -14,6 +14,9 @@ mod froot;
 mod realroot;
 mod stubs;
 
+#[cfg(test)]
+mod test_verify;
+
 pub use giac_linalg::eval_linsolve;
 pub use plugin::{install_solve, xcas_default, DefaultSolvePlugin};
 pub use solve::eval_solve;

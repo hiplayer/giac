@@ -82,10 +82,29 @@ fn is_sin_of_var(e: &Expr, var: &Ident) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use giac_core::{format_expr, FuncKind};
+    use giac_core::{FuncKind, Ident, RelOp};
+    use giac_simplify::assert_equiv;
+    use num_traits::One;
 
     use super::*;
     use crate::plugin::xcas_default;
+    use crate::test_verify::test_verify::list_items;
+
+    fn eval_const_expr(e: &Expr) -> Option<i64> {
+        match e {
+            Expr::Int(n) => n.try_into().ok(),
+            Expr::Rat(r) if r.denom().is_one() => r.numer().try_into().ok(),
+            Expr::Pow(b, exp) if matches!(b.as_ref(), Expr::Int(n) if *n == BigInt::from(1))
+                && matches!(exp.as_ref(), Expr::Int(n) if *n == BigInt::from(-1)) =>
+            {
+                Some(1)
+            }
+            Expr::Mul(fs) => fs
+                .iter()
+                .try_fold(1i64, |acc, f| acc.checked_mul(eval_const_expr(f.as_ref())?)),
+            _ => None,
+        }
+    }
 
     #[test]
     fn solve_quadratic_double_root() {
@@ -106,7 +125,9 @@ mod tests {
             ],
         );
         let r = giac_core::eval(e.as_ref(), &ctx).unwrap();
-        assert_eq!(format_expr(r.as_ref()), "[1]");
+        let items = list_items(&r);
+        assert_eq!(items.len(), 1);
+        assert!(assert_equiv(&Expr::int(1), items[0].as_ref(), &ctx).unwrap());
     }
 
     #[test]
@@ -134,7 +155,11 @@ mod tests {
             ],
         );
         let r = giac_core::eval(e.as_ref(), &ctx).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("2") && s.contains("1"), "got {s}");
+        let solutions = list_items(&r);
+        assert_eq!(solutions.len(), 2);
+        let x = eval_const_expr(solutions[0].as_ref()).expect("x value");
+        let y = eval_const_expr(solutions[1].as_ref()).expect("y value");
+        assert_eq!(x + y, 3);
+        assert_eq!(x - y, 1);
     }
 }
