@@ -1,6 +1,8 @@
 //! Nested-ring polynomial views: encode ℚ[others][main] in the type system.
 //!
 //! `Poly` is intentionally erased (one sparse representation for all rings).
+//! **P1-3:** nested-ring views (`UnivariateIn`, `CoeffRingPoly`, …) remain **ℚ-only**
+//! (`Poly` = `Poly<Ratio<BigInt>>`); `Poly<AlgExtC>` nested tower is **Phase 3** (P3-5).
 //! Use [`MainVar`] + [`UnivariateIn`] when the object is univariate in `main`
 //! with coefficients in ℚ[remaining vars]. Use [`CoeffRingPoly`] for coefficient-
 //! ring exact division. Use [`TnEmbed`] for sparse_bi `eval_tn` maps.
@@ -18,6 +20,7 @@ use num_traits::Zero;
 use crate::error::PolyResult;
 use crate::monomial::Var;
 use crate::poly::Poly;
+use crate::poly_coeff::PolyCoeff;
 use crate::resultant::univariate_degree;
 use crate::subresultant::{
     div_exact_coeff, primitive_part_wrt_impl, quo_exact_wrt, univariate_div_rem_wrt,
@@ -78,19 +81,22 @@ impl<'a> CoeffRingPoly<'a> {
     }
 }
 
-/// Alias for [`UnivariateIn`] (nested ring ℚ[others][main]).
-pub type UnivariateOver<'a> = UnivariateIn<'a>;
+/// Alias for [`UnivariateIn`] (nested ring K[others][main]; **ℚ algorithms** on default `C`).
+pub type UnivariateOver<'a, C: PolyCoeff = Ratio<BigInt>> = UnivariateIn<'a, C>;
 
-/// Borrowed view: `p` ∈ ℚ[others][main].
+/// Borrowed view: `p` ∈ K[others][main] with coefficients in ring `C`.
+///
+/// **P1-3:** `divides` / `exact_quo_dividing` / `coeff_at` are implemented **only for
+/// `C = Ratio<BigInt>`** (ℚ). For `Poly<AlgExtC>`, use flat [`FlatUni<C>`] views until P3-5.
 #[derive(Clone, Debug)]
-pub struct UnivariateIn<'a> {
-    pub poly: &'a Poly,
+pub struct UnivariateIn<'a, C: PolyCoeff = Ratio<BigInt>> {
+    pub poly: &'a Poly<C>,
     pub main: MainVar,
 }
 
-impl<'a> UnivariateIn<'a> {
+impl<'a, C: PolyCoeff> UnivariateIn<'a, C> {
     /// **Stable** — view `poly` as univariate in `main`.
-    pub fn new(poly: &'a Poly, main: MainVar) -> Self {
+    pub fn new(poly: &'a Poly<C>, main: MainVar) -> Self {
         Self { poly, main }
     }
 
@@ -99,11 +105,13 @@ impl<'a> UnivariateIn<'a> {
         self.main.as_var()
     }
 
-    /// **Stable** — degree w.r.t. `main`.
+    /// **Stable** — degree w.r.t. `main` (coefficient-ring agnostic).
     pub fn degree(&self) -> u64 {
-        univariate_degree(self.poly, self.main.as_var())
+        self.poly.degree_wrt(self.main.as_var())
     }
+}
 
+impl<'a> UnivariateIn<'a> {
     /// **Stable** — coefficient of `main^exp` as ℚ[others].
     pub fn coeff_at(&self, exp: u64) -> Poly {
         coeff_wrt_impl(self.poly, self.main.as_var(), exp)
@@ -159,62 +167,78 @@ impl<'a> UnivariateIn<'a> {
     }
 }
 
-/// Owned element of ℚ[others][main].
+/// Owned element of K[others][main] (`C` = coefficient ring of `poly`).
 #[derive(Clone, Debug, PartialEq)]
-pub struct UnivariatePoly {
-    pub poly: Poly,
+pub struct UnivariatePoly<C: PolyCoeff = Ratio<BigInt>> {
+    pub poly: Poly<C>,
     pub main: MainVar,
 }
 
-impl UnivariatePoly {
+impl<C: PolyCoeff> UnivariatePoly<C> {
     /// **Stable** — construct owned nested-ring element.
-    pub fn new(poly: Poly, main: MainVar) -> Self {
+    pub fn new(poly: Poly<C>, main: MainVar) -> Self {
         Self { poly, main }
     }
 
     /// **Stable** — borrowed view.
-    pub fn as_view(&self) -> UnivariateIn<'_> {
+    pub fn as_view(&self) -> UnivariateIn<'_, C> {
         UnivariateIn::new(&self.poly, self.main.clone())
     }
 }
 
+/// ℚ nested univariate (default alias).
+pub type UnivariatePolyQ = UnivariatePoly<Ratio<BigInt>>;
+
 /// ℚ[var] flat univariate polynomial — **only** factor subpath that may use classic `div_rem`.
+///
+/// **P1-3:** `div_rem` / `divides` on [`FlatUni`] are **ℚ-only** (`impl FlatUni` without type param).
+/// Generic [`FlatUni<C>`] supports `new` / `as_poly` / `degree_wrt` for any [`PolyCoeff`].
 #[derive(Clone, Debug, PartialEq)]
-pub struct FlatUni {
-    poly: Poly,
+pub struct FlatUni<C: PolyCoeff = Ratio<BigInt>> {
+    poly: Poly<C>,
     var: MainVar,
 }
 
-impl FlatUni {
-    /// **Stable** — view `poly` as univariate in `var` over ℚ.
-    pub fn new(poly: Poly, var: impl Into<MainVar>) -> Self {
+impl<C: PolyCoeff> FlatUni<C> {
+    /// **Stable** — view `poly` as univariate in `var`.
+    pub fn new(poly: Poly<C>, var: impl Into<MainVar>) -> Self {
         Self {
             poly,
             var: var.into(),
         }
     }
 
-    /// **Stable** — construct when `poly` is genuinely univariate in `var`.
-    pub fn try_new(poly: Poly, var: &Var) -> Option<Self> {
-        if !is_flat_univariate_in(&poly, var) {
-            return None;
-        }
-        Some(Self::new(poly, MainVar::new(var.clone())))
-    }
-
-    /// **Stable** — underlying polynomial (explicit downgrade).
-    pub fn as_poly(&self) -> &Poly {
+    /// **Stable** — underlying polynomial.
+    pub fn as_poly(&self) -> &Poly<C> {
         &self.poly
     }
 
     /// **Stable** — consume and return inner [`Poly`].
-    pub fn into_poly(self) -> Poly {
+    pub fn into_poly(self) -> Poly<C> {
         self.poly
     }
 
     /// **Stable** — main variable.
     pub fn var(&self) -> &MainVar {
         &self.var
+    }
+
+    /// **Stable** — degree w.r.t. main variable (coefficient-ring agnostic).
+    pub fn degree(&self) -> u64 {
+        self.poly.degree_wrt(self.var.as_var())
+    }
+}
+
+/// ℚ flat univariate (default alias).
+pub type FlatUniQ = FlatUni<Ratio<BigInt>>;
+
+impl FlatUni {
+    /// **Stable** — construct when `poly` is genuinely univariate in `var` over ℚ.
+    pub fn try_new(poly: Poly, var: &Var) -> Option<Self> {
+        if !is_flat_univariate_in(&poly, var) {
+            return None;
+        }
+        Some(Self::new(poly, MainVar::new(var.clone())))
     }
 
     /// **Stable** — Euclidean `(q, r)` in ℚ[var] via [`univariate_div_rem_wrt`].
@@ -827,6 +851,24 @@ mod tests {
             !rem.is_zero(),
             "LiftedFactor peel must not use multivariate div_rem"
         );
+    }
+
+    #[test]
+    fn univariate_in_generic_degree_matches_q() {
+        let x = Poly::var("x");
+        let p = x.pow(2).add(&Poly::one());
+        let main = MainVar::new("x");
+        let view = UnivariateIn::<Ratio<BigInt>>::new(&p, main);
+        assert_eq!(view.degree(), 2);
+        assert_eq!(view.degree(), UnivariateIn::new(&p, MainVar::new("x")).degree());
+    }
+
+    #[test]
+    fn flat_uni_generic_degree() {
+        let x = Poly::var("x");
+        let p = x.pow(3).sub(&Poly::one());
+        let flat = FlatUni::new(p, MainVar::new("x"));
+        assert_eq!(flat.degree(), 3);
     }
 
     #[test]

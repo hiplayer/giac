@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use giac_core::{eval, expr_to_poly, poly_to_expr, Context, EvalError, Expr, ExprArc};
+use giac_core::{eval, expr_to_poly, poly_error_compat, poly_to_expr, Context, EvalError, Expr, ExprArc};
 use giac_poly::{coeff_at, factor_into, univariate_degree, Poly, PolyError, Var};
 use crate::rootof::quadratic_rootof_roots;
 use num_bigint::BigInt;
@@ -17,7 +17,7 @@ pub fn eval_realroot(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalErr
     if univariate_degree(&poly, &var) == 0 {
         return Err(EvalError::TypeError("constant polynomial"));
     }
-    let roots = algebraic_real_roots(&poly, &var).map_err(poly_err)?;
+    let roots = algebraic_real_roots(&poly, &var).map_err(poly_error_compat)?;
     let items: Vec<ExprArc> = roots
         .into_iter()
         .map(|(r, m)| {
@@ -90,14 +90,6 @@ fn rational_real_roots(
         }
     }
     Err(PolyError::NotImplemented("realroot"))
-}
-
-fn poly_err(e: PolyError) -> EvalError {
-    match e {
-        PolyError::NotImplemented(s) => EvalError::NotImplemented(s),
-        PolyError::TypeError(s) => EvalError::TypeError(s),
-        PolyError::DivisionByZero => EvalError::TypeError("division by zero"),
-    }
 }
 
 mod tests {

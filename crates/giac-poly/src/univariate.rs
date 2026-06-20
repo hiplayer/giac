@@ -14,8 +14,7 @@ use crate::resultant::{coeff_at, univariate_degree};
 
 // **Pipeline private** — `univariate_coeffs`
 fn univariate_coeffs(p: &Poly, var: &Var) -> Vec<Ratio<BigInt>> {
-    let deg = univariate_degree(p, var);
-    (0..=deg).map(|e| coeff_at(p, var, e)).collect()
+    crate::resultant::univariate_coeffs_ascending(p, var)
 }
 
 // **Pipeline private** — `trim_coeffs`
@@ -421,20 +420,7 @@ pub fn sturm_sequence(p: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
 /// Evaluate univariate polynomial at a rational point.
 /// **Stable** — Horner eval
 pub fn eval_univariate_at(p: &Poly, var: &Var, x: &Ratio<BigInt>) -> Ratio<BigInt> {
-    let deg = univariate_degree(p, var);
-    let mut acc = Ratio::zero();
-    for e in 0..=deg {
-        let c = coeff_at(p, var, e);
-        if c.is_zero() {
-            continue;
-        }
-        let mut pow = Ratio::one();
-        for _ in 0..e {
-            pow *= x;
-        }
-        acc += c * pow;
-    }
-    acc
+    p.horner(var, x)
 }
 
 // **Pipeline private** — `sign_of_ratio`

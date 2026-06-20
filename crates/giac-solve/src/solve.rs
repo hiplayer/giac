@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use giac_core::{eval, expr_to_poly, poly_to_expr, Context, EvalError, Expr, ExprArc, FuncKind, Ident, RelOp};
+use giac_core::{eval, expr_to_poly, poly_error_compat, poly_to_expr, Context, EvalError, Expr, ExprArc, FuncKind, Ident, RelOp};
 use num_bigint::BigInt;
 use giac_linalg::eval_linsolve;
 use giac_poly::{roots, PolyError, Var};
@@ -25,7 +25,7 @@ pub fn eval_solve(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError>
         Ok(rs) => rs.into_iter().map(|p| poly_to_expr(&p)).collect(),
         Err(PolyError::NotImplemented(_)) => quadratic_rootof_roots(&poly, &v)
             .or_else(|_| biquadratic_rootof_roots(&poly, &v))?,
-        Err(e) => return Err(poly_err(e)),
+        Err(e) => return Err(poly_error_compat(e)),
     };
     eval(Arc::new(Expr::List(items)).as_ref(), ctx)
 }
@@ -69,14 +69,6 @@ fn is_zero(e: &Expr) -> bool {
 
 fn is_sin_of_var(e: &Expr, var: &Ident) -> bool {
     matches!(e, Expr::Func(FuncKind::Sin, args) if args.len() == 1 && matches!(args[0].as_ref(), Expr::Symbol(id) if id == var))
-}
-
-fn poly_err(e: giac_poly::PolyError) -> EvalError {
-    match e {
-        giac_poly::PolyError::NotImplemented(s) => EvalError::NotImplemented(s),
-        giac_poly::PolyError::TypeError(s) => EvalError::TypeError(s),
-        giac_poly::PolyError::DivisionByZero => EvalError::TypeError("division by zero"),
-    }
 }
 
 #[cfg(test)]

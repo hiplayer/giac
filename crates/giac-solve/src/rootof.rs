@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-use giac_core::{algext_sqrt_branches, poly_to_expr, AlgExtData, EvalError, Expr, ExprArc, FuncKind};
+use giac_core::{algext_sqrt_branches, poly_to_poly1_expr, AlgExtData, EvalError, Expr, ExprArc, FuncKind};
 use giac_poly::{coeff_at, univariate_degree, Poly, Var};
 use num_rational::Ratio;
 use num_traits::{One, Zero};
@@ -55,13 +55,9 @@ pub fn biquadratic_rootof_roots(poly: &Poly, var: &Var) -> Result<Vec<ExprArc>, 
     Ok(out)
 }
 
+/// **Stable** — `Poly` → `poly1[…]` minpoly Expr (re-export of [`giac_core::poly_to_poly1_expr`]).
 pub fn poly1_from_univariate(poly: &Poly, var: &Var) -> ExprArc {
-    let deg = univariate_degree(poly, var);
-    let mut coeffs = Vec::with_capacity((deg + 1) as usize);
-    for e in (0..=deg).rev() {
-        coeffs.push(poly_to_expr(&Poly::constant(coeff_at(poly, var, e))));
-    }
-    Expr::func(FuncKind::Poly1, vec![Arc::new(Expr::Seq(coeffs))])
+    poly_to_poly1_expr(poly, var)
 }
 
 fn rootof_expr(num: &[i64], minpoly: &ExprArc) -> ExprArc {

@@ -190,30 +190,8 @@ pub fn rational_factor_pairs(a0: &Ratio<BigInt>) -> Vec<(Ratio<BigInt>, Ratio<Bi
     pairs
 }
 
-/// **Stable** — Coefficient of `var^exp` (quotient by `var^exp` on each matching term).
-pub fn coeff_wrt(p: &Poly, var: &Var, exp: u64) -> Poly {
-    let mut out = Poly::zero();
-    let div = monomial_pow(var, exp);
-    for (m, c) in &p.terms {
-        if m.exp_of(var) == exp {
-            if let Some(rest_m) = m.div_exact(&div) {
-                out = out.add(&Poly::term(rest_m, c.clone()));
-            }
-        }
-    }
-    out
-}
-
-// **Pipeline private** — `monomial_pow`
-fn monomial_pow(var: &Var, exp: u64) -> Monomial {
-    let mut m = Monomial::one();
-    for _ in 0..exp {
-        m = m.mul(&Monomial::var(var.clone()));
-    }
-    m
-}
-
-/// **Stable** — `is_monic_univariate`
+/// **Stable** — Coefficient of `var^exp` (quotient by `var^exp` on matching terms).
+pub use crate::subresultant::coeff_wrt;
 pub fn is_monic_univariate(p: &Poly, var: &Var) -> bool {
     let d = univariate_degree(p, var);
     coeff_at(p, var, d) == Ratio::one()

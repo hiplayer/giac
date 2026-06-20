@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use giac_core::{bigint_to_i64, Expr, ExprArc, FuncKind, Ident};
+use giac_core::{bigint_to_i64, ratio_to_expr, Expr, ExprArc, FuncKind, Ident};
 use giac_poly::{
     biquadratic_res_conjugate_pairs, coeff_at, num_minus_t_derivative, tresultant_eliminate_x,
     univariate_degree, AlgebraicRt, Poly, Var,
@@ -392,17 +392,6 @@ fn integer_perfect_sqrt(n: &BigInt) -> Option<BigInt> {
         }
     }
     None
-}
-
-// **Pipeline private** — `Ratio<BigInt>` to `ExprArc`.
-fn ratio_to_expr(r: &Ratio<BigInt>) -> ExprArc {
-    if *r.denom() == BigInt::one() {
-        bigint_to_i64(r.numer())
-            .map(Expr::int)
-            .unwrap_or_else(|_| Arc::new(Expr::Rat(r.clone())))
-    } else {
-        Arc::new(Expr::Rat(r.clone()))
-    }
 }
 
 #[cfg(test)]

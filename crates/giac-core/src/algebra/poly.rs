@@ -1,6 +1,6 @@
 use std::sync::Arc;
 
-pub use giac_poly::{Monomial, Poly, Var};
+pub use giac_poly::{Monomial, Poly, PolyCoeff, Var};
 use giac_poly::PolyMod;
 use num_bigint::BigInt;
 use num_rational::Ratio;
@@ -8,65 +8,57 @@ use num_traits::{One, Zero};
 
 use crate::{EvalError, Expr, ExprArc, FuncKind, Ident};
 
+use super::alg_ext_c::canonicalize_to_algext_c;
+use super::poly_alg_coeff::AlgExtCPolyCoeff;
 use super::poly_conv::{
-    rational_poly_reject, ERR_POLY_ALG_NO_ALG_COEFF, ERR_POLY_ALG_UNIMPL,
+    rational_poly_reject, ERR_POLY_ALG_NO_ALG_COEFF,
 };
 
 pub use super::poly_conv::expr_contains_alg_coeff;
+
+/// Polynomial over algebraic coefficients (`Poly<AlgExtCPolyCoeff>`).
+pub type PolyAlgExt = Poly<AlgExtCPolyCoeff>;
 
 fn var(id: &Ident) -> Var {
     Arc::from(id.as_str())
 }
 
-/// Convert an expression to a polynomial over **ℚ** in its variables.
-///
-/// **Stable** — path A in [expr-poly-conversion.md](../../../../.doc/expr-poly-conversion.md).
-///
-/// Coefficients must be rational (`Int` / `Rat`). Algebraic constants (`AlgExt`, `AlgExtC`,
-/// concrete `rootof(...)`) are rejected with [`EvalError::TypeError`]; use
-/// [`expr_contains_alg_coeff`] to detect them and [`poly_alg_from_expr`] for the future
-/// `Poly<AlgExtC>` path.
-pub fn expr_to_poly(expr: &Expr) -> Result<Poly, EvalError> {
-    if expr_contains_alg_coeff(expr) {
-        return Err(rational_poly_reject(expr));
-    }
-    expr_to_poly_inner(expr)
+/// Ring operations for shared [`poly_from_expr_shape`] (H1).
+struct PolyExprRing<C: PolyCoeff> {
+    zero: fn() -> Poly<C>,
+    one: fn() -> Poly<C>,
+    var: fn(&Ident) -> Poly<C>,
+    add: fn(&Poly<C>, &Poly<C>) -> Result<Poly<C>, EvalError>,
+    mul: fn(&Poly<C>, &Poly<C>) -> Result<Poly<C>, EvalError>,
+    pow: fn(&Poly<C>, u64) -> Result<Poly<C>, EvalError>,
 }
 
-/// Lift an expression to a polynomial over algebraic coefficients (`Poly<AlgExtC>`).
-///
-/// **Stable (stub)** — path B; implementation blocked on P1-2/P1-4
-/// ([GIAC-poly-algext-backlog.md](../../../../.doc/issues/GIAC-poly-algext-backlog.md)).
-///
-/// Returns `NotImplemented` when the expression contains algebraic coefficients.
-/// Returns `TypeError` when the expression is purely rational (caller should use
-/// [`expr_to_poly`] instead).
-pub fn poly_alg_from_expr(expr: &Expr) -> Result<Poly, EvalError> {
-    if !expr_contains_alg_coeff(expr) {
-        return Err(EvalError::TypeError(ERR_POLY_ALG_NO_ALG_COEFF));
-    }
-    let _ = expr;
-    Err(EvalError::NotImplemented(ERR_POLY_ALG_UNIMPL))
-}
-
-fn expr_to_poly_inner(expr: &Expr) -> Result<Poly, EvalError> {
+/// Shared polynomial-shaped Expr descent (path A and path B).
+fn poly_from_expr_shape<C: PolyCoeff>(
+    expr: &Expr,
+    leaf: fn(&Expr) -> Result<C, EvalError>,
+    ring: &PolyExprRing<C>,
+) -> Result<Poly<C>, EvalError> {
     match expr {
-        Expr::Int(n) => Ok(Poly::constant(Ratio::from_integer(n.clone()))),
-        Expr::Rat(r) => Ok(Poly::constant(r.clone())),
-        Expr::Symbol(id) => Ok(Poly::var(var(id))),
+        Expr::Int(n) => Ok(Poly::ring_constant(leaf(&Expr::Int(n.clone()))?)),
+        Expr::Rat(r) => Ok(Poly::ring_constant(leaf(&Expr::Rat(r.clone()))?)),
+        Expr::AlgExt(_) | Expr::AlgExtC(_) | Expr::Func(FuncKind::RootOf, _) => {
+            Ok(Poly::ring_constant(leaf(expr)?))
+        }
+        Expr::Symbol(id) => Ok((ring.var)(id)),
         Expr::Add(terms) => terms
             .iter()
-            .map(|t| expr_to_poly_inner(t))
-            .try_fold(Poly::zero(), |acc, p| Ok(acc.add(&p?))),
+            .map(|t| poly_from_expr_shape(t, leaf, ring))
+            .try_fold((ring.zero)(), |acc, p| (ring.add)(&acc, &p?)),
         Expr::Mul(factors) => factors
             .iter()
-            .map(|f| expr_to_poly_inner(f))
-            .try_fold(Poly::one(), |acc, p| Ok(acc.mul(&p?))),
+            .map(|f| poly_from_expr_shape(f, leaf, ring))
+            .try_fold((ring.one)(), |acc, p| (ring.mul)(&acc, &p?)),
         Expr::Pow(base, exp) => {
-            let base_p = expr_to_poly_inner(base)?;
+            let base_p = poly_from_expr_shape(base, leaf, ring)?;
             if let Expr::Int(e) = exp.as_ref() {
                 let e_u = crate::num_util::bigint_to_poly_exponent(e)?;
-                return Ok(base_p.pow(e_u));
+                return (ring.pow)(&base_p, e_u);
             }
             Err(EvalError::TypeError("non-polynomial power"))
         }
@@ -74,19 +66,113 @@ fn expr_to_poly_inner(expr: &Expr) -> Result<Poly, EvalError> {
     }
 }
 
+fn rational_leaf(expr: &Expr) -> Result<Ratio<BigInt>, EvalError> {
+    match expr {
+        Expr::Int(n) => Ok(Ratio::from_integer(n.clone())),
+        Expr::Rat(r) => Ok(r.clone()),
+        _ => Err(EvalError::TypeError("not a rational polynomial coefficient")),
+    }
+}
+
+fn rational_poly_ring() -> PolyExprRing<Ratio<BigInt>> {
+    PolyExprRing {
+        zero: Poly::zero,
+        one: Poly::one,
+        var: |id| Poly::var(var(id)),
+        add: |a, b| Ok(a.add(b)),
+        mul: |a, b| Ok(a.mul(b)),
+        pow: |p, e| Ok(p.pow(e)),
+    }
+}
+
+fn algext_leaf(expr: &Expr) -> Result<AlgExtCPolyCoeff, EvalError> {
+    match expr {
+        Expr::Int(_) | Expr::Rat(_) | Expr::AlgExt(_) | Expr::AlgExtC(_)
+        | Expr::Func(FuncKind::RootOf, _) => {
+            Ok(AlgExtCPolyCoeff(canonicalize_to_algext_c(expr)?))
+        }
+        _ => Err(EvalError::TypeError("not a polynomial coefficient")),
+    }
+}
+
+fn algext_poly_ring() -> PolyExprRing<AlgExtCPolyCoeff> {
+    PolyExprRing {
+        zero: PolyAlgExt::ring_zero,
+        one: PolyAlgExt::ring_one,
+        var: |id| PolyAlgExt::ring_var(var(id)),
+        add: |a, b| a.try_add(b).map_err(Into::into),
+        mul: |a, b| a.try_mul(b).map_err(Into::into),
+        pow: |p, e| p.try_pow(e).map_err(Into::into),
+    }
+}
+
+/// Convert an expression to a polynomial over **ℚ** in its variables.
+///
+/// **Stable** — path A in [expr-poly-conversion.md](../../../../.doc/expr-poly-conversion.md).
+pub fn expr_to_poly(expr: &Expr) -> Result<Poly, EvalError> {
+    if expr_contains_alg_coeff(expr) {
+        return Err(rational_poly_reject(expr));
+    }
+    poly_from_expr_shape(expr, rational_leaf, &rational_poly_ring())
+}
+
+/// Lift an expression to a polynomial over algebraic coefficients.
+///
+/// **Stable** — path B in [expr-poly-conversion.md](../../../../.doc/expr-poly-conversion.md).
+pub fn poly_alg_from_expr(expr: &Expr) -> Result<PolyAlgExt, EvalError> {
+    if !expr_contains_alg_coeff(expr) {
+        return Err(EvalError::TypeError(ERR_POLY_ALG_NO_ALG_COEFF));
+    }
+    poly_from_expr_shape(expr, algext_leaf, &algext_poly_ring())
+}
+
+/// Assemble sparse terms into a sum expression (M1).
+fn assemble_poly_expr<I>(terms: I, zero: ExprArc) -> ExprArc
+where
+    I: IntoIterator<Item = (Monomial, ExprArc)>,
+{
+    let mut collected: Vec<(u64, ExprArc)> = terms
+        .into_iter()
+        .map(|(m, coeff)| (m.degree(), monomial_to_expr(&m, coeff)))
+        .collect();
+    if collected.is_empty() {
+        return zero;
+    }
+    collected.sort_by(|a, b| b.0.cmp(&a.0));
+    Expr::add(collected.into_iter().map(|(_, t)| t).collect())
+}
+
 /// **Stable** — `Poly` over ℚ → `Expr` (coefficients remain rational).
 pub fn poly_to_expr(poly: &Poly) -> ExprArc {
-    if poly.is_zero() {
-        return Expr::int(0);
+    assemble_poly_expr(
+        poly.terms
+            .iter()
+            .map(|(m, c)| (m.clone(), ratio_to_expr(c))),
+        Expr::int(0),
+    )
+}
+
+/// **Stable** — `Poly<AlgExtC>` → `Expr` (coefficients as `AlgExt` / `rootof` / `AlgExtC`).
+pub fn algext_poly_to_expr(poly: &PolyAlgExt) -> Result<ExprArc, EvalError> {
+    Ok(assemble_poly_expr(
+        poly.terms.iter().map(|(m, c)| {
+            (
+                m.clone(),
+                c.as_inner().to_expr().into(),
+            )
+        }),
+        Expr::int(0),
+    ))
+}
+
+/// **Stable** — univariate `Poly` → `poly1[coeffs…]` Expr (giac high-degree-first order).
+pub fn poly_to_poly1_expr(poly: &Poly, var: &Var) -> ExprArc {
+    let deg = giac_poly::univariate_degree(poly, var);
+    let mut coeffs = Vec::with_capacity((deg + 1) as usize);
+    for e in (0..=deg).rev() {
+        coeffs.push(ratio_to_expr(&giac_poly::coeff_at(poly, var, e)));
     }
-    let mut terms: Vec<(u64, ExprArc)> = Vec::new();
-    for (m, c) in &poly.terms {
-        let coeff = ratio_to_expr(c);
-        let term = monomial_to_expr(m, coeff);
-        terms.push((m.degree(), term));
-    }
-    terms.sort_by(|a, b| b.0.cmp(&a.0));
-    Expr::add(terms.into_iter().map(|(_, t)| t).collect())
+    Expr::func(FuncKind::Poly1, vec![Arc::new(Expr::Seq(coeffs))])
 }
 
 /// Format a polynomial over ℤ/pℤ with per-coefficient `(c % p)` display (giac style).
@@ -99,18 +185,19 @@ pub fn poly_mod_to_expr(pm: &PolyMod) -> ExprArc {
     if pm.is_zero() {
         return Arc::new(Expr::Mod(Expr::int(0), Expr::int(modulus)));
     }
-    let mut terms: Vec<(u64, ExprArc)> = Vec::new();
-    for (m, c) in &pm.terms {
-        let rem = giac_poly::smod(
-            c.val.to_string().parse().unwrap_or(0),
-            modulus,
-        );
-        let coeff = Arc::new(Expr::Mod(Expr::int(rem), Expr::int(modulus)));
-        let term = monomial_to_expr(m, coeff);
-        terms.push((m.degree(), term));
-    }
-    terms.sort_by(|a, b| b.0.cmp(&a.0));
-    Expr::add(terms.into_iter().map(|(_, t)| t).collect())
+    assemble_poly_expr(
+        pm.terms.iter().map(|(m, c)| {
+            let rem = giac_poly::smod(
+                c.val.to_string().parse().unwrap_or(0),
+                modulus,
+            );
+            (
+                m.clone(),
+                Arc::new(Expr::Mod(Expr::int(rem), Expr::int(modulus))),
+            )
+        }),
+        Arc::new(Expr::Mod(Expr::int(0), Expr::int(modulus))),
+    )
 }
 
 pub(crate) fn u64_to_expr_int(n: u64) -> ExprArc {
@@ -120,6 +207,7 @@ pub(crate) fn u64_to_expr_int(n: u64) -> ExprArc {
     }
 }
 
+/// **Stable** — `Ratio<BigInt>` → `Expr` (`Int` / `Rat`).
 pub fn ratio_to_expr(r: &Ratio<BigInt>) -> ExprArc {
     if r.is_zero() {
         Expr::int(0)
@@ -182,7 +270,7 @@ fn collect_vars(expr: &Expr, out: &mut Vec<Var>) {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::poly_conv::{ERR_ALG_EXT_COEFF, ERR_POLY_ALG_NO_ALG_COEFF, ERR_POLY_ALG_UNIMPL, ERR_ROOTOF_COEFF};
+    use super::super::poly_conv::{ERR_ALG_EXT_COEFF, ERR_POLY_ALG_NO_ALG_COEFF, ERR_ROOTOF_COEFF};
     use crate::AlgExtData;
 
     #[test]
@@ -291,25 +379,79 @@ mod tests {
         ));
     }
 
-    #[test]
-    fn poly_alg_from_expr_stub_for_alg_coeff() {
-        let min = Arc::new(Expr::Func(
+    fn sqrt2_minpoly() -> ExprArc {
+        Arc::new(Expr::Func(
             FuncKind::Poly1,
             vec![Arc::new(Expr::Seq(vec![
                 Expr::int(1),
                 Expr::int(0),
                 Expr::int(-2),
             ]))],
-        ));
-        let e = AlgExtData::from_rootof(
+        ))
+    }
+
+    fn sqrt2_expr() -> ExprArc {
+        AlgExtData::from_rootof(
             &Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])),
-            &min,
+            &sqrt2_minpoly(),
         )
         .unwrap()
-        .into_expr();
-        assert!(matches!(
-            poly_alg_from_expr(e.as_ref()),
-            Err(EvalError::NotImplemented(ERR_POLY_ALG_UNIMPL))
-        ));
+        .into_expr()
+    }
+
+    #[test]
+    fn poly_alg_from_expr_constant_rootof() {
+        let e = sqrt2_expr();
+        let p = poly_alg_from_expr(e.as_ref()).unwrap();
+        assert_eq!(p.degree(), 0);
+        let back = algext_poly_to_expr(&p).unwrap();
+        assert!(matches!(back.as_ref(), Expr::AlgExt(_)));
+    }
+
+    #[test]
+    fn poly_alg_from_expr_x_squared_minus_two_over_k() {
+        let e = Expr::add(vec![
+            Expr::pow(Expr::sym("x"), Expr::int(2)),
+            Expr::mul(vec![Expr::int(-1), sqrt2_expr()]),
+        ]);
+        let p = poly_alg_from_expr(&e).unwrap();
+        assert_eq!(p.degree(), 2);
+        let back = algext_poly_to_expr(&p).unwrap();
+        let round = poly_alg_from_expr(back.as_ref()).unwrap();
+        assert_eq!(p, round);
+    }
+
+    #[test]
+    fn flat_uni_algext_degree() {
+        use giac_poly::{FlatUni, MainVar};
+
+        let e = Expr::add(vec![
+            Expr::pow(Expr::sym("x"), Expr::int(2)),
+            sqrt2_expr(),
+        ]);
+        let p = poly_alg_from_expr(&e).unwrap();
+        let flat = FlatUni::new(p, MainVar::new("x"));
+        assert_eq!(flat.degree(), 2);
+    }
+
+    #[test]
+    fn poly_alg_from_expr_univariate_roundtrip() {
+        let e = Expr::add(vec![
+            Expr::pow(Expr::sym("x"), Expr::int(2)),
+            Expr::int(-2),
+            sqrt2_expr(),
+        ]);
+        let p = poly_alg_from_expr(&e).unwrap();
+        let back = algext_poly_to_expr(&p).unwrap();
+        let p2 = poly_alg_from_expr(back.as_ref()).unwrap();
+        assert_eq!(p, p2);
+    }
+
+    #[test]
+    fn poly_to_poly1_expr_quadratic() {
+        let x = Poly::var("x");
+        let p = x.pow(2).sub(&Poly::constant(Ratio::from_integer(2.into())));
+        let e = poly_to_poly1_expr(&p, &Var::from("x"));
+        assert!(matches!(e.as_ref(), Expr::Func(FuncKind::Poly1, _)));
     }
 }

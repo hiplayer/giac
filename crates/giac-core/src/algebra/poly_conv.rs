@@ -11,9 +11,6 @@ pub const ERR_ALG_EXT_COEFF: &str = "alg ext not allowed in rational polynomial"
 pub const ERR_ALG_EXT_C_COEFF: &str = "alg extc not allowed in rational polynomial";
 /// `expr_to_poly`: concrete `rootof(...)` subtree.
 pub const ERR_ROOTOF_COEFF: &str = "rootof not allowed in rational polynomial";
-/// `poly_alg_from_expr`: lift path blocked until `Poly<AlgExtC>` (P1).
-pub const ERR_POLY_ALG_UNIMPL: &str =
-    "poly_alg_from_expr requires Poly<AlgExtC> (P1); see .doc/expr-poly-conversion.md";
 /// `poly_alg_from_expr`: expression has no algebraic coefficients.
 pub const ERR_POLY_ALG_NO_ALG_COEFF: &str =
     "expression has no algebraic coefficients; use expr_to_poly for Poly over Q";

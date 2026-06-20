@@ -1,7 +1,6 @@
 //! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
 //! full module index in `.doc/giac-poly-api-stability.md`.
 //!
-//!
 use std::collections::BTreeMap;
 
 use num_bigint::BigInt;
@@ -11,42 +10,48 @@ use num_traits::{One, Signed, Zero};
 
 use crate::error::{PolyError, PolyResult};
 use crate::monomial::{Monomial, Var};
+use crate::poly_coeff::PolyCoeff;
 
-/// Sparse multivariate polynomial over ℚ.
+/// Sparse multivariate polynomial over coefficient ring `C`.
+///
+/// Default `C = Ratio<BigInt>` (ℚ) preserves the historical `Poly` API.
 #[derive(Clone, Debug, PartialEq)]
-pub struct Poly {
-    pub terms: BTreeMap<Monomial, Ratio<BigInt>>,
+pub struct Poly<C: PolyCoeff = Ratio<BigInt>> {
+    pub terms: BTreeMap<Monomial, C>,
 }
 
-impl Poly {
-    /// **Stable** — Poly zero
-    pub fn zero() -> Self {
+/// ℚ polynomial alias (same as default [`Poly`]).
+pub type PolyQ = Poly<Ratio<BigInt>>;
+
+impl<C: PolyCoeff> Poly<C> {
+    /// **Stable** — zero polynomial in ring `C`.
+    pub fn ring_zero() -> Self {
         Self {
             terms: BTreeMap::new(),
         }
     }
 
-    /// **Stable** — Poly one
-    pub fn one() -> Self {
+    /// **Stable** — unit polynomial in ring `C`.
+    pub fn ring_one() -> Self {
         let mut terms = BTreeMap::new();
-        terms.insert(Monomial::one(), Ratio::one());
+        terms.insert(Monomial::one(), C::coeff_one());
         Self { terms }
     }
 
-    /// **Stable** — Poly scalar constant
-    pub fn constant(c: Ratio<BigInt>) -> Self {
-        if c.is_zero() {
-            return Self::zero();
+    /// **Stable** — constant polynomial in ring `C`.
+    pub fn ring_constant(c: C) -> Self {
+        if c.coeff_is_zero() {
+            return Self::ring_zero();
         }
         let mut terms = BTreeMap::new();
         terms.insert(Monomial::one(), c);
         Self { terms }
     }
 
-    /// **Stable** — Poly univariate generator
-    pub fn var(name: impl Into<Var>) -> Self {
+    /// **Stable** — univariate generator in ring `C`.
+    pub fn ring_var(name: impl Into<Var>) -> Self {
         Self {
-            terms: [(Monomial::var(name), Ratio::one())].into(),
+            terms: [(Monomial::var(name), C::coeff_one())].into(),
         }
     }
 
@@ -61,24 +66,26 @@ impl Poly {
             && self
                 .terms
                 .get(&Monomial::one())
-                .is_some_and(|c| c.is_one())
+                .is_some_and(|c| c.coeff_is_one())
     }
 
     /// **Stable** — leading term by total degree
-    pub fn leading_term(&self) -> Option<(&Monomial, &Ratio<BigInt>)> {
+    pub fn leading_term(&self) -> Option<(&Monomial, &C)> {
         self.terms.iter().next_back()
     }
 
     /// Leading term in lex order induced by `var_order` (first variable is greatest).
     /// **Stable** — leading term with variable order
-    pub fn leading_term_lex(&self, var_order: &[Var]) -> Option<(&Monomial, &Ratio<BigInt>)> {
-        self.terms.iter().max_by(|(m1, _), (m2, _)| m1.cmp_lex(m2, var_order))
+    pub fn leading_term_lex(&self, var_order: &[Var]) -> Option<(&Monomial, &C)> {
+        self.terms
+            .iter()
+            .max_by(|(m1, _), (m2, _)| m1.cmp_lex(m2, var_order))
     }
 
     /// **Stable** — monomial × coefficient
-    pub fn term(monom: Monomial, coeff: Ratio<BigInt>) -> Self {
-        if coeff.is_zero() {
-            return Self::zero();
+    pub fn term(monom: Monomial, coeff: C) -> Self {
+        if coeff.coeff_is_zero() {
+            return Self::ring_zero();
         }
         Self {
             terms: [(monom, coeff)].into(),
@@ -90,53 +97,134 @@ impl Poly {
         self.terms.keys().map(Monomial::degree).max().unwrap_or(0)
     }
 
-    /// **Stable** — Poly addition
-    pub fn add(&self, other: &Self) -> Self {
+    /// **Stable** — univariate degree in `var` (independent of coefficient ring `C`).
+    pub fn degree_wrt(&self, var: &Var) -> u64 {
+        self.terms
+            .keys()
+            .filter_map(|m| {
+                let e = m.exp_of(var);
+                if e > 0 { Some(e) } else { None }
+            })
+            .max()
+            .unwrap_or(0)
+    }
+
+    /// **Stable** — fallible addition (required for non-ℚ coefficients).
+    pub fn try_add(&self, other: &Self) -> PolyResult<Self> {
         let mut terms = self.terms.clone();
         for (m, c) in &other.terms {
-            let entry = terms.entry(m.clone()).or_insert_with(Ratio::zero);
-            *entry += c;
-            if entry.is_zero() {
+            let entry = terms
+                .entry(m.clone())
+                .or_insert_with(C::coeff_zero);
+            *entry = entry.coeff_add(c)?;
+            if entry.coeff_is_zero() {
                 terms.remove(m);
             }
         }
-        Self { terms }
+        Ok(Self { terms })
     }
 
-    /// **Stable** — Poly subtraction
-    pub fn sub(&self, other: &Self) -> Self {
+    /// **Stable** — fallible subtraction
+    pub fn try_sub(&self, other: &Self) -> PolyResult<Self> {
         let mut terms = self.terms.clone();
         for (m, c) in &other.terms {
-            let entry = terms.entry(m.clone()).or_insert_with(Ratio::zero);
-            *entry -= c;
-            if entry.is_zero() {
+            let entry = terms
+                .entry(m.clone())
+                .or_insert_with(C::coeff_zero);
+            *entry = entry.coeff_sub(c)?;
+            if entry.coeff_is_zero() {
                 terms.remove(m);
             }
         }
-        Self { terms }
+        Ok(Self { terms })
     }
 
-    /// **Stable** — Poly negation
-    pub fn neg(&self) -> Self {
-        let terms = self
-            .terms
-            .iter()
-            .map(|(m, c)| (m.clone(), -c.clone()))
-            .collect();
-        Self { terms }
+    /// **Stable** — fallible negation
+    pub fn try_neg(&self) -> PolyResult<Self> {
+        let mut terms = BTreeMap::new();
+        for (m, c) in &self.terms {
+            terms.insert(m.clone(), c.coeff_neg()?);
+        }
+        Ok(Self { terms })
     }
 
-    /// **Stable** — Poly multiplication
-    pub fn mul(&self, other: &Self) -> Self {
+    /// **Stable** — fallible multiplication
+    pub fn try_mul(&self, other: &Self) -> PolyResult<Self> {
         let mut out = BTreeMap::new();
         for (m1, c1) in &self.terms {
             for (m2, c2) in &other.terms {
                 let m = m1.mul(m2);
-                *out.entry(m).or_insert_with(Ratio::zero) += c1 * c2;
+                let prod = c1.coeff_mul(c2)?;
+                let entry = out.entry(m).or_insert_with(C::coeff_zero);
+                *entry = entry.coeff_add(&prod)?;
             }
         }
-        out.retain(|_, c| !c.is_zero());
-        Self { terms: out }
+        out.retain(|_, c| !c.coeff_is_zero());
+        Ok(Self { terms: out })
+    }
+
+    /// **Stable** — fallible integer power
+    pub fn try_pow(&self, exp: u64) -> PolyResult<Self> {
+        if exp == 0 {
+            return Ok(Self::ring_one());
+        }
+        let mut result = Self::ring_one();
+        let mut base = self.clone();
+        let mut e = exp;
+        while e > 0 {
+            if e % 2 == 1 {
+                result = result.try_mul(&base)?;
+            }
+            base = base.try_mul(&base)?;
+            e /= 2;
+        }
+        Ok(result)
+    }
+}
+
+impl Poly {
+    /// **Stable** — Poly zero (ℚ)
+    pub fn zero() -> Self {
+        Self::ring_zero()
+    }
+
+    /// **Stable** — Poly one (ℚ)
+    pub fn one() -> Self {
+        Self::ring_one()
+    }
+
+    /// **Stable** — Poly scalar constant (ℚ)
+    pub fn constant(c: Ratio<BigInt>) -> Self {
+        Self::ring_constant(c)
+    }
+
+    /// **Stable** — Poly univariate generator (ℚ)
+    pub fn var(name: impl Into<Var>) -> Self {
+        Self::ring_var(name)
+    }
+
+    /// **Stable** — Poly addition (ℚ)
+    pub fn add(&self, other: &Self) -> Self {
+        self.try_add(other)
+            .expect("rational polynomial addition is infallible")
+    }
+
+    /// **Stable** — Poly subtraction
+    pub fn sub(&self, other: &Self) -> Self {
+        self.try_sub(other)
+            .expect("rational polynomial subtraction is infallible")
+    }
+
+    /// **Stable** — Poly negation
+    pub fn neg(&self) -> Self {
+        self.try_neg()
+            .expect("rational polynomial negation is infallible")
+    }
+
+    /// **Stable** — Poly multiplication
+    pub fn mul(&self, other: &Self) -> Self {
+        self.try_mul(other)
+            .expect("rational polynomial multiplication is infallible")
     }
 
     /// **Stable** — scale Poly by rational
@@ -154,20 +242,8 @@ impl Poly {
 
     /// **Stable** — Poly integer power
     pub fn pow(&self, exp: u64) -> Self {
-        if exp == 0 {
-            return Self::one();
-        }
-        let mut result = Self::one();
-        let mut base = self.clone();
-        let mut e = exp;
-        while e > 0 {
-            if e % 2 == 1 {
-                result = result.mul(&base);
-            }
-            base = base.mul(&base);
-            e /= 2;
-        }
-        result
+        self.try_pow(exp)
+            .expect("rational polynomial power is infallible")
     }
 
     /// **Stable** — integer content of Poly
@@ -282,7 +358,6 @@ impl Poly {
             }
         }
         if coeffs.is_empty() {
-            // fallback: evaluate by substitution in general case
             return Ratio::zero();
         }
         let max = *coeffs.keys().next_back().unwrap_or(&0);
@@ -364,6 +439,7 @@ pub fn abcuv(a: &Poly, b: &Poly, c: &Poly) -> PolyResult<(Poly, Poly)> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::poly_coeff::PolyCoeff;
 
     fn x() -> Poly {
         Poly::var("x")
@@ -392,5 +468,11 @@ mod tests {
         let a = Poly::one();
         let (u, v) = abcuv(&g, &gp, &a).unwrap();
         assert_eq!(u.mul(&g).add(&v.mul(&gp)), a);
+    }
+
+    #[test]
+    fn generic_poly_try_add_matches_q() {
+        let p = x().try_add(&Poly::one()).unwrap();
+        assert_eq!(p, x().add(&Poly::one()));
     }
 }

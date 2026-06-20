@@ -9,7 +9,7 @@
 
 use std::sync::Arc;
 
-use giac_core::{bigint_to_i64, expr_to_poly, poly_to_expr, EvalError, Expr, ExprArc, FuncKind, Ident};
+use giac_core::{bigint_to_i64, expr_to_poly, poly_error_compat, poly_to_expr, EvalError, Expr, ExprArc, FuncKind, Ident};
 use giac_poly::{
     as_perfect_power, coeff_at, partfrac_rational_terms, substitute_univariate, try_linear_power,
     univariate_degree, Poly, PolyError, Var,
@@ -65,7 +65,7 @@ fn integrate_rational_partfrac(
     var: &Ident,
 ) -> Result<ExprArc, EvalError> {
     let v = Var::from(var.as_str());
-    let (poly_part, terms) = partfrac_rational_terms(num, den, &v).map_err(poly_err)?;
+    let (poly_part, terms) = partfrac_rational_terms(num, den, &v).map_err(poly_error_compat)?;
     let mut parts = Vec::new();
     if let Some(q) = poly_part {
         parts.push(integrate(&poly_to_expr(&q), var)?);
@@ -146,7 +146,7 @@ fn integrate_with_hermite(
     var: &Var,
     x: &Ident,
 ) -> Result<ExprArc, EvalError> {
-    let (terms, rem, mult) = hermite_reduce(num, base, exp, var).map_err(poly_err)?;
+    let (terms, rem, mult) = hermite_reduce(num, base, exp, var).map_err(poly_error_compat)?;
     let mut parts = Vec::new();
     for t in terms {
         parts.push(integrate_hermite_term(&t, var, x)?);
@@ -543,15 +543,6 @@ fn ratio_to_expr(r: &Ratio<BigInt>) -> ExprArc {
         )
     } else {
         Arc::new(Expr::Rat(r.clone()))
-    }
-}
-
-// **Pipeline private** — map `PolyError` to `EvalError`.
-fn poly_err(e: PolyError) -> EvalError {
-    match e {
-        PolyError::NotImplemented(s) => EvalError::NotImplemented(s),
-        PolyError::TypeError(s) => EvalError::TypeError(s),
-        PolyError::DivisionByZero => EvalError::TypeError("division by zero"),
     }
 }
 

@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
 use giac_core::{
-    eval, bigint_to_i64, Context, EvalError, Expr, ExprArc, FuncKind, Ident, RelOp,
+    eval, bigint_to_i64, ratio_to_expr, Context, EvalError, Expr, ExprArc, FuncKind, Ident, RelOp,
 };
 use num_bigint::BigInt;
 use num_rational::Ratio;
@@ -364,16 +364,6 @@ fn trig_rat_times_x(kind: FuncKind, r: &Ratio<BigInt>, indep: &Ident) -> ExprArc
 
 fn const_sym(n: u8) -> ExprArc {
     Expr::sym(&format!("c{n}"))
-}
-
-fn ratio_to_expr(r: &Ratio<BigInt>) -> ExprArc {
-    if r.is_integer() {
-        Expr::int(
-            bigint_to_i64(r.numer()).unwrap_or(0),
-        )
-    } else {
-        Arc::new(Expr::Rat(r.clone()))
-    }
 }
 
 fn ratio_sqrt(r: &Ratio<BigInt>) -> Result<Ratio<BigInt>, EvalError> {

@@ -1,7 +1,9 @@
-//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
-//! full module index in `.doc/giac-poly-api-stability.md`.
+//! Monomial exponent vectors and variable names for [`super::poly::Poly<C>`](super::poly::Poly).
 //!
-//!
+//! **P1-5:** [`Var`] and [`Monomial`] are **coefficient-ring independent**. Upgrading
+//! `Poly<Ratio<BigInt>>` → `Poly<C: PolyCoeff>` changes only the coefficient map
+//! (`BTreeMap<Monomial, C>`); exponent vectors, lex order, and `MainVar` tagging are unchanged.
+//! See [giac-poly-p1-representation.md](../../../../.doc/giac-poly-p1-representation.md).
 use std::collections::BTreeMap;
 use std::sync::Arc;
 

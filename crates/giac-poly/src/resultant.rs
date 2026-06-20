@@ -40,16 +40,17 @@ pub fn resultant(a: &Poly, b: &Poly, var: &Var) -> PolyResult<Poly> {
     Ok(Poly::constant(det))
 }
 
+/// **Stable** — ascending univariate coefficient vector in ℚ[var].
+pub fn univariate_coeffs_ascending(p: &Poly, var: &Var) -> Vec<Ratio<BigInt>> {
+    let deg = univariate_degree(p, var);
+    (0..=deg).map(|e| coeff_at(p, var, e)).collect()
+}
+
 // **Pipeline private** — `univariate_coefficients`
 fn univariate_coefficients(p: &Poly, var: &Var, degree: u64) -> Vec<Ratio<BigInt>> {
-    let mut coeffs = vec![Ratio::zero(); (degree + 1) as usize];
-    for (m, c) in &p.terms {
-        if m.is_const() {
-            coeffs[0] += c;
-        } else if m.iter().all(|(v, _)| v == var) {
-            coeffs[m.exp_of(var) as usize] += c;
-        }
-    }
+    let mut coeffs = univariate_coeffs_ascending(p, var);
+    coeffs.resize((degree + 1) as usize, Ratio::zero());
+    coeffs.truncate((degree + 1) as usize);
     coeffs
 }
 
@@ -133,14 +134,7 @@ pub fn coeff_at(p: &Poly, var: &Var, exp: u64) -> Ratio<BigInt> {
 
 /// **Stable** — degree w.r.t. var
 pub fn univariate_degree(p: &Poly, var: &Var) -> u64 {
-    p.terms
-        .keys()
-        .filter_map(|m| {
-            let e = m.exp_of(var);
-            if e > 0 { Some(e) } else { None }
-        })
-        .max()
-        .unwrap_or(0)
+    p.degree_wrt(var)
 }
 
 // **Pipeline private** — `univariate_leading_coeff`

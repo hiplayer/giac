@@ -14,7 +14,7 @@ use giac_poly::Poly;
 
 use crate::ifactor::ifactor;
 use crate::expand::normal;
-use giac_core::{expr_to_poly, poly_to_expr, ratio_to_expr};
+use giac_core::{expr_to_poly, poly_to_expr, poly_to_poly1_expr, ratio_to_expr};
 
 /// **Stable (bounded)** — structural (`Mul`/`Pow`/`Frac`) then polynomial factorization.
 ///
@@ -140,7 +140,7 @@ fn try_factor_quadratic_rootof(p: &Poly) -> Option<Vec<ExprArc>> {
     if disc.is_zero() || ratio_perfect_sqrt(&disc).is_some() {
         return None;
     }
-    let minpoly = poly1_from_univariate(p, var);
+    let minpoly = poly_to_poly1_expr(p, var);
     let pos = giac_core::AlgExtData::from_rootof(
         &Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])),
         &minpoly,
@@ -165,14 +165,7 @@ fn try_factor_quadratic_rootof(p: &Poly) -> Option<Vec<ExprArc>> {
 }
 
 // **Pipeline private** — Poly → Poly1 minpoly Expr
-fn poly1_from_univariate(poly: &Poly, var: &giac_poly::Var) -> ExprArc {
-    let deg = univariate_degree(poly, var);
-    let mut coeffs = Vec::with_capacity((deg + 1) as usize);
-    for e in (0..=deg).rev() {
-        coeffs.push(poly_to_expr(&Poly::constant(coeff_at(poly, var, e))));
-    }
-    Expr::func(FuncKind::Poly1, vec![Arc::new(Expr::Seq(coeffs))])
-}
+// (uses giac_core::poly_to_poly1_expr)
 
 // **Temporary** — Partial internal: `ctx.with_sqrt` quadratic sqrt factors.
 fn try_factor_quadratic_sqrt(p: &Poly) -> Option<Vec<ExprArc>> {

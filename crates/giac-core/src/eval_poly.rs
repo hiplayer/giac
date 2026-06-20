@@ -15,7 +15,7 @@ use crate::error::EvalError;
 use crate::expr::{Expr, ExprArc};
 use crate::ident::Ident;
 
-use crate::algebra::poly::{expr_to_poly, poly_to_expr, vars_from_expr};
+use crate::algebra::poly::{expr_to_poly, poly_to_expr, ratio_to_expr, vars_from_expr};
 
 pub fn eval_quo(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc, EvalError> {
     if args.len() != 2 {
@@ -23,7 +23,7 @@ pub fn eval_quo(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc, Eval
     }
     let a = expr_to_poly(args[0].as_ref())?;
     let b = expr_to_poly(args[1].as_ref())?;
-    Ok(poly_to_expr(&quo(&a, &b).map_err(poly_err)?))
+    Ok(poly_to_expr(&quo(&a, &b).map_err(EvalError::from)?))
 }
 
 pub fn eval_rem(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc, EvalError> {
@@ -32,7 +32,7 @@ pub fn eval_rem(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc, Eval
     }
     let a = expr_to_poly(args[0].as_ref())?;
     let b = expr_to_poly(args[1].as_ref())?;
-    Ok(poly_to_expr(&rem(&a, &b).map_err(poly_err)?))
+    Ok(poly_to_expr(&rem(&a, &b).map_err(EvalError::from)?))
 }
 
 pub fn eval_content(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc, EvalError> {
@@ -83,7 +83,7 @@ pub fn eval_abcuv(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc, Ev
     let a = expr_to_poly(args[0].as_ref())?;
     let b = expr_to_poly(args[1].as_ref())?;
     let c = expr_to_poly(args[2].as_ref())?;
-    let (u, v) = abcuv(&a, &b, &c).map_err(poly_err)?;
+    let (u, v) = abcuv(&a, &b, &c).map_err(EvalError::from)?;
     Ok(Arc::new(Expr::Seq(vec![poly_to_expr(&u), poly_to_expr(&v)])))
 }
 
@@ -141,7 +141,7 @@ pub fn eval_resultant(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc
     let a = expr_to_poly(args[0].as_ref())?;
     let b = expr_to_poly(args[1].as_ref())?;
     let var = ident_from_expr(args[2].as_ref())?;
-    let r = resultant(&a, &b, &Var::from(var.as_str())).map_err(poly_err)?;
+    let r = resultant(&a, &b, &Var::from(var.as_str())).map_err(EvalError::from)?;
     Ok(poly_to_expr(&r))
 }
 
@@ -151,7 +151,7 @@ pub fn eval_roots(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc, Ev
     }
     let p = expr_to_poly(args[0].as_ref())?;
     let var = ident_from_expr(args[1].as_ref())?;
-    let rs = roots(&p, &Var::from(var.as_str())).map_err(poly_err)?;
+    let rs = roots(&p, &Var::from(var.as_str())).map_err(EvalError::from)?;
     Ok(Arc::new(Expr::List(rs.into_iter().map(|p| poly_to_expr(&p)).collect())))
 }
 
@@ -161,7 +161,7 @@ pub fn eval_modp(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc, Eva
     }
     let p = expr_to_poly(args[0].as_ref())?;
     let m = as_i64(args[1].as_ref())?;
-    let pm = modp(&p, m).map_err(poly_err)?;
+    let pm = modp(&p, m).map_err(EvalError::from)?;
     Ok(poly_from_polymod_inner(&pm))
 }
 
@@ -185,7 +185,7 @@ pub fn eval_chinrem(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc, 
     }
     let residues = list_to_polys(args[0].as_ref())?;
     let moduli = list_to_polys(args[1].as_ref())?;
-    let (r, m) = chinrem_lists(&residues, &moduli).map_err(poly_err)?;
+    let (r, m) = chinrem_lists(&residues, &moduli).map_err(EvalError::from)?;
     Ok(Arc::new(Expr::List(vec![poly_to_expr(&r), poly_to_expr(&m)])))
 }
 
@@ -196,7 +196,7 @@ pub fn eval_partfrac(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc,
     let var = ident_from_expr(args[1].as_ref())?;
     let var_poly = Var::from(var.as_str());
     let (num, den) = rational_num_den(args[0].as_ref())?;
-    let (poly_part, terms) = partfrac_rational_terms(&num, &den, &var_poly).map_err(poly_err)?;
+    let (poly_part, terms) = partfrac_rational_terms(&num, &den, &var_poly).map_err(EvalError::from)?;
     let mut out = Vec::new();
     if let Some(q) = poly_part {
         out.push(poly_to_expr(&q));
@@ -246,15 +246,15 @@ pub fn eval_mod_gcd(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc, 
     if m != m2 {
         return Err(EvalError::TypeError("modulus mismatch"));
     }
-    let pa = modp(&expr_to_poly(a.as_ref())?, m).map_err(poly_err)?;
-    let pb = modp(&expr_to_poly(b.as_ref())?, m).map_err(poly_err)?;
-    let g = pa.gcd(&pb).map_err(poly_err)?;
+    let pa = modp(&expr_to_poly(a.as_ref())?, m).map_err(EvalError::from)?;
+    let pb = modp(&expr_to_poly(b.as_ref())?, m).map_err(EvalError::from)?;
+    let g = pa.gcd(&pb).map_err(EvalError::from)?;
     Ok(poly_from_polymod(&g))
 }
 
 pub fn eval_factor_mod(args: &[ExprArc], modulus: i64, _ctx: &crate::Context) -> Result<ExprArc, EvalError> {
     let p = expr_to_poly(args[0].as_ref())?;
-    let factored = factor_poly_mod(&p, modulus).map_err(poly_err)?;
+    let factored = factor_poly_mod(&p, modulus).map_err(EvalError::from)?;
     let inner = poly_to_expr(&factored);
     Ok(Arc::new(Expr::Mod(
         inner,
@@ -282,14 +282,6 @@ fn poly_from_polymod_inner(pm: &giac_poly::PolyMod) -> ExprArc {
         terms.insert(mon.clone(), Ratio::from_integer(c.val.clone()));
     }
     poly_to_expr(&Poly { terms })
-}
-
-fn poly_err(e: giac_poly::PolyError) -> EvalError {
-    match e {
-        giac_poly::PolyError::DivisionByZero => EvalError::DivisionByZero,
-        giac_poly::PolyError::TypeError(m) => EvalError::TypeError(m),
-        giac_poly::PolyError::NotImplemented(m) => EvalError::NotImplemented(m),
-    }
 }
 
 fn seq_to_vars(e: &Expr) -> Result<Vec<Var>, EvalError> {
@@ -332,14 +324,6 @@ fn as_rat(e: &Expr) -> Result<Ratio<BigInt>, EvalError> {
         Expr::Int(n) => Ok(Ratio::from_integer(n.clone())),
         Expr::Rat(r) => Ok(r.clone()),
         _ => Err(EvalError::TypeError("numeric expected")),
-    }
-}
-
-fn ratio_to_expr(r: &Ratio<BigInt>) -> ExprArc {
-    if r.denom().is_one() {
-        Expr::int(r.numer().to_string().parse().unwrap_or(0))
-    } else {
-        Arc::new(Expr::Rat(r.clone()))
     }
 }
 

@@ -238,14 +238,7 @@ pub fn coords_to_expr(coords: &[Ratio<BigInt>]) -> Result<Vec<ExprArc>, EvalErro
 }
 
 pub fn ratio_to_expr_arc(r: &Ratio<BigInt>) -> ExprArc {
-    if r.denom() == &BigInt::one() {
-        Expr::int(r.numer().to_string().parse().unwrap_or(0))
-    } else {
-        Expr::rat(
-            r.numer().to_string().parse().unwrap_or(0),
-            r.denom().to_string().parse().unwrap_or(1),
-        )
-    }
+    crate::ratio_to_expr(r)
 }
 
 pub fn min_poly_exprs_to_q(min_poly: &[ExprArc]) -> Result<CoordsQ, EvalError> {

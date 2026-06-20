@@ -10,6 +10,7 @@ mod error;
 mod exp;
 mod monomial;
 mod poly;
+mod poly_coeff;
 mod modint;
 mod modular;
 mod resultant;
@@ -19,16 +20,17 @@ mod ops;
 mod partfrac;
 
 pub use nested::{
-    BivariateEmbed, CoeffRingPoly, FlatUni, MainVar, MultivariatePoly, PrimitivePart, TnEmbed,
-    UnivariateIn, UnivariateOver, UnivariatePoly,
+    BivariateEmbed, CoeffRingPoly, FlatUni, FlatUniQ, MainVar, MultivariatePoly, PrimitivePart,
+    TnEmbed, UnivariateIn, UnivariateOver, UnivariatePoly, UnivariatePolyQ,
 };
 pub use factor::GoodEval;
 pub use error::{PolyError, PolyResult};
 pub use monomial::{Monomial, Var};
-pub use poly::{Poly, abcuv, egcd, quo, rem, simp2};
+pub use poly::{Poly, PolyQ, abcuv, egcd, quo, rem, simp2};
+pub use poly_coeff::PolyCoeff;
 pub use modint::{ModInt, irem, smod};
 pub use modular::{PolyMod, modp};
-pub use resultant::{coeff_at, resultant, roots, univariate_degree};
+pub use resultant::{coeff_at, resultant, roots, univariate_coeffs_ascending, univariate_degree};
 pub use factor::{
     as_perfect_power, factor_into, factor_mod_irreducibles, factor_poly, factor_poly_mod,
     quadratic_sqrt_factor_exprs, ratio_perfect_sqrt, try_linear_power, vars_in,
