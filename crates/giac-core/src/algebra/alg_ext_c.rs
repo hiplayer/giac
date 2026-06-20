@@ -298,23 +298,7 @@ fn expr_to_field_element(e: &ExprArc) -> Result<(Arc<ExtensionField>, CoordsQ), 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::expr::Expr;
-
-    fn sqrt2_algext() -> AlgExtData {
-        let min = Arc::new(Expr::Func(
-            FuncKind::Poly1,
-            vec![Arc::new(Expr::Seq(vec![
-                Expr::int(1),
-                Expr::int(0),
-                Expr::int(-2),
-            ]))],
-        ));
-        AlgExtData::from_rootof(
-            &Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])),
-            &min,
-        )
-        .unwrap()
-    }
+    use crate::algebra::test_fixtures::sqrt2_algext;
 
     #[test]
     fn algext_c_from_algext_is_real() {

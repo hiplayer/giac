@@ -7,3 +7,6 @@ pub mod field_arith;
 pub mod poly;
 pub mod poly_alg_coeff;
 pub mod poly_conv;
+
+#[cfg(test)]
+pub mod test_fixtures;

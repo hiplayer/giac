@@ -91,26 +91,14 @@ mod tests {
 
     use giac_poly::PolyCoeff;
 
-    use crate::expr::{Expr, FuncKind};
-    use crate::AlgExtData;
+    use crate::algebra::test_fixtures::sqrt2_algext;
+    use crate::expr::Expr;
 
     use super::*;
 
     #[test]
     fn algext_c_coeff_mul_sqrt2() {
-        let min = Arc::new(Expr::Func(
-            FuncKind::Poly1,
-            vec![Arc::new(Expr::Seq(vec![
-                Expr::int(1),
-                Expr::int(0),
-                Expr::int(-2),
-            ]))],
-        ));
-        let alpha = AlgExtData::from_rootof(
-            &Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])),
-            &min,
-        )
-        .unwrap();
+        let alpha = sqrt2_algext();
         let z = AlgExtCPolyCoeff::from(AlgExtCData::from_alg_ext(&alpha).unwrap());
         let sq = z.coeff_mul(&z).unwrap();
         let two = AlgExtCPolyCoeff::from(

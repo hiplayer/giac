@@ -22,8 +22,10 @@ use crate::expr::{Expr, ExprArc};
 use super::field_arith::{
     apply_linear_map, char_poly_matrix, coords_all_zero, embed_in_square_extension,
     generator_coords, kron_left, mat_mul, mult_matrix_of_element, pad_to_len, poly_add,
-    poly_degree, poly_inv_mod, poly_mul, poly_neg, poly_reduce, poly_sub, trim_leading_zero,
-    CoordsQ,
+    poly_degree, poly_inv_mod, poly_mul, poly_neg, poly_reduce, poly_sub,
+    poly_add_with_coeffs_in_field, poly_inv_mod_with_coeffs_in_field,
+    poly_mul_with_coeffs_in_field, poly_neg_with_coeffs_in_field,
+    poly_reduce_with_coeffs_in_field, ParentCoeffRing, trim_leading_zero, CoordsQ,
 };
 
 static FIELD_ID: AtomicU64 = AtomicU64::new(1);
@@ -94,6 +96,21 @@ impl PartialEq for ExtensionField {
 }
 
 impl Eq for ExtensionField {}
+
+macro_rules! parent_coeff_ring {
+    ($parent:ident) => {
+        ParentCoeffRing {
+            zero: $parent.zero_coords(),
+            one: $parent.one_coords(),
+            add: &|a, b| $parent.element_add_primitive(a, b),
+            sub: &|a, b| $parent.element_sub_primitive(a, b),
+            mul: &|a, b| $parent.element_mul_primitive(a, b),
+            neg: &|a| $parent.element_neg_primitive(a),
+            inv: &|a| $parent.element_inv_primitive(a),
+            is_zero: &|a| $parent.element_is_zero(a),
+        }
+    };
+}
 
 impl ExtensionField {
     fn is_base(&self) -> bool {
@@ -236,6 +253,19 @@ impl ExtensionField {
     }
 
     pub fn one_coords(&self) -> CoordsQ {
+        if let Some(parent) = self.parent_field.as_ref() {
+            if !parent.is_base() {
+                let pd = parent.dimension();
+                let mut v = self.zero_coords();
+                let parent_one = parent.one_coords();
+                for i in 0..pd {
+                    if i < parent_one.len() {
+                        v[i] = parent_one[i].clone();
+                    }
+                }
+                return v;
+            }
+        }
         let mut v = self.zero_coords();
         if let Some(c) = v.last_mut() {
             *c = Ratio::one();
@@ -244,6 +274,20 @@ impl ExtensionField {
     }
 
     pub(crate) fn generator_coords(&self) -> CoordsQ {
+        if let Some(parent) = self.parent_field.as_ref() {
+            if !parent.is_base() {
+                let pd = parent.dimension();
+                let mut v = self.zero_coords();
+                let one = parent.one_coords();
+                let block1 = pd;
+                for i in 0..pd {
+                    if block1 + i < v.len() && i < one.len() {
+                        v[block1 + i] = one[i].clone();
+                    }
+                }
+                return v;
+            }
+        }
         let mut v = self.zero_coords();
         if !v.is_empty() {
             v[0] = Ratio::one();
@@ -251,7 +295,108 @@ impl ExtensionField {
         v
     }
 
+    fn uses_tower_arithmetic(&self) -> bool {
+        self.parent_field
+            .as_ref()
+            .is_some_and(|parent| !parent.is_base())
+    }
+
+    /// Embed a rational constant into this field (constant term at layer 0).
+    pub fn embed_rational(&self, r: &Ratio<BigInt>) -> CoordsQ {
+        if self.is_base() {
+            return vec![r.clone()];
+        }
+        if let Some(parent) = self.parent_field.as_ref() {
+            if !parent.is_base() {
+                let pd = parent.dimension();
+                let block0 = parent.embed_rational(r);
+                let mut v = self.zero_coords();
+                for i in 0..pd {
+                    if i < block0.len() && i < v.len() {
+                        v[i] = block0[i].clone();
+                    }
+                }
+                return v;
+            }
+        }
+        let mut v = self.zero_coords();
+        if let Some(c) = v.last_mut() {
+            *c = r.clone();
+        }
+        v
+    }
+
+    fn layer_ext_degree(&self) -> Result<usize, EvalError> {
+        match self.tower.as_ref() {
+            ExtensionTower::Adj { ext_degree, .. } => Ok(*ext_degree),
+            ExtensionTower::Base => Err(EvalError::TypeError("expected extension field")),
+        }
+    }
+
+    fn layer_minpoly_parent_coeffs(&self, parent: &ExtensionField) -> Result<Vec<CoordsQ>, EvalError> {
+        let min_poly_q = match self.tower.as_ref() {
+            ExtensionTower::Adj { min_poly_q, .. } => min_poly_q,
+            ExtensionTower::Base => {
+                return Err(EvalError::TypeError("expected extension field"));
+            }
+        };
+        Ok(min_poly_q
+            .iter()
+            .map(|r| parent.embed_rational(r))
+            .collect())
+    }
+
+    fn unflatten_layer_blocks(&self, v: &CoordsQ) -> Result<Vec<CoordsQ>, EvalError> {
+        let parent = self
+            .parent_field
+            .as_ref()
+            .ok_or(EvalError::TypeError("tower field without parent"))?;
+        let pd = parent.dimension();
+        let e = self.layer_ext_degree()?;
+        let v = pad_to_len(v, self.dimension());
+        let mut blocks = Vec::with_capacity(e);
+        for j in 0..e {
+            blocks.push(v[j * pd..(j + 1) * pd].to_vec());
+        }
+        // Coords are u^0..u^{e-1}; poly ops use leading coeff first.
+        blocks.reverse();
+        Ok(blocks)
+    }
+
+    fn flatten_layer_element(&self, blocks: &[CoordsQ]) -> Result<CoordsQ, EvalError> {
+        let parent = self
+            .parent_field
+            .as_ref()
+            .ok_or(EvalError::TypeError("tower field without parent"))?;
+        let mut blocks = blocks.to_vec();
+        blocks.reverse();
+        Ok(pad_to_len(
+            &flatten_layer_blocks(&blocks, parent.dimension()),
+            self.dimension(),
+        ))
+    }
+
     pub fn element_add(&self, a: &CoordsQ, b: &CoordsQ) -> Result<CoordsQ, EvalError> {
+        if self.uses_tower_arithmetic() {
+            self.element_add_tower(a, b)
+        } else {
+            self.element_add_primitive(a, b)
+        }
+    }
+
+    fn element_add_tower(&self, a: &CoordsQ, b: &CoordsQ) -> Result<CoordsQ, EvalError> {
+        let parent = self
+            .parent_field
+            .as_ref()
+            .ok_or(EvalError::TypeError("tower field without parent"))?;
+        let ring = parent_coeff_ring!(parent);
+        let blocks_a = self.unflatten_layer_blocks(a)?;
+        let blocks_b = self.unflatten_layer_blocks(b)?;
+        let sum = poly_add_with_coeffs_in_field(&blocks_a, &blocks_b, &ring)?;
+        self.flatten_layer_element(&sum)
+    }
+
+    fn element_add_primitive(&self, a: &CoordsQ, b: &CoordsQ) -> Result<CoordsQ, EvalError> {
         self.ensure_same_field_len(a)?;
         self.ensure_same_field_len(b)?;
         if self.is_base() {
@@ -264,6 +409,32 @@ impl ExtensionField {
     }
 
     pub fn element_sub(&self, a: &CoordsQ, b: &CoordsQ) -> Result<CoordsQ, EvalError> {
+        if self.uses_tower_arithmetic() {
+            self.element_sub_tower(a, b)
+        } else {
+            self.element_sub_primitive(a, b)
+        }
+    }
+
+    fn element_sub_tower(&self, a: &CoordsQ, b: &CoordsQ) -> Result<CoordsQ, EvalError> {
+        let parent = self
+            .parent_field
+            .as_ref()
+            .ok_or(EvalError::TypeError("tower field without parent"))?;
+        let ring = parent_coeff_ring!(parent);
+        let blocks_a = self.unflatten_layer_blocks(a)?;
+        let blocks_b = self.unflatten_layer_blocks(b)?;
+        let mut diff = Vec::with_capacity(blocks_a.len().max(blocks_b.len()));
+        let d = blocks_a.len().max(blocks_b.len());
+        for i in 0..d {
+            let ai = blocks_a.get(i).unwrap_or(&ring.zero);
+            let bi = blocks_b.get(i).unwrap_or(&ring.zero);
+            diff.push((ring.sub)(ai, bi)?);
+        }
+        self.flatten_layer_element(&diff)
+    }
+
+    fn element_sub_primitive(&self, a: &CoordsQ, b: &CoordsQ) -> Result<CoordsQ, EvalError> {
         self.ensure_same_field_len(a)?;
         self.ensure_same_field_len(b)?;
         if self.is_base() {
@@ -276,6 +447,25 @@ impl ExtensionField {
     }
 
     pub fn element_neg(&self, a: &CoordsQ) -> Result<CoordsQ, EvalError> {
+        if self.uses_tower_arithmetic() {
+            self.element_neg_tower(a)
+        } else {
+            self.element_neg_primitive(a)
+        }
+    }
+
+    fn element_neg_tower(&self, a: &CoordsQ) -> Result<CoordsQ, EvalError> {
+        let parent = self
+            .parent_field
+            .as_ref()
+            .ok_or(EvalError::TypeError("tower field without parent"))?;
+        let ring = parent_coeff_ring!(parent);
+        let blocks = self.unflatten_layer_blocks(a)?;
+        let neg = poly_neg_with_coeffs_in_field(&blocks, &ring)?;
+        self.flatten_layer_element(&neg)
+    }
+
+    fn element_neg_primitive(&self, a: &CoordsQ) -> Result<CoordsQ, EvalError> {
         self.ensure_same_field_len(a)?;
         if self.is_base() {
             return Ok(vec![-pad_to_len(a, 1)[0].clone()]);
@@ -287,6 +477,28 @@ impl ExtensionField {
     }
 
     pub fn element_mul(&self, a: &CoordsQ, b: &CoordsQ) -> Result<CoordsQ, EvalError> {
+        if self.uses_tower_arithmetic() {
+            self.element_mul_tower(a, b)
+        } else {
+            self.element_mul_primitive(a, b)
+        }
+    }
+
+    fn element_mul_tower(&self, a: &CoordsQ, b: &CoordsQ) -> Result<CoordsQ, EvalError> {
+        let parent = self
+            .parent_field
+            .as_ref()
+            .ok_or(EvalError::TypeError("tower field without parent"))?;
+        let ring = parent_coeff_ring!(parent);
+        let modulus = self.layer_minpoly_parent_coeffs(parent)?;
+        let blocks_a = self.unflatten_layer_blocks(a)?;
+        let blocks_b = self.unflatten_layer_blocks(b)?;
+        let prod = poly_mul_with_coeffs_in_field(&blocks_a, &blocks_b, &ring)?;
+        let reduced = poly_reduce_with_coeffs_in_field(&prod, &modulus, &ring)?;
+        self.flatten_layer_element(&reduced)
+    }
+
+    fn element_mul_primitive(&self, a: &CoordsQ, b: &CoordsQ) -> Result<CoordsQ, EvalError> {
         self.ensure_same_field_len(a)?;
         self.ensure_same_field_len(b)?;
         if self.is_base() {
@@ -299,6 +511,29 @@ impl ExtensionField {
     }
 
     pub fn element_inv(&self, a: &CoordsQ) -> Result<CoordsQ, EvalError> {
+        if self.uses_tower_arithmetic() {
+            self.element_inv_tower(a)
+        } else {
+            self.element_inv_primitive(a)
+        }
+    }
+
+    fn element_inv_tower(&self, a: &CoordsQ) -> Result<CoordsQ, EvalError> {
+        let parent = self
+            .parent_field
+            .as_ref()
+            .ok_or(EvalError::TypeError("tower field without parent"))?;
+        if coords_all_zero(a) {
+            return Err(EvalError::DivisionByZero);
+        }
+        let ring = parent_coeff_ring!(parent);
+        let modulus = self.layer_minpoly_parent_coeffs(parent)?;
+        let blocks = self.unflatten_layer_blocks(a)?;
+        let inv = poly_inv_mod_with_coeffs_in_field(&blocks, &modulus, &ring)?;
+        self.flatten_layer_element(&inv)
+    }
+
+    fn element_inv_primitive(&self, a: &CoordsQ) -> Result<CoordsQ, EvalError> {
         self.ensure_same_field_len(a)?;
         if self.is_base() {
             let x = pad_to_len(a, 1)[0].clone();
@@ -623,6 +858,17 @@ pub(crate) fn common_cache_len_for_test() -> usize {
     field_registry().common_cache.lock().unwrap().len()
 }
 
+/// Second `Arc` handle with the same tower / minpoly but a distinct id (tests only).
+#[cfg(test)]
+pub(crate) fn duplicate_field_arc_for_test(f: &Arc<ExtensionField>) -> Arc<ExtensionField> {
+    Arc::new(ExtensionField {
+        id: next_field_id(),
+        tower: Arc::clone(f.tower()),
+        min_poly_over_q: f.min_poly_over_q().to_vec(),
+        parent_field: f.parent_field.as_ref().map(Arc::clone),
+    })
+}
+
 fn layer_minpoly_rational_constants(min_poly_q: &[Ratio<BigInt>]) -> bool {
     min_poly_q.iter().all(|c| c.denom().is_one())
 }
@@ -668,33 +914,34 @@ fn rational_subfield_embedding(
     }
 }
 
+fn flatten_layer_blocks(blocks: &[CoordsQ], parent_dim: usize) -> CoordsQ {
+    let mut out = Vec::with_capacity(blocks.len() * parent_dim);
+    for block in blocks {
+        out.extend(pad_to_len(block, parent_dim).iter().cloned());
+    }
+    out
+}
+
 fn direct_adjoin_parent_embedding(
     parent: &Arc<ExtensionField>,
     child: &Arc<ExtensionField>,
 ) -> Result<FieldEmbedding, EvalError> {
-    let (layer_min_poly, ext_degree, primitive_k) = match child.tower.as_ref() {
-        ExtensionTower::Adj {
-            min_poly_q,
-            ext_degree,
-            primitive_k,
-            ..
-        } => (min_poly_q.as_slice(), *ext_degree, *primitive_k),
-        ExtensionTower::Base => {
-            return Err(EvalError::TypeError("expected adjoin child field"));
-        }
-    };
-    let k = primitive_k.ok_or(EvalError::TypeError("missing adjoin primitive_k"))?;
-    let (_, mat_parent, _) = common_primitive_sum(
-        parent.min_poly_over_q(),
-        layer_min_poly,
-        parent.dimension(),
-        ext_degree,
-        k,
-    )?;
+    if child.parent_field.as_ref().map(|p| p.id()) != Some(parent.id()) {
+        return Err(EvalError::TypeError("child parent mismatch"));
+    }
+    if parent.is_base() {
+        return Ok(rational_subfield_embedding(parent, child));
+    }
+    let pd = parent.dimension();
+    let cd = child.dimension();
+    let mut matrix = vec![vec![Ratio::zero(); pd]; cd];
+    for j in 0..pd {
+        matrix[j][j] = Ratio::one();
+    }
     Ok(FieldEmbedding {
         source: Arc::clone(parent),
         target: Arc::clone(child),
-        matrix: mat_parent,
+        matrix,
     })
 }
 
@@ -912,39 +1159,12 @@ pub fn embed_coords(embedding: &FieldEmbedding, coords: &CoordsQ) -> CoordsQ {
     embedding.apply(coords)
 }
 
-/// Second `Arc` handle with the same tower / minpoly but a distinct id (tests only).
-#[cfg(test)]
-pub(crate) fn duplicate_field_arc_for_test(f: &Arc<ExtensionField>) -> Arc<ExtensionField> {
-    Arc::new(ExtensionField {
-        id: next_field_id(),
-        tower: Arc::clone(f.tower()),
-        min_poly_over_q: f.min_poly_over_q().to_vec(),
-        parent_field: f.parent_field.as_ref().map(Arc::clone),
-    })
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn sqrt2_field() -> Arc<ExtensionField> {
-        ExtensionField::adjoin_irreducible_over_q(vec![
-            Ratio::one(),
-            Ratio::zero(),
-            Ratio::from_integer((-2).into()),
-        ])
-        .unwrap()
-    }
-
-    fn cbrt2_field() -> Arc<ExtensionField> {
-        ExtensionField::adjoin_irreducible_over_q(vec![
-            Ratio::one(),
-            Ratio::zero(),
-            Ratio::zero(),
-            Ratio::from_integer((-2).into()),
-        ])
-        .unwrap()
-    }
+    use crate::algebra::test_fixtures::{
+        common_cache_len, k1_adjoin_cbrt2, k1_adjoin_sqrt2, minpoly_u2_minus,
+    };
 
     #[test]
     fn rational_field_dimension_one() {
@@ -955,7 +1175,7 @@ mod tests {
 
     #[test]
     fn adjoin_sqrt2_dimension_two() {
-        let k = sqrt2_field();
+        let k = k1_adjoin_sqrt2();
         assert_eq!(k.dimension(), 2);
         let alpha = k.generator_coords();
         let sq = k.element_mul(&alpha, &alpha).unwrap();
@@ -966,8 +1186,8 @@ mod tests {
     #[test]
     #[ignore = "primitive-element common(√2,∛2) char poly is slow; see ext_tower perf follow-up"]
     fn common_sqrt2_cbrt2_has_degree_six() {
-        let a = sqrt2_field();
-        let b = cbrt2_field();
+        let a = k1_adjoin_sqrt2();
+        let b = k1_adjoin_cbrt2();
         let common = ExtensionField::common_over_q(&a, &b).unwrap();
         assert_eq!(common.field.dimension(), 6);
         let ea = common.embed_a.apply(&a.generator_coords());
@@ -978,7 +1198,7 @@ mod tests {
 
     #[test]
     fn common_cache_identity_is_fast() {
-        let a = sqrt2_field();
+        let a = k1_adjoin_sqrt2();
         let c1 = ExtensionField::common_over_q(&a, &a).unwrap();
         let c2 = ExtensionField::common_over_q(&a, &a).unwrap();
         assert_eq!(c1.field.id(), c2.field.id());
@@ -987,8 +1207,8 @@ mod tests {
     #[test]
     #[ignore = "primitive-element common(√2,∛2) char poly is slow; see ext_tower perf follow-up"]
     fn common_cache_hits_same_pair() {
-        let a = sqrt2_field();
-        let b = cbrt2_field();
+        let a = k1_adjoin_sqrt2();
+        let b = k1_adjoin_cbrt2();
         let c1 = ExtensionField::common_over_q(&a, &b).unwrap();
         let c2 = ExtensionField::common_over_q(&b, &a).unwrap();
         assert_eq!(c1.field.id(), c2.field.id());
@@ -996,15 +1216,15 @@ mod tests {
 
     #[test]
     fn field_registry_dedup_same_minpoly() {
-        let k1 = sqrt2_field();
-        let k2 = sqrt2_field();
+        let k1 = k1_adjoin_sqrt2();
+        let k2 = k1_adjoin_sqrt2();
         assert_eq!(k1.id(), k2.id());
     }
 
     #[test]
     fn embedding_for_matches_source_not_operand_order() {
-        let sqrt2 = sqrt2_field();
-        let cbrt2 = cbrt2_field();
+        let sqrt2 = k1_adjoin_sqrt2();
+        let cbrt2 = k1_adjoin_cbrt2();
         let (low, high) = if sqrt2.id() <= cbrt2.id() {
             (&sqrt2, &cbrt2)
         } else {
@@ -1037,7 +1257,7 @@ mod tests {
     #[test]
     fn align_elements_reverse_order_after_cache_warm() {
         let q = ExtensionField::rational();
-        let sqrt2 = sqrt2_field();
+        let sqrt2 = k1_adjoin_sqrt2();
         let _ = ExtensionField::common_over_q(&q, &sqrt2).unwrap();
 
         let one_q = q.one_coords();
@@ -1055,14 +1275,6 @@ mod tests {
         assert!(!qr.field.element_is_zero(&sum));
     }
 
-    fn minpoly_u2_minus(n: i64) -> CoordsQ {
-        vec![
-            Ratio::one(),
-            Ratio::zero(),
-            Ratio::from_integer(n.into()),
-        ]
-    }
-
     #[test]
     fn t1a_adjoin_base_sqrt2_matches_legacy() {
         let legacy = ExtensionField::adjoin_irreducible_over_q(minpoly_u2_minus(-2)).unwrap();
@@ -1077,7 +1289,7 @@ mod tests {
 
     #[test]
     fn t1b_adjoin_k1_u2_minus_3_has_dimension_four() {
-        let k1 = sqrt2_field();
+        let k1 = k1_adjoin_sqrt2();
         let k2 = ExtensionField::adjoin_irreducible(&k1, minpoly_u2_minus(-3)).unwrap();
         assert_eq!(k2.dimension(), 4);
         assert_eq!(k2.parent_field().map(|p| p.id()), Some(k1.id()));
@@ -1087,7 +1299,7 @@ mod tests {
 
     #[test]
     fn t1_try_subfield_embedding_k1_into_k2() {
-        let k1 = sqrt2_field();
+        let k1 = k1_adjoin_sqrt2();
         let k2 = ExtensionField::adjoin_irreducible(&k1, minpoly_u2_minus(-3)).unwrap();
         let emb = ExtensionField::try_subfield_embedding(&k1, &k2)
             .unwrap()
@@ -1102,16 +1314,16 @@ mod tests {
 
     #[test]
     fn t2_align_subfield_does_not_grow_common_cache() {
-        let k1 = sqrt2_field();
+        let k1 = k1_adjoin_sqrt2();
         let k2 = ExtensionField::adjoin_irreducible(&k1, minpoly_u2_minus(-3)).unwrap();
-        let before = common_cache_len_for_test();
+        let before = common_cache_len();
         let alpha = k1.generator_coords();
         let alpha_in_k2 = ExtensionField::try_subfield_embedding(&k1, &k2)
             .unwrap()
             .unwrap()
             .apply(&alpha);
         let _ = ExtensionField::align_elements(&k1, &alpha, &k2, &alpha_in_k2).unwrap();
-        assert_eq!(common_cache_len_for_test(), before);
+        assert_eq!(common_cache_len(), before);
     }
 
     #[test]
@@ -1119,7 +1331,7 @@ mod tests {
         use crate::algebra::alg_ext::AlgExtData;
         use crate::algebra::field_arith::coords_to_expr;
 
-        let k1 = sqrt2_field();
+        let k1 = k1_adjoin_sqrt2();
         let k2 = ExtensionField::adjoin_irreducible(&k1, minpoly_u2_minus(-3)).unwrap();
         let alpha_k2 = ExtensionField::try_subfield_embedding(&k1, &k2)
             .unwrap()
@@ -1131,11 +1343,36 @@ mod tests {
         )
         .unwrap();
         let b = AlgExtData::from_field_coords(Arc::clone(&k2), coords_to_expr(&alpha_k2).unwrap()).unwrap();
-        let before = common_cache_len_for_test();
+        let before = common_cache_len();
         let sum = a.add(&b).unwrap();
-        assert_eq!(common_cache_len_for_test(), before);
+        assert_eq!(common_cache_len(), before);
         assert_eq!(sum.field.id(), a.field.id());
         let two_b = b.add(&b).unwrap();
         assert!(sum.eq_mod(&two_b).unwrap());
+    }
+
+    #[test]
+    fn t3_k1_sqrt2_squared_is_two() {
+        let k1 = k1_adjoin_sqrt2();
+        let alpha = k1.generator_coords();
+        let prod = k1.element_mul(&alpha, &alpha).unwrap();
+        let two = k1.embed_rational(&Ratio::from_integer(2.into()));
+        assert!(k1.element_eq_mod(&prod, &two).unwrap());
+    }
+
+    #[test]
+    fn t3_k2_sqrt2_beta_times_beta_is_three_sqrt2() {
+        let k1 = k1_adjoin_sqrt2();
+        let k2 = ExtensionField::adjoin_irreducible(&k1, minpoly_u2_minus(-3)).unwrap();
+        let emb = ExtensionField::try_subfield_embedding(&k1, &k2)
+            .unwrap()
+            .expect("K1 embeds in K2");
+        let sqrt2 = emb.apply(&k1.generator_coords());
+        let beta = k2.generator_coords();
+        let sqrt2_beta = k2.element_mul(&sqrt2, &beta).unwrap();
+        let prod = k2.element_mul(&sqrt2_beta, &beta).unwrap();
+        let three = k2.embed_rational(&Ratio::from_integer(3.into()));
+        let expected = k2.element_mul(&sqrt2, &three).unwrap();
+        assert!(k2.element_eq_mod(&prod, &expected).unwrap());
     }
 }

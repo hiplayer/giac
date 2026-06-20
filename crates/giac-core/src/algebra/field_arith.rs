@@ -401,3 +401,213 @@ pub fn coords_all_zero(v: &[Ratio<BigInt>]) -> bool {
 pub fn coords_is_one(v: &[Ratio<BigInt>]) -> bool {
     v.len() == 1 && v[0].is_one()
 }
+
+/// Coefficient ring for univariate polys over an extension (T3 parent-coeff arithmetic).
+pub struct ParentCoeffRing<'a> {
+    pub zero: CoordsQ,
+    pub one: CoordsQ,
+    pub add: &'a (dyn Fn(&CoordsQ, &CoordsQ) -> Result<CoordsQ, EvalError> + 'a),
+    pub sub: &'a (dyn Fn(&CoordsQ, &CoordsQ) -> Result<CoordsQ, EvalError> + 'a),
+    pub mul: &'a (dyn Fn(&CoordsQ, &CoordsQ) -> Result<CoordsQ, EvalError> + 'a),
+    pub neg: &'a (dyn Fn(&CoordsQ) -> Result<CoordsQ, EvalError> + 'a),
+    pub inv: &'a (dyn Fn(&CoordsQ) -> Result<CoordsQ, EvalError> + 'a),
+    pub is_zero: &'a (dyn Fn(&CoordsQ) -> bool + 'a),
+}
+
+fn trim_leading_zero_blocks(mut blocks: Vec<CoordsQ>, ring: &ParentCoeffRing<'_>) -> Vec<CoordsQ> {
+    while blocks.len() > 1 && (ring.is_zero)(blocks.first().unwrap()) {
+        blocks.remove(0);
+    }
+    if blocks.is_empty() {
+        vec![ring.zero.clone()]
+    } else {
+        blocks
+    }
+}
+
+fn poly_degree_blocks(blocks: &[CoordsQ], ring: &ParentCoeffRing<'_>) -> usize {
+    if blocks.is_empty() || (blocks.len() == 1 && (ring.is_zero)(&blocks[0])) {
+        0
+    } else {
+        blocks.len() - 1
+    }
+}
+
+fn invert_coeff(c: &CoordsQ, ring: &ParentCoeffRing<'_>) -> Result<CoordsQ, EvalError> {
+    (ring.inv)(c)
+}
+
+/// Add polynomials with coefficients in `ring`.
+pub fn poly_add_with_coeffs_in_field(
+    a: &[CoordsQ],
+    b: &[CoordsQ],
+    ring: &ParentCoeffRing<'_>,
+) -> Result<Vec<CoordsQ>, EvalError> {
+    let da = a.len().saturating_sub(1);
+    let db = b.len().saturating_sub(1);
+    let d = da.max(db);
+    let mut out = vec![ring.zero.clone(); d + 1];
+    for (i, c) in a.iter().enumerate() {
+        out[d - da + i] = (ring.add)(&out[d - da + i], c)?;
+    }
+    for (i, c) in b.iter().enumerate() {
+        out[d - db + i] = (ring.add)(&out[d - db + i], c)?;
+    }
+    Ok(trim_leading_zero_blocks(out, ring))
+}
+
+/// Multiply polynomials with coefficients in `ring`.
+pub fn poly_mul_with_coeffs_in_field(
+    a: &[CoordsQ],
+    b: &[CoordsQ],
+    ring: &ParentCoeffRing<'_>,
+) -> Result<Vec<CoordsQ>, EvalError> {
+    if a.is_empty() || b.is_empty() {
+        return Ok(vec![ring.zero.clone()]);
+    }
+    let da = a.len().saturating_sub(1);
+    let db = b.len().saturating_sub(1);
+    let mut out = vec![ring.zero.clone(); da + db + 1];
+    for (i, ca) in a.iter().enumerate() {
+        for (j, cb) in b.iter().enumerate() {
+            let prod = (ring.mul)(ca, cb)?;
+            out[i + j] = (ring.add)(&out[i + j], &prod)?;
+        }
+    }
+    Ok(trim_leading_zero_blocks(out, ring))
+}
+
+fn poly_divrem_blocks(
+    a: &[CoordsQ],
+    b: &[CoordsQ],
+    ring: &ParentCoeffRing<'_>,
+) -> Result<(Vec<CoordsQ>, Vec<CoordsQ>), EvalError> {
+    let mut rem = a.to_vec();
+    let b = b.to_vec();
+    if b.iter().all(|c| (ring.is_zero)(c)) {
+        return Ok((vec![ring.zero.clone()], rem));
+    }
+    let db = poly_degree_blocks(&b, ring);
+    let mut quot = vec![ring.zero.clone(); rem.len().max(1)];
+    while poly_degree_blocks(&rem, ring) >= db && !rem.iter().all(|c| (ring.is_zero)(c)) {
+        let dr = poly_degree_blocks(&rem, ring);
+        let lc_r = rem.first().cloned().unwrap_or_else(|| ring.zero.clone());
+        let lc_b = b.first().cloned().unwrap_or_else(|| ring.zero.clone());
+        if (ring.is_zero)(&lc_r) {
+            rem = trim_leading_zero_blocks(rem, ring);
+            continue;
+        }
+        let q = (ring.mul)(&lc_r, &invert_coeff(&lc_b, ring)?)?;
+        let qi = quot.len().saturating_sub(1) - (dr - db);
+        if qi < quot.len() {
+            quot[qi] = q.clone();
+        }
+        for i in 0..=db {
+            if i < rem.len() {
+                let sub = (ring.mul)(&q, &b[i])?;
+                rem[i] = (ring.sub)(&rem[i], &sub)?;
+            }
+        }
+        rem = trim_leading_zero_blocks(rem, ring);
+    }
+    Ok((trim_leading_zero_blocks(quot, ring), rem))
+}
+
+/// Reduce `p` modulo monic `m` (leading parent-coeff is `one`).
+pub fn poly_reduce_with_coeffs_in_field(
+    p: &[CoordsQ],
+    m: &[CoordsQ],
+    ring: &ParentCoeffRing<'_>,
+) -> Result<Vec<CoordsQ>, EvalError> {
+    let mut r = p.to_vec();
+    let dm = poly_degree_blocks(m, ring);
+    if dm == 0 {
+        return Ok(trim_leading_zero_blocks(r, ring));
+    }
+    let lead_diff = (ring.sub)(&m[0], &ring.one)?;
+    if !(ring.is_zero)(&lead_diff) {
+        return Ok(trim_leading_zero_blocks(r, ring));
+    }
+    loop {
+        r = trim_leading_zero_blocks(r, ring);
+        let dr = poly_degree_blocks(&r, ring);
+        if dr < dm {
+            break;
+        }
+        let lc_r = r.first().cloned().unwrap_or_else(|| ring.zero.clone());
+        let q = (ring.mul)(&lc_r, &invert_coeff(&ring.one, ring)?)?;
+        for i in 0..=dm {
+            if i < r.len() {
+                let sub = (ring.mul)(&q, &m[i])?;
+                r[i] = (ring.sub)(&r[i], &sub)?;
+            }
+        }
+    }
+    Ok(trim_leading_zero_blocks(r, ring))
+}
+
+fn poly_ext_gcd_blocks(
+    a: &[CoordsQ],
+    b: &[CoordsQ],
+    ring: &ParentCoeffRing<'_>,
+) -> Result<(Vec<CoordsQ>, Vec<CoordsQ>), EvalError> {
+    let mut r_prev = trim_leading_zero_blocks(b.to_vec(), ring);
+    let mut r = trim_leading_zero_blocks(a.to_vec(), ring);
+    let mut s_prev = vec![ring.zero.clone()];
+    let mut s = vec![ring.one.clone()];
+    while !r.iter().all(|c| (ring.is_zero)(c)) {
+        let (q, _) = poly_divrem_blocks(&r_prev, &r, ring)?;
+        let qr = poly_mul_with_coeffs_in_field(&q, &r, ring)?;
+        let r_next = poly_sub_with_coeffs_in_field(&r_prev, &qr, ring)?;
+        let sr = poly_mul_with_coeffs_in_field(&q, &s, ring)?;
+        let s_next = poly_sub_with_coeffs_in_field(&s_prev, &sr, ring)?;
+        r_prev = r;
+        r = trim_leading_zero_blocks(r_next, ring);
+        s_prev = s;
+        s = s_next;
+    }
+    Ok((r_prev, s_prev))
+}
+
+pub fn poly_sub_with_coeffs_in_field(
+    a: &[CoordsQ],
+    b: &[CoordsQ],
+    ring: &ParentCoeffRing<'_>,
+) -> Result<Vec<CoordsQ>, EvalError> {
+    let da = a.len().saturating_sub(1);
+    let db = b.len().saturating_sub(1);
+    let d = da.max(db);
+    let mut out = vec![ring.zero.clone(); d + 1];
+    for (i, c) in a.iter().enumerate() {
+        out[d - da + i] = (ring.add)(&out[d - da + i], c)?;
+    }
+    for (i, c) in b.iter().enumerate() {
+        out[d - db + i] = (ring.sub)(&out[d - db + i], c)?;
+    }
+    Ok(trim_leading_zero_blocks(out, ring))
+}
+
+pub fn poly_neg_with_coeffs_in_field(
+    a: &[CoordsQ],
+    ring: &ParentCoeffRing<'_>,
+) -> Result<Vec<CoordsQ>, EvalError> {
+    a.iter().map(|c| (ring.neg)(c)).collect()
+}
+
+pub fn poly_inv_mod_with_coeffs_in_field(
+    a: &[CoordsQ],
+    m: &[CoordsQ],
+    ring: &ParentCoeffRing<'_>,
+) -> Result<Vec<CoordsQ>, EvalError> {
+    let (_, bezout) = poly_ext_gcd_blocks(a, m, ring)?;
+    let inv = poly_reduce_with_coeffs_in_field(&bezout, m, ring)?;
+    let prod = poly_mul_with_coeffs_in_field(a, &inv, ring)?;
+    let check = poly_reduce_with_coeffs_in_field(&prod, m, ring)?;
+    if check.len() == 1 {
+        let diff = (ring.sub)(&check[0], &ring.one)?;
+        if (ring.is_zero)(&diff) {
+            return Ok(inv);
+        }
+    }
+    Err(EvalError::NotImplemented("field inverse"))
+}

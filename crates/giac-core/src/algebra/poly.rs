@@ -271,6 +271,7 @@ fn collect_vars(expr: &Expr, out: &mut Vec<Var>) {
 mod tests {
     use super::*;
     use super::super::poly_conv::{ERR_ALG_EXT_COEFF, ERR_POLY_ALG_NO_ALG_COEFF, ERR_ROOTOF_COEFF};
+    use crate::algebra::test_fixtures::sqrt2_algext_expr;
     use crate::AlgExtData;
 
     #[test]
@@ -379,29 +380,9 @@ mod tests {
         ));
     }
 
-    fn sqrt2_minpoly() -> ExprArc {
-        Arc::new(Expr::Func(
-            FuncKind::Poly1,
-            vec![Arc::new(Expr::Seq(vec![
-                Expr::int(1),
-                Expr::int(0),
-                Expr::int(-2),
-            ]))],
-        ))
-    }
-
-    fn sqrt2_expr() -> ExprArc {
-        AlgExtData::from_rootof(
-            &Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])),
-            &sqrt2_minpoly(),
-        )
-        .unwrap()
-        .into_expr()
-    }
-
     #[test]
     fn poly_alg_from_expr_constant_rootof() {
-        let e = sqrt2_expr();
+        let e = sqrt2_algext_expr();
         let p = poly_alg_from_expr(e.as_ref()).unwrap();
         assert_eq!(p.degree(), 0);
         let back = algext_poly_to_expr(&p).unwrap();
@@ -412,7 +393,7 @@ mod tests {
     fn poly_alg_from_expr_x_squared_minus_two_over_k() {
         let e = Expr::add(vec![
             Expr::pow(Expr::sym("x"), Expr::int(2)),
-            Expr::mul(vec![Expr::int(-1), sqrt2_expr()]),
+            Expr::mul(vec![Expr::int(-1), sqrt2_algext_expr()]),
         ]);
         let p = poly_alg_from_expr(&e).unwrap();
         assert_eq!(p.degree(), 2);
@@ -427,7 +408,7 @@ mod tests {
 
         let e = Expr::add(vec![
             Expr::pow(Expr::sym("x"), Expr::int(2)),
-            sqrt2_expr(),
+            sqrt2_algext_expr(),
         ]);
         let p = poly_alg_from_expr(&e).unwrap();
         let flat = FlatUni::new(p, MainVar::new("x"));
@@ -439,7 +420,7 @@ mod tests {
         let e = Expr::add(vec![
             Expr::pow(Expr::sym("x"), Expr::int(2)),
             Expr::int(-2),
-            sqrt2_expr(),
+            sqrt2_algext_expr(),
         ]);
         let p = poly_alg_from_expr(&e).unwrap();
         let back = algext_poly_to_expr(&p).unwrap();

@@ -17,7 +17,7 @@ use super::ext_tower::ExtensionField;
 use super::field_arith::{
     canonical_poly1_expr, coords_to_expr, embed_in_square_extension, generator_coords,
     min_poly_exprs_to_q, minpoly_at_square, mult_matrix_of_element, pad_to_len, poly1_coeffs,
-    poly_degree, poly_reduce, rationalize_poly1, ratio_to_expr_arc, CoordsQ,
+    poly_degree, rationalize_poly1, ratio_to_expr_arc, CoordsQ,
 };
 
 /// Element of an algebraic extension field.
@@ -58,6 +58,9 @@ impl AlgExtData {
         root_index: Option<u32>,
     ) -> Result<Self, EvalError> {
         let dim = field.dimension();
+        // Coords must already be in this field's operational basis (primitive over ℚ when
+        // parent is Base; tensor u^0..u^{e-1} blocks when parent is a nontrivial extension).
+        // No mod reduction here — use field.element_* after construction.
         Ok(Self {
             field,
             coords: coords_to_expr(&pad_to_len(&coords, dim))?,
@@ -129,12 +132,11 @@ impl AlgExtData {
         if r.is_one() {
             return Ok(self.clone());
         }
-        let mut coords = self.coords_q()?;
-        for c in &mut coords {
-            *c *= r;
-        }
-        let reduced = poly_reduce(&coords, self.field.min_poly_over_q());
-        Self::from_coords_q(Arc::clone(&self.field), reduced, self.root_index)
+        let coords = self.coords_q()?;
+        let scaled = self
+            .field
+            .element_mul(&coords, &self.field.embed_rational(r))?;
+        Self::from_coords_q(Arc::clone(&self.field), scaled, self.root_index)
     }
 
     pub fn is_zero(&self) -> bool {
@@ -217,14 +219,9 @@ pub fn fold_algext_sum(terms: &[ExprArc]) -> Result<ExprArc, EvalError> {
     if !rat_sum.is_zero() {
         if groups.len() == 1 {
             let (field, acc) = &mut groups[0];
-            let mut coords = acc.coords_q()?;
-            if let Some(c0) = coords.last_mut() {
-                *c0 += rat_sum;
-            } else {
-                coords.push(rat_sum);
-            }
-            let reduced = poly_reduce(&coords, field.min_poly_over_q());
-            *acc = AlgExtData::from_coords_q(Arc::clone(field), reduced, acc.root_index)?;
+            let coords = acc.coords_q()?;
+            let merged = field.element_add(&coords, &field.embed_rational(&rat_sum))?;
+            *acc = AlgExtData::from_coords_q(Arc::clone(field), merged, acc.root_index)?;
         } else {
             rest.push(ratio_to_expr_arc(&rat_sum));
         }
@@ -480,24 +477,14 @@ fn sqrt_minpoly_via_matrix(f: &[Ratio<BigInt>], m: &[Ratio<BigInt>]) -> Result<C
 #[cfg(test)]
 mod tests {
     use super::*;
-
-    fn q_minpoly() -> ExprArc {
-        Arc::new(Expr::Func(
-            FuncKind::Poly1,
-            vec![Arc::new(Expr::Seq(vec![
-                Expr::int(1),
-                Expr::int(0),
-                Expr::int(-2),
-            ]))],
-        ))
-    }
+    use crate::algebra::test_fixtures::{
+        algext_on_t1b_k2, algext_with_coords, cbrt2_algext, duplicate_field_arc,
+        neg_sqrt2_algext, sqrt2_algext, t1b_k2_adjoin_sqrt3_over_k1,
+    };
 
     #[test]
     fn algext_mul_squares_to_two() {
-        let min = q_minpoly();
-        let alpha =
-            AlgExtData::from_rootof(&Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])), &min)
-                .unwrap();
+        let alpha = sqrt2_algext();
         let sq = alpha.mul(&alpha).unwrap();
         let two = AlgExtData::from_field_coords(
             Arc::clone(&alpha.field),
@@ -509,29 +496,15 @@ mod tests {
 
     #[test]
     fn algext_add_neg_cancels() {
-        let min = q_minpoly();
-        let pos = AlgExtData::from_rootof(
-            &Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])),
-            &min,
-        )
-        .unwrap();
-        let neg = AlgExtData::from_rootof(
-            &Arc::new(Expr::Seq(vec![Expr::int(-1), Expr::int(0)])),
-            &min,
-        )
-        .unwrap();
+        let pos = sqrt2_algext();
+        let neg = neg_sqrt2_algext();
         let z = pos.add(&neg).unwrap();
         assert!(z.is_zero());
     }
 
     #[test]
     fn algext_sqrt_of_sqrt2() {
-        let min = q_minpoly();
-        let sqrt2 = AlgExtData::from_rootof(
-            &Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])),
-            &min,
-        )
-        .unwrap();
+        let sqrt2 = sqrt2_algext();
         let roots = algext_square_roots(&sqrt2).unwrap();
         assert_eq!(roots.len(), 2);
         let m = sqrt2.field.min_poly_over_q();
@@ -549,12 +522,7 @@ mod tests {
 
     #[test]
     fn algext_sqrt_of_neg_sqrt2_is_complex() {
-        let min = q_minpoly();
-        let neg_sqrt2 = AlgExtData::from_rootof(
-            &Arc::new(Expr::Seq(vec![Expr::int(-1), Expr::int(0)])),
-            &min,
-        )
-        .unwrap();
+        let neg_sqrt2 = neg_sqrt2_algext();
         let branches = algext_sqrt_branches(&neg_sqrt2).unwrap();
         assert_eq!(branches.len(), 2);
         for b in &branches {
@@ -570,12 +538,7 @@ mod tests {
 
     #[test]
     fn complex_algext_sum_cancels() {
-        let min = q_minpoly();
-        let alpha = AlgExtData::from_rootof(
-            &Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])),
-            &min,
-        )
-        .unwrap();
+        let alpha = sqrt2_algext();
         let pos = Arc::new(Expr::Complex(Expr::int(0), alpha.clone().into_expr()));
         let neg = Arc::new(Expr::Complex(
             Expr::int(0),
@@ -587,13 +550,7 @@ mod tests {
 
     #[test]
     fn algext_to_rootof_roundtrip_display() {
-        let min = q_minpoly();
-        let e = AlgExtData::from_rootof(
-            &Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])),
-            &min,
-        )
-        .unwrap()
-        .to_rootof_expr();
+        let e = sqrt2_algext().to_rootof_expr();
         let s = crate::format_expr(e.as_ref());
         assert!(s.contains("rootof"), "{s}");
         assert_eq!(s, "rootof([1,0],poly1[1,0,-2])");
@@ -601,12 +558,7 @@ mod tests {
 
     #[test]
     fn algext_inv_divides_to_one() {
-        let min = q_minpoly();
-        let alpha = AlgExtData::from_rootof(
-            &Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])),
-            &min,
-        )
-        .unwrap();
+        let alpha = sqrt2_algext();
         let inv = alpha.inv().unwrap();
         let one = alpha.mul(&inv).unwrap();
         assert!(one.is_one() || one.eq_mod(&AlgExtData::one(Arc::clone(&alpha.field))).unwrap());
@@ -614,12 +566,7 @@ mod tests {
 
     #[test]
     fn subfield_embed_rational_into_sqrt2() {
-        let min = q_minpoly();
-        let sqrt2 = AlgExtData::from_rootof(
-            &Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])),
-            &min,
-        )
-        .unwrap();
+        let sqrt2 = sqrt2_algext();
         let three = AlgExtData::from_field_coords(
             ExtensionField::rational(),
             vec![Expr::int(3)],
@@ -632,26 +579,8 @@ mod tests {
     #[test]
     #[ignore = "primitive-element common(√2,∛2) char poly is slow; see ext_tower perf follow-up"]
     fn common_ext_sqrt2_cbrt2() {
-        let min2 = q_minpoly();
-        let sqrt2 = AlgExtData::from_rootof(
-            &Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])),
-            &min2,
-        )
-        .unwrap();
-        let min3 = Arc::new(Expr::Func(
-            FuncKind::Poly1,
-            vec![Arc::new(Expr::Seq(vec![
-                Expr::int(1),
-                Expr::int(0),
-                Expr::int(0),
-                Expr::int(-2),
-            ]))],
-        ));
-        let cbrt2 = AlgExtData::from_rootof(
-            &Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0), Expr::int(0)])),
-            &min3,
-        )
-        .unwrap();
+        let sqrt2 = sqrt2_algext();
+        let cbrt2 = cbrt2_algext();
         let (_gamma, ae, be) = common_ext(&sqrt2, &cbrt2).unwrap();
         let sum = ae.add(&be).unwrap();
         assert!(!sum.is_zero());
@@ -660,11 +589,7 @@ mod tests {
 
     #[test]
     fn algext_add_reverse_order_after_common_cache() {
-        let sqrt2 = AlgExtData::from_rootof(
-            &Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])),
-            &q_minpoly(),
-        )
-        .unwrap();
+        let sqrt2 = sqrt2_algext();
         let one = AlgExtData::from_field_coords(
             ExtensionField::rational(),
             vec![Expr::int(1)],
@@ -680,25 +605,79 @@ mod tests {
 
     #[test]
     fn fold_algext_sum_merges_equal_fields_without_ptr_eq() {
-        use crate::algebra::ext_tower;
-
-        let alpha = AlgExtData::from_rootof(
-            &Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])),
-            &q_minpoly(),
-        )
-        .unwrap();
-        let dup_field = ext_tower::duplicate_field_arc_for_test(&alpha.field);
+        let alpha = sqrt2_algext();
+        let dup_field = duplicate_field_arc(&alpha.field);
         assert!(!Arc::ptr_eq(&alpha.field, &dup_field));
         assert_eq!(*alpha.field, *dup_field);
 
-        let beta = AlgExtData::from_coords_q(
-            dup_field,
-            alpha.coords_q().unwrap(),
-            None,
-        )
-        .unwrap();
+        let beta = algext_with_coords(dup_field, alpha.coords_q().unwrap());
         let expected = alpha.add(&beta).unwrap();
         let folded = fold_algext_sum(&[alpha.into_expr(), beta.into_expr()]).unwrap();
+        match folded.as_ref() {
+            Expr::AlgExt(a) => assert!(a.eq_mod(&expected).unwrap()),
+            other => panic!("expected single AlgExt, got {other:?}"),
+        }
+    }
+
+    #[test]
+    fn from_coords_q_preserves_k2_tensor_coords_roundtrip() {
+        let fix = t1b_k2_adjoin_sqrt3_over_k1();
+        assert_eq!(fix.k2.dimension(), 4);
+        for coords in [&fix.sqrt2_in_k2, &fix.beta_in_k2] {
+            let sample = algext_on_t1b_k2(&fix, coords);
+            let round = algext_with_coords(Arc::clone(&fix.k2), sample.coords_q().unwrap());
+            assert_eq!(round.coords_q().unwrap(), sample.coords_q().unwrap());
+            assert!(round.eq_mod(&sample).unwrap());
+        }
+    }
+
+    #[test]
+    fn fold_algext_sum_rat_on_k2_merges_via_embed_rational() {
+        let fix = t1b_k2_adjoin_sqrt3_over_k1();
+        let sqrt2_k2 = algext_on_t1b_k2(&fix, &fix.sqrt2_in_k2);
+        let five = Ratio::from_integer(5.into());
+        let expected = sqrt2_k2
+            .add(&algext_with_coords(
+                Arc::clone(&fix.k2),
+                fix.k2.embed_rational(&five),
+            ))
+            .unwrap();
+        let folded =
+            fold_algext_sum(&[sqrt2_k2.clone().into_expr(), Expr::int(5)]).unwrap();
+        match folded.as_ref() {
+            Expr::AlgExt(a) => assert!(a.eq_mod(&expected).unwrap()),
+            other => panic!("expected single AlgExt, got {other:?}"),
+        }
+        let mut wrong_coords = sqrt2_k2.coords_q().unwrap();
+        *wrong_coords.last_mut().unwrap() += five;
+        let wrong = algext_on_t1b_k2(&fix, &wrong_coords);
+        assert!(!wrong.eq_mod(&expected).unwrap());
+    }
+
+    #[test]
+    fn embed_rational_on_k2_places_constant_in_block_u0() {
+        let fix = t1b_k2_adjoin_sqrt3_over_k1();
+        assert_eq!(
+            fix.k2.embed_rational(&Ratio::from_integer(5.into())),
+            vec![
+                Ratio::zero(),
+                Ratio::from_integer(5.into()),
+                Ratio::zero(),
+                Ratio::zero(),
+            ]
+        );
+    }
+
+    #[test]
+    fn fold_algext_sum_rat_on_k1_still_merges_into_algext() {
+        let alpha = sqrt2_algext();
+        let expected = alpha
+            .add(&algext_with_coords(
+                Arc::clone(&alpha.field),
+                alpha.field.embed_rational(&Ratio::from_integer(3.into())),
+            ))
+            .unwrap();
+        let folded = fold_algext_sum(&[alpha.clone().into_expr(), Expr::int(3)]).unwrap();
         match folded.as_ref() {
             Expr::AlgExt(a) => assert!(a.eq_mod(&expected).unwrap()),
             other => panic!("expected single AlgExt, got {other:?}"),
@@ -709,12 +688,7 @@ mod tests {
     fn algext_frac_via_eval() {
         use crate::{eval, Context};
         let ctx = Context::default();
-        let min = q_minpoly();
-        let alpha_data = AlgExtData::from_rootof(
-            &Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])),
-            &min,
-        )
-        .unwrap();
+        let alpha_data = sqrt2_algext();
         let alpha = alpha_data.clone().into_expr();
         let frac = Arc::new(Expr::Frac(Expr::int(2), alpha));
         let r = eval(frac.as_ref(), &ctx).unwrap();
