@@ -23,3 +23,6 @@ num-traits = { workspace = true }
 thiserror = { workspace = true }
 giac-poly = { workspace = true }
 giac-groebner = { workspace = true }
+
+[dev-dependencies]
+serial_test = { workspace = true }

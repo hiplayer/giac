@@ -717,6 +717,8 @@ pub struct AlignedElements {
 }
 
 struct FieldRegistry {
+    /// Serializes register/common paths that may create duplicate fields if raced.
+    op_lock: Mutex<()>,
     by_adjoin: Mutex<HashMap<(u64, Vec<u8>), Arc<ExtensionField>>>,
     by_min_poly: Mutex<HashMap<Vec<u8>, Arc<ExtensionField>>>,
     common_cache: Mutex<HashMap<(u64, u64), Arc<CommonFieldPair>>>,
@@ -725,6 +727,7 @@ struct FieldRegistry {
 impl FieldRegistry {
     fn new() -> Self {
         Self {
+            op_lock: Mutex::new(()),
             by_adjoin: Mutex::new(HashMap::new()),
             by_min_poly: Mutex::new(HashMap::new()),
             common_cache: Mutex::new(HashMap::new()),
@@ -750,6 +753,10 @@ impl FieldRegistry {
         min_poly_q: &CoordsQ,
     ) -> Result<Arc<ExtensionField>, EvalError> {
         let adjoin_key = (parent.id(), Self::min_poly_key(min_poly_q));
+        if let Some(hit) = self.by_adjoin.lock().unwrap().get(&adjoin_key) {
+            return Ok(Arc::clone(hit));
+        }
+        let _guard = self.op_lock.lock().unwrap();
         if let Some(hit) = self.by_adjoin.lock().unwrap().get(&adjoin_key) {
             return Ok(Arc::clone(hit));
         }
@@ -804,6 +811,14 @@ impl FieldRegistry {
         embed_b: FieldEmbedding,
     ) -> Arc<CommonFieldPair> {
         let key = Self::min_poly_key(&min_poly_q);
+        if let Some(hit) = self.by_min_poly.lock().unwrap().get(&key) {
+            return Arc::new(CommonFieldPair {
+                field: Arc::clone(hit),
+                embed_a,
+                embed_b,
+            });
+        }
+        let _guard = self.op_lock.lock().unwrap();
         let field = if let Some(hit) = self.by_min_poly.lock().unwrap().get(&key) {
             Arc::clone(hit)
         } else {
@@ -851,6 +866,10 @@ impl FieldRegistry {
             (b, a)
         };
         let pair = compute_common_dispatch(fa, fb)?;
+        let _guard = self.op_lock.lock().unwrap();
+        if let Some(hit) = self.common_cache.lock().unwrap().get(&key) {
+            return Ok(Arc::clone(hit));
+        }
         self.common_cache.lock().unwrap().insert(key, Arc::clone(&pair));
         Ok(pair)
     }
@@ -1355,12 +1374,14 @@ pub fn embed_coords(embedding: &FieldEmbedding, coords: &CoordsQ) -> CoordsQ {
 
 #[cfg(test)]
 mod tests {
-    //! `ExtensionField` registry is process-global; run with `--test-threads=1` if flaky.
+    //! `ExtensionField` registry is process-global; `#[serial]` keeps `cargo test` deterministic.
     use super::*;
     use crate::algebra::test_fixtures::{
         common_cache_len, k1_adjoin_cbrt2, k1_adjoin_sqrt2, minpoly_u2_minus,
     };
+    use serial_test::serial;
 
+    #[serial]
     #[test]
     fn rational_field_dimension_one() {
         let q = ExtensionField::rational();
@@ -1368,6 +1389,7 @@ mod tests {
         assert!(q.element_is_one(&q.one_coords()));
     }
 
+    #[serial]
     #[test]
     fn adjoin_sqrt2_dimension_two() {
         let k = k1_adjoin_sqrt2();
@@ -1378,6 +1400,7 @@ mod tests {
         assert!(k.element_eq_mod(&sq, &two).unwrap());
     }
 
+    #[serial]
     #[test]
     #[cfg_attr(
         not(feature = "tower-common"),
@@ -1394,6 +1417,7 @@ mod tests {
         assert!(!common.field.element_is_zero(&sum));
     }
 
+    #[serial]
     #[test]
     fn common_cache_identity_is_fast() {
         let a = k1_adjoin_sqrt2();
@@ -1402,6 +1426,7 @@ mod tests {
         assert_eq!(c1.field.id(), c2.field.id());
     }
 
+    #[serial]
     #[test]
     #[cfg_attr(
         not(feature = "tower-common"),
@@ -1415,6 +1440,7 @@ mod tests {
         assert_eq!(c1.field.id(), c2.field.id());
     }
 
+    #[serial]
     #[test]
     fn field_registry_dedup_same_minpoly() {
         let k1 = k1_adjoin_sqrt2();
@@ -1422,6 +1448,7 @@ mod tests {
         assert_eq!(k1.id(), k2.id());
     }
 
+    #[serial]
     #[test]
     fn embedding_for_matches_source_not_operand_order() {
         let sqrt2 = k1_adjoin_sqrt2();
@@ -1455,6 +1482,7 @@ mod tests {
         );
     }
 
+    #[serial]
     #[test]
     fn align_elements_reverse_order_after_cache_warm() {
         let q = ExtensionField::rational();
@@ -1476,6 +1504,7 @@ mod tests {
         assert!(!qr.field.element_is_zero(&sum));
     }
 
+    #[serial]
     #[test]
     fn t1a_adjoin_base_sqrt2_matches_legacy() {
         let legacy = ExtensionField::adjoin_irreducible_over_q(minpoly_u2_minus(-2)).unwrap();
@@ -1488,6 +1517,7 @@ mod tests {
         assert!(legacy.parent_field().unwrap().is_base());
     }
 
+    #[serial]
     #[test]
     fn t1b_adjoin_k1_u2_minus_3_has_dimension_four() {
         let k1 = k1_adjoin_sqrt2();
@@ -1498,6 +1528,7 @@ mod tests {
         assert!(!ExtensionField::is_subfield_of(&k2, &k1));
     }
 
+    #[serial]
     #[test]
     fn t1_try_subfield_embedding_k1_into_k2() {
         let k1 = k1_adjoin_sqrt2();
@@ -1513,6 +1544,7 @@ mod tests {
         assert_eq!(img.len(), k2.dimension());
     }
 
+    #[serial]
     #[test]
     fn t4b_common_subfield_is_superfield_not_compositum() {
         let k1 = k1_adjoin_sqrt2();
@@ -1530,6 +1562,7 @@ mod tests {
         assert!(pair.field.element_eq_mod(&img, &alpha_k2).unwrap());
     }
 
+    #[serial]
     #[test]
     fn t2_align_subfield_does_not_grow_common_cache() {
         let k1 = k1_adjoin_sqrt2();
@@ -1544,6 +1577,7 @@ mod tests {
         assert_eq!(common_cache_len(), before);
     }
 
+    #[serial]
     #[test]
     fn t2_algext_add_same_generator_in_superfield_no_common_cache() {
         use crate::algebra::alg_ext::AlgExtData;
@@ -1569,6 +1603,7 @@ mod tests {
         assert!(sum.eq_mod(&two_b).unwrap());
     }
 
+    #[serial]
     #[test]
     fn k2_embedded_sqrt2_squared_is_two() {
         use crate::algebra::test_fixtures::t1b_k2_adjoin_sqrt3_over_k1;
@@ -1583,6 +1618,7 @@ mod tests {
         assert!(fix.k2.element_eq_mod(&sq, &two).unwrap());
     }
 
+    #[serial]
     #[test]
     fn t3_k1_sqrt2_squared_is_two() {
         let k1 = k1_adjoin_sqrt2();
@@ -1592,6 +1628,7 @@ mod tests {
         assert!(k1.element_eq_mod(&prod, &two).unwrap());
     }
 
+    #[serial]
     #[test]
     fn t3_k2_sqrt2_beta_times_beta_is_three_sqrt2() {
         let k1 = k1_adjoin_sqrt2();
@@ -1613,7 +1650,8 @@ mod tests {
         use super::*;
         use crate::algebra::test_fixtures::{k1_adjoin_cbrt2, k1_adjoin_sqrt2, k1_adjoin_sqrt3};
 
-        #[test]
+        #[serial]
+    #[test]
         fn common_sqrt2_sqrt3_has_tower_parent() {
             let k1 = k1_adjoin_sqrt2();
             let k3 = k1_adjoin_sqrt3();
@@ -1627,7 +1665,8 @@ mod tests {
             assert!(pair.field.parent_field().is_some());
         }
 
-        #[test]
+        #[serial]
+    #[test]
         fn align_sqrt2_plus_sqrt3_reverse_order() {
             let k1 = k1_adjoin_sqrt2();
             let k3 = k1_adjoin_sqrt3();
@@ -1643,7 +1682,8 @@ mod tests {
             assert!(!ab.field.element_is_zero(&sum_ab));
         }
 
-        #[test]
+        #[serial]
+    #[test]
         fn common_cache_hits_after_tower_common() {
             let k1 = k1_adjoin_sqrt2();
             let k3 = k1_adjoin_sqrt3();
@@ -1656,7 +1696,8 @@ mod tests {
             assert!(after_first >= before);
         }
 
-        #[test]
+        #[serial]
+    #[test]
         fn align_sqrt2_cbrt2_dim_six() {
             let sqrt2 = k1_adjoin_sqrt2();
             let cbrt2 = k1_adjoin_cbrt2();
@@ -1672,7 +1713,8 @@ mod tests {
             assert!(!aligned.field.element_is_zero(&sum));
         }
 
-        #[test]
+        #[serial]
+    #[test]
         fn tower_common_invariants_sqrt2_sqrt3() {
             let k1 = k1_adjoin_sqrt2();
             let k3 = k1_adjoin_sqrt3();
@@ -1694,7 +1736,8 @@ mod tests {
                 .unwrap());
         }
 
-        #[test]
+        #[serial]
+    #[test]
         #[ignore = "flatten char-poly cross-check is slow; cargo test --features tower-common -- --ignored"]
         fn tower_common_matches_flatten_minpoly_on_sqrt2_sqrt3() {
             let k1 = k1_adjoin_sqrt2();

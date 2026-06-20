@@ -43,6 +43,7 @@ giac-groebner = { path = "crates/giac-groebner" }
 giac-simplify = { path = "crates/giac-simplify" }
 giac-parse = { path = "crates/giac-parse" }
 nalgebra = "0.33"
+serial_test = "3.2"
 
 [workspace.lints.rust]
 unsafe_code = "deny"
