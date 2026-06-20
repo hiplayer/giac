@@ -44,11 +44,12 @@ giac-poly 表示层（PolyCoeff + Poly<C> + Expr 桥接）
 | 组件 | 状态 |
 |------|------|
 | `AlgExtData` + 同域 `+−×` | ✅ giac-core Phase A |
-| `AlgExtC` / `ExtensionTower::common` | ✅ giac-core P0-A/B |
+| `AlgExtC` / `ExtensionTower::common` | ✅ giac-core P0-A/B（塔 T4a 默认） |
 | `Poly<AlgExtC>` | ✅ P1-1/2/4 骨架 + Expr 桥 |
 | partfrac deg≤3 不可约（ℚ） | ✅ `partfrac_cubic_irreducible_denominator` |
 | partfrac disc>0 二次分裂 | ❌ `NotImplemented("partfrac real quadratic split")` |
 | solve 二次/双二次 `rootof` 特判 | ✅ 过渡态（giac-solve，待迁入 poly） |
+| `field_arith` ↔ `giac-poly` 稠密 poly1 重复 | ☐ 见 [GIAC-dense-poly1-refactor](GIAC-dense-poly1-refactor.md)（D1–D4，T3+ 前建议 D3） |
 
 ---
 
@@ -57,7 +58,7 @@ giac-poly 表示层（PolyCoeff + Poly<C> + Expr 桥接）
 | ID | 事项 | 说明 | 验收 | 阻塞 |
 |----|------|------|------|------|
 | **P0-A** | `AlgExtC` + `canonicalize`（B-06） | 复代数数一等类型；`Complex(0,AlgExt)` / `AlgExt` 统一 | `(i·√2)² = −2`；`canonicalize` 往返 | 一切 `Poly<AlgExtC>` |
-| **P0-B** | `ExtensionTower::common` 重构（B-05） | `AlgExtData.min_poly` → `field: ExtensionField`；跨域合并有缓存 | `(√2)+(∛2)` 同塔运算 | 多元 gcd/factor 系数不在同一域 |
+| **P0-B** | `ExtensionTower::common` 重构（B-05） | `AlgExtData.field` + 塔式/子域 common + cache | `(√2)+(∛2)` 同 compositum | ✅ [GIAC-lazy-common-tower-plan](GIAC-lazy-common-tower-plan.md) T4a/T4b |
 | **P0-C** | `expr_to_poly` / `poly_to_expr` 边界（B-01） | 含 `AlgExt`：**拒绝**；提升走 **`poly_alg_from_expr`**（stub，P1-4） | ✅ 契约见 [expr-poly-conversion.md](../expr-poly-conversion.md) |
 | **P0-D** | `AlgExt` 同域 `inv` / 跨域 `common`（A-01/A-02 收尾） | partfrac 线性方程组要求域内除法 | `1/rootof(√2)` 不 panic | partfrac / gcd |
 
@@ -108,7 +109,7 @@ giac-poly 表示层（PolyCoeff + Poly<C> + Expr 桥接）
 | **P3-3** | **`factor` 一元 over K** | 先二次/有理根子集，再 Zassenhaus 泛化 | `factor(x⁴−4)` |
 | **P3-4** | **`resultant` / `sturm` over `Poly<AlgExt>`** | 实代数 Sturm（B-04） | `realroot(x²−2)` 区间形式 |
 | **P3-5** | **嵌套环 `Poly<AlgExtC>[main]`** | `UnivariateIn<C>` 泛化；FAC 管线最后接 | 参系数 + 代数系数塔 — **长期** |
-| **P3-6** | **`Poly<AlgExtC>::roots` 通用四次** | resolvent cubic + K 上二次 split | `solve(t⁴+t+1=0,t)` 四根 `eq_mod` | **P2-6** + **P3-3** + 塔 **T3**（parent 系数） |
+| **P3-6** | **`Poly<AlgExtC>::roots` 通用四次** | resolvent cubic + K 上二次 split | `solve(t⁴+t+1=0,t)` 四根 `eq_mod` | **P2-6** + **P3-3** + 塔 **T3+**（\(u^2-\alpha\) adjoin）；缺口清单 → [GIAC-poly-p3-6-quartic-roots-gaps](GIAC-poly-p3-6-quartic-roots-gaps.md) |
 | **P3-7** | **`factor` + 有理根降次（deg≥5 前置）** | `factor_into` / sqff 与 solve 共用 | `(x²+1)(x³−x+1)` 分解后递归 | 不实现通用五次根式 |
 
 **过渡期明确不做：** `Poly<AlgExtC>` 上的 Hensel / sparse_bi / unitaryfactor — 上游 `gausspol` 对 `_EXT` 系数也极受限。  
@@ -156,7 +157,7 @@ solve(P)   P ∈ Poly<ℚ>, 变元 t, deg n
 |--------|------|------|
 | 二次、双二次 | P2-1、P2-2 | 替代 `quadratic_rootof_roots` / `biquadratic_rootof_roots` |
 | 三次 | P2-6 | 四次 resolvent 的内层；顺带交付 `solve(t³−2=0)` |
-| 一般四次（含奇次项） | P3-6 + **T3** | 在 K 上 resolvent + split；**非** `rootof.rs` 新特判 |
+| 一般四次（含奇次项） | P3-6 + **T3+** | 在 K 上 resolvent + split；**非** `rootof.rs` 新特判 |
 | factor 先降次 | P3-7、P4-6 | `(t²+1)(t²+2)` 等不应撞「未实现」 |
 
 ### 五次及更高（策略，非根式公式）
@@ -168,10 +169,11 @@ solve(P)   P ∈ Poly<ℚ>, 变元 t, deg n
 | **可选后期** | 可根式解特判（`x⁵−a`、分圆、soluble Galois）；`sturm`/`realroot` + `rootof` 隔离实根 |
 | **数值互补** | `fsolve` 与精确 `rootof` 并存，不替代 |
 
-### 与塔计划（[GIAC-lazy-common-tower-plan](GIAC-lazy-common-tower-plan.md) §10）的阻塞
+### 与塔计划（[GIAC-lazy-common-tower-plan](GIAC-lazy-common-tower-plan.md) §11）的阻塞
 
 - **T1–T2：** solve 会话内子域嵌入；多根少 flatten common。
-- **T3：** 四次一般式在 K 上 adjoin（\(u^2-\alpha\)）；无 T3 则 P3-6 只能 flatten 特判或延期。
+- **T3：** 已登记塔顶 parent 系数 `element_*`（T1b 等）。
+- **T3+：** 四次一般式在 K 上 **register** \(u^2-\alpha\) adjoin；无 T3+ 则 P3-6 只能 flatten 特判或延期。
 - **S0：** 多根列表 `align` / `eq_mod` 不依赖 `embed_a` 调用顺序。
 
 ### 四次基建完成后的自然增量
@@ -186,7 +188,7 @@ solve(P)   P ∈ Poly<ℚ>, 变元 t, deg n
 |--------|------|------|
 | **M1**（2–3 周） | P0-A/C + P1-1…5 | `Poly<AlgExtC>` 骨架 + Expr 桥接 + 表示层文档 ✅ |
 | **M2**（1–2 周） | P2-1/4/3 | `partfrac(1/(x²−2))`；∫ 对接准备 |
-| **M3**（3–4 周） | P3-1/2/3/6 + P4-1/2/6 | factor/gcd；solve 去特判；**通用四次**（依赖 T3） |
+| **M3**（3–4 周） | P3-1/2/3/6 + P4-1/2/6 | factor/gcd；solve 去特判；**通用四次**（依赖 **T3+**） |
 | **M4**（长期） | P3-5/7 + P3-4 + P4-7 | 嵌套环；deg≥5 factor+rootof；sturm/realroot |
 
 ```text

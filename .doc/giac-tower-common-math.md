@@ -50,7 +50,7 @@ K_1 \vee K_2 \;\cong\; K_1(\beta) \;\cong\; \mathbb{Q}(\alpha,\beta)
 - M. Pohst & H. Zassenhaus, *Algorithmic Algebraic Number Theory* — 数域表示与嵌入。
 - J. von zur Gathen & J. Gerhard, *Modern Computer Algebra* — §16 格罗埃纳基与理想运算（间接用于 minpoly）。
 
-**局限（为何 T4a 替换默认）：** 特征多项式 + \(k\) 搜索贵；登记为扁平 `Adj{parent:Base}`，丢失塔结构；坐标为 \(\theta\) 幂基，与 T3 张量基不一致（plan §11.9）。
+**局限（为何 T4a 替换默认）：** 特征多项式 + \(k\) 搜索贵；登记为扁平 `Adj{parent:Base}`，丢失塔结构；坐标为 \(\theta\) 幂基，与 T3 张量基不一致（plan §12.9）。
 
 ### 2.3 子域嵌入（T2/T4b）
 
@@ -164,8 +164,9 @@ Lean/Coq 全证明  →  Refinement/提取  →  性质测试  →  Golden oracl
 | 做法 | 说明 |
 |------|------|
 | Golden / `assert_equiv` | C++ giac check 为 oracle；数学等价即可，字符串可 normalize |
-| 小域手算 | √2、√3、K₁(β) 张量坐标表（plan §11.9） |
+| 小域手算 | √2、√3、K₁(β) 张量坐标表（plan §12.9） |
 | 文档陈述 | 每个算法 1 段数学构造 + 1 个最小例子（本文 §1–2） |
+| **dense ↔ sparse 审计（D4）** | `giac-poly::dense::convert`：`reverse_coeffs`、`sparse_ascending_to_dense_high_first`、`dense_high_first_to_sparse`；单测 `dense::tests::{sparse_dense_high_first_roundtrip,dense_div_rem_matches_*}` |
 
 **DoD：** 改 `align_elements` / `common_*` 必带 S0 逆序或子域/并列用例。
 
@@ -210,7 +211,8 @@ Lean/Coq 全证明  →  Refinement/提取  →  性质测试  →  Golden oracl
 | P1 | `compute_common_tower` | 塔结构 + dim；√2+∛2 快测（默认） |
 | P1 | `subfield_common_pair` (T4b) | `common(K₁,K₂)=K₂`、不 flatten |
 | P2 | `compute_common_flatten` | `#[ignore]` 与 tower 对照；bisect fallback |
-| P3 | `poly_reduce` monic 假设 | 文档 + `debug_assert`（形式化前） |
+| P3 | `poly_reduce` monic 假设 | 文档 + `debug_assert`（形式化前）；T3 见 [GIAC-dense-poly1-refactor §4.4](issues/GIAC-dense-poly1-refactor.md) |
+| P3 | poly1 坐标 layout | `giac-poly::dense::convert` roundtrip 测（D4） |
 
 ### 4.4 CI 与 feature 约定
 
@@ -242,7 +244,8 @@ Lean 证明仓库（若另建 `giac-proofs/`）**不**阻塞 Rust CI。
 | 主题 | 文档 |
 |------|------|
 | 实施阶段 | [GIAC-lazy-common-tower-plan.md](issues/GIAC-lazy-common-tower-plan.md) |
-| 坐标基对照 | 同上 §11.9 |
+| 坐标基对照 | 同上 §12.9 |
+| dense poly1 转换 | [GIAC-dense-poly1-refactor.md](issues/GIAC-dense-poly1-refactor.md) §4.2；`giac-poly::dense::convert` |
 | adoption B-05 | [GIAC-algext-adoption.md](issues/GIAC-algext-adoption.md) |
 | 测试规格 | [conformance-testing.md](conformance-testing.md) §7 |
 | 已知偏离 | [known-divergences.md](known-divergences.md) |

@@ -1,11 +1,11 @@
 # GIAC — Lazy `common` + 塔式 `ExtensionTower` 改动计划
 
-**状态:** draft（S0 ✅、S1 ✅、T1 ✅、T2 ✅、T3 ✅、T4a ✅、T4b ✅；review 补充已并入 §3 S0、§6、§7、§9）  
+**状态:** draft（S0 ✅、S1 ✅、S1-opt ✅、T1 ✅、T2 ✅、T3 ✅、T4a ✅、T4b ✅；**T3+ ☐**；DoD 部分待 §11/solve）  
 **类型:** 实施计划 / AFK  
 **相关:** [GIAC-algext-adoption](GIAC-algext-adoption.md) §8.2、B-05；[GIAC-poly-algext-backlog](GIAC-poly-algext-backlog.md)  
 **Rust 落点:** `giac-core::algebra::{ext_tower, alg_ext, alg_ext_c, field_arith}`  
 **快照:** 2026-06-19  
-**附录:** §11 目标态存储方案与算法例子（√2、√3、√2+√3、`align_elements` 流程）
+**附录:** §12 目标态存储方案与算法例子（√2、√3、√2+√3、`align_elements` 流程）
 
 ---
 
@@ -27,15 +27,16 @@
 
 ---
 
-## 2. 现状摘要
+## 2. 现状摘要（2026-06-20，T4a 默认后）
 
-| 路径 | common? | 问题 |
+| 路径 | common? | 状态 |
 |------|---------|------|
-| `from_rootof` | 否（`adjoin_irreducible_over_q`） | ✓ 已 lazy |
-| `align_pair` / `AlgExtC::align_with` | 是 | `embed_a` 按调用顺序，与 cache 按 id 排序不一致 |
-| `fold_algext_sum` | 组内否、组间是 | 分组仅 `Arc::ptr_eq` |
-| `common_over_q` | flatten + `k=1..12` | 无子域包含；贵 |
-| `ExtensionTower::Adj` | `parent` 恒 `Base` | 无完整塔 |
+| `from_rootof` | 否（lazy adjoin） | ✅ |
+| `align_pair` / `AlgExtC::align_with` | 经 `align_elements` | ✅ S0 |
+| `fold_algext_sum` | Split：组间可留 `Add` 树；Canonical：按 `field.id` merge | ✅ S1 / S1-opt |
+| `common_over_q` | T4b 子域 / T4a 塔 adjoin / flatten bisect | ✅ 默认塔 |
+| `ExtensionTower::Adj` | 真 parent 链 | ✅ T1–T3 |
+| `adjoin(K, u²−α)`（α∈K 非常数） | **未实现**（`adjoin_irreducible` 拒 parent 系数） | ☐ **T3+** |
 
 ---
 
@@ -85,23 +86,23 @@
 - `fold_algext_sum` 测：同 minpoly 不同 `Arc`（若 registry dedup 则同 ptr）
 - 文档索引可发现
 
-#### Phase S1-opt（可选，同 PR 或紧随 S1）— Canonical fold 确定性 merge
+#### Phase S1-opt（可选，同 PR 或紧随 S1）— Canonical fold 确定性 merge ✅ 2026-06-20
 
 **目的：** 多域组间合并时 **不依赖 Expr 遍历顺序**；与左结合 binary common 渐近同为 \(O(D^3)\)，但 **common 调用序列可复现**，利于测试与 cache 预热。  
 **非目标：** 完整「平衡 merge 树」（按维数配对降中间维峰值）、N 元一次 compositum——**未立项**（见 §8.4）。
 
 | 任务 | 文件 |
 |------|------|
-| Canonical 路径：各 `field` 组代表元按 `field.id()` **升序** 排列 | `alg_ext.rs` |
-| 两两 `acc.add(&next)` 合并（递增链，非 Expr 左结合顺序） | `alg_ext.rs` |
-| 开关：`FoldAlgExtMode::Split`（默认，现行为）/ `Canonical`（排序后 merge） | `alg_ext.rs` 或 `fold_algext_sum` 参数 |
-| 文档：说明与塔路径（T1–T2）关系——塔顶同域时 fold 不触发组间 common | 本文 §11.6 E |
+| Canonical 路径：各 `field` 组代表元按 `field.id()` **升序** 排列 | `alg_ext.rs` | ✅ |
+| 两两 `acc.add(&next)` 合并（递增链，非 Expr 左结合顺序） | `alg_ext.rs` | ✅ |
+| 开关：`FoldAlgExtMode::Split`（默认）/ `Canonical`（`fold_algext_sum_mode`） | `alg_ext.rs` | ✅ |
+| 文档：说明与塔路径（T1–T2）关系——塔顶同域时 fold 不触发组间 common | 本文 §12.6 E | ✅ |
 
 **验收：**
 
-- 四域例：√2、∛2、√3、∛3 两组以上，**交换 Expr 中各项顺序**，`Canonical` 模式输出 `AlgExt` 在公共域上 `eq_mod` 一致
+- 四域例（√2、∛2、√3、∛3）：**未测**（3+ 无关简单域 flatten 慢）；已测 √2+√3 **两域** `Canonical` 顺序无关
 - 合并过程：组间 `common` 按 `id` 递增顺序发生（可用测试 hook 记录 `(id_lo,id_hi)` 序列）
-- `Split` 模式行为与 S1 主路径一致（多域仍可为 `Add` 树）
+- `Split`：两域时 pairwise `add` 可 lazy common 合并；**三域及以上** 仍常为 `Add` 树（见 §12.6 E）
 
 **优先级：** P2 可选；不挡 S0/T1。无塔时略减「加法顺序敏感」；有塔时收益有限。
 
@@ -123,7 +124,7 @@
 **验收（review 收紧）：**
 
 - **T1a：** `adjoin(Base, t²−2)` 与现 `adjoin_irreducible_over_q` 等价，\([K_1:\mathbb{Q}]=2\)
-- **T1b：** `adjoin(K₁, u²−3)`——\(K_1=\mathbb{Q}(\sqrt2)\)，minpoly 系数为 **\(K_1\) 里的常数 3**（坐标 \((3,0)\)），\([K_2:\mathbb{Q}]=4\)；**本阶段不做** \(u^2-\alpha\)（\(\alpha=\sqrt2\) 在 \(K_1\) 中的非平凡系数），该形态推到 **T3 之后**
+- **T1b：** `adjoin(K₁, u²−3)`——\(K_1=\mathbb{Q}(\sqrt2)\)，minpoly 系数为 **\(K_1\) 里的常数 3**（坐标 \((3,0)\)），\([K_2:\mathbb{Q}]=4\)；**本阶段不做** \(u^2-\alpha\)（\(\alpha=\sqrt2\) 在 \(K_1\) 中的非平凡系数），该形态推到 **T3+**
 - `is_subfield_of(K₁, K₂)` 为 true
 - 旧 `adjoin_irreducible_over_q` 仍可用（别名 `adjoin(rational(), P)`）
 
@@ -140,7 +141,7 @@
 **验收：**
 
 - 在 T1 的 K₂ 中 `√2 + √2` **不**触发 `common_cache` insert（可用计数器或 spy 测）
-- `(√2)+(∛2)` 仍走 flatten common（至 T4）
+- `(√2)+(∛2)` 走 **T4a** 塔 compositum（默认）；flatten 仅 `--no-default-features`
 
 ---
 
@@ -156,6 +157,27 @@
 
 - K₁ 内 `√2 * √2 = 2`
 - K₂ 内 `(√2·β) * (β)` 等与手算一致（小用例）
+
+**与 T3+ 分界：** T3 在**已登记**塔顶做 parent 系数 `element_*`（含 T1b 的 \(u^2-3\)）；**不**解除 `adjoin_irreducible` 对层 minpoly「parent 非常数系数」的登记限制。
+
+---
+
+### Phase T3+ — 层 minpoly 含 parent 非常数系数（`adjoin(K, u²−α)`）（1–2 PR）☐
+
+**目的：** 一般四次 resolvent 等在 K 上 adjoin \(u^2-\alpha\)（\(\alpha\in K\) 非 embed 有理常数）；与 T3 **算术**互补——T3+ 才允许 **register** 新层。
+
+| 任务 | 文件 |
+|------|------|
+| `adjoin_irreducible`：parent≠Base 时接受 parent 系数 minpoly（现拒：`layer_minpoly_rational_constants`，`ext_tower.rs` ~164） | `ext_tower.rs` |
+| 层系数 embed → parent operational 基；deg / 约化检查 | `ext_tower.rs` |
+| `min_poly_over_q` / 张量基与 T3 `element_*` 一致 | `ext_tower.rs` |
+| 测试：`adjoin(K₁, u²−√2)`（α 在 K₁ 为 `(1,0)`）维数与手算 `eq_mod` | `ext_tower.rs` tests |
+
+**验收：**
+
+- **T3+a：** `adjoin(K₁, u²−α)`，\(K_1=\mathbb{Q}(\sqrt2)\)，\(\alpha=\sqrt2\)，\([K_2:\mathbb{Q}]=4\)
+- T1b `adjoin(K₁,u²−3)` 仍绿（常数系数路径不退化）
+- **阻塞 P3-6：** 无 T3+ 则 `Poly<AlgExtC>::roots` 无法在 resolvent 步建 \(u^2-\alpha\) 层
 
 ---
 
@@ -225,7 +247,7 @@
 ## 5. 测试策略
 
 1. **单元：** 每层验收表 + `align` 对称性 + **S0 cache hit 逆序操作数** + 子域无 common 计数
-2. **集成：** `solve(t²-2)`, `solve(t⁴-2)`, `solve(t⁴+t+1)`（P3-6+T3）, `factor(x²-2)`, `realroot`
+2. **集成：** `solve(t²-2)`, `solve(t⁴-2)`, `solve(t⁴+t+1)`（P3-6+**T3+**）, `factor(x²-2)`, `realroot`
 3. **golden：** `cargo test` conformance 无回归；偏离登记 `known-divergences.md`
 4. **属性（可选）：** flatten common 与 tower common 结果 `eq_mod`（小域对）
 
@@ -235,7 +257,7 @@
 
 | 风险 | 缓解 |
 |------|------|
-| T3 parent 系数算术复杂 | T1 仅 T1a/T1b（\(u^2-3\) 常数）；\(u^2-\alpha\) 延至 T3 后 |
+| T3 parent 系数算术复杂 | T1 仅 T1a/T1b（\(u^2-3\) 常数）；\(u^2-\alpha\) 延至 **T3+** adjoin |
 | 嵌入顺序 bug 复发 | S0 强制所有路径经 `align_elements` |
 | 性能回退 | 保留 `common_cache`；T2 子域快路径 |
 | API 破坏 | `adjoin_irreducible_over_q` 保留；`CommonFieldPair` 字段名变更需 major 注记 |
@@ -249,7 +271,7 @@
 ## 7. 推荐 PR 顺序
 
 ```text
-S0 → S1 [→ S1-opt 可选] → T1 → T2 → T3 → T4a → T4b → (S2 可选，P2)
+S0 → S1 [→ S1-opt 可选] → T1 → T2 → T3 → T3+ → T4a → T4b → (S2 可选，P2)
 ```
 
 **AFK 最小竖切：** 仅 **S0 + T1 + T2** 即可交付「lazy + 子域嵌入」大部分收益；**T4a** 为 B-05 并列域主交付，**T4b** 与 T2 合并验收子塔包含。
@@ -258,7 +280,7 @@ S0 → S1 [→ S1-opt 可选] → T1 → T2 → T3 → T4a → T4b → (S2 可�
 
 | 可并行（不挡塔） | 须等塔 Phase |
 |------------------|--------------|
-| P2-1/6、P4-6（factor + 双二次 solve） | **T3** → P3-6 一般四次（\(u^2-\alpha\)） |
+| P2-1/6、P4-6（factor + 双二次 solve） | **T3+** → P3-6 一般四次（\(u^2-\alpha\) adjoin） |
 | 任何不跨域 `align` 的 poly 工作 | **T4a** → 并列不可约因子 compositum |
 | **S0** 可与上述 poly 工作并行 | **S0** 本身 unlock 多根 `eq_mod` / 逆序 `add` |
 
@@ -271,7 +293,7 @@ S0 → S1 [→ S1-opt 可选] → T1 → T2 → T3 → T4a → T4b → (S2 可�
 
 **已决（review 并入）：**
 
-3. **T1 验收** 采用 **T1a** `adjoin(Base, t²−2)` + **T1b** `adjoin(K₁, u²−3)`（\(K_1\) 常数 3）；**\(u^2-\alpha\)** 不在 T1/T2 做，留待 T3 parent 系数算术就绪后。
+3. **T1 验收** 采用 **T1a** `adjoin(Base, t²−2)` + **T1b** `adjoin(K₁, u²−3)`（\(K_1\) 常数 3）；**\(u^2-\alpha\)** 不在 T1/T2 做，留待 **T3+**（T3 仅 parent 系数算术）。
 
 4. **平衡 merge 树** 是否立项？（建议：**否**；**S1-opt** 仅做按 `field.id` 排序的两两 Canonical merge；按维数配对的平衡树、N 元 compositum 留待塔成熟后再评估）
 
@@ -283,20 +305,34 @@ S0 → S1 [→ S1-opt 可选] → T1 → T2 → T3 → T4a → T4b → (S2 可�
 
 - [x] S0：`embedding_for` + 逆序 cache 回归测绿（2026-06-20）
 - [x] T3：塔顶 parent 系数 `element_*` + `mul_rational` + K₁/K₂ 验收测绿（2026-06-20）
-- [ ] 所有跨域对齐经 `align_elements`（grep：`common_over_q` 仅出现在 `align_elements` 与 `common_cached` 链）
-- [ ] adoption B-05 验收行勾选（T4b 后）
-- [ ] `.doc/issues/GIAC-poly-algext-backlog.md` M-塔 或等价项登记
-- [ ] `giac-core` / 相关 crate 测试绿
+- [x] 所有跨域对齐经 `align_elements`（2026-06-20 grep：生产路径仅 `align_elements`→`common_over_q`；`common_ext` 同链；测试直接调 `common_over_q` 除外）
+- [x] adoption B-05 验收行勾选（T4b 后，2026-06-20）
+- [x] `.doc/issues/GIAC-poly-algext-backlog.md` P0-B（M-塔）登记 ✅
+- [x] `giac-core` / 相关 crate 测试绿（2026-06-20）
+- [ ] **T3+：** `adjoin(K, u²−α)` 登记 + 维数 / `eq_mod` 验收
 - [ ] 无新增 `poly_error_compat` 类双错误映射
 - [x] T4a：`tower-common` 默认开；`--no-default-features` = Phase 0 flatten（bisect，测 `flatten_bisect::*`）
 
 ---
 
-## 10. Solve 管线：四次与 deg≥5（与 poly backlog 对齐）
+## 10. 下一阶段（塔计划本体已闭合；solve 依赖 T3+）
+
+| 优先级 | 事项 | 文档 |
+|--------|------|------|
+| **P0** | **T3+** `adjoin(K, u²−α)`（P3-6 前置） | 本文 §3 Phase T3+ |
+| **P1** | 一般四次 solve（P3-6，resolvent 在 K 上 split） | 本文 §11；[GIAC-poly-algext-backlog](GIAC-poly-algext-backlog.md) §5.1 |
+| **P2** | `AlgExtC::from_complex_parts` 延迟 common（S2） | 本文 §3 Phase S2 |
+| **P2** | `CommonFieldPair` → `embed_for(source)` 重命名 | 本文 §8.2 |
+| **P2** | conformance 集成：`solve(t⁴+t+1)` 等 | 本文 §5 |
+| **P2** | 稠密 poly1 算术下沉 `giac-poly`（删 `field_arith` 双份） | [GIAC-dense-poly1-refactor](GIAC-dense-poly1-refactor.md) D1–D4 |
+
+---
+
+## 11. Solve 管线：四次与 deg≥5（与 poly backlog 对齐）
 
 **交叉引用：** [GIAC-poly-algext-backlog.md](GIAC-poly-algext-backlog.md) §5.1（P2-6、P3-6/7、P4-6/7）。
 
-### 10.1 目标与边界
+### 11.1 目标与边界
 
 | 范围 | 立场 |
 |------|------|
@@ -304,7 +340,7 @@ S0 → S1 [→ S1-opt 可选] → T1 → T2 → T3 → T4a → T4b → (S2 可�
 | **deg≥5** | **不做**通用根式闭式（Abel–Ruffini）；**要做** factor 降次 + 不可约因子 `rootof(α)` |
 | **表示** | 代数根一律 `AlgExt` / `AlgExtC`；`giac_poly::roots` 仅 ℚ 有理根（或迁入废弃） |
 
-### 10.2 塔 Phase 对 solve 的阻塞关系
+### 11.2 塔 Phase 对 solve 的阻塞关系
 
 ```text
 P ∈ Poly<ℚ>, solve(t)
@@ -315,7 +351,7 @@ P ∈ Poly<ℚ>, solve(t)
         │     ├─ 二次 / 双二次：K₀ adjoin（现 flatten，T1a 等价）
         │     ├─ 三次 resolvent：K₀ 或 K₁ 上 roots → 需 T1 + T3 系数算术
         │     └─ 一般四次：resolvent cubic + K 上二次 split
-        │           └─ minpoly 系数 ∈ K₁（如 u²−α）→ **硬依赖 T3**
+        │           └─ minpoly 系数 ∈ K₁（如 u²−α）→ **硬依赖 T3+ adjoin**
         │
         └─ deg≥5 不可约：rootof(生成元, Pᵢ)（L1 lazy adjoin）
               └─ 多根同属分裂域时：T2 子域嵌入；并列因子 T4a common
@@ -325,34 +361,35 @@ P ∈ Poly<ℚ>, solve(t)
 |----------|------------|
 | **S0** | 多根列表、`froot` 输出后续 `add`/`eq_mod` 嵌入不错序 |
 | **T1–T2** | solve 会话塔生长；`√2` 已在 K₂ 时不重复 flatten common |
-| **T3** | **P3-6 一般四次**在 K 上 adjoin / split（\(u^2-\alpha\)） |
+| **T3** | 已登记塔顶 parent 系数 `element_*`（T1b 等） |
+| **T3+** | **P3-6 一般四次**：在 K 上 **register** \(u^2-\alpha\) adjoin |
 | **T4a** | 并列不可约因子（如两不同五次）进公共域 |
 
-**AFK 竖切建议：** S0 + T1 + T2 与 P2-1/6、P4-6（factor+递归+双二次）可并行；**P3-6 一般四次**验收挂在 **T3 之后**。
+**AFK 竖切建议：** S0 + T1 + T2 与 P2-1/6、P4-6（factor+递归+双二次）可并行；**P3-6 一般四次**验收挂在 **T3+ 之后**（T3 alone 不足：现 `adjoin_irreducible` 仍拒 parent 系数层）。
 
-### 10.3 验收补充（接 §5 测试策略）
+### 11.3 验收补充（接 §5 测试策略）
 
 | 用例 | 期望 | 塔/note |
 |------|------|---------|
 | `solve(t⁴−2=0,t)` | 四根；双二次路径 | T1a 或 flatten；已有 |
-| `solve(t⁴+t+1=0,t)` | 四根 `eq_mod`；非 `NotImplemented` | 需 P3-6 + T3 |
+| `solve(t⁴+t+1=0,t)` | 四根 `eq_mod`；非 `NotImplemented` | 需 P3-6 + **T3+** |
 | `solve(t⁵−2=0,t)` | 一支 `rootof` 或五根（若可根式子类） | **不**要求通用根式；`rootof`+`min_poly` 可接受 |
 | `(x²+1)(x³−x+1)` factor 后 solve | 降次递归 | P3-7；不触发四次未实现 |
 | 同次方程两次 solve | 同分裂域 `field` 可对齐 | T2 / registry `by_adjoin` |
 
-### 10.4 明确不做
+### 11.4 明确不做
 
 - Ferrari / resolvent 的 **`giac-solve` 旁路实现**（与 P4-6 统一 `Poly<AlgExtC>::roots` 冲突）。
 - **通用五次根式**闭式及更高次根式公式。
-- 在 T3 前用 flatten 冒充「一般四次」并标为 P3-6 完成（允许 **临时** 双二次+可约降次，须登记 `known-divergences`）。
+- 在 **T3+** 前用 flatten 冒充「一般四次」并标为 P3-6 完成（允许 **临时** 双二次+可约降次，须登记 `known-divergences`）。
 
 ---
 
-## 11. 附录：目标态存储方案与算法例子
+## 12. 附录：目标态存储方案与算法例子
 
-改造完成（S0 + T1–T4b）后的**运行时形态**说明；与 §1 目标、§3 各 Phase 验收一致。
+改造完成（S0 + S1-opt + T1–T4b）后的**运行时形态**说明；与 §1 目标、§3 各 Phase 验收一致。
 
-### 11.1 三层表示（L0 / L1 / L2）
+### 12.1 三层表示（L0 / L1 / L2）
 
 | 层 | 载体 | 何时 | 是否 `common` |
 |----|------|------|----------------|
@@ -370,7 +407,7 @@ rootof([1,0], poly1[1,0,-2]) + rootof([1,0], poly1[1,0,-3])
 
 ---
 
-### 11.2 塔结构 `ExtensionTower`
+### 12.2 塔结构 `ExtensionTower`
 
 每个 `ExtensionField` 指向**塔顶**；`Adj` 记录逐层 adjoin（parent 为真父塔，非写死 `Base`）。
 
@@ -398,7 +435,7 @@ K₂ = ℚ(√2,√3)    id=12   registry[(7, key(u²−3))]    // T1b：在 K�
 
 ---
 
-### 11.3 全局 Registry
+### 12.3 全局 Registry
 
 | 表 | 键 | 值 | 含义 |
 |----|-----|-----|------|
@@ -423,7 +460,7 @@ CommonFieldPair {
 
 ---
 
-### 11.4 存储例子
+### 12.4 存储例子
 
 #### 例 A：`√2`（L1）
 
@@ -451,11 +488,11 @@ adjoin(K₁, u²−3)   // 系数 3 在 K₁ 中为 embed(3)=(0,3) 于 block u^0
   → 常数 1 在 K₂ 中: coords = (0, 1, 0, 0)           // block u^0 = parent.one
 ```
 
-（与 flatten `min_poly_over_q` 本原元 θ 幂基不同，见 §11.9。）
+（与 flatten `min_poly_over_q` 本原元 θ 幂基不同，见 §12.9。）
 
 ---
 
-### 11.5 算法：`align_elements` 决策树
+### 12.5 算法：`align_elements` 决策树
 
 ```mermaid
 flowchart TD
@@ -475,7 +512,7 @@ flowchart TD
 
 ---
 
-### 11.6 算法例子
+### 12.6 算法例子
 
 #### B：`√2 + √2`（同域 K₂，T2 快路径）
 
@@ -519,8 +556,9 @@ Add(√2_rootof, √3_rootof, 1)
   → 两组 L1 + rat 1
 
 Split（默认，S1）:
-  → 不同 field，组间不强行 merge
-  → 输出仍 Add(1, √2, √3) 或等价多子树
+  → 按 field 分组；组内 `element_add`，不跨组 common
+  → **仅一组且新项异域**：pairwise `add` → 可 lazy common（如 √2+√3 → 单个 L2 AlgExt）
+  → **三域及以上**： unlike fields 仍常为 `Add` 树
 
 Canonical（S1-opt 可选）:
   → 各 field 组按 field.id 升序排列
@@ -536,12 +574,12 @@ K₁ = ℚ(α), α²=2
 → adjoin 得 β⁴=2 或分步二次 → K₂
 → 需 i 时 adjoin(v²+1) → K₃
 根 ±2^(1/4), ±i·2^(1/4) 为各步塔顶上 AlgExtC
-同题后续 align 走子域提升；\(u^2-\alpha\) 系数形态见 T3 后
+同题后续 align 走子域提升；\(u^2-\alpha\) adjoin 见 **T3+**
 ```
 
 ---
 
-### 11.7 改造前后对比（√2+√3）
+### 12.7 改造前后对比（√2+√3）
 
 | | 改造前（扁平 Phase 0） | 改造后（塔 + lazy） |
 |---|------------------------|---------------------|
@@ -553,7 +591,7 @@ K₁ = ℚ(α), α²=2
 
 ---
 
-### 11.8 数据流总图
+### 12.8 数据流总图
 
 ```text
 用户:  rootof(√2) + rootof(√3)
@@ -584,7 +622,7 @@ L2      AlgExt(K₁₂, (0,1,1,0))
 
 ---
 
-### 11.9 Flatten vs 塔 坐标基对照（audit 2026-06-20）
+### 12.9 Flatten vs 塔 坐标基对照（audit 2026-06-20）
 
 **同一数学域**在不同登记路径下 **`coords` 下标含义不同**。`AlgExtData::from_coords_q` 不做基变换；`fold_algext_sum` 合并有理项须走 `field.embed_rational` + `field.element_add`（**不能**假定常数在 `coords.last()`，也不能对塔域 `poly_reduce` mod `min_poly_over_q`）。
 
@@ -629,7 +667,17 @@ L2      AlgExt(K₁₂, (0,1,1,0))
 
 - **`from_coords_q`：** 调用方必须提供 **该 `field` 句柄的 operational 基** 坐标；勿把 flatten θ 坐标直接挂到塔句柄上。
 - **`fold_algext_sum`：** 单 AlgExt 组 + 有理叶子 → `embed_rational` + `element_add`（已修复，测 `fold_algext_sum_rat_on_k2_*`）。
-- **测试夹具：** `algebra::test_fixtures`（`#[cfg(test)]`）— `t1b_k2_adjoin_sqrt3_over_k1()` 等，对应 plan §11.4 例 C / T1b，避免各测重复写 minpoly。
-- **数学 / 形式化：** [.doc/giac-tower-common-math.md](../giac-tower-common-math.md) — compositum 文献、Lean 分层证明路线。
+- **测试夹具：** `algebra::test_fixtures`（`#[cfg(test)]`）— `t1b_k2_adjoin_sqrt3_over_k1()` 等，对应 plan §12.4 例 C / T1b，避免各测重复写 minpoly。
+- **数学 / 可审计验证：** [.doc/giac-tower-common-math.md](../giac-tower-common-math.md) — compositum 文献、Lean 分层证明路线（非全库 machine-checked 形式化）。
 - **`eq_mod` / `align_elements`：** 子域快路径在张量基下正确；flatten common 对齐到 **common.field** 的 θ 基——与塔基 **`eq_mod` 仍成立**，但 **coords 字面不可比**。
+
+#### Rust 坐标转换 API（D4，`giac-poly::dense::convert`）
+
+| 布局 | 向量语义 | Rust |
+|------|----------|------|
+| giac **`poly1` HighFirst** | 下标 0 = 最高次；常数在末位 | `ext_tower` / `field_arith::CoordsQ`；`sparse_ascending_to_dense_high_first` |
+| giac-poly **ascending** | 下标 0 = 常数项 | `univariate_coeffs_ascending`；`dense_high_first_to_ascending` |
+| sparse `Poly` | 升幂存储 | `dense_high_first_to_sparse` / 上式互逆 |
+
+**禁止：** 不经上述 API 把 sparse 系数向量当作 `CoordsQ` 使用，或把 flatten θ 坐标挂塔句柄（见 [GIAC-dense-poly1-refactor](GIAC-dense-poly1-refactor.md) §4.2）。
 

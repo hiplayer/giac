@@ -72,4 +72,4 @@ alwaysApply: false
 | **新增 fn tier** | 每个新/改 `fn` 标 `Stable` / `Partial` / `Temporary` / `Pipeline private`；更新 `.doc/*-api-stability.md` |
 | **inventory** | `giac-rs/scripts/annotate_api_tiers.py --inventory`（算法 crate 改动时） |
 
-细则：[`.doc/algorithm-expr-api.md`](../../.doc/algorithm-expr-api.md) §6.2。
+细则：[`.doc/algorithm-expr-api.md`](../../.doc/algorithm-expr-api.md) §7.2。

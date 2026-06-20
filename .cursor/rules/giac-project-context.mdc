@@ -27,7 +27,7 @@ Rust 移植 **giac-rs** 对标 **giac-2.0.0**；**测试即规格**（53 CTest /
 | 测试规格 | `.doc/conformance-testing.md` |
 | 已知偏离 | `.doc/known-divergences.md` |
 | 工程门禁 | `.doc/rust-migration-supplement.md` §6–7 |
-| 算法表示层 API | `.doc/algorithm-expr-api.md`（§6.2 测试通过后复审）；Cursor：`algorithm-expr-api.mdc`、`algorithm-before-patch.mdc`、`giac-poly-nested-ring.mdc` |
+| 算法表示层 API | `.doc/algorithm-expr-api.md`（§7.2 测试通过后复审）；Cursor：`algorithm-expr-api.mdc`、`algorithm-before-patch.mdc`、`giac-poly-nested-ring.mdc` |
 
 ## 勿移植
 

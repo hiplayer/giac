@@ -2,6 +2,8 @@
 
 Golden 回归、等价判定、随机数与归一化规则。配合 [`rust-migration-plan.md` §6](rust-migration-plan.md) 使用。
 
+**算法 crate 内单元/通路单测分层（A/B/C）与审计表：** [test-writing-spec.md](test-writing-spec.md)、[issues/GIAC-expr-api-test-audit.md](issues/GIAC-expr-api-test-audit.md)。
+
 ---
 
 ## 1. 测试计数（统一口径）
@@ -241,7 +243,7 @@ Golden 覆盖端到端表达式；**域扩张 / compositum** 另有一套分层�
 | 文档 | 内容 |
 |------|------|
 | [giac-tower-common-math.md](giac-tower-common-math.md) | compositum 数学参考、Lean 分层引理、**§4 可审计验证四层做法** |
-| [GIAC-lazy-common-tower-plan.md](issues/GIAC-lazy-common-tower-plan.md) | T4a/T4b 实施与坐标基 §11.9 |
+| [GIAC-lazy-common-tower-plan.md](issues/GIAC-lazy-common-tower-plan.md) | T4a/T4b 实施与坐标基 §12.9 |
 
 **日常命令：**
 

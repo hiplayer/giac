@@ -94,7 +94,7 @@ rootof([c_{d−1}, …, c₀], poly1[P])  ↔  min_poly = P，coords = [c_{d−1
 
 2. 将 √2、∛2 **嵌入** 新基 `{1, γ, …, γ⁵}`，再 `ext_add`，得到 6 个有理坐标 `coords`（非直观的 `[1,1]`）。
 
-giac-rs **尚未实现** B-05；当前跨域加法会 `algebraic extension mismatch`。
+giac-rs **已实现** B-05（T4a 塔 compositum 默认、`subfield_common_pair`、cache）；跨域 `add` 经 `align_elements` → `common_over_q`。
 
 ### 4. 为何用「ℚ 多项式 + ℚ 系数」表示
 
@@ -230,7 +230,7 @@ pub struct ExtensionField {
 | L1 `AlgExtData` | `from_rootof`、同域 `+ − ×` | 否（最小域） |
 | L2 对齐后 | 跨域 `add`/`mul`/`eq_mod`、经 [`align_elements`](../../giac-rs/crates/giac-core/src/algebra/ext_tower.rs) | 运算时可能 `common` |
 
-决策树（同域 / 子域嵌入 / `common_cache`）见塔计划 **§11.5**；`fold_algext_sum` Split 语义见 **§11.6 E**。S0 已落地：`embedding_for` + 统一 `align_elements` 入口。
+决策树（同域 / 子域嵌入 / `common_cache`）见塔计划 **§12.5**；`fold_algext_sum` Split 语义见 **§12.6 E**。S0 已落地：`embedding_for` + 统一 `align_elements` 入口。
 
 **示例塔（`solve(t⁴−2=0)` 自然生长）：**
 
@@ -518,7 +518,7 @@ factor / solve / AlgExtC
 | B-02 | `giac-poly` | `gcd` / `factor` / `roots` | 系数环 **`Poly<AlgExtC>`**；过渡态二次 rootof 钩子 | `gausspol` `algext_convert` | `factor(x^2-2)`；终态任意次数 |
 | B-03 | `giac-solve` | `solve` / `roots` | 根为 **`AlgExtC`**；`Poly<AlgExtC>::roots` | `solve.cc` + `rootof` | `solve(t^4-2=0,t)` 四根 ✅ 过渡态 |
 | B-04 | `giac-solve` | `sturm` / `realroot` | 实根：`Poly<AlgExt>`（`AlgExtC.im=0`） | `alg_ext.cc` `sturm` | `realroot(x^2-2)` |
-| B-05 | `giac-core` | **`ExtensionTower::common`** | 塔式 `common_EXT` + 缓存 | `alg_ext.cc` L51–52 | `(√2)+(∛2)`；重构现有 MVP |
+| B-05 | `giac-core` | **`ExtensionTower::common`** | 塔式 `common_EXT` + 缓存 | `alg_ext.cc` L51–52 | ✅ `(√2)+(∛2)`；[lazy-common-tower](GIAC-lazy-common-tower-plan.md) T4a/T4b |
 | B-06 | `giac-core` | **`AlgExtC`** + `canonicalize` | 复代数数一等类型；`i` 进塔 | — | `i·rootof(...)` 可 `+−×÷` |
 
 ### P2 — 微积分与极限（Phase B）

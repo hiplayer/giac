@@ -1,6 +1,6 @@
 ---
 description: 算法 crate 稳定 API vs 临时 drift/shim；表示层边界（Expr/Poly），禁止形式漂移与散落形状匹配
-globs: giac-rs/crates/giac-calculus/**,giac-rs/crates/giac-poly/**,giac-rs/crates/giac-solve/**,giac-rs/crates/giac-simplify/**,giac-rs/crates/giac-ode/**,giac-rs/crates/giac-groebner/**
+globs: giac-rs/crates/giac-calculus/**,giac-rs/crates/giac-poly/**,giac-rs/crates/giac-core/src/algebra/**,giac-rs/crates/giac-solve/**,giac-rs/crates/giac-simplify/**,giac-rs/crates/giac-ode/**,giac-rs/crates/giac-groebner/**
 alwaysApply: false
 ---
 
@@ -23,6 +23,22 @@ alwaysApply: false
 - **`ratnormal` / `normal` / `expand` 之后** → 不假定 AST 不变；先走该域 `canonical_*` 再比较/分解。
 - **多项式运算** → 仅在证明为多项式子类后用 `giac-poly`；结果回 `Expr` 用 `poly_to_expr`。
 
+## 树状表示：数据在树里，上下文在算法里
+
+树状类型（`ExprArc`、`Poly`、`SparseSeries`、`AlgExt`…）通常是 **intentionally erased**——树只编码数据形状，**不保证**环/域/主元/canonical 形等语义环境。**相关算法必须显式携带上下文**；不限于 `Poly`。
+
+| 表示 | 上下文载体（示例） |
+|------|-------------------|
+| `Poly` | `MainVar` / `UnivariateIn` / `SqffRingCtx` |
+| `Poly<AlgExtC>` | `FieldSession`（ambient K + working L） |
+| `ExprArc` | `canonical_*` / `decompose_*`、`Context` |
+| `SparseSeries` | `canonical_mrv_coeff` 等域内 API |
+
+**判据：** 同形多义，或 ambient 在算法中会变化 → 必须显式上下文；禁止裸树 `==`、形状匹配、混用 `div_rem`。
+
+**禁止：** 只传裸树 + 隐式假设（如 `&Poly` + `field: &K` 散落 `align_coeff`）。  
+**应做：** 按域选用标签 / `canonical_*` / session（扩域求根见 `FieldSession`，§6.3）。详见 [`.doc/algorithm-expr-api.md`](../../.doc/algorithm-expr-api.md) §6。
+
 ## 新增函数前
 
 1. 归类稳定 / `drift_` / `shim_` / 管线私有  
@@ -36,7 +52,7 @@ alwaysApply: false
 2. **新增 fn：** 逐项标 tier（`Stable` / `Partial` / `Temporary` / `Pipeline private`）  
 3. **文档：** 更新对应 `*-api-stability.md`；必要时跑 `annotate_api_tiers.py --inventory`  
 
-见 [`.doc/algorithm-expr-api.md`](../../.doc/algorithm-expr-api.md) §6.2。
+见 [`.doc/algorithm-expr-api.md`](../../.doc/algorithm-expr-api.md) §7.2。
 
 ## 与 algorithm-before-patch
 

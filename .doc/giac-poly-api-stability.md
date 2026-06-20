@@ -27,7 +27,7 @@
 
 **命名:** 公开 `try_*`（如 `try_hensel_lift_bivariate`）表示 **可选算法路径**，非 [algorithm-expr-api](algorithm-expr-api.md) 意义的临时 `shim_*`；失败时静默 `None`，调用方须处理。
 
-**提交前复审（测试全绿后）：** 见 [algorithm-expr-api.md §6.2](algorithm-expr-api.md#62-测试通过后提交--合入前复审) — 检查 factor 等模块临时 fallback 是否净减少、新增 `fn` tier 是否已更新本文 Per-file 表。
+**提交前复审（测试全绿后）：** 见 [algorithm-expr-api.md §7.2](algorithm-expr-api.md#72-测试通过后提交--合入前复审) — 检查 factor 等模块临时 fallback 是否净减少、新增 `fn` tier 是否已更新本文 Per-file 表。
 
 ---
 
@@ -137,6 +137,9 @@
 | `factor_fpx`, `degree` | `factor/fpx` | **Stable**（模域） |
 | `normalize_univariate_factors`, `try_lift_factors_in_aux_var` | `factor/hensel` | **Pipeline private** `pub(crate)` |
 | `find_rational_root` | `factor/univariate` | **Pipeline private** `pub(crate)` |
+| `dense::poly1::*`, `Poly1RingCtx`, `Poly1Order` | `dense/poly1` | **Stable (crate-internal)** — 稠密 poly1 算术；见 [GIAC-dense-poly1-refactor](issues/GIAC-dense-poly1-refactor.md) D1–D3 |
+| `dense::convert::*` | `dense/convert` | **Stable (crate-internal)** — HighFirst ↔ ascending ↔ sparse（D4） |
+| `RatioRingCtx`, `RatioRingOps` | `dense/ratio_ring` | **Stable (crate-internal)** — ℚ 系数环 |
 | `modpoly_to_poly` | `factor/modular.rs` | **Pipeline private** `pub(crate)` |
 
 ---
@@ -233,6 +236,79 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `chinrem_lists` | **Stable** | CRT fold over lists |
 | `x` | **Pipeline private** | `x` |
 | `chinrem_two_linear_moduli` | **Pipeline private** | `chinrem_two_linear_moduli` |
+
+### `dense/convert.rs`
+
+| Function | Tier | Description |
+|----------|------|-------------|
+| `reverse_coeffs` | **Stable (crate-internal)** | reverse coefficient order (HighFirst ↔ Ascending). |
+| `ascending_to_dense_high_first` | **Stable (crate-internal)** | ascending dense → giac `poly1` HighFirst. |
+| `dense_high_first_to_ascending` | **Stable (crate-internal)** | giac `poly1` HighFirst → ascending dense. |
+| `sparse_ascending_to_dense_high_first` | **Stable (crate-internal)** | sparse `Poly` univariate in `var` → dense HighFirst. |
+| `dense_high_first_to_sparse` | **Stable (crate-internal)** | dense HighFirst → sparse univariate in `var`. |
+| `poly_from_ascending_coeffs` | **Pipeline private** | `poly_from_ascending_coeffs` |
+
+### `dense/poly1.rs`
+
+| Function | Tier | Description |
+|----------|------|-------------|
+| `zero` | **Stable** | Poly zero |
+| `one` | **Stable** | Poly one |
+| `is_zero` | **Stable** | Poly is zero |
+| `add` | **Stable** | Poly addition |
+| `sub` | **Stable** | Poly subtraction |
+| `neg` | **Stable** | Poly negation |
+| `mul` | **Stable** | Poly multiplication |
+| `inv` | **Pipeline private** | `inv` |
+| `is_one` | **Stable** | Poly is one |
+| `div_coeff` | **Pipeline private** | `div_coeff` |
+| `to_high_first` | **Pipeline private** | `to_high_first` |
+| `from_high_first` | **Pipeline private** | `from_high_first` |
+| `poly_degree` | **Stable (crate-internal)** | degree in the given order (zero poly has degree 0). |
+| `trim_high_first` | **Pipeline private** | `trim_high_first` |
+| `trim` | **Stable (crate-internal)** | drop redundant leading zeros; keep at least one coefficient. |
+| `trim_high_first_collect` | **Pipeline private** | `trim_high_first_collect` |
+| `add` | **Pipeline private** | `add` |
+| `sub` | **Pipeline private** | `sub` |
+| `mul` | **Pipeline private** | `mul` |
+| `neg` | **Pipeline private** | `neg` |
+| `scale` | **Pipeline private** | `scale` |
+| `div_rem` | **Stable (crate-internal)** | polynomial division; quotient and remainder in `order`. |
+| `reduce_mod_monic` | **Stable (crate-internal)** | reduce `p` modulo monic `m` (leading coeff of `m` is ±1). |
+| `ext_gcd` | **Stable (crate-internal)** | extended GCD: `(g, s)` with `s*a + t*b = g` (`t` omitted). |
+| `inv_mod` | **Stable (crate-internal)** | multiplicative inverse of `a` modulo monic `m`. |
+
+### `dense/ratio_ring.rs`
+
+| Function | Tier | Description |
+|----------|------|-------------|
+| `zero` | **Stable** | Poly zero |
+| `one` | **Stable** | Poly one |
+| `is_zero` | **Stable** | Poly is zero |
+| `add` | **Stable** | Poly addition |
+| `sub` | **Stable** | Poly subtraction |
+| `neg` | **Stable** | Poly negation |
+| `mul` | **Stable** | Poly multiplication |
+| `inv` | **Pipeline private** | `inv` |
+
+### `dense/tests.rs`
+
+| Function | Tier | Description |
+|----------|------|-------------|
+| `q` | **Pipeline private** | `q` |
+| `ctx` | **Pipeline private** | `ctx` |
+| `high_first_degree_and_trim` | **Pipeline private** | `high_first_degree_and_trim` |
+| `high_first_add_sub` | **Pipeline private** | `high_first_add_sub` |
+| `high_first_mul_x_plus_1_times_x_plus_2` | **Pipeline private** | `high_first_mul_x_plus_1_times_x_plus_2` |
+| `high_first_neg_and_scale` | **Pipeline private** | `high_first_neg_and_scale` |
+| `high_first_div_rem` | **Pipeline private** | `high_first_div_rem` |
+| `high_first_reduce_mod_x_squared_minus_2` | **Pipeline private** | `high_first_reduce_mod_x_squared_minus_2` |
+| `high_first_reduce_skips_non_monic_modulus` | **Pipeline private** | `high_first_reduce_skips_non_monic_modulus` |
+| `high_first_inv_mod_and_ext_gcd` | **Pipeline private** | `high_first_inv_mod_and_ext_gcd` |
+| `ascending_order_matches_reversed_high_first_mul` | **Pipeline private** | `ascending_order_matches_reversed_high_first_mul` |
+| `reverse_coeffs_involution` | **Pipeline private** | `reverse_coeffs_involution` |
+| `sparse_dense_high_first_roundtrip` | **Pipeline private** | `sparse_dense_high_first_roundtrip` |
+| `dense_div_rem_matches_univariate_div_rem_wrt` | **Pipeline private** | `dense_div_rem_matches_univariate_div_rem_wrt` |
 
 ### `exp.rs`
 
@@ -549,7 +625,7 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `divide_poly_coeffs_by` | **Pipeline private** | divide each `main`-coefficient by `den` when exact |
 | `try_adjust_sparse_scale` | **Pipeline private** | `try_adjust_sparse_scale` |
 | `verify_sparse_factors` | **Pipeline private** | accept only `∏ f_i = p` (upstream `divbylgcd` applied above) |
-| `try_sparse_factor_bi` | **Partial** | sparse factor via bivariate `eval_tn` embedding (FAC-G1, 3+ vars). |
+| `try_sparse_factor_bi` | **Partial** | sparse factor via bivariate `eval_tn` embedding (FAC-G1, 2+ aux). |
 | `embed_sorted_monomials` | **Pipeline private** | build `Poly` from sorted embed monomials + aux exponents |
 | `bivariate_x_degrees_ok` | **Pipeline private** | distinct `main`-degrees with pairwise distinct coeffs (upstream `x_degrees`). |
 | `factor_bivariate_flat` | **Stable** | `factor_bivariate_flat` |
@@ -674,6 +750,7 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `lift_factor_multi_eval` | **Pipeline private** | P2a local-window multi-point coeff lift |
 | `try_lift_and_peel` | **Pipeline private** | pzadic peel then P2a fallback + divides check |
 | `sym_mod_digit` | **Pipeline private** | symmetric mod digit for pzadic expansion |
+| `unreverse_factors` | **Pipeline private** | inverse of upstream `tensor::reverse()` on factors |
 | `try_unitary_factor` | **Partial** | FAC-G1 last-resort; sparse/Hensel fallback; bounded GCDHEU eval stream |
 | `unitary_factor_rev` | **Partial** | core unitaryfactor loop on vars_rev; pzadic peel + P2a fallback |
 | `factor_constant_tail_into` | **Pipeline private** | recurse constant tail into factor list |
@@ -730,8 +807,6 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `rational_nth_root` | **Stable** | `rational_nth_root` |
 | `ratio_perfect_sqrt` | **Stable** | detect perfect square Ratio |
 | `rational_factor_pairs` | **Stable** | `rational_factor_pairs` |
-| `coeff_wrt` | **Stable** | Coefficient of `var^exp` (quotient by `var^exp` on each matching term). |
-| `monomial_pow` | **Pipeline private** | `monomial_pow` |
 | `is_monic_univariate` | **Stable** | `is_monic_univariate` |
 
 ### `factor/zassenhaus.rs`
@@ -823,7 +898,7 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `exact_quo` | **Stable** | exact quotient in ℚ[others]; `None` if `den` does not divide `self`. |
 | `new` | **Stable** | view `poly` as univariate in `main`. |
 | `main_var` | **Stable** | main variable. |
-| `degree` | **Stable** | degree w.r.t. `main`. |
+| `degree` | **Stable** | degree w.r.t. `main` (coefficient-ring agnostic). |
 | `coeff_at` | **Stable** | coefficient of `main^exp` as ℚ[others]. |
 | `leading_coeff` | **Stable** | leading coefficient w.r.t. `main` (element of ℚ[others]). |
 | `divides` | **Stable** | whether `self` divides `p` in ℚ[others][main]. |
@@ -832,11 +907,12 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `eval_aux` | **Stable** | substitute `aux ↦ value` in ℚ[others][main]; `main` unchanged. |
 | `new` | **Stable** | construct owned nested-ring element. |
 | `as_view` | **Stable** | borrowed view. |
-| `new` | **Stable** | view `poly` as univariate in `var` over ℚ. |
-| `try_new` | **Stable** | construct when `poly` is genuinely univariate in `var`. |
-| `as_poly` | **Stable** | underlying polynomial (explicit downgrade). |
+| `new` | **Stable** | view `poly` as univariate in `var`. |
+| `as_poly` | **Stable** | underlying polynomial. |
 | `into_poly` | **Stable** | consume and return inner [`Poly`]. |
 | `var` | **Stable** | main variable. |
+| `degree` | **Stable** | degree w.r.t. main variable (coefficient-ring agnostic). |
+| `try_new` | **Stable** | construct when `poly` is genuinely univariate in `var` over ℚ. |
 | `div_rem` | **Stable** | Euclidean `(q, r)` in ℚ[var] via [`univariate_div_rem_wrt`]. |
 | `divides` | **Stable** | whether `divisor` divides `self` in ℚ[var]. |
 | `exact_quo` | **Stable** | exact quotient `self / divisor` when remainder is zero. |
@@ -889,6 +965,8 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `coeff_ring_gcd_divides_both` | **Pipeline private** | `coeff_ring_gcd_divides_both` |
 | `univariate_in_divides_vs_div_rem` | **Pipeline private** | `univariate_in_divides_vs_div_rem` |
 | `lifted_factor_peel_vs_div_rem` | **Pipeline private** | `lifted_factor_peel_vs_div_rem` |
+| `univariate_in_generic_degree_matches_q` | **Pipeline private** | `univariate_in_generic_degree_matches_q` |
+| `flat_uni_generic_degree` | **Pipeline private** | `flat_uni_generic_degree` |
 | `coeff_ring_exact_quo` | **Pipeline private** | `coeff_ring_exact_quo` |
 | `eval_aux_preserves_main` | **Pipeline private** | `eval_aux_preserves_main` |
 | `tn_embed_maps_aux_to_t` | **Pipeline private** | `tn_embed_maps_aux_to_t` |
@@ -923,6 +1001,7 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `find_rational_root_on_x_plus_one_sq_times_x_sq_plus_one` | **Pipeline private** | `find_rational_root_on_x_plus_one_sq_times_x_sq_plus_one` |
 | `factor_by_roots_x_plus_one_times_x_fourth_minus_one` | **Pipeline private** | `factor_by_roots_x_plus_one_times_x_fourth_minus_one` |
 | `denominator_factors_x_plus_one_times_x_fourth_minus_one` | **Pipeline private** | `denominator_factors_x_plus_one_times_x_fourth_minus_one` |
+| `partfrac_cubic_irreducible_denominator` | **Pipeline private** | `partfrac_cubic_irreducible_denominator` |
 | `partfrac_three_quarters_over_x_fourth_minus_one` | **Pipeline private** | `partfrac_three_quarters_over_x_fourth_minus_one` |
 | `partfrac_by_sqff_x_over_x_plus_one_times_x_fourth_minus_one` | **Pipeline private** | `partfrac_by_sqff_x_over_x_plus_one_times_x_fourth_minus_one` |
 | `partfrac_x_over_x_plus_one_times_x_fourth_minus_one` | **Pipeline private** | `partfrac_x_over_x_plus_one_times_x_fourth_minus_one` |
@@ -942,17 +1021,27 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 
 | Function | Tier | Description |
 |----------|------|-------------|
-| `zero` | **Stable** | Poly zero |
-| `one` | **Stable** | Poly one |
-| `constant` | **Stable** | Poly scalar constant |
-| `var` | **Stable** | Poly univariate generator |
+| `ring_zero` | **Stable** | zero polynomial in ring `C`. |
+| `ring_one` | **Stable** | unit polynomial in ring `C`. |
+| `ring_constant` | **Stable** | constant polynomial in ring `C`. |
+| `ring_var` | **Stable** | univariate generator in ring `C`. |
 | `is_zero` | **Stable** | Poly is zero |
 | `is_one` | **Stable** | Poly is one |
 | `leading_term` | **Stable** | leading term by total degree |
 | `leading_term_lex` | **Stable** | leading term with variable order |
 | `term` | **Stable** | monomial × coefficient |
 | `degree` | **Stable** | total degree |
-| `add` | **Stable** | Poly addition |
+| `degree_wrt` | **Stable** | univariate degree in `var` (independent of coefficient ring `C`). |
+| `try_add` | **Stable** | fallible addition (required for non-ℚ coefficients). |
+| `try_sub` | **Stable** | fallible subtraction |
+| `try_neg` | **Stable** | fallible negation |
+| `try_mul` | **Stable** | fallible multiplication |
+| `try_pow` | **Stable** | fallible integer power |
+| `zero` | **Stable** | Poly zero (ℚ) |
+| `one` | **Stable** | Poly one (ℚ) |
+| `constant` | **Stable** | Poly scalar constant (ℚ) |
+| `var` | **Stable** | Poly univariate generator (ℚ) |
+| `add` | **Stable** | Poly addition (ℚ) |
 | `sub` | **Stable** | Poly subtraction |
 | `neg` | **Stable** | Poly negation |
 | `mul` | **Stable** | Poly multiplication |
@@ -976,12 +1065,38 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `gcd_x3_x2` | **Pipeline private** | `gcd_x3_x2` |
 | `quo_rem` | **Pipeline private** | `quo_rem` |
 | `abcuv_linear_one` | **Pipeline private** | `abcuv_linear_one` |
+| `generic_poly_try_add_matches_q` | **Pipeline private** | `generic_poly_try_add_matches_q` |
+
+### `poly_coeff.rs`
+
+| Function | Tier | Description |
+|----------|------|-------------|
+| `coeff_zero` | **Pipeline private** | `coeff_zero` |
+| `coeff_one` | **Pipeline private** | `coeff_one` |
+| `coeff_is_zero` | **Pipeline private** | `coeff_is_zero` |
+| `coeff_is_one` | **Pipeline private** | `coeff_is_one` |
+| `coeff_add` | **Pipeline private** | `coeff_add` |
+| `coeff_sub` | **Pipeline private** | `coeff_sub` |
+| `coeff_neg` | **Pipeline private** | `coeff_neg` |
+| `coeff_mul` | **Pipeline private** | `coeff_mul` |
+| `coeff_div` | **Pipeline private** | `coeff_div` |
+| `coeff_zero` | **Stable** | `Poly::coeff_zero` |
+| `coeff_one` | **Stable** | `Poly::coeff_one` |
+| `coeff_is_zero` | **Stable** | `Poly::coeff_is_zero` |
+| `coeff_is_one` | **Stable** | `Poly::coeff_is_one` |
+| `coeff_add` | **Pipeline private** | `coeff_add` |
+| `coeff_sub` | **Pipeline private** | `coeff_sub` |
+| `coeff_neg` | **Pipeline private** | `coeff_neg` |
+| `coeff_mul` | **Pipeline private** | `coeff_mul` |
+| `coeff_div` | **Pipeline private** | `coeff_div` |
+| `ratio_coeff_ring` | **Pipeline private** | `ratio_coeff_ring` |
 
 ### `resultant.rs`
 
 | Function | Tier | Description |
 |----------|------|-------------|
 | `resultant` | **Stable** | univariate resultant |
+| `univariate_coeffs_ascending` | **Stable** | ascending univariate coefficient vector in ℚ[var]. |
 | `univariate_coefficients` | **Pipeline private** | `univariate_coefficients` |
 | `sylvester_det` | **Pipeline private** | `sylvester_det` |
 | `det_rational` | **Pipeline private** | `det_rational` |

@@ -18,7 +18,7 @@
 
 **未标注的私有函数:** 不应出现 — 运行 `giac-rs/scripts/annotate_api_tiers.py` 为每个 `fn` 补 `// **Pipeline private**`；Per-file 全表见本文末尾 **Per-file function inventory**。
 
-**提交前复审（测试全绿后）：** 见 [algorithm-expr-api.md §6.2](algorithm-expr-api.md#62-测试通过后提交--合入前复审) — 检查临时匹配是否净减少、新增 `fn` tier 是否已写入本文 §2–§4。
+**提交前复审（测试全绿后）：** 见 [algorithm-expr-api.md §7.2](algorithm-expr-api.md#72-测试通过后提交--合入前复审) — 检查临时匹配是否净减少、新增 `fn` tier 是否已写入本文 §2–§4。
 
 ---
 
@@ -148,7 +148,6 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `expand_binomial` | **Pipeline private** | binomial power via poly or Expr::pow |
 | `normal` | **Stable** | expand then collect into polynomial normal form. |
 | `modulus_from_expr` | **Pipeline private** | coerce Expr modulus to i64 |
-| `mod_err` | **Pipeline private** | map PolyError to EvalError |
 | `normal_mod_power_displays_giac_style` | **Pipeline private** | `normal_mod_power_displays_giac_style` |
 | `expand_square_of_sum` | **Pipeline private** | `expand_square_of_sum` |
 | `normal_cancels_distributed_polynomial_terms` | **Pipeline private** | `normal_cancels_distributed_polynomial_terms` |

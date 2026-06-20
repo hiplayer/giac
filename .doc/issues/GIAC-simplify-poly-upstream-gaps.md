@@ -157,7 +157,7 @@ P3  assume/purge            → CAL-G4（giac-prog）
 - [x] [giac-simplify-api-stability.md](../giac-simplify-api-stability.md) — 稳定 / Partial / 临时 API
 - [x] [giac-poly-api-stability.md](../giac-poly-api-stability.md) — 同上
 - [ ] 源码 `/// **Stable|Partial|Temporary**` 与文档表同步（incremental PR）
-- [ ] PR 合入前按 [algorithm-expr-api.md §6.2](../algorithm-expr-api.md#62-测试通过后提交--合入前复审) 复审：临时匹配净减少 + 新增 fn tier
+- [ ] PR 合入前按 [algorithm-expr-api.md §7.2](../algorithm-expr-api.md#72-测试通过后提交--合入前复审) 复审：临时匹配净减少 + 新增 fn tier
 - [ ] 更新 [GIAC-algorithm-gaps-open](GIAC-algorithm-gaps-open.md) 过时条目（LIM-G1、CK-INT-05 已绿）
 
 ### Phase B — FAC-G1–G3
