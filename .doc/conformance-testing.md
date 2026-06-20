@@ -213,11 +213,9 @@ cargo test-timeout                      # 推荐：workspace 全量
 ./scripts/test-with-timeout.sh
 ```
 
-超时策略见 `giac-rs/.config/nextest.toml`（**release** 构建，默认 **15s**/测；CK-INT-60/61、`factor_x100` 等 **30s** override）。
+超时策略见 `giac-rs/.config/nextest.toml`（`cargo test-timeout` 经 `.cargo/config.toml` 使用 **--release**；默认 slow-timeout **33s**）。行内 eval/SymPy 上限：`GIAC_CHECK_TIMEOUT_SECS`（默认 10）。
 
-Conformance 求值路径（`run_line`、`giac_check_factor` 等）默认要求 **`--release`**；本地 debug 可设 `GIAC_CONFORMANCE_ALLOW_DEBUG=1`。行内 eval/SymPy 上限：`GIAC_CHECK_TIMEOUT_SECS`（默认 10）。
-
-**仅调试子集**时用裸 debug `cargo test`（无 release 门禁、无 nextest 杀进程）：
+**调试子集**可用 debug `cargo nextest run`（较慢，重算路径可能触发 slow-timeout）：
 
 ```bash
 cargo test -p giac-calculus ck_int_61
@@ -233,3 +231,30 @@ cargo test -p giac-conformance --test giac_check_integrate giac_check_integrate_
 Maxima / SymPy / Rubi 等第三方测试的目录布局、JSON schema、`extract_maxima_rtest.py` 规范见 **[external-test-resources.md](external-test-resources.md)**。
 
 giac-rs 路径：`giac-rs/tests/conformance/fixtures/{maxima,sympy,rubi}/`。
+
+---
+
+## 7. 代数 `ext_tower` 与形式化验证（工程证据）
+
+Golden 覆盖端到端表达式；**域扩张 / compositum** 另有一套分层证据，不替代 check golden，与之互补。
+
+| 文档 | 内容 |
+|------|------|
+| [giac-tower-common-math.md](giac-tower-common-math.md) | compositum 数学参考、Lean 分层引理、**§4 工程验证四层做法** |
+| [GIAC-lazy-common-tower-plan.md](issues/GIAC-lazy-common-tower-plan.md) | T4a/T4b 实施与坐标基 §11.9 |
+
+**日常命令：**
+
+```bash
+cargo test -p giac-core                                    # 默认 flatten common
+cargo test -p giac-core --features tower-common            # T4a 塔 common + 快测
+cargo test -p giac-core --features tower-common -- --ignored  # 含 flatten 慢对照
+```
+
+**原则：** 数学正确性以 oracle + 不变量为主；Lean 证引理、Rust 测实例（见 giac-tower-common-math §4.2 层 D）。
+
+**并发：** `ExtensionField` 使用进程内全局 `field_registry` / `common_cache`；`ext_tower` 相关单元测在并行 `cargo test` 下可能 flaky，本地/CI 验证 T4a 时建议：
+
+```bash
+cargo test -p giac-core --features tower-common -- --test-threads=1
+```

@@ -1,6 +1,6 @@
 # GIAC — Lazy `common` + 塔式 `ExtensionTower` 改动计划
 
-**状态:** draft（S0 ✅、S1 ✅、T1 ✅、T2 ✅；review 补充已并入 §3 S0、§6、§7、§9）  
+**状态:** draft（S0 ✅、S1 ✅、T1 ✅、T2 ✅、T3 ✅、T4a 🚧、T4b 🚧；review 补充已并入 §3 S0、§6、§7、§9）  
 **类型:** 实施计划 / AFK  
 **相关:** [GIAC-algext-adoption](GIAC-algext-adoption.md) §8.2、B-05；[GIAC-poly-algext-backlog](GIAC-poly-algext-backlog.md)  
 **Rust 落点:** `giac-core::algebra::{ext_tower, alg_ext, alg_ext_c, field_arith}`  
@@ -144,7 +144,7 @@
 
 ---
 
-### Phase T3 — 塔顶元素算术（parent 系数）（2 PR）
+### Phase T3 — 塔顶元素算术（parent 系数）（2 PR）✅ 2026-06-20
 
 | 任务 | 文件 |
 |------|------|
@@ -163,13 +163,16 @@
 
 拆为两个子阶段（review）：
 
-#### T4a — 并列简单域 compositum（新 `Adj` 层）
+#### T4a — 并列简单域 compositum（新 `Adj` 层） 🚧
 
-| 任务 | 文件 |
-|------|------|
-| `compute_common_tower(a, b)`：\(K_1=\mathbb{Q}(\sqrt2)\) 与 \(K_3=\mathbb{Q}(\sqrt[3]2)\) 等 **并列** 域 → compositum 记为新塔层（可仍用 Kronecker/本原元算子过程，但 **结果结构为塔**，非 `Adj{parent:Base}` 扁平） | `ext_tower.rs` |
-| flatten `compute_common_over_q` 暂为默认 fallback；塔路径可 `feature = "tower-common"` | `ext_tower.rs` |
-| `CommonFieldPair` 文档：embed 语义 = `source → target` | `ext_tower.rs` |
+| 任务 | 文件 | 状态 |
+|------|------|------|
+| `compute_common_tower(a, b)`：并列 simple-over-ℚ → 塔 adjoin | `ext_tower.rs` | ✅ `--features tower-common` |
+| flatten fallback 仍为默认 | `ext_tower.rs` | ✅ |
+| `CommonFieldPair` 文档：embed = `source → target` | `ext_tower.rs` | ✅ |
+| 形式化验证工程做法 | `.doc/giac-tower-common-math.md` §4 | ✅ |
+| 验收：√2+∛2 快测、逆序 align、cache | `ext_tower` tests | ✅（`-F tower-common`） |
+| 改默认路径 / 去 feature | — | ☐ 待 CI 稳定后 |
 
 **T4a 验收：**
 
@@ -178,17 +181,17 @@
 - `field_registry_dedup` / cache 仍有效；第二次 `common(√2,∛2)` cache hit
 - （可选）flatten 与 tower 两条路径小域对 `eq_mod` 一致
 
-#### T4b — 子塔包含 = 仅提升嵌入（与 T2 闭环）
+#### T4b — 子塔包含 = 仅提升嵌入（与 T2 闭环） 🚧
 
-| 任务 | 文件 |
-|------|------|
-| 一方为另一方 **子塔** 时：`common` = 包含映射，不新建 compositum、不搜 \(k\) | `ext_tower.rs` |
-| 与 T2 `align_elements` 子域快路径统一验收 | `ext_tower.rs` |
-| 可选重命名：`embed_left`/`embed_right` 或 `embedding_for(source)` 对外 API | API 讨论 |
+| 任务 | 文件 | 状态 |
+|------|------|------|
+| 子域 `common` = 包含映射，不 flatten | `subfield_common_pair` | ✅ |
+| 与 T2 `align_elements` 统一验收 | `ext_tower.rs` tests | ✅ `t4b_common_subfield_*` |
+| 可选重命名 embed API | — | ☐ |
 
 **T4b 验收：**
 
-- `common(K₁, K₂)`（\(K_1\subset K_2\)）不增加 cache 中 flatten 项；嵌入为沿塔提升
+- `common(K₁, K₂)`（\(K_1\subset K_2\)）返回超域、不 flatten 搜 \(k\)；cache 可存子域对但 **不新建 compositum**
 - B-05 adoption 行可勾选
 
 ---
@@ -279,6 +282,7 @@ S0 → S1 [→ S1-opt 可选] → T1 → T2 → T3 → T4a → T4b → (S2 可�
 ## 9. 完成定义（DoD）
 
 - [x] S0：`embedding_for` + 逆序 cache 回归测绿（2026-06-20）
+- [x] T3：塔顶 parent 系数 `element_*` + `mul_rational` + K₁/K₂ 验收测绿（2026-06-20）
 - [ ] 所有跨域对齐经 `align_elements`（grep：`common_over_q` 仅出现在 `align_elements` 与 `common_cached` 链）
 - [ ] adoption B-05 验收行勾选（T4b 后）
 - [ ] `.doc/issues/GIAC-poly-algext-backlog.md` M-塔 或等价项登记
@@ -439,12 +443,15 @@ registry (parent=ℚ, t²−3) → K₃ (id=9)
 #### 例 C：T1b `K₂ = K₁(√3)`
 
 ```text
-adjoin(K₁, u²−3)   // 系数 3 在 K₁ 中为 (3,0)
+adjoin(K₁, u²−3)   // 系数 3 在 K₁ 中为 embed(3)=(0,3) 于 block u^0
   → registry (parent_id=7, key(u²−3)) → K₂ (id=12), dim=4
   → is_subfield_of(K₁, K₂) = true
-  → √2 在 K₂ 中: coords = (0, 1, 0, 0)
-  → √3 在 K₂ 中: coords = (0, 0, 1, 0)
+  → √2 在 K₂ 中（张量基）: coords = (1, 0, 0, 0)     // block u^0 = α
+  → √3 = β 在 K₂ 中: coords = (0, 0, 0, 1)           // block u^1 = parent.one
+  → 常数 1 在 K₂ 中: coords = (0, 1, 0, 0)           // block u^0 = parent.one
 ```
+
+（与 flatten `min_poly_over_q` 本原元 θ 幂基不同，见 §11.9。）
 
 ---
 
@@ -574,4 +581,55 @@ L2      AlgExt(K₁₂, (0,1,1,0))
 ```
 
 **小结：** **存储** = 塔链 `Adj{parent, min_poly, embed_parent}` + `by_adjoin` 去重 + 元素只带塔顶 `field`/`coords`；**算法** = 表示停 L1，运算时 `align_elements` 三分（同域 / 子域嵌入 / common），并列域才付 compositum 成本。
+
+---
+
+### 11.9 Flatten vs 塔 坐标基对照（audit 2026-06-20）
+
+**同一数学域**在不同登记路径下 **`coords` 下标含义不同**。`AlgExtData::from_coords_q` 不做基变换；`fold_algext_sum` 合并有理项须走 `field.embed_rational` + `field.element_add`（**不能**假定常数在 `coords.last()`，也不能对塔域 `poly_reduce` mod `min_poly_over_q`）。
+
+#### 基的定义
+
+| 路径 | 何时 | `coords` 语义 | 长度 |
+|------|------|---------------|------|
+| **Primitive** | `parent = ℚ`（含 legacy `adjoin_irreducible_over_q`） | giac `poly1` 降幂：下标 0 = 最高次，**常数 1 在末位** | `deg(min_poly)` |
+| **Tower 张量** | `parent` 为非 Base 扩域（T3 `element_*_tower`） | `[block u^0 ∥ block u^1 ∥ …]`，每 block 长 `parent.dim`，block 内为 **parent 的 operational 基** | `parent.dim × ext_degree` |
+| **Flatten common** | `register_common` / `common_over_q`（Phase 0，T4a 前） | 本原元 θ 的 **ℚ 幂基** mod `min_poly_over_q(θ)`；常数在末位 | compositum 次数 |
+
+#### K₁ = ℚ(√2)（两路径一致）
+
+| 元素 | coords `(c₀,c₁)` | 含义 |
+|------|------------------|------|
+| 1 | `(0, 1)` | 常数项 |
+| α = √2 | `(1, 0)` | α |
+| 2 | `(0, 2)` | 有理数 embed |
+
+#### K₂ = K₁(β)，β² = 3（T1b + T3 张量基 vs flatten metadata）
+
+`min_poly_over_q` 仍是 **θ 的 4 次** compositum 多项式（`compose_min_poly_over_q`）；**塔上运算**用层 minpoly `u²−3` + 张量坐标。
+
+| 元素 | Tower 张量 coords（4） | Flatten θ 幂基（4） | 备注 |
+|------|------------------------|---------------------|------|
+| 1 | `(0, 1, 0, 0)` | `(0, 0, 0, 1)` | 常数位置不同 |
+| √2 = α | `(1, 0, 0, 0)` | 依 θ 本原元选取而变 | 子域嵌入 block u^0 |
+| √3 = β | `(0, 0, 0, 1)` | 依 θ 本原元选取而变 | `generator_coords` = u·1 |
+| α + 5 | `element_add(α, embed(5))` | **≠** 末位 +5 再 `poly_reduce` | fold 回归测 |
+
+#### 登记与嵌入
+
+| | Flatten `common` / `register_common` | Tower `adjoin_irreducible(parent, …)` |
+|---|--------------------------------------|----------------------------------------|
+| `parent_field` | `None` | `Some(parent)` |
+| `ExtensionTower::Adj.parent` | 恒 `Base` | 真父塔 |
+| ℚ ↪ K 嵌入 | `m[dim−1][0]=1`（常数在末位） | 同左（parent 为 Base 时） |
+| K₁ ↪ K₂ 嵌入 | flatten 矩阵（`common_primitive_sum`） | 块对角：`child[i][i]=1`，i < parent.dim |
+| 域内 `element_mul` | mod **`min_poly_over_q`**（primitive） | parent 非 Base：**tower** mod 层 minpoly |
+
+#### API 约束（DoD 补充）
+
+- **`from_coords_q`：** 调用方必须提供 **该 `field` 句柄的 operational 基** 坐标；勿把 flatten θ 坐标直接挂到塔句柄上。
+- **`fold_algext_sum`：** 单 AlgExt 组 + 有理叶子 → `embed_rational` + `element_add`（已修复，测 `fold_algext_sum_rat_on_k2_*`）。
+- **测试夹具：** `algebra::test_fixtures`（`#[cfg(test)]`）— `t1b_k2_adjoin_sqrt3_over_k1()` 等，对应 plan §11.4 例 C / T1b，避免各测重复写 minpoly。
+- **数学 / 形式化：** [.doc/giac-tower-common-math.md](../giac-tower-common-math.md) — compositum 文献、Lean 分层证明路线。
+- **`eq_mod` / `align_elements`：** 子域快路径在张量基下正确；flatten common 对齐到 **common.field** 的 θ 基——与塔基 **`eq_mod` 仍成立**，但 **coords 字面不可比**。
 
