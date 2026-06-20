@@ -14,7 +14,7 @@ use crate::simplify::simplify;
 /// Evaluate an expression in the given context.
 pub fn eval(expr: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
     let result = match expr {
-        Expr::Int(_) | Expr::Rat(_) | Expr::Str(_) | Expr::Undefined | Expr::AlgExt(_) => {
+        Expr::Int(_) | Expr::Rat(_) | Expr::Str(_) | Expr::Undefined | Expr::AlgExt(_) | Expr::AlgExtC(_) => {
             Arc::new(expr.clone())
         }
         Expr::Symbol(id) => eval_symbol(id, ctx)?,
@@ -215,9 +215,9 @@ fn eval_pow(base: &ExprArc, exp: &ExprArc, ctx: &Context) -> Result<ExprArc, Eva
 
     if let (Expr::AlgExt(a), Some(e_u)) = (base.as_ref(), as_nonneg_int(exp.as_ref())) {
         if e_u == 0 {
-            return Ok(crate::algebra::alg_ext::AlgExtData::one(a.min_poly.clone()).into_expr());
+            return Ok(crate::algebra::alg_ext::AlgExtData::one(Arc::clone(&a.field)).into_expr());
         }
-        let mut acc = crate::algebra::alg_ext::AlgExtData::one(a.min_poly.clone());
+        let mut acc = crate::algebra::alg_ext::AlgExtData::one(Arc::clone(&a.field));
         let mut base_c = (**a).clone();
         let mut n = e_u;
         while n > 0 {
@@ -922,7 +922,7 @@ pub fn eval_subst_map(
                 Ok(Arc::clone(expr))
             }
         }
-        Expr::Int(_) | Expr::Rat(_) | Expr::Str(_) | Expr::Undefined | Expr::AlgExt(_) => {
+        Expr::Int(_) | Expr::Rat(_) | Expr::Str(_) | Expr::Undefined | Expr::AlgExt(_) | Expr::AlgExtC(_) => {
             Ok(Arc::clone(expr))
         }
         Expr::Add(terms) => {

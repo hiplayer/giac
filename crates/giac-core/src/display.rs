@@ -1,6 +1,7 @@
 use std::sync::Arc;
 
 use crate::algebra::alg_ext::AlgExtData;
+use crate::algebra::alg_ext_c::AlgExtCData;
 use crate::float_format::format_float;
 use num_bigint::BigInt;
 use num_rational::Ratio;
@@ -32,6 +33,7 @@ pub fn format_expr(expr: &Expr) -> String {
             format_expr(rhs)
         ),
         Expr::AlgExt(a) => format_algext(a),
+        Expr::AlgExtC(z) => format_algext_c(z),
         Expr::Str(s) => format!("\"{}\"", s),
         Expr::Undefined => "undef".to_string(),
     }
@@ -39,6 +41,10 @@ pub fn format_expr(expr: &Expr) -> String {
 
 fn format_algext(a: &AlgExtData) -> String {
     format_expr(a.to_rootof_expr().as_ref())
+}
+
+fn format_algext_c(z: &AlgExtCData) -> String {
+    format_expr(&z.to_expr())
 }
 
 fn format_frac(num: &Arc<Expr>, den: &Arc<Expr>) -> String {

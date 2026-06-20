@@ -131,7 +131,7 @@ pub fn expr_mentions_ident(e: &crate::expr::Expr, name: &Ident) -> bool {
             .iter()
             .flatten()
             .any(|a| expr_mentions_ident(a.as_ref(), name)),
-        Expr::Int(_) | Expr::Rat(_) | Expr::AlgExt(_) | Expr::Str(_) | Expr::Undefined => false,
+        Expr::Int(_) | Expr::Rat(_) | Expr::AlgExt(_) | Expr::AlgExtC(_) | Expr::Str(_) | Expr::Undefined => false,
     }
 }
 

@@ -5,6 +5,7 @@ use num_rational::Ratio;
 use num_traits::Zero;
 
 use crate::algebra::alg_ext::AlgExtData;
+use crate::algebra::alg_ext_c::AlgExtCData;
 use crate::ident::Ident;
 
 pub type ExprArc = Arc<Expr>;
@@ -31,6 +32,8 @@ pub enum Expr {
     Relation(RelOp, ExprArc, ExprArc),
     /// Algebraic extension element (upstream `_EXT` / `rootof` value).
     AlgExt(Arc<AlgExtData>),
+    /// Complex algebraic number z = re + im·i over an extension field (normative scalar).
+    AlgExtC(Arc<AlgExtCData>),
     Str(String),
     Undefined,
 }
@@ -178,6 +181,7 @@ impl Expr {
             Expr::Rat(r) => r.is_zero(),
             Expr::Complex(re, im) => re.is_zero() && im.is_zero(),
             Expr::AlgExt(a) => a.is_zero(),
+            Expr::AlgExtC(z) => z.is_zero().unwrap_or(true),
             _ => false,
         }
     }
@@ -190,10 +194,15 @@ impl Expr {
             self,
             Expr::Rat(r) if *r == Ratio::from_integer(BigInt::from(1))
         ) || matches!(self, Expr::AlgExt(a) if a.is_one())
+            || matches!(self, Expr::AlgExtC(z) if z.is_one().unwrap_or(false))
     }
 
     pub fn alg_ext(data: AlgExtData) -> ExprArc {
         Arc::new(Expr::AlgExt(Arc::new(data)))
+    }
+
+    pub fn alg_ext_c(data: AlgExtCData) -> ExprArc {
+        Arc::new(Expr::AlgExtC(Arc::new(data)))
     }
 }
 

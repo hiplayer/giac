@@ -43,6 +43,8 @@ pub use algebra::alg_ext::{
     AlgExtData,
     try_rootof_to_algext,
 };
+pub use algebra::alg_ext_c::{canonicalize_to_algext_c, AlgExtCData};
+pub use algebra::ext_tower::{CommonFieldPair, ExtensionField, ExtensionTower, FieldEmbedding};
 pub use algebra::poly::{
     expr_to_poly, poly_mod_to_expr, poly_to_expr, ratio_to_expr, vars_from_expr,
 };

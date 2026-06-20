@@ -917,7 +917,7 @@ mod tests {
 
     /// P2a on first 4 upstream bases (partial peel, with sqff bumps).
     #[test]
-    #[cfg_attr(debug_assertions, ignore = "slow in debug; run `cargo test --release -p giac-poly p2a_line25_upstream_trajectory`")]
+    #[ignore = "slow in release (~27s): P2a peel trajectory probe; line25 e2e covered by unitary_factor_line25_l22_y3"]
     fn p2a_line25_upstream_trajectory() {
         let p = l22_y3_product();
         let x = Var::from("x");

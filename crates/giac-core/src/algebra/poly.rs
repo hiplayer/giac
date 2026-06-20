@@ -18,6 +18,7 @@ fn var(id: &Ident) -> Var {
 pub fn expr_to_poly(expr: &Expr) -> Result<Poly, EvalError> {
     match expr {
         Expr::AlgExt(_) => Err(EvalError::TypeError("alg ext not allowed in polynomial")),
+        Expr::AlgExtC(_) => Err(EvalError::TypeError("alg ext not allowed in polynomial")),
         Expr::Func(FuncKind::RootOf, _) => {
             Err(EvalError::TypeError("rootof not allowed in polynomial"))
         }

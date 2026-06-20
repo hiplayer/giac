@@ -12,7 +12,7 @@ required-version = ">=0.9.70"
 
 [profile.default]
 # Hard cap: mark slow after 15s, terminate on first slow period → fail if >15s.
-slow-timeout = { period = "33s", terminate-after = 1 }
+slow-timeout = { period = "10s", terminate-after = 1 }
 status-level = "slow"
 fail-fast = false
 
