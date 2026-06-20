@@ -23,7 +23,7 @@ pub fn eval_quo(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc, Eval
     }
     let a = expr_to_poly(args[0].as_ref())?;
     let b = expr_to_poly(args[1].as_ref())?;
-    Ok(poly_to_expr(&quo(&a, &b).map_err(EvalError::from)?))
+    Ok(poly_to_expr(&quo(&a, &b)?))
 }
 
 pub fn eval_rem(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc, EvalError> {
@@ -32,7 +32,7 @@ pub fn eval_rem(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc, Eval
     }
     let a = expr_to_poly(args[0].as_ref())?;
     let b = expr_to_poly(args[1].as_ref())?;
-    Ok(poly_to_expr(&rem(&a, &b).map_err(EvalError::from)?))
+    Ok(poly_to_expr(&rem(&a, &b)?))
 }
 
 pub fn eval_content(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc, EvalError> {
@@ -83,7 +83,7 @@ pub fn eval_abcuv(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc, Ev
     let a = expr_to_poly(args[0].as_ref())?;
     let b = expr_to_poly(args[1].as_ref())?;
     let c = expr_to_poly(args[2].as_ref())?;
-    let (u, v) = abcuv(&a, &b, &c).map_err(EvalError::from)?;
+    let (u, v) = abcuv(&a, &b, &c)?;
     Ok(Arc::new(Expr::Seq(vec![poly_to_expr(&u), poly_to_expr(&v)])))
 }
 
@@ -141,7 +141,7 @@ pub fn eval_resultant(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc
     let a = expr_to_poly(args[0].as_ref())?;
     let b = expr_to_poly(args[1].as_ref())?;
     let var = ident_from_expr(args[2].as_ref())?;
-    let r = resultant(&a, &b, &Var::from(var.as_str())).map_err(EvalError::from)?;
+    let r = resultant(&a, &b, &Var::from(var.as_str()))?;
     Ok(poly_to_expr(&r))
 }
 
@@ -151,7 +151,7 @@ pub fn eval_roots(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc, Ev
     }
     let p = expr_to_poly(args[0].as_ref())?;
     let var = ident_from_expr(args[1].as_ref())?;
-    let rs = roots(&p, &Var::from(var.as_str())).map_err(EvalError::from)?;
+    let rs = roots(&p, &Var::from(var.as_str()))?;
     Ok(Arc::new(Expr::List(rs.into_iter().map(|p| poly_to_expr(&p)).collect())))
 }
 
@@ -161,7 +161,7 @@ pub fn eval_modp(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc, Eva
     }
     let p = expr_to_poly(args[0].as_ref())?;
     let m = as_i64(args[1].as_ref())?;
-    let pm = modp(&p, m).map_err(EvalError::from)?;
+    let pm = modp(&p, m)?;
     Ok(poly_from_polymod_inner(&pm))
 }
 
@@ -185,7 +185,7 @@ pub fn eval_chinrem(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc, 
     }
     let residues = list_to_polys(args[0].as_ref())?;
     let moduli = list_to_polys(args[1].as_ref())?;
-    let (r, m) = chinrem_lists(&residues, &moduli).map_err(EvalError::from)?;
+    let (r, m) = chinrem_lists(&residues, &moduli)?;
     Ok(Arc::new(Expr::List(vec![poly_to_expr(&r), poly_to_expr(&m)])))
 }
 
@@ -196,7 +196,7 @@ pub fn eval_partfrac(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc,
     let var = ident_from_expr(args[1].as_ref())?;
     let var_poly = Var::from(var.as_str());
     let (num, den) = rational_num_den(args[0].as_ref())?;
-    let (poly_part, terms) = partfrac_rational_terms(&num, &den, &var_poly).map_err(EvalError::from)?;
+    let (poly_part, terms) = partfrac_rational_terms(&num, &den, &var_poly)?;
     let mut out = Vec::new();
     if let Some(q) = poly_part {
         out.push(poly_to_expr(&q));
@@ -246,15 +246,15 @@ pub fn eval_mod_gcd(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc, 
     if m != m2 {
         return Err(EvalError::TypeError("modulus mismatch"));
     }
-    let pa = modp(&expr_to_poly(a.as_ref())?, m).map_err(EvalError::from)?;
-    let pb = modp(&expr_to_poly(b.as_ref())?, m).map_err(EvalError::from)?;
-    let g = pa.gcd(&pb).map_err(EvalError::from)?;
+    let pa = modp(&expr_to_poly(a.as_ref())?, m)?;
+    let pb = modp(&expr_to_poly(b.as_ref())?, m)?;
+    let g = pa.gcd(&pb)?;
     Ok(poly_from_polymod(&g))
 }
 
 pub fn eval_factor_mod(args: &[ExprArc], modulus: i64, _ctx: &crate::Context) -> Result<ExprArc, EvalError> {
     let p = expr_to_poly(args[0].as_ref())?;
-    let factored = factor_poly_mod(&p, modulus).map_err(EvalError::from)?;
+    let factored = factor_poly_mod(&p, modulus)?;
     let inner = poly_to_expr(&factored);
     Ok(Arc::new(Expr::Mod(
         inner,

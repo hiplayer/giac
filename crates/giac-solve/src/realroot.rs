@@ -1,7 +1,7 @@
 use std::sync::Arc;
 
-use giac_core::{eval, expr_to_poly, poly_error_compat, poly_to_expr, Context, EvalError, Expr, ExprArc};
-use giac_poly::{coeff_at, factor_into, univariate_degree, Poly, PolyError, Var};
+use giac_core::{eval, expr_to_poly, poly_to_expr, Context, EvalError, Expr, ExprArc};
+use giac_poly::{coeff_at, factor_into, univariate_degree, Poly, Var};
 use crate::rootof::quadratic_rootof_roots;
 use num_bigint::BigInt;
 use num_rational::Ratio;
@@ -17,7 +17,7 @@ pub fn eval_realroot(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalErr
     if univariate_degree(&poly, &var) == 0 {
         return Err(EvalError::TypeError("constant polynomial"));
     }
-    let roots = algebraic_real_roots(&poly, &var).map_err(poly_error_compat)?;
+    let roots = algebraic_real_roots(&poly, &var)?;
     let items: Vec<ExprArc> = roots
         .into_iter()
         .map(|(r, m)| {
@@ -33,7 +33,7 @@ pub fn eval_realroot(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalErr
 fn algebraic_real_roots(
     p: &Poly,
     var: &Var,
-) -> Result<Vec<(ExprArc, usize)>, PolyError> {
+) -> Result<Vec<(ExprArc, usize)>, EvalError> {
     if let Ok(rational) = rational_real_roots(p, var) {
         if !rational.is_empty() {
             return Ok(rational
@@ -43,11 +43,7 @@ fn algebraic_real_roots(
         }
     }
     if univariate_degree(p, var) == 2 {
-        let rs = quadratic_rootof_roots(p, var).map_err(|e| match e {
-            giac_core::EvalError::NotImplemented(s) => PolyError::NotImplemented(s),
-            giac_core::EvalError::TypeError(s) => PolyError::TypeError(s),
-            _ => PolyError::NotImplemented("realroot"),
-        })?;
+        let rs = quadratic_rootof_roots(p, var)?;
         return Ok(rs.into_iter().map(|r| (r, 1)).collect());
     }
     rational_real_roots(p, var).map(|rs| {
@@ -60,7 +56,7 @@ fn algebraic_real_roots(
 fn rational_real_roots(
     p: &Poly,
     var: &Var,
-) -> Result<Vec<(Ratio<BigInt>, usize)>, PolyError> {
+) -> Result<Vec<(Ratio<BigInt>, usize)>, EvalError> {
     let mut roots = Vec::new();
     if let Some(factors) = factor_into(p) {
         for f in factors {
@@ -89,7 +85,7 @@ fn rational_real_roots(
             return Ok(vec![(-b / a, 1)]);
         }
     }
-    Err(PolyError::NotImplemented("realroot"))
+    Err(EvalError::NotImplemented("realroot"))
 }
 
 mod tests {

@@ -6,8 +6,9 @@
 //! |------|------|
 //! | **Stable** | `hermite_reduce`, `HermiteTerm` |
 
+use giac_core::EvalError;
 use giac_poly::{
-    abcuv, quo, rem, univariate_degree, univariate_derivative, Poly, PolyError, PolyResult, Var,
+    abcuv, quo, rem, univariate_degree, univariate_derivative, Poly, PolyResult, Var,
 };
 use num_bigint::BigInt;
 use num_rational::Ratio;
@@ -34,7 +35,7 @@ pub fn hermite_reduce(
         return Ok((vec![], numer.clone(), mult));
     }
     if univariate_degree(factor, var) == 0 {
-        return Err(PolyError::TypeError("constant factor"));
+        return Err(EvalError::TypeError("constant factor"));
     }
 
     let mut extracted = Vec::new();

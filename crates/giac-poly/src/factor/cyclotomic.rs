@@ -11,7 +11,7 @@ use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::{One, Zero};
 
-use crate::error::{PolyError, PolyResult};
+use crate::error::{EvalError, PolyResult};
 use crate::monomial::Var;
 use crate::poly::Poly;
 use crate::nested::{FlatUni, MainVar};
@@ -39,7 +39,7 @@ pub fn divisors_u64(n: u64) -> Vec<u64> {
 /// **Stable** — n-th cyclotomic polynomial Φ_n(x) over ℚ.
 pub fn cyclotomic_poly(n: u64, var: &Var) -> PolyResult<Poly> {
     if n == 0 {
-        return Err(PolyError::TypeError("cyclotomic n=0"));
+        return Err(EvalError::TypeError("cyclotomic n=0"));
     }
     if n == 1 {
         return Ok(Poly::var(var.clone()).sub(&Poly::one()));
@@ -54,7 +54,7 @@ pub fn cyclotomic_poly(n: u64, var: &Var) -> PolyResult<Poly> {
         let sub_u = FlatUni::new(sub, MainVar::new(var.clone()));
         let (_, r) = phi.div_rem(&sub_u);
         if !r.is_zero() {
-            return Err(PolyError::NotImplemented("cyclotomic division"));
+            return Err(EvalError::NotImplemented("cyclotomic division"));
         }
         phi = FlatUni::new(phi.exact_quo(&sub_u).expect("quotient"), MainVar::new(var.clone()));
     }

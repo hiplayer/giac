@@ -1,9 +1,9 @@
 use std::sync::Arc;
 
-use giac_core::{eval, expr_to_poly, poly_error_compat, poly_to_expr, Context, EvalError, Expr, ExprArc, FuncKind, Ident, RelOp};
+use giac_core::{eval, expr_to_poly, poly_to_expr, Context, EvalError, Expr, ExprArc, FuncKind, Ident, RelOp};
 use num_bigint::BigInt;
 use giac_linalg::eval_linsolve;
-use giac_poly::{roots, PolyError, Var};
+use giac_poly::{roots, Var};
 
 use crate::rootof::{biquadratic_rootof_roots, quadratic_rootof_roots};
 
@@ -23,9 +23,9 @@ pub fn eval_solve(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError>
     let v = Var::from(var.as_str());
     let items: Vec<ExprArc> = match roots(&poly, &v) {
         Ok(rs) => rs.into_iter().map(|p| poly_to_expr(&p)).collect(),
-        Err(PolyError::NotImplemented(_)) => quadratic_rootof_roots(&poly, &v)
+        Err(EvalError::NotImplemented(_)) => quadratic_rootof_roots(&poly, &v)
             .or_else(|_| biquadratic_rootof_roots(&poly, &v))?,
-        Err(e) => return Err(poly_error_compat(e)),
+        Err(e) => return Err(e),
     };
     eval(Arc::new(Expr::List(items)).as_ref(), ctx)
 }

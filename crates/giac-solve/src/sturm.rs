@@ -11,17 +11,17 @@ use num_rational::Ratio;
 
 pub fn eval_sturm(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     let (poly, var) = poly_and_var(args, ctx)?;
-    let mut q = giac_poly::odd_multiplicity_part(&poly, &var).map_err(sturm_err)?;
+    let mut q = giac_poly::odd_multiplicity_part(&poly, &var)?;
     if univariate_degree(&q, &var) == 0 {
         if univariate_degree(&poly, &var) == 0 {
             return Err(EvalError::TypeError("constant polynomial"));
         }
-        q = giac_poly::square_free_part(&poly, &var).map_err(sturm_err)?;
+        q = giac_poly::square_free_part(&poly, &var)?;
         if univariate_degree(&q, &var) == 0 {
             return Err(EvalError::TypeError("constant polynomial"));
         }
     }
-    let seq = sturm_sequence(&q, &var).map_err(sturm_err)?;
+    let seq = sturm_sequence(&q, &var)?;
     let items: Vec<ExprArc> = seq.into_iter().map(|p| poly_to_expr(&p)).collect();
     Ok(Arc::new(Expr::List(items)))
 }
@@ -38,7 +38,7 @@ pub fn eval_sturmab(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalErro
     }
     let a = eval_to_rational(&args[2], ctx)?;
     let b = eval_to_rational(&args[3], ctx)?;
-    let count = sturmab_count(&poly, &v, &a, &b).map_err(sturm_err)?;
+    let count = sturmab_count(&poly, &v, &a, &b)?;
     Ok(Expr::int(i64::try_from(count).unwrap_or(0)))
 }
 
@@ -73,13 +73,6 @@ fn eval_to_rational(e: &ExprArc, ctx: &Context) -> Result<Ratio<BigInt>, EvalErr
     }
 }
 
-fn sturm_err(e: giac_poly::PolyError) -> EvalError {
-    match e {
-        giac_poly::PolyError::NotImplemented(s) => EvalError::NotImplemented(s),
-        giac_poly::PolyError::TypeError(s) => EvalError::TypeError(s),
-        giac_poly::PolyError::DivisionByZero => EvalError::TypeError("division by zero"),
-    }
-}
 
 #[cfg(test)]
 mod tests {

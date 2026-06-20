@@ -89,7 +89,7 @@ pub fn factor_into_by_rational_roots(p: &Poly, var: &crate::monomial::Var) -> cr
 }
 
 /// **Stable** — factor mod p display
-pub fn factor_poly_mod(p: &Poly, modulus: i64) -> Result<Poly, crate::error::PolyError> {
+pub fn factor_poly_mod(p: &Poly, modulus: i64) -> Result<Poly, crate::error::EvalError> {
     modular::factor_poly_mod(p, modulus)
 }
 

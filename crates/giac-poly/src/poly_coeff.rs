@@ -8,7 +8,7 @@ use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::{One, Zero};
 
-use crate::error::{PolyError, PolyResult};
+use crate::error::{EvalError, PolyResult};
 
 /// Ring operations for sparse polynomial coefficients.
 ///
@@ -60,7 +60,7 @@ impl PolyCoeff for Ratio<BigInt> {
 
     fn coeff_div(&self, rhs: &Self) -> PolyResult<Self> {
         if rhs.is_zero() {
-            Err(PolyError::DivisionByZero)
+            Err(EvalError::DivisionByZero)
         } else {
             Ok(self / rhs)
         }

@@ -8,7 +8,7 @@ use num_integer::Integer;
 use num_rational::Ratio;
 use num_traits::{One, Signed, Zero};
 
-use crate::error::{PolyError, PolyResult};
+use crate::error::{EvalError, PolyResult};
 use crate::monomial::{Monomial, Var};
 use crate::poly_coeff::PolyCoeff;
 
@@ -383,7 +383,7 @@ pub(crate) fn integer_content_gcd(a: &Ratio<BigInt>, b: &Ratio<BigInt>) -> Ratio
 /// **Stable** — exact quotient Poly/ Poly
 pub fn quo(a: &Poly, b: &Poly) -> PolyResult<Poly> {
     if b.is_zero() {
-        return Err(PolyError::DivisionByZero);
+        return Err(EvalError::DivisionByZero);
     }
     Ok(a.div_rem(b).0)
 }
@@ -391,7 +391,7 @@ pub fn quo(a: &Poly, b: &Poly) -> PolyResult<Poly> {
 /// **Stable** — remainder Poly/ Poly
 pub fn rem(a: &Poly, b: &Poly) -> PolyResult<Poly> {
     if b.is_zero() {
-        return Err(PolyError::DivisionByZero);
+        return Err(EvalError::DivisionByZero);
     }
     Ok(a.div_rem(b).1)
 }
@@ -431,7 +431,7 @@ pub fn abcuv(a: &Poly, b: &Poly, c: &Poly) -> PolyResult<(Poly, Poly)> {
     let (g, u, v) = egcd(a, b);
     let (q, r) = c.div_rem(&g);
     if !r.is_zero() {
-        return Err(PolyError::TypeError("c not divisible by gcd(a,b)"));
+        return Err(EvalError::TypeError("c not divisible by gcd(a,b)"));
     }
     Ok((u.mul(&q), v.mul(&q)))
 }

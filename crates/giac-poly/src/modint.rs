@@ -6,7 +6,7 @@ use num_bigint::BigInt;
 use num_integer::Integer;
 use num_traits::{One, Zero};
 
-use crate::error::{PolyError, PolyResult};
+use crate::error::{EvalError, PolyResult};
 
 /// Element of ℤ/mℤ.
 #[derive(Clone, Debug, PartialEq, Eq)]
@@ -19,7 +19,7 @@ impl ModInt {
     /// **Stable** — `new`
     pub fn new(val: BigInt, modulus: BigInt) -> PolyResult<Self> {
         if modulus.is_zero() {
-            return Err(PolyError::DivisionByZero);
+            return Err(EvalError::DivisionByZero);
         }
         Ok(Self {
             val: val.mod_floor(&modulus),
@@ -35,7 +35,7 @@ impl ModInt {
     /// **Stable** — Poly addition
     pub fn add(&self, other: &Self) -> PolyResult<Self> {
         if self.modulus != other.modulus {
-            return Err(PolyError::TypeError("modulus mismatch"));
+            return Err(EvalError::TypeError("modulus mismatch"));
         }
         Self::new(&self.val + &other.val, self.modulus.clone())
     }
@@ -43,7 +43,7 @@ impl ModInt {
     /// **Stable** — Poly subtraction
     pub fn sub(&self, other: &Self) -> PolyResult<Self> {
         if self.modulus != other.modulus {
-            return Err(PolyError::TypeError("modulus mismatch"));
+            return Err(EvalError::TypeError("modulus mismatch"));
         }
         Self::new(&self.val - &other.val, self.modulus.clone())
     }
@@ -51,7 +51,7 @@ impl ModInt {
     /// **Stable** — Poly multiplication
     pub fn mul(&self, other: &Self) -> PolyResult<Self> {
         if self.modulus != other.modulus {
-            return Err(PolyError::TypeError("modulus mismatch"));
+            return Err(EvalError::TypeError("modulus mismatch"));
         }
         Self::new(&self.val * &other.val, self.modulus.clone())
     }
@@ -60,7 +60,7 @@ impl ModInt {
     pub fn inv(&self) -> PolyResult<Self> {
         let eg = self.val.extended_gcd(&self.modulus);
         if eg.gcd != BigInt::one() {
-            return Err(PolyError::TypeError("not invertible"));
+            return Err(EvalError::TypeError("not invertible"));
         }
         Self::new(eg.x, self.modulus.clone())
     }

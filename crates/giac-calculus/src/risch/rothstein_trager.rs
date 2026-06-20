@@ -5,14 +5,14 @@
 //! | Tier | 函数 |
 //! |------|------|
 //! | **Partial** | `rothstein_trager_integrate`, `try_algebraic_rt_even_quartic`, `try_integrate_x4_plus_one` |
-//! | **Pipeline private** | `poly_err`, `ratio_to_expr` |
+//! | **Pipeline private** | `ratio_to_expr` |
 
 use std::sync::Arc;
 
-use giac_core::{bigint_to_i64, poly_error_compat, poly_to_expr, ratio_to_expr, EvalError, Expr, ExprArc, Ident};
+use giac_core::{bigint_to_i64, poly_to_expr, ratio_to_expr, EvalError, Expr, ExprArc, Ident};
 use giac_poly::{
     eval_param_poly, num_minus_t_derivative, rational_roots_in_t, tresultant_eliminate_x,
-    univariate_degree, Poly, PolyError, Var,
+    univariate_degree, Poly, Var,
 };
 use num_bigint::BigInt;
 use num_rational::Ratio;
@@ -62,14 +62,14 @@ pub fn rothstein_trager_integrate(
     }
     let t = Var::from(RT_PARAM);
     let p1 = num_minus_t_derivative(numer, factor, var, &t);
-    let res_t = tresultant_eliminate_x(&p1, factor, var, &t).map_err(poly_error_compat)?;
+    let res_t = tresultant_eliminate_x(&p1, factor, var, &t)?;
     if res_t.is_zero() {
         return Err(EvalError::NotImplemented("rothstein trager"));
     }
     if let Some(r) = try_algebraic_rt_log_part(numer, factor, var, x, &res_t, &t) {
         return Ok(r);
     }
-    let roots = rational_roots_in_t(&res_t, &t).map_err(poly_error_compat)?;
+    let roots = rational_roots_in_t(&res_t, &t)?;
     if roots.is_empty() {
         return Err(EvalError::NotImplemented("rothstein trager roots"));
     }
@@ -91,7 +91,6 @@ pub fn rothstein_trager_integrate(
     Ok(Expr::add(parts))
 }
 
-// **Pipeline private** — map `PolyError` to `EvalError`.
 
 #[cfg(test)]
 mod tests {

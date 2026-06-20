@@ -1,6 +1,7 @@
 [workspace]
 resolver = "2"
 members = [
+    "crates/giac-error",
     "crates/giac-core",
     "crates/giac-poly",
     "crates/giac-linalg",
@@ -29,6 +30,7 @@ num-traits = "0.2.17"
 thiserror = "=1.0.56"
 logos = "=0.13.0"
 anyhow = "=1.0.75"
+giac-error = { path = "crates/giac-error" }
 giac-core = { path = "crates/giac-core" }
 giac-poly = { path = "crates/giac-poly" }
 giac-linalg = { path = "crates/giac-linalg" }

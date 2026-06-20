@@ -9,7 +9,7 @@ use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::{One, Signed, Zero};
 
-use crate::error::{PolyError, PolyResult};
+use crate::error::{EvalError, PolyResult};
 use crate::monomial::Var;
 use crate::poly::Poly;
 use crate::resultant::{coeff_at, resultant, univariate_degree};
@@ -48,7 +48,7 @@ pub fn tresultant_eliminate_x(a: &Poly, b: &Poly, x: &Var, t: &Var) -> PolyResul
     let da = univariate_degree(a, x);
     let db = univariate_degree(b, x);
     if da == 0 || db == 0 {
-        return Err(PolyError::TypeError("degenerate tresultant"));
+        return Err(EvalError::TypeError("degenerate tresultant"));
     }
     let max_deg = da.max(db) as usize + 1;
     let mut samples = Vec::new();
@@ -334,11 +334,11 @@ fn pure_biquartic_res_pairs(a: &Ratio<BigInt>, c: &Ratio<BigInt>) -> PolyResult<
         return Ok(vec![]);
     }
     let rad = t4.abs();
-    let mag = ratio_perfect_sqrt(&rad).ok_or(PolyError::NotImplemented(
+    let mag = ratio_perfect_sqrt(&rad).ok_or(EvalError::NotImplemented(
         "biquartic algebraic roots",
     ))?;
     let quarter_mag = mag.clone() / Ratio::from_integer(BigInt::from(4));
-    let re_im = ratio_perfect_sqrt(&quarter_mag).ok_or(PolyError::NotImplemented(
+    let re_im = ratio_perfect_sqrt(&quarter_mag).ok_or(EvalError::NotImplemented(
         "biquartic algebraic roots",
     ))?;
     let mut pairs = Vec::new();

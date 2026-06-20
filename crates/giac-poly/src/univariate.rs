@@ -7,7 +7,7 @@ use num_integer::Integer;
 use num_rational::Ratio;
 use num_traits::{One, Signed, Zero};
 
-use crate::error::{PolyError, PolyResult};
+use crate::error::{EvalError, PolyResult};
 use crate::monomial::Var;
 use crate::poly::Poly;
 use crate::resultant::{coeff_at, univariate_degree};
@@ -240,7 +240,7 @@ pub fn univariate_derivative(p: &Poly, var: &Var) -> Poly {
 /// **Stable** — Yun square-free factors
 pub fn square_free_factorization(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>> {
     if p.is_zero() {
-        return Err(PolyError::TypeError("zero polynomial"));
+        return Err(EvalError::TypeError("zero polynomial"));
     }
     let mut w = p.clone();
     let mut y = univariate_derivative(p, var);
@@ -268,7 +268,7 @@ pub fn square_free_factorization(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, u
 /// **Stable** — product of square-free factors
 pub fn square_free_part(p: &Poly, var: &Var) -> PolyResult<Poly> {
     if p.is_zero() {
-        return Err(PolyError::TypeError("zero polynomial"));
+        return Err(EvalError::TypeError("zero polynomial"));
     }
     let mut prod = Poly::one();
     for (g, _) in square_free_factorization(p, var)? {
@@ -296,7 +296,7 @@ pub fn substitute_univariate(p: &Poly, var: &Var, sub: &Poly) -> Poly {
 /// **Stable** — odd multiplicity factor
 pub fn odd_multiplicity_part(p: &Poly, var: &Var) -> PolyResult<Poly> {
     if p.is_zero() {
-        return Err(PolyError::TypeError("zero polynomial"));
+        return Err(EvalError::TypeError("zero polynomial"));
     }
     let xv = Poly::var(var.clone());
     let mut w = p.clone();
@@ -400,7 +400,7 @@ fn univariate_rem(a: &Poly, b: &Poly, var: &Var) -> Poly {
 /// **Stable** — Sturm chain
 pub fn sturm_sequence(p: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
     if univariate_degree(p, var) == 0 {
-        return Err(PolyError::TypeError("constant polynomial"));
+        return Err(EvalError::TypeError("constant polynomial"));
     }
     let deriv = univariate_derivative(p, var);
     let g = univariate_gcd(p, &deriv, var);

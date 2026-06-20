@@ -9,7 +9,7 @@
 //!
 use num_bigint::BigInt;
 
-use crate::error::PolyError;
+use crate::error::EvalError;
 use crate::modular::{modp, PolyMod};
 use crate::monomial::Var;
 use crate::poly::Poly;
@@ -18,19 +18,19 @@ use super::cyclotomic::is_xn_minus_one_poly;
 use super::fpx::factor_fpx;
 
 /// **Stable** — Factor over ℤ/pℤ then lift display (giac `mod_factor` subset).
-pub fn factor_poly_mod(p: &Poly, modulus: i64) -> Result<Poly, PolyError> {
+pub fn factor_poly_mod(p: &Poly, modulus: i64) -> Result<Poly, EvalError> {
     if modulus == 2 && is_xn_minus_one_poly(p, &Var::from("x"), 4) {
         let x = Poly::var("x");
         return Ok(x.pow(4).add(&Poly::one()));
     }
-    let pm = modp(p, modulus).map_err(|_| PolyError::TypeError("modp failed"))?;
+    let pm = modp(p, modulus).map_err(|_| EvalError::TypeError("modp failed"))?;
     let factors = factor_fpx(&pm)?;
     if factors.len() <= 1 {
         return Ok(p.clone());
     }
     let mut out = PolyMod::one(pm.modulus.clone());
     for f in &factors {
-        out = out.mul(f).map_err(|_| PolyError::TypeError("mod mul failed"))?;
+        out = out.mul(f).map_err(|_| EvalError::TypeError("mod mul failed"))?;
     }
     Ok(modpoly_to_poly(&out, modulus))
 }

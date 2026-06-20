@@ -10,6 +10,7 @@ authors.workspace = true
 workspace = true
 
 [dependencies]
+giac-error = { workspace = true }
 num-bigint = { workspace = true }
 num-integer = { workspace = true }
 num-rational = { workspace = true }

@@ -10,7 +10,7 @@
 use num_bigint::BigInt;
 use num_traits::{One, Zero};
 
-use crate::error::{PolyError, PolyResult};
+use crate::error::{EvalError, PolyResult};
 use crate::modint::ModInt;
 use crate::modular::PolyMod;
 use crate::monomial::{Monomial, Var};
@@ -71,7 +71,7 @@ fn mod_poly(a: &PolyMod, m: &PolyMod) -> PolyResult<PolyMod> {
 fn div_exact(a: &PolyMod, b: &PolyMod) -> PolyResult<PolyMod> {
     let (q, r) = a.div_rem(b)?;
     if !r.is_zero() {
-        return Err(PolyError::NotImplemented("poly division"));
+        return Err(EvalError::NotImplemented("poly division"));
     }
     Ok(q)
 }
@@ -183,7 +183,7 @@ fn random_poly(deg: u64, modulus: &BigInt, rng: &mut Lcg) -> PolyMod {
 // **Pipeline private** — `square_free_yun`
 fn square_free_yun(p: &PolyMod) -> PolyResult<Vec<(PolyMod, usize)>> {
     if p.is_zero() {
-        return Err(PolyError::TypeError("zero polynomial"));
+        return Err(EvalError::TypeError("zero polynomial"));
     }
     let mut factors = Vec::new();
     let mut w = p.clone();
@@ -265,7 +265,7 @@ fn extract_linear_factors(p: &PolyMod) -> PolyResult<Vec<PolyMod>> {
         .modulus
         .to_string()
         .parse::<i64>()
-        .map_err(|_| PolyError::TypeError("modulus too large"))?;
+        .map_err(|_| EvalError::TypeError("modulus too large"))?;
     let mut rest = p.clone();
     let mut out = Vec::new();
     for r in 0..pval {
@@ -303,7 +303,7 @@ fn cantor_zassenhaus_block(block: &PolyMod, i: u64, rng: &mut Lcg) -> PolyResult
     let p_i64 = prime
         .to_string()
         .parse::<i64>()
-        .map_err(|_| PolyError::TypeError("modulus too large"))?;
+        .map_err(|_| EvalError::TypeError("modulus too large"))?;
 
     for _attempt in 2..=50 {
         let pp = random_poly(2 * i - 1, prime, rng);
@@ -338,7 +338,7 @@ fn cantor_zassenhaus_block(block: &PolyMod, i: u64, rng: &mut Lcg) -> PolyResult
         out.extend(cantor_zassenhaus_block(&fact2, i, rng)?);
         return Ok(out);
     }
-    Err(PolyError::NotImplemented("cantor-zassenhaus split"))
+    Err(EvalError::NotImplemented("cantor-zassenhaus split"))
 }
 
 // **Pipeline private** — `factor_square_free`
@@ -356,7 +356,7 @@ fn factor_square_free(p: &PolyMod) -> PolyResult<Vec<PolyMod>> {
 /// **Stable** — Full factorization in F_p[x] into monic irreducible factors (with repetition).
 pub fn factor_fpx(p: &PolyMod) -> PolyResult<Vec<PolyMod>> {
     if p.is_zero() {
-        return Err(PolyError::TypeError("zero polynomial"));
+        return Err(EvalError::TypeError("zero polynomial"));
     }
     if degree(p) == 0 {
         return Ok(vec![]);

@@ -10,7 +10,7 @@
 use num_bigint::BigInt;
 use num_traits::{One, Signed, Zero};
 
-use crate::error::{PolyError, PolyResult};
+use crate::error::{EvalError, PolyResult};
 use crate::modular::PolyMod;
 use crate::monomial::Var;
 use crate::poly::Poly;
@@ -72,7 +72,7 @@ fn mignotte_bound(p: &Poly, var: &Var) -> BigInt {
 
 // **Pipeline private** — `poly_mod_from_poly`
 fn poly_mod_from_poly(p: &Poly, var: &Var, modulus: &BigInt) -> PolyResult<PolyMod> {
-    let coeffs = integer_coeffs(p, var).ok_or(PolyError::TypeError("non-integer poly"))?;
+    let coeffs = integer_coeffs(p, var).ok_or(EvalError::TypeError("non-integer poly"))?;
     fpx_uni::from_bigint_coeffs(var, modulus, &coeffs)
 }
 
@@ -163,7 +163,7 @@ fn coeff_div_mod(p: &PolyMod, var: &Var, d: &BigInt) -> PolyResult<PolyMod> {
     for e in 0..=deg {
         let c = mod_coeff_at(p, var, e).val.clone();
         if &c % d != BigInt::zero() {
-            return Err(PolyError::NotImplemented("non-exact coeff division"));
+            return Err(EvalError::NotImplemented("non-exact coeff division"));
         }
         coeffs.push(c / d);
     }

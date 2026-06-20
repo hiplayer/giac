@@ -2,7 +2,7 @@
 //! full module index in `.doc/giac-poly-api-stability.md`.
 //!
 //!
-use crate::error::{PolyError, PolyResult};
+use crate::error::{EvalError, PolyResult};
 use crate::poly::{egcd, Poly};
 
 /// Polynomial CRT: find `r` with `r ≡ a1 (mod m1)` and `r ≡ a2 (mod m2)`.
@@ -10,7 +10,7 @@ use crate::poly::{egcd, Poly};
 pub fn chinrem(a1: &Poly, a2: &Poly, m1: &Poly, m2: &Poly) -> PolyResult<Poly> {
     let (g, s, _t) = egcd(m1, m2);
     if !g.is_one() {
-        return Err(PolyError::TypeError("moduli not coprime"));
+        return Err(EvalError::TypeError("moduli not coprime"));
     }
     let diff = a2.sub(a1);
     let (_, rem) = diff.div_rem(m2);
@@ -23,7 +23,7 @@ pub fn chinrem(a1: &Poly, a2: &Poly, m1: &Poly, m2: &Poly) -> PolyResult<Poly> {
 /// **Stable** — CRT fold over lists
 pub fn chinrem_lists(residues: &[Poly], moduli: &[Poly]) -> PolyResult<(Poly, Poly)> {
     if residues.len() != moduli.len() || residues.is_empty() {
-        return Err(PolyError::TypeError("chinrem list length"));
+        return Err(EvalError::TypeError("chinrem list length"));
     }
     let mut r = residues[0].clone();
     let mut m = moduli[0].clone();

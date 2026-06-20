@@ -7,7 +7,7 @@ use num_rational::Ratio;
 use num_traits::Signed;
 use num_traits::{One, Zero};
 
-use crate::error::{PolyError, PolyResult};
+use crate::error::{EvalError, PolyResult};
 use crate::factor::{
     as_perfect_power, factor_into, factor_into_by_rational_roots, factor_power_pairs,
     find_rational_root,
@@ -29,7 +29,7 @@ pub fn partfrac_terms(
         if univariate_degree(&n, var) == 0 && univariate_degree(&d, var) >= 1 {
             linear.push((coeff_at(&n, var, 0), d));
         } else {
-            return Err(PolyError::NotImplemented("partfrac nonlinear factor"));
+            return Err(EvalError::NotImplemented("partfrac nonlinear factor"));
         }
     }
     Ok((poly_part, linear))
@@ -43,7 +43,7 @@ pub fn partfrac_rational_terms(
     var: &Var,
 ) -> PolyResult<(Option<Poly>, Vec<(Poly, Poly)>)> {
     if den.is_zero() {
-        return Err(PolyError::DivisionByZero);
+        return Err(EvalError::DivisionByZero);
     }
     let (poly_part, rem) = if univariate_degree(num, var) >= univariate_degree(den, var) {
         let (q, r) = num.div_rem(den);
@@ -55,16 +55,16 @@ pub fn partfrac_rational_terms(
         return Ok((poly_part, vec![]));
     }
     if univariate_degree(&rem, var) >= univariate_degree(den, var) {
-        return Err(PolyError::TypeError("improper rational remainder"));
+        return Err(EvalError::TypeError("improper rational remainder"));
     }
 
     if let Ok(terms) = partfrac_by_square_free(&rem, den, var) {
         return Ok((poly_part, drop_zero_numerators(terms)));
     }
 
-    let factors = factor_into(den).ok_or(PolyError::NotImplemented("partfrac factor"))?;
+    let factors = factor_into(den).ok_or(EvalError::NotImplemented("partfrac factor"))?;
     if factors.is_empty() {
-        return Err(PolyError::TypeError("empty factorization"));
+        return Err(EvalError::TypeError("empty factorization"));
     }
     if factors.iter().all(|f| univariate_degree(f, var) == 1) {
         let mut terms = Vec::with_capacity(factors.len());
@@ -77,7 +77,7 @@ pub fn partfrac_rational_terms(
                 }
             }
             if denom_prod.is_zero() {
-                return Err(PolyError::TypeError("repeated linear factor"));
+                return Err(EvalError::TypeError("repeated linear factor"));
             }
             let coeff = rem.horner(var, &root) / denom_prod;
             terms.push((Poly::constant(coeff), f.clone()));
@@ -102,13 +102,13 @@ fn partfrac_by_square_free(
 ) -> PolyResult<Vec<(Poly, Poly)>> {
     let sqff = expand_sqff_factors(&denominator_power_factors(den, var)?, var)?;
     if sqff.is_empty() {
-        return Err(PolyError::TypeError("empty denominator"));
+        return Err(EvalError::TypeError("empty denominator"));
     }
 
     let mut denom_powers = Vec::new();
     for (g, mult) in &sqff {
         if univariate_degree(g, var) > 3 {
-            return Err(PolyError::NotImplemented("partfrac nonlinear factor"));
+            return Err(EvalError::NotImplemented("partfrac nonlinear factor"));
         }
         for j in 1..=*mult {
             denom_powers.push(g.pow(j as u64));
@@ -121,7 +121,7 @@ fn partfrac_by_square_free(
             let root = linear_root(g, var)?;
             let slope = coeff_at(g, var, 1);
             if slope.is_zero() {
-                return Err(PolyError::TypeError("degenerate linear factor"));
+                return Err(EvalError::TypeError("degenerate linear factor"));
             }
             let coeff = num.horner(var, &root) / slope;
             return Ok(vec![(Poly::constant(coeff), g.clone())]);
@@ -154,7 +154,7 @@ fn partfrac_affine_power_system(
     for (g, mult) in sqff {
         let gdeg = univariate_degree(g, var) as usize;
         if gdeg == 0 || gdeg > 3 {
-            return Err(PolyError::NotImplemented("partfrac nonlinear factor"));
+            return Err(EvalError::NotImplemented("partfrac nonlinear factor"));
         }
         for j in 1..=*mult {
             term_specs.push((g.pow(j as u64), gdeg - 1));
@@ -179,7 +179,7 @@ fn partfrac_affine_power_system(
         rhs[i] = coeff_at(num, var, i as u64);
     }
     let coeffs = solve_linear_system(&matrix, &rhs)
-        .ok_or(PolyError::NotImplemented("partfrac linear system"))?;
+        .ok_or(EvalError::NotImplemented("partfrac linear system"))?;
     let mut col = 0usize;
     let mut out = Vec::new();
     for (d_k, max_pow) in term_specs {
@@ -265,7 +265,7 @@ fn partfrac_square_free_affine_numerators(
     let mut term_specs = Vec::new();
     for (g, mult) in sqff {
         if *mult != 1 || univariate_degree(g, var) > 3 {
-            return Err(PolyError::NotImplemented("partfrac nonlinear factor"));
+            return Err(EvalError::NotImplemented("partfrac nonlinear factor"));
         }
         term_specs.push((g.clone(), univariate_degree(g, var)));
     }
@@ -297,7 +297,7 @@ fn partfrac_square_free_affine_numerators(
         rhs[i] = coeff_at(num, var, i as u64);
     }
     let coeffs = solve_linear_system(&matrix, &rhs)
-        .ok_or(PolyError::NotImplemented("partfrac linear system"))?;
+        .ok_or(EvalError::NotImplemented("partfrac linear system"))?;
     let mut col = 0usize;
     let mut out = Vec::new();
     for (g, g_deg) in term_specs {
@@ -318,7 +318,7 @@ fn partfrac_one_quadratic(num: &Poly, quad: &Poly, var: &Var) -> PolyResult<Vec<
     let b = coeff_at(quad, var, 1);
     let d = coeff_at(quad, var, 0);
     if a.is_zero() {
-        return Err(PolyError::TypeError("not quadratic"));
+        return Err(EvalError::TypeError("not quadratic"));
     }
     let disc = b.clone() * b.clone() - Ratio::from_integer(BigInt::from(4)) * a.clone() * d;
     if disc > Ratio::zero() {
@@ -327,7 +327,7 @@ fn partfrac_one_quadratic(num: &Poly, quad: &Poly, var: &Var) -> PolyResult<Vec<
                 return partfrac_by_square_free(num, quad, var);
             }
         }
-        return Err(PolyError::NotImplemented("partfrac real quadratic split"));
+        return Err(EvalError::NotImplemented("partfrac real quadratic split"));
     }
     if disc == Ratio::zero() {
         if let Some(factors) = factor_into(quad) {
@@ -401,7 +401,7 @@ fn partfrac_mixed_affine(
 fn linear_root(f: &Poly, var: &Var) -> PolyResult<Ratio<BigInt>> {
     let a = coeff_at(f, var, 1);
     if a.is_zero() {
-        return Err(PolyError::TypeError("not linear"));
+        return Err(EvalError::TypeError("not linear"));
     }
     Ok(-coeff_at(f, var, 0) / a)
 }

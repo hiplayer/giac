@@ -304,7 +304,7 @@ impl PrimitivePart {
     pub fn wrt(p: &Poly, var: &Var) -> PolyResult<Self> {
         let pp = primitive_part_wrt_impl(p, var);
         if pp.is_zero() && !p.is_zero() {
-            return Err(crate::error::PolyError::TypeError("zero primitive part"));
+            return Err(crate::error::EvalError::TypeError("zero primitive part"));
         }
         Ok(Self {
             poly: pp,

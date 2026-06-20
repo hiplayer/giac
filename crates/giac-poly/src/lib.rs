@@ -24,7 +24,8 @@ pub use nested::{
     TnEmbed, UnivariateIn, UnivariateOver, UnivariatePoly, UnivariatePolyQ,
 };
 pub use factor::GoodEval;
-pub use error::{PolyError, PolyResult};
+pub use giac_error::EvalError;
+pub use error::PolyResult;
 pub use monomial::{Monomial, Var};
 pub use poly::{Poly, PolyQ, abcuv, egcd, quo, rem, simp2};
 pub use poly_coeff::PolyCoeff;

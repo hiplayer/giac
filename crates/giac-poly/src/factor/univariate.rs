@@ -12,7 +12,7 @@ use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::{One, Zero};
 
-use crate::error::{PolyError, PolyResult};
+use crate::error::{EvalError, PolyResult};
 use crate::monomial::Var;
 use crate::poly::Poly;
 use crate::nested::{FlatUni, MainVar};
@@ -40,13 +40,13 @@ pub fn factor_univariate_flat(p: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
 /// **Partial** — pairs with multiplicity
 pub fn factor_univariate_pairs(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>> {
     if p.is_zero() {
-        return Err(PolyError::TypeError("zero polynomial"));
+        return Err(EvalError::TypeError("zero polynomial"));
     }
     if p.is_one() {
         return Ok(vec![]);
     }
     if !is_univariate_in(p, var) {
-        return Err(PolyError::NotImplemented("factor"));
+        return Err(EvalError::NotImplemented("factor"));
     }
     let mut out = Vec::new();
     let content = p.content();
@@ -146,13 +146,13 @@ fn factor_by_rational_roots(p: &Poly, var: &Var) -> Option<Vec<Poly>> {
 /// **Stable (bounded)** — factors with multiplicities
 pub fn factor_power_pairs(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>> {
     if p.is_zero() {
-        return Err(PolyError::TypeError("zero polynomial"));
+        return Err(EvalError::TypeError("zero polynomial"));
     }
     if p.is_one() {
         return Ok(vec![]);
     }
     if !is_univariate_in(p, var) {
-        return Err(PolyError::NotImplemented("factor"));
+        return Err(EvalError::NotImplemented("factor"));
     }
     let mut out = Vec::new();
     let content = p.content();
@@ -185,7 +185,7 @@ fn factor_power_pairs_core(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>
                 if univariate_degree(&rest, var) <= 2 {
                     break;
                 }
-                return Err(PolyError::NotImplemented("factor"));
+                return Err(EvalError::NotImplemented("factor"));
             }
         };
         let lin = linear_poly(var, &root);
@@ -201,7 +201,7 @@ fn factor_power_pairs_core(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>
             rest = flat.exact_quo(&lin_u).expect("exact quotient");
         }
         if mult == 0 {
-            return Err(PolyError::NotImplemented("factor"));
+            return Err(EvalError::NotImplemented("factor"));
         }
         factors.push((lin, mult));
     }
@@ -218,7 +218,7 @@ fn factor_power_pairs_core(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>
         factors.push((rest, 1));
         return Ok(factors);
     }
-    Err(PolyError::NotImplemented("factor"))
+    Err(EvalError::NotImplemented("factor"))
 }
 
 // **Pipeline private** — rational root via rational root theorem
@@ -260,7 +260,7 @@ fn factor_quadratic(p: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
             2 => a += coeff,
             1 => b += coeff,
             0 => c += coeff,
-            _ => return Err(PolyError::TypeError("not quadratic")),
+            _ => return Err(EvalError::TypeError("not quadratic")),
         }
     }
     if a.is_zero() {

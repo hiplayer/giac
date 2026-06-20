@@ -165,8 +165,8 @@ pub fn algext_poly_to_expr(poly: &PolyAlgExt) -> Result<ExprArc, EvalError> {
     ))
 }
 
-/// **Stable** — univariate `Poly` → `poly1[coeffs…]` Expr (giac high-degree-first order).
-pub fn poly_to_poly1_expr(poly: &Poly, var: &Var) -> ExprArc {
+/// **Stable** — univariate `Poly` w.r.t. `var` → `poly1[coeffs…]` Expr (giac high-degree-first order).
+pub fn univariate_poly_to_poly1_expr(poly: &Poly, var: &Var) -> ExprArc {
     let deg = giac_poly::univariate_degree(poly, var);
     let mut coeffs = Vec::with_capacity((deg + 1) as usize);
     for e in (0..=deg).rev() {
@@ -448,10 +448,10 @@ mod tests {
     }
 
     #[test]
-    fn poly_to_poly1_expr_quadratic() {
+    fn univariate_poly_to_poly1_expr_quadratic() {
         let x = Poly::var("x");
         let p = x.pow(2).sub(&Poly::constant(Ratio::from_integer(2.into())));
-        let e = poly_to_poly1_expr(&p, &Var::from("x"));
+        let e = univariate_poly_to_poly1_expr(&p, &Var::from("x"));
         assert!(matches!(e.as_ref(), Expr::Func(FuncKind::Poly1, _)));
     }
 }

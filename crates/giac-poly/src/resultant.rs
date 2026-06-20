@@ -6,7 +6,7 @@ use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::{One, Signed, Zero};
 
-use crate::error::{PolyError, PolyResult};
+use crate::error::{EvalError, PolyResult};
 use crate::exp::bigint_pow;
 use crate::monomial::Var;
 use crate::poly::Poly;
@@ -28,7 +28,7 @@ pub fn resultant(a: &Poly, b: &Poly, var: &Var) -> PolyResult<Poly> {
         };
         let exp = if da == 0 { db } else { da };
         let other = if da == 0 { b } else { a };
-        let c_pow = bigint_pow(&c, exp).ok_or(PolyError::TypeError("exponent too large"))?;
+        let c_pow = bigint_pow(&c, exp).ok_or(EvalError::TypeError("exponent too large"))?;
         return Ok(other.pow(exp).mul_scalar(&Ratio::from_integer(c_pow)));
     }
     if da == 1 || db == 1 {
@@ -157,7 +157,7 @@ pub fn roots(p: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
             if p.is_zero() {
                 Ok(vec![])
             } else {
-                Err(PolyError::TypeError("constant has no roots"))
+                Err(EvalError::TypeError("constant has no roots"))
             }
         }
         1 => {
@@ -172,13 +172,13 @@ pub fn roots(p: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
                 }
             }
             if a.is_zero() {
-                return Err(PolyError::TypeError("not linear"));
+                return Err(EvalError::TypeError("not linear"));
             }
             Ok(vec![Poly::constant(-&b / &a)])
         }
         2 => quadratic_roots(p, var),
         3 if is_xn_minus_one(p, var, 3) => Ok(vec![Poly::constant(Ratio::one())]),
-        _ => Err(PolyError::NotImplemented("roots")),
+        _ => Err(EvalError::NotImplemented("roots")),
     }
 }
 
@@ -186,7 +186,7 @@ pub fn roots(p: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
 fn quadratic_coeffs(
     p: &Poly,
     var: &Var,
-) -> Result<(Ratio<BigInt>, Ratio<BigInt>, Ratio<BigInt>), PolyError> {
+) -> Result<(Ratio<BigInt>, Ratio<BigInt>, Ratio<BigInt>), EvalError> {
     let mut a = Ratio::zero();
     let mut b = Ratio::zero();
     let mut c = Ratio::zero();
@@ -195,11 +195,11 @@ fn quadratic_coeffs(
             2 => a += coeff,
             1 => b += coeff,
             0 => c += coeff,
-            _ => return Err(PolyError::TypeError("not quadratic")),
+            _ => return Err(EvalError::TypeError("not quadratic")),
         }
     }
     if a.is_zero() {
-        return Err(PolyError::TypeError("not quadratic"));
+        return Err(EvalError::TypeError("not quadratic"));
     }
     Ok((a, b, c))
 }
@@ -249,7 +249,7 @@ fn quadratic_roots(p: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
         let r = -&b / (Ratio::from_integer(BigInt::from(2)) * &a);
         return Ok(vec![Poly::constant(r)]);
     }
-    let sqrt_d = ratio_is_perfect_square(&disc).ok_or(PolyError::NotImplemented("roots"))?;
+    let sqrt_d = ratio_is_perfect_square(&disc).ok_or(EvalError::NotImplemented("roots"))?;
     let two_a = Ratio::from_integer(BigInt::from(2)) * &a;
     let r1 = (-&b + &sqrt_d) / &two_a;
     let r2 = (-&b - &sqrt_d) / &two_a;
@@ -342,7 +342,7 @@ mod tests {
     #[test]
     fn roots_constant_nonzero_errors() {
         let err = roots(&Poly::one(), &Var::from("x")).unwrap_err();
-        assert!(matches!(err, PolyError::TypeError(_)));
+        assert!(matches!(err, EvalError::TypeError(_)));
     }
 
     #[test]
@@ -364,6 +364,6 @@ mod tests {
     fn roots_quadratic_irrational_discriminant() {
         let p = x().pow(2).add(&Poly::one());
         let err = roots(&p, &Var::from("x")).unwrap_err();
-        assert!(matches!(err, PolyError::NotImplemented(_)));
+        assert!(matches!(err, EvalError::NotImplemented(_)));
     }
 }

@@ -27,7 +27,7 @@ mod stmt;
 pub use context::{Assumption, Context, RelationAssumption, expr_mentions_ident};
 pub use stmt::{exec_stmt, exec_stmts, Stmt, StmtResult};
 pub use display::format_expr;
-pub use error::{poly_error_compat, EvalError};
+pub use error::EvalError;
 pub use eval::{eval, eval_subst_map};
 pub use expr::{Expr, ExprArc, FuncKind, RelOp};
 pub use float_format::format_float;
@@ -47,7 +47,7 @@ pub use algebra::alg_ext_c::{canonicalize_to_algext_c, AlgExtCData};
 pub use algebra::ext_tower::{CommonFieldPair, ExtensionField, ExtensionTower, FieldEmbedding};
 pub use algebra::poly::{
     algext_poly_to_expr, expr_contains_alg_coeff, expr_to_poly, poly_alg_from_expr,
-    poly_mod_to_expr, poly_to_expr, poly_to_poly1_expr, ratio_to_expr, vars_from_expr,
+    poly_mod_to_expr, poly_to_expr, univariate_poly_to_poly1_expr, ratio_to_expr, vars_from_expr,
     PolyAlgExt,
 };
 pub use algebra::poly_alg_coeff::AlgExtCPolyCoeff;

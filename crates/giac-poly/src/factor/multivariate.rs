@@ -8,7 +8,7 @@
 //! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
 //! full module index in `.doc/giac-poly-api-stability.md`.
 //!
-use crate::error::{PolyError, PolyResult};
+use crate::error::{EvalError, PolyResult};
 use crate::monomial::Var;
 use crate::poly::Poly;
 
@@ -28,7 +28,7 @@ pub fn factor_into_poly(p: &Poly) -> Option<Vec<Poly>> {
 /// **Stable (bounded)** — multivariate factorization
 pub fn factor_multivariate(p: &Poly) -> PolyResult<Vec<Poly>> {
     if p.is_zero() {
-        return Err(PolyError::TypeError("zero polynomial"));
+        return Err(EvalError::TypeError("zero polynomial"));
     }
     if p.is_one() {
         return Ok(vec![]);

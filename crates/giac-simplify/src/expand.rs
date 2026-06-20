@@ -159,7 +159,7 @@ fn expand_pow(
                 if n >= &BigInt::zero() && bigint_to_nonneg_u32(n).ok() <= Some(MAX_MOD_EXPAND_POWER)
                 {
                     let e = bigint_to_nonneg_u32(n)?;
-                    let pm = modp(&p.pow(u64::from(e)), mod_i).map_err(mod_err)?;
+                    let pm = modp(&p.pow(u64::from(e)), mod_i)?;
                     return Ok(poly_mod_to_expr(&pm));
                 }
             }
@@ -256,14 +256,6 @@ fn modulus_from_expr(m: &Expr) -> Result<i64, EvalError> {
     }
 }
 
-// **Pipeline private** — map PolyError to EvalError
-fn mod_err(e: giac_poly::PolyError) -> EvalError {
-    match e {
-        giac_poly::PolyError::DivisionByZero => EvalError::DivisionByZero,
-        giac_poly::PolyError::TypeError(m) => EvalError::TypeError(m),
-        giac_poly::PolyError::NotImplemented(m) => EvalError::NotImplemented(m),
-    }
-}
 
 #[cfg(test)]
 mod tests {

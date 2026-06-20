@@ -1,8 +1,8 @@
 use std::sync::Arc;
 
-use giac_core::{eval, expr_to_poly, poly_error_compat, poly_to_expr, Context, EvalError, Expr, ExprArc, FuncKind, Ident};
+use giac_core::{eval, expr_to_poly, poly_to_expr, Context, EvalError, Expr, ExprArc, FuncKind, Ident};
 use giac_poly::{
-    coeff_at, roots, square_free_factorization, univariate_degree, Poly, PolyError, Var,
+    coeff_at, roots, square_free_factorization, univariate_degree, Poly, Var,
 };
 use num_rational::Ratio;
 use num_traits::{Signed, Zero};
@@ -74,7 +74,7 @@ fn append_factor_roots(
     if poly.is_zero() {
         return Ok(());
     }
-    let factors = square_free_factorization(poly, var).map_err(poly_error_compat)?;
+    let factors = square_free_factorization(poly, var)?;
     for (factor, mult) in factors {
         let signed = mult as i32 * sign;
         for root in solve_factor_roots(&factor, var)? {
@@ -97,7 +97,7 @@ fn solve_factor_roots(factor: &Poly, var: &Var) -> Result<Vec<ExprArc>, EvalErro
             Ok(vec![poly_to_expr(&Poly::constant(root))])
         }
         2 | 3 => roots(factor, var)
-            .map_err(poly_error_compat)?
+            ?
             .into_iter()
             .map(|p| Ok(poly_to_expr(&p)))
             .collect(),

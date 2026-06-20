@@ -2,9 +2,7 @@
 
 use std::fmt::{self, Debug};
 
-use giac_poly::{PolyCoeff, PolyError, PolyResult};
-
-use crate::error::EvalError;
+use giac_poly::{PolyCoeff, PolyResult};
 
 use super::alg_ext_c::AlgExtCData;
 
@@ -38,18 +36,6 @@ impl From<AlgExtCData> for AlgExtCPolyCoeff {
     }
 }
 
-fn map_eval_err(e: EvalError) -> PolyError {
-    match e {
-        EvalError::TypeError(m) => PolyError::TypeError(m),
-        EvalError::NotImplemented(m) => PolyError::NotImplemented(m),
-        EvalError::DivisionByZero => PolyError::DivisionByZero,
-        EvalError::TooFewArgs(m) | EvalError::TooManyArgs(m) => PolyError::TypeError(m),
-        EvalError::UnknownFunction(m) | EvalError::UnknownVariable(m) => {
-            PolyError::TypeError("eval error")
-        }
-    }
-}
-
 impl PolyCoeff for AlgExtCPolyCoeff {
     fn coeff_zero() -> Self {
         Self(
@@ -78,23 +64,23 @@ impl PolyCoeff for AlgExtCPolyCoeff {
     }
 
     fn coeff_add(&self, rhs: &Self) -> PolyResult<Self> {
-        self.0.add(rhs.as_inner()).map(Self).map_err(map_eval_err)
+        self.0.add(rhs.as_inner()).map(Self)
     }
 
     fn coeff_sub(&self, rhs: &Self) -> PolyResult<Self> {
-        self.0.sub(rhs.as_inner()).map(Self).map_err(map_eval_err)
+        self.0.sub(rhs.as_inner()).map(Self)
     }
 
     fn coeff_neg(&self) -> PolyResult<Self> {
-        self.0.neg().map(Self).map_err(map_eval_err)
+        self.0.neg().map(Self)
     }
 
     fn coeff_mul(&self, rhs: &Self) -> PolyResult<Self> {
-        self.0.mul(rhs.as_inner()).map(Self).map_err(map_eval_err)
+        self.0.mul(rhs.as_inner()).map(Self)
     }
 
     fn coeff_div(&self, rhs: &Self) -> PolyResult<Self> {
-        let inv = rhs.0.inv().map_err(map_eval_err)?;
+        let inv = rhs.0.inv()?;
         self.coeff_mul(&Self(inv))
     }
 }

@@ -10,7 +10,7 @@ use std::collections::BTreeSet;
 use num_rational::Ratio;
 use num_traits::{One, Zero};
 
-use crate::error::{PolyError, PolyResult};
+use crate::error::{EvalError, PolyResult};
 use crate::monomial::Var;
 use crate::poly::Poly;
 use crate::resultant::univariate_degree;
@@ -109,7 +109,7 @@ pub(crate) fn div_exact_coeff(a: &Poly, b: &Poly) -> Option<Poly> {
 /// **Stable (crate-internal)** — `div_exact_coeff` with `PolyResult` for pipeline callers.
 // **Stable** — `quo_exact_coeff`
 pub(crate) fn quo_exact_coeff(num: &Poly, den: &Poly) -> PolyResult<Poly> {
-    div_exact_coeff(num, den).ok_or(PolyError::NotImplemented("poly division"))
+    div_exact_coeff(num, den).ok_or(EvalError::NotImplemented("poly division"))
 }
 
 /// **Stable (crate-internal)** — division in ℚ[others][var] treating polynomials as univariate in `var`.
@@ -152,7 +152,7 @@ pub(crate) fn quo_exact_wrt(num: &Poly, den: &Poly, var: &Var) -> PolyResult<Pol
     if r.is_zero() {
         Ok(q)
     } else {
-        Err(PolyError::NotImplemented("poly division"))
+        Err(EvalError::NotImplemented("poly division"))
     }
 }
 

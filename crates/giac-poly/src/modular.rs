@@ -7,7 +7,7 @@ use std::collections::BTreeMap;
 use num_bigint::BigInt;
 use num_traits::{One, Zero};
 
-use crate::error::{PolyError, PolyResult};
+use crate::error::{EvalError, PolyResult};
 use crate::modint::ModInt;
 use crate::monomial::Monomial;
 use crate::poly::Poly;
@@ -43,7 +43,7 @@ impl PolyMod {
         let mut terms = BTreeMap::new();
         for (m, c) in &p.terms {
             if !c.denom().is_one() {
-                return Err(PolyError::TypeError("non-integer coeff for mod poly"));
+                return Err(EvalError::TypeError("non-integer coeff for mod poly"));
             }
             let mi = ModInt::new(c.numer().clone(), modulus.clone())?;
             if !mi.is_zero() {
@@ -131,7 +131,7 @@ impl PolyMod {
     /// **Stable** — multivariate division with remainder
     pub fn div_rem(&self, divisor: &Self) -> PolyResult<(Self, Self)> {
         if divisor.is_zero() {
-            return Err(PolyError::DivisionByZero);
+            return Err(EvalError::DivisionByZero);
         }
         let mut remainder = self.clone();
         let mut quotient = Self::zero(self.modulus.clone());

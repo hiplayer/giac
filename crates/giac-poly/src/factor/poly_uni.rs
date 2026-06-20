@@ -13,7 +13,7 @@ use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::{One, Zero};
 
-use crate::error::{PolyError, PolyResult};
+use crate::error::{EvalError, PolyResult};
 use crate::monomial::Var;
 use crate::nested::{MainVar, UnivariateIn};
 use crate::poly::Poly;
@@ -47,7 +47,7 @@ pub fn primitive_part_wrt(p: &Poly, var: &Var) -> PolyResult<Poly> {
         }
         let q = crate::nested::CoeffRingPoly::new(&c)
             .exact_quo(&crate::nested::CoeffRingPoly::new(&content))
-            .ok_or(PolyError::NotImplemented("poly division"))?;
+            .ok_or(EvalError::NotImplemented("poly division"))?;
         pp = pp.add(&term_with_var(&q, var, e));
     }
     Ok(pp)
@@ -80,7 +80,7 @@ pub fn derivative_wrt(p: &Poly, var: &Var) -> Poly {
 pub fn square_free_wrt(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>> {
     match square_free_wrt_impl(p, var) {
         Ok(f) => Ok(f),
-        Err(crate::error::PolyError::NotImplemented("poly division")) => Ok(vec![(p.clone(), 1)]),
+        Err(crate::error::EvalError::NotImplemented("poly division")) => Ok(vec![(p.clone(), 1)]),
         Err(e) => Err(e),
     }
 }
@@ -88,7 +88,7 @@ pub fn square_free_wrt(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>> {
 // **Pipeline private** — `square_free_wrt_impl`
 fn square_free_wrt_impl(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>> {
     if p.is_zero() {
-        return Err(PolyError::TypeError("zero polynomial"));
+        return Err(EvalError::TypeError("zero polynomial"));
     }
     let mut w = p.clone();
     let mut y = derivative_wrt(&w, var);
