@@ -2,7 +2,7 @@
 
 **状态:** open（Phase A 骨架已合入 giac-rs）  
 **类型:** AFK（实现向）  
-**相关:** [rust-migration-plan.md](../rust-migration-plan.md) §3.2、`cas-long-term-vision.md` §5 Phase B、`GIAC-205`（`rootof` 浅层对接）  
+**相关:** [GIAC-poly-algext-backlog](GIAC-poly-algext-backlog.md)（giac-poly 分阶段待办）、[rust-migration-plan.md](../rust-migration-plan.md) §3.2、`cas-long-term-vision.md` §5 Phase B、`GIAC-205`（`rootof` 浅层对接）  
 **上游参考:** `giac/giac-1.5.0/src/alg_ext.cc`、`alg_ext.h`、`gen.h` `ref_algext`  
 **Rust 落点:** `giac-core::algebra::{alg_ext, ext_tower, alg_ext_c}`、`Expr::AlgExt` / `Expr::AlgExtC`、`giac-poly::Poly<AlgExtC>`
 
@@ -222,6 +222,16 @@ pub struct ExtensionField {
 | `embed(x: Kᵢ, target: Kⱼ)` | 沿塔嵌入矩阵把 coords 提升到 j≥i 的基 |
 | 元素 `+ − × ÷` | 先 `common` 到同一 `ExtensionField`，再 mod 塔顶 `min_poly` |
 
+**Lazy `common`（Phase S0/S1，[GIAC-lazy-common-tower-plan.md](GIAC-lazy-common-tower-plan.md)）：**
+
+| 层 | 何时 | `common`? |
+|----|------|-----------|
+| L0 `Expr` / display | 解析、未 eval、`to_rootof_expr` | 否 |
+| L1 `AlgExtData` | `from_rootof`、同域 `+ − ×` | 否（最小域） |
+| L2 对齐后 | 跨域 `add`/`mul`/`eq_mod`、经 [`align_elements`](../../giac-rs/crates/giac-core/src/algebra/ext_tower.rs) | 运算时可能 `common` |
+
+决策树（同域 / 子域嵌入 / `common_cache`）见塔计划 **§11.5**；`fold_algext_sum` Split 语义见 **§11.6 E**。S0 已落地：`embedding_for` + 统一 `align_elements` 入口。
+
 **示例塔（`solve(t⁴−2=0)` 自然生长）：**
 
 ```text
@@ -345,6 +355,8 @@ i 为符号                i 进塔 / K[i]           evalf；参数 A,B
 | **3** | 长期 | `PolyCoeff` / 参数 min_poly | 符号参数 A,B | Phase C |
 | **4** | 长期 | `AlgExtC::evalf` | 浮点近似 | D-03 |
 | **5** | 长期 | `Poly<AlgExtC>` gcd/factor/roots | 通用 solve/factor/sturm | B-02/B-03/B-04 终态 |
+
+**giac-poly 分任务清单：** [GIAC-poly-algext-backlog](GIAC-poly-algext-backlog.md)（Phase 0–4、P2-3 partfrac、里程碑 M1–M4）。
 
 **推荐 PR 顺序（自阶段 2 起）：**
 
@@ -502,7 +514,7 @@ factor / solve / AlgExtC
 
 | ID | 模块 | 算法 | 须适配的行为 | 上游 | 验收 |
 |----|------|------|--------------|------|------|
-| B-01 | `giac-core::algebra::poly` | `expr_to_poly` | **拒绝**或**提升**含 `AlgExt` 的式子；文档化 `ConvError` | `e2r` + `_EXT` | 明确 `TypeError` |
+| B-01 | `giac-core::algebra::poly` | `expr_to_poly` | **拒绝**代数系数；**提升**走 `poly_alg_from_expr`（P1 stub）；契约 [expr-poly-conversion.md](../expr-poly-conversion.md) | `e2r` + `_EXT` | ✅ `TypeError` + `expr_contains_alg_coeff` |
 | B-02 | `giac-poly` | `gcd` / `factor` / `roots` | 系数环 **`Poly<AlgExtC>`**；过渡态二次 rootof 钩子 | `gausspol` `algext_convert` | `factor(x^2-2)`；终态任意次数 |
 | B-03 | `giac-solve` | `solve` / `roots` | 根为 **`AlgExtC`**；`Poly<AlgExtC>::roots` | `solve.cc` + `rootof` | `solve(t^4-2=0,t)` 四根 ✅ 过渡态 |
 | B-04 | `giac-solve` | `sturm` / `realroot` | 实根：`Poly<AlgExt>`（`AlgExtC.im=0`） | `alg_ext.cc` `sturm` | `realroot(x^2-2)` |
