@@ -28,14 +28,36 @@ use super::field_arith::{coords_to_expr, pad_to_len, rationalize_poly1, CoordsQ}
 use super::field_session::FieldSession;
 use super::poly::PolyAlgExt;
 use super::poly_alg_coeff::AlgExtCPolyCoeff;
+use crate::context::Context;
 
 /// Exact roots of univariate `p` w.r.t. `var` over the coefficient field of `p`.
 /// **Stable (bounded)** — exact AlgExtC roots deg 1–4; quartic resolvent gap
 pub fn poly_algext_roots(p: &PolyAlgExt, var: &Var) -> Result<Vec<AlgExtCPolyCoeff>, EvalError> {
     let ambient = infer_field(p)?;
-    let mut session = FieldSession::new(Arc::clone(&ambient));
-    let p = normalize_coeffs(p, &mut session)?;
-    let monic = monic_univariate(&p, var, &session)?;
+    let session = FieldSession::new(Arc::clone(&ambient));
+    poly_algext_roots_in_session(p, var, &session)
+}
+
+/// Like [`poly_algext_roots`] using `ctx` session caches (R5 solve / eval).
+/// **Stable (bounded)** — roots with Context session
+pub fn poly_algext_roots_for_ctx(
+    p: &PolyAlgExt,
+    var: &Var,
+    ctx: &Context,
+) -> Result<Vec<AlgExtCPolyCoeff>, EvalError> {
+    let ambient = infer_field(p)?;
+    let session = ctx.session().fork_ambient(ambient);
+    poly_algext_roots_in_session(p, var, &session)
+}
+
+// **Pipeline private** — shared roots dispatch
+fn poly_algext_roots_in_session(
+    p: &PolyAlgExt,
+    var: &Var,
+    session: &FieldSession,
+) -> Result<Vec<AlgExtCPolyCoeff>, EvalError> {
+    let p = normalize_coeffs(p, session)?;
+    let monic = monic_univariate(&p, var, session)?;
     let d = monic.degree_wrt(var);
     match d {
         0 => {
@@ -45,10 +67,10 @@ pub fn poly_algext_roots(p: &PolyAlgExt, var: &Var) -> Result<Vec<AlgExtCPolyCoe
                 Err(EvalError::TypeError("constant has no roots"))
             }
         }
-        1 => linear_root(&mut session, &monic, var),
-        2 => quadratic_roots(&mut session, &monic, var),
-        3 => cubic_roots(&mut session, &monic, var),
-        4 => quartic_roots(&mut session, &monic, var),
+        1 => linear_root(session, &monic, var),
+        2 => quadratic_roots(session, &monic, var),
+        3 => cubic_roots(session, &monic, var),
+        4 => quartic_roots(session, &monic, var),
         _ => Err(EvalError::NotImplemented("PolyAlgExt::roots")),
     }
 }
@@ -85,7 +107,7 @@ fn coeff_at(p: &PolyAlgExt, var: &Var, exp: u64, session: &FieldSession) -> AlgE
 // **Pipeline private** — lift all coeffs to ambient K
 fn normalize_coeffs(
     p: &PolyAlgExt,
-    session: &mut FieldSession,
+    session: &FieldSession,
 ) -> Result<PolyAlgExt, EvalError> {
     let mut out = PolyAlgExt::ring_zero();
     for (m, c) in &p.terms {
@@ -139,7 +161,7 @@ fn monic_univariate(
 
 // **Pipeline private** — `linear_root`
 fn linear_root(
-    session: &mut FieldSession,
+    session: &FieldSession,
     p: &PolyAlgExt,
     var: &Var,
 ) -> Result<Vec<AlgExtCPolyCoeff>, EvalError> {
@@ -153,16 +175,16 @@ fn linear_root(
 
 // **Pipeline private** — `quadratic_roots`
 fn quadratic_roots(
-    session: &mut FieldSession,
+    session: &FieldSession,
     p: &PolyAlgExt,
     var: &Var,
 ) -> Result<Vec<AlgExtCPolyCoeff>, EvalError> {
     let b = session.lift(&coeff_at(p, var, 1, session))?;
     let c = session.lift(&coeff_at(p, var, 0, session))?;
-    let parent = Arc::clone(session.working());
+    let parent = session.working();
     let one = parent.one_coords();
-    let b_c = embed_real_coords_for_parent(&parent, &b)?;
-    let c_c = embed_real_coords_for_parent(&parent, &c)?;
+    let b_c = embed_real_coords_for_parent(session, &parent, &b)?;
+    let c_c = embed_real_coords_for_parent(session, &parent, &c)?;
     let field = if parent.dimension() == 1 {
         ExtensionField::adjoin_irreducible_over_q(vec![
             Ratio::one(),
@@ -189,7 +211,7 @@ fn quadratic_roots(
 
 // **Pipeline private** — quadratic roots via √Δ (no x²+bx+c adjoin layer)
 fn quadratic_roots_formula(
-    session: &mut FieldSession,
+    session: &FieldSession,
     p: &PolyAlgExt,
     var: &Var,
 ) -> Result<Vec<AlgExtCPolyCoeff>, EvalError> {
@@ -228,7 +250,7 @@ fn is_negative_rational(c: &AlgExtCPolyCoeff) -> bool {
 
 // **Pipeline private** — sqrt(Δ) via session adjoin; imaginary branch when Δ<0 in K
 fn sqrt_disc(
-    session: &mut FieldSession,
+    session: &FieldSession,
     disc: &AlgExtCPolyCoeff,
 ) -> Result<AlgExtCPolyCoeff, EvalError> {
     if is_negative_rational(disc) {
@@ -253,13 +275,13 @@ fn sqrt_disc(
 }
 
 // **Pipeline private** — formal i times real z on session working field
-fn mul_i(session: &mut FieldSession, z: &AlgExtCPolyCoeff) -> Result<AlgExtCPolyCoeff, EvalError> {
+fn mul_i(session: &FieldSession, z: &AlgExtCPolyCoeff) -> Result<AlgExtCPolyCoeff, EvalError> {
     session.mul_formal_i(z)
 }
 
 // **Pipeline private** — Euler sqrt: real adjoin for u>0, i·√(−u) for u<0 (approx sign in K)
 fn pick_sqrt_euler(
-    session: &mut FieldSession,
+    session: &FieldSession,
     u: &AlgExtCPolyCoeff,
     force_imaginary: bool,
 ) -> Result<AlgExtCPolyCoeff, EvalError> {
@@ -269,7 +291,7 @@ fn pick_sqrt_euler(
     }
     let use_imag = force_imaginary
         || is_negative_rational(&u)
-        || approx_real_sign(&u).is_some_and(|s| s < 0.0);
+        || approx_real_sign(session, &u).is_some_and(|s| s < 0.0);
     if use_imag {
         let abs = session.neg(&u)?;
         let beta = session.adjoin_sqrt(&abs)?;
@@ -279,7 +301,7 @@ fn pick_sqrt_euler(
 }
 
 // **Pipeline private** — rough real embedding sign (Euler sqrt branch only; deg ≤ 6)
-fn approx_real_sign(c: &AlgExtCPolyCoeff) -> Option<f64> {
+fn approx_real_sign(session: &FieldSession, c: &AlgExtCPolyCoeff) -> Option<f64> {
     use num_traits::ToPrimitive;
 
     let inner = c.as_inner();
@@ -292,7 +314,8 @@ fn approx_real_sign(c: &AlgExtCPolyCoeff) -> Option<f64> {
     }
     let coords = rationalize_poly1(&inner.re).ok()?;
     let coords = pad_to_len(&coords, dim);
-    let roots = all_real_roots_minpoly(inner.field.min_poly_over_q());
+    let mp = session.flatten_min_poly_over_q(&inner.field).ok()?;
+    let roots = all_real_roots_minpoly(&mp);
     if roots.is_empty() {
         return None;
     }
@@ -366,7 +389,7 @@ fn all_real_roots_minpoly(mp: &[Ratio<BigInt>]) -> Vec<f64> {
 
 // **Pipeline private** — `cubic_roots`
 fn cubic_roots(
-    session: &mut FieldSession,
+    session: &FieldSession,
     p: &PolyAlgExt,
     var: &Var,
 ) -> Result<Vec<AlgExtCPolyCoeff>, EvalError> {
@@ -384,7 +407,7 @@ fn cubic_roots(
 
 // **Pipeline private** — monic t³+a₀=0: β=∛(−a₀), roots β·ω^k
 fn pure_cubic_roots(
-    session: &mut FieldSession,
+    session: &FieldSession,
     a0: &AlgExtCPolyCoeff,
 ) -> Result<Vec<AlgExtCPolyCoeff>, EvalError> {
     let neg_a0 = session.neg(a0)?;
@@ -413,7 +436,7 @@ fn dedup_roots(roots: Vec<AlgExtCPolyCoeff>) -> Result<Vec<AlgExtCPolyCoeff>, Ev
 
 // **Pipeline private** — `one_cubic_root`
 fn one_cubic_root(
-    session: &mut FieldSession,
+    session: &FieldSession,
     p: &PolyAlgExt,
     var: &Var,
 ) -> Result<AlgExtCPolyCoeff, EvalError> {
@@ -478,16 +501,16 @@ fn one_cubic_root(
 
 // **Pipeline private** — casus: adjoin one root of monic t³+pt+q (Δ<0) directly
 fn casus_adjoin_cubic_root(
-    session: &mut FieldSession,
+    session: &FieldSession,
     p: &AlgExtCPolyCoeff,
     q: &AlgExtCPolyCoeff,
     shift: &AlgExtCPolyCoeff,
 ) -> Result<AlgExtCPolyCoeff, EvalError> {
-    let parent = Arc::clone(session.working());
+    let parent = session.working();
     let zero = parent.zero_coords();
     let one = parent.one_coords();
-    let p_c = embed_real_coords_for_parent(&parent, p)?;
-    let q_c = embed_real_coords_for_parent(&parent, q)?;
+    let p_c = embed_real_coords_for_parent(session, &parent, p)?;
+    let q_c = embed_real_coords_for_parent(session, &parent, q)?;
     let field = if parent.dimension() == 1 {
         ExtensionField::adjoin_irreducible_over_q(vec![
             Ratio::one(),
@@ -511,6 +534,7 @@ fn casus_adjoin_cubic_root(
 }
 
 fn embed_real_coords_for_parent(
+    session: &FieldSession,
     parent: &Arc<ExtensionField>,
     c: &AlgExtCPolyCoeff,
 ) -> Result<CoordsQ, EvalError> {
@@ -519,7 +543,7 @@ fn embed_real_coords_for_parent(
         return Err(EvalError::TypeError("expected real coefficient"));
     }
     let re = rationalize_poly1(&inner.re)?;
-    let aligned = ExtensionField::align_elements(
+    let aligned = session.align_elements(
         &inner.field,
         &re,
         parent,
@@ -530,7 +554,7 @@ fn embed_real_coords_for_parent(
 
 // **Pipeline private** — `quartic_roots`
 fn quartic_roots(
-    session: &mut FieldSession,
+    session: &FieldSession,
     p: &PolyAlgExt,
     var: &Var,
 ) -> Result<Vec<AlgExtCPolyCoeff>, EvalError> {
@@ -569,7 +593,7 @@ fn quartic_roots(
 
 // **Pipeline private** — `biquadratic_roots`
 fn biquadratic_roots(
-    session: &mut FieldSession,
+    session: &FieldSession,
     p: &PolyAlgExt,
     var: &Var,
 ) -> Result<Vec<AlgExtCPolyCoeff>, EvalError> {
@@ -590,7 +614,7 @@ fn biquadratic_roots(
 
 // **Pipeline private** — `depress_quartic`
 fn depress_quartic(
-    session: &mut FieldSession,
+    session: &FieldSession,
     p: &PolyAlgExt,
     var: &Var,
     shift: &AlgExtCPolyCoeff,
@@ -610,7 +634,7 @@ fn depress_quartic(
 
 // **Pipeline private** — Ferrari resolvent R(z)=z³−pz²−4rz+(4pr−q²) on session
 fn build_resolvent_cubic(
-    session: &mut FieldSession,
+    session: &FieldSession,
     p: &AlgExtCPolyCoeff,
     q: &AlgExtCPolyCoeff,
     r: &AlgExtCPolyCoeff,
@@ -631,7 +655,7 @@ fn build_resolvent_cubic(
 
 // **Pipeline private** — Euler resolvent: four roots from three resolvent zeros α,β,γ
 fn euler_depressed_quartic_roots(
-    session: &mut FieldSession,
+    session: &FieldSession,
     dep: &PolyAlgExt,
     var: &Var,
     z_roots: &[AlgExtCPolyCoeff],
@@ -640,7 +664,7 @@ fn euler_depressed_quartic_roots(
         return Err(EvalError::NotImplemented("quartic euler"));
     }
     let q = session.lift(&coeff_at(dep, var, 1, session))?;
-    let checkpoint = Arc::clone(session.working());
+    let checkpoint = session.working();
     let permutations = [
         [0usize, 1, 2],
         [0, 2, 1],
@@ -659,7 +683,7 @@ fn euler_depressed_quartic_roots(
 }
 
 fn euler_depressed_quartic_roots_perm(
-    session: &mut FieldSession,
+    session: &FieldSession,
     dep: &PolyAlgExt,
     var: &Var,
     q: &AlgExtCPolyCoeff,
@@ -669,7 +693,7 @@ fn euler_depressed_quartic_roots_perm(
     let alpha = session.lift(&z_roots[perm[0]])?;
     let beta = session.lift(&z_roots[perm[1]])?;
     let gamma = session.lift(&z_roots[perm[2]])?;
-    let checkpoint = Arc::clone(session.working());
+    let checkpoint = session.working();
     let flip_g_opts: &[bool] = if q.coeff_is_zero() { &[false, true] } else { &[false] };
     for flip_a in [false, true] {
         for flip_b in [false, true] {
@@ -695,7 +719,7 @@ fn euler_depressed_quartic_roots_perm(
 
 // **Pipeline private** — √γ = −q / (√α·√β) for depressed x⁴+px²+qx+r (q≠0)
 fn euler_derived_sqrt_gamma(
-    session: &mut FieldSession,
+    session: &FieldSession,
     q: &AlgExtCPolyCoeff,
     sqrt_a: &AlgExtCPolyCoeff,
     sqrt_b: &AlgExtCPolyCoeff,
@@ -706,7 +730,7 @@ fn euler_derived_sqrt_gamma(
 }
 
 fn euler_four_roots_from_triple(
-    session: &mut FieldSession,
+    session: &FieldSession,
     _q: &AlgExtCPolyCoeff,
     sqrt_a: &AlgExtCPolyCoeff,
     sqrt_b: &AlgExtCPolyCoeff,
@@ -742,7 +766,7 @@ fn root_vanishes(p: &PolyAlgExt, var: &Var, root: &AlgExtCPolyCoeff) -> bool {
         Err(_) => return false,
     };
     let mut session = FieldSession::new(ambient);
-    let p = match normalize_coeffs(p, &mut session) {
+    let p = match normalize_coeffs(p, &session) {
         Ok(p) => p,
         Err(_) => return false,
     };
@@ -750,12 +774,12 @@ fn root_vanishes(p: &PolyAlgExt, var: &Var, root: &AlgExtCPolyCoeff) -> bool {
         Ok(p) => p,
         Err(_) => return false,
     };
-    eval_vanishes(&mut session, &p, var, root)
+    eval_vanishes(&session, &p, var, root)
 }
 
 // **Pipeline private** — quick vanishing check on working session
 fn eval_vanishes(
-    session: &mut FieldSession,
+    session: &FieldSession,
     p: &PolyAlgExt,
     var: &Var,
     root: &AlgExtCPolyCoeff,
@@ -793,7 +817,7 @@ fn eval_vanishes(
 
 // **Pipeline private** — `split_depressed_quartic` (legacy Ferrari; kept for tests)
 fn split_depressed_quartic(
-    session: &mut FieldSession,
+    session: &FieldSession,
     dep: &PolyAlgExt,
     var: &Var,
     z: &AlgExtCPolyCoeff,
@@ -834,7 +858,7 @@ fn split_depressed_quartic(
 
 // **Pipeline private** — `deflate_monic`
 fn deflate_monic(
-    session: &mut FieldSession,
+    session: &FieldSession,
     p: &PolyAlgExt,
     var: &Var,
     root: &AlgExtCPolyCoeff,
@@ -912,7 +936,7 @@ fn verify_root(p: &PolyAlgExt, var: &Var, root: &AlgExtCPolyCoeff) {
     let ambient = infer_field(p).expect("infer field");
     let mut session = FieldSession::new(ambient);
     let p = monic_univariate(
-        &normalize_coeffs(p, &mut session).expect("normalize"),
+        &normalize_coeffs(p, &session).expect("normalize"),
         var,
         &session,
     )
@@ -941,7 +965,6 @@ mod tests {
 
     use giac_poly::{PolyCoeff, Var};
     use num_rational::Ratio;
-    use serial_test::serial;
 
     use crate::algebra::test_fixtures::sqrt2_algext;
     use crate::expr::Expr;
@@ -959,7 +982,6 @@ mod tests {
     }
 
     // **B** — one Cardano root vanishes on t³−2.
-    #[serial]
     #[test]
     fn cubic_one_root_vanishes() {
         let mut session = q_session();
@@ -969,11 +991,10 @@ mod tests {
             .unwrap()
             .try_sub(&PolyAlgExt::ring_constant(rat_coeff(&session, 2)))
             .unwrap();
-        let r = one_cubic_root(&mut session, &p, &Var::from("t")).unwrap();
+        let r = one_cubic_root(&session, &p, &Var::from("t")).unwrap();
         verify_root(&p, &Var::from("t"), &r);
     }
 
-    #[serial]
     #[test]
     fn quadratic_sqrt_four_times_sqrt2_over_k1() {
         let k1 = Arc::clone(
@@ -1011,7 +1032,6 @@ mod tests {
         }
     }
 
-    #[serial]
     #[test]
     fn quadratic_x2_minus_sqrt2_roots_vanish() {
         let mut session = q_session();
@@ -1021,14 +1041,13 @@ mod tests {
         ]);
         let p = poly_alg_from_expr(&e).unwrap();
         session = FieldSession::new(infer_field(&p).unwrap());
-        let rs = quadratic_roots(&mut session, &p, &Var::from("x")).unwrap();
+        let rs = quadratic_roots(&session, &p, &Var::from("x")).unwrap();
         assert_eq!(rs.len(), 2);
         for r in &rs {
             verify_root(&p, &Var::from("x"), r);
         }
     }
 
-    #[serial]
     #[test]
     fn roots_quadratic_x2_minus_2() {
         let x = PolyAlgExt::ring_var("x");
@@ -1045,7 +1064,6 @@ mod tests {
         }
     }
 
-    #[serial]
     #[test]
     fn roots_quadratic_x2_minus_sqrt2_over_k() {
         let mut session = q_session();
@@ -1070,7 +1088,6 @@ mod tests {
     }
 
     // **B** — roots_cubic_t3_minus_2: three roots β, ωβ, ω²β (PR-C′).
-    #[serial]
     #[test]
     fn roots_cubic_t3_minus_2() {
         let mut session = q_session();
@@ -1089,15 +1106,14 @@ mod tests {
 
     // **B** — PR-E′: all three resolvent roots of z³−4z−1.
     // FIX-Z3M4Z1
-    #[serial]
     #[test]
     fn resolvent_cubic_all_roots_vanish() {
         let mut session = q_session();
         let p2 = session.zero();
         let p1 = session.int(1).unwrap();
         let p0 = session.int(1).unwrap();
-        let res = build_resolvent_cubic(&mut session, &p2, &p1, &p0).unwrap();
-        let rs = cubic_roots(&mut session, &res, &Var::from("_z")).unwrap();
+        let res = build_resolvent_cubic(&session, &p2, &p1, &p0).unwrap();
+        let rs = cubic_roots(&session, &res, &Var::from("_z")).unwrap();
         assert_eq!(rs.len(), 3);
         for r in &rs {
             verify_root(&res, &Var::from("_z"), r);
@@ -1106,28 +1122,26 @@ mod tests {
 
     // **B** — PR-E′: one Cardano/casus root of resolvent z³−4z−1.
     // FIX-Z3M4Z1
-    #[serial]
     #[test]
     fn resolvent_one_cubic_root_z3_minus_4z_minus_1() {
         let mut session = q_session();
         let p2 = session.zero();
         let p1 = session.int(1).unwrap();
         let p0 = session.int(1).unwrap();
-        let res = build_resolvent_cubic(&mut session, &p2, &p1, &p0).unwrap();
-        let z = one_cubic_root(&mut session, &res, &Var::from("_z")).unwrap();
+        let res = build_resolvent_cubic(&session, &p2, &p1, &p0).unwrap();
+        let z = one_cubic_root(&session, &res, &Var::from("_z")).unwrap();
         verify_root(&res, &Var::from("_z"), &z);
     }
 
     // **B** — PR-D′ golden: depressed (p,q,r)=(0,1,1) → R(z)=z³−4z−1.
     // FIX-T4P1 · Lean: Giac.Examples.T4PlusTPlus1.t4_plus_t_plus_1_resolvent
-    #[serial]
     #[test]
     fn resolvent_golden_t4_plus_t_plus_1() {
         let mut session = q_session();
         let p2 = session.zero();
         let p1 = session.int(1).unwrap();
         let p0 = session.int(1).unwrap();
-        let res = build_resolvent_cubic(&mut session, &p2, &p1, &p0).unwrap();
+        let res = build_resolvent_cubic(&session, &p2, &p1, &p0).unwrap();
         let z = Var::from("_z");
         let c3 = coeff_at(&res, &z, 3, &session);
         let c2 = coeff_at(&res, &z, 2, &session);
@@ -1144,7 +1158,6 @@ mod tests {
 
     // **B** — PR-D′: t⁴+t+1 depression yields q=1, r=1, p=0.
     // FIX-T4P1 · Lean: Giac.Examples.T4PlusTPlus1.t4_plus_t_plus_1_depressed_coeffs
-    #[serial]
     #[test]
     fn depressed_t4_plus_t_plus_1_coeffs() {
         let mut session = q_session();
@@ -1157,7 +1170,7 @@ mod tests {
             .try_add(&PolyAlgExt::ring_constant(rat_coeff(&session, 1)))
             .unwrap();
         let shift = session.zero();
-        let dep = depress_quartic(&mut session, &p, &Var::from("t"), &shift).unwrap();
+        let dep = depress_quartic(&session, &p, &Var::from("t"), &shift).unwrap();
         let var = Var::from("t");
         assert!(coeff_at(&dep, &var, 3, &session).coeff_is_zero());
         assert!(coeff_at(&dep, &var, 2, &session).coeff_is_zero());
@@ -1167,15 +1180,14 @@ mod tests {
 
     // **B** — PR-E′: adjoin_sqrt preserves ε²=u on one resolvent root (L₃ only).
     // FIX-SQRT-RESOLVENT · Lean: Giac.Tower.SqrtInField (future)
-    #[serial]
     #[test]
     fn adjoin_sqrt_squares_one_resolvent_root() {
         let mut session = q_session();
         let p2 = session.zero();
         let p1 = session.int(1).unwrap();
         let p0 = session.int(1).unwrap();
-        let res = build_resolvent_cubic(&mut session, &p2, &p1, &p0).unwrap();
-        let z = one_cubic_root(&mut session, &res, &Var::from("_z")).unwrap();
+        let res = build_resolvent_cubic(&session, &p2, &p1, &p0).unwrap();
+        let z = one_cubic_root(&session, &res, &Var::from("_z")).unwrap();
         let z = session.lift(&z).unwrap();
         let sa = session.adjoin_sqrt(&z).unwrap();
         let sq = session.mul(&sa, &sa).unwrap();
@@ -1188,17 +1200,16 @@ mod tests {
 
     // **B** — PR-E′: deflate alone does not break adjoin_sqrt (regression).
     // FIX-SQRT-RESOLVENT
-    #[serial]
     #[test]
     fn adjoin_sqrt_after_resolvent_deflate_only() {
         let mut session = q_session();
         let p2 = session.zero();
         let p1 = session.int(1).unwrap();
         let p0 = session.int(1).unwrap();
-        let res = build_resolvent_cubic(&mut session, &p2, &p1, &p0).unwrap();
+        let res = build_resolvent_cubic(&session, &p2, &p1, &p0).unwrap();
         let z_var = Var::from("_z");
-        let z0 = one_cubic_root(&mut session, &res, &z_var).unwrap();
-        let _quad = deflate_monic(&mut session, &res, &z_var, &z0).unwrap();
+        let z0 = one_cubic_root(&session, &res, &z_var).unwrap();
+        let _quad = deflate_monic(&session, &res, &z_var, &z0).unwrap();
         let z = session.lift(&z0).unwrap();
         let sa = session.adjoin_sqrt(&z).unwrap();
         let sq = session.mul(&sa, &sa).unwrap();
@@ -1211,7 +1222,6 @@ mod tests {
 
     // **B** — PR-E′: Euler four roots vanish on depressed t⁴+t+1.
     // FIX-T4P1 · Lean: Giac.Examples.T4PlusTPlus1.t4_plus_t_plus_1_euler_vanishes (partial)
-    #[serial]
     #[test]
     #[ignore = "tower sqrt embedding: adjoin_sqrt after resolvent split breaks ε²=u"]
     fn euler_four_roots_vanish() {
@@ -1225,13 +1235,13 @@ mod tests {
             .try_add(&PolyAlgExt::ring_constant(rat_coeff(&session, 1)))
             .unwrap();
         let shift = session.zero();
-        let dep = depress_quartic(&mut session, &p, &Var::from("t"), &shift).unwrap();
+        let dep = depress_quartic(&session, &p, &Var::from("t"), &shift).unwrap();
         let p2 = session.lift(&coeff_at(&dep, &Var::from("t"), 2, &session)).unwrap();
         let p1 = session.lift(&coeff_at(&dep, &Var::from("t"), 1, &session)).unwrap();
         let p0 = session.lift(&coeff_at(&dep, &Var::from("t"), 0, &session)).unwrap();
-        let res = build_resolvent_cubic(&mut session, &p2, &p1, &p0).unwrap();
-        let z_roots = cubic_roots(&mut session, &res, &Var::from("_z")).unwrap();
-        let rs = euler_depressed_quartic_roots(&mut session, &dep, &Var::from("t"), &z_roots).unwrap();
+        let res = build_resolvent_cubic(&session, &p2, &p1, &p0).unwrap();
+        let z_roots = cubic_roots(&session, &res, &Var::from("_z")).unwrap();
+        let rs = euler_depressed_quartic_roots(&session, &dep, &Var::from("t"), &z_roots).unwrap();
         assert_eq!(rs.len(), 4);
         for r in &rs {
             verify_root(&dep, &Var::from("t"), r);
@@ -1239,7 +1249,6 @@ mod tests {
     }
 
     // FIX-T4P1 · Lean: Giac.Examples.T4PlusTPlus1.t4_plus_t_plus_1_four_roots (partial)
-    #[serial]
     #[test]
     #[ignore = "tower sqrt embedding: adjoin_sqrt after resolvent split breaks ε²=u"]
     fn roots_quartic_t4_plus_t_plus_1() {
@@ -1259,7 +1268,6 @@ mod tests {
         }
     }
 
-    #[serial]
     #[test]
     fn roots_biquadratic_t4_minus_2() {
         let mut session = q_session();

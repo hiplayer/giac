@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use giac_core::{
-    eval, expr_to_poly, poly_algext_from_poly, poly_algext_roots, poly_to_expr, ident_from_expr,
+    eval, expr_to_poly, poly_algext_from_poly, poly_algext_roots_for_ctx, poly_to_expr, ident_from_expr,
     is_sin_of_var_expr, Context, EvalError, Expr, ExprArc, Ident, RelOp,
 };
 use num_bigint::BigInt;
@@ -28,15 +28,19 @@ pub fn eval_solve(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError>
     }
     let poly = equation_to_poly(args[0].as_ref(), ctx)?;
     let v = Var::from(var.as_str());
-    let items = poly_roots_as_exprs(&poly, &v)?;
+    let items = poly_roots_as_exprs(&poly, &v, ctx)?;
     eval(Arc::new(Expr::List(items)).as_ref(), ctx)
 }
 
 // **Pipeline private** — ℚ roots → Expr list, with algext / rootof fallbacks.
-fn poly_roots_as_exprs(poly: &giac_poly::Poly, var: &Var) -> Result<Vec<ExprArc>, EvalError> {
+fn poly_roots_as_exprs(
+    poly: &giac_poly::Poly,
+    var: &Var,
+    ctx: &Context,
+) -> Result<Vec<ExprArc>, EvalError> {
     match roots(poly, var) {
         Ok(rs) => Ok(rs.into_iter().map(|p| poly_to_expr(&p)).collect()),
-        Err(EvalError::NotImplemented(_)) => try_algext_or_rootof_roots(poly, var),
+        Err(EvalError::NotImplemented(_)) => try_algext_or_rootof_roots(poly, var, ctx),
         Err(e) => Err(e),
     }
 }
@@ -45,9 +49,10 @@ fn poly_roots_as_exprs(poly: &giac_poly::Poly, var: &Var) -> Result<Vec<ExprArc>
 fn try_algext_or_rootof_roots(
     poly: &giac_poly::Poly,
     var: &Var,
+    ctx: &Context,
 ) -> Result<Vec<ExprArc>, EvalError> {
     let p_alg = poly_algext_from_poly(poly)?;
-    if let Ok(rs) = poly_algext_roots(&p_alg, var) {
+    if let Ok(rs) = poly_algext_roots_for_ctx(&p_alg, var, ctx) {
         return Ok(rs
             .into_iter()
             .map(|r| Arc::new(r.as_inner().to_expr()))

@@ -138,7 +138,7 @@ fn eval_add(terms: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
         0 => Ok(Expr::int(0)),
         1 => Ok(Arc::clone(&symbolic[0])),
         _ => crate::algebra::alg_ext::fold_complex_algext_sum(&symbolic)
-            .or_else(|_| crate::algebra::alg_ext::fold_algext_sum(&symbolic)),
+            .or_else(|_| crate::algebra::alg_ext::fold_algext_sum_for_ctx(&symbolic, ctx)),
     }
 }
 
@@ -181,7 +181,7 @@ fn eval_mul(factors: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
         0 => Ok(Expr::int(1)),
         1 => Ok(Arc::clone(&symbolic[0])),
         _ => crate::algebra::alg_ext::fold_complex_algext_product(&symbolic)
-            .or_else(|_| crate::algebra::alg_ext::fold_algext_product(&symbolic)),
+            .or_else(|_| crate::algebra::alg_ext::fold_algext_product_for_ctx(&symbolic, ctx)),
     }
 }
 

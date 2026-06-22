@@ -5,7 +5,6 @@ mod triple_skip;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Output, Stdio};
-use std::sync::mpsc;
 use std::thread;
 use std::time::{Duration, Instant};
 
@@ -20,35 +19,19 @@ pub use triple_skip::{
     phase3_numerical_decomp, phase3_skip, phase3_sympy_gap, phase4_skip, trig_format_diff,
 };
 
-/// Per-line eval/SymPy timeout for conformance tests (override with `GIAC_CHECK_TIMEOUT_SECS`).
+/// Subprocess (SymPy `python3`) wall-clock cap; override with `GIAC_CHECK_TIMEOUT_SECS`.
+///
+/// Rust eval hangs are capped by [cargo-nextest](https://nexte.st/) per-test `slow-timeout`
+/// (see `giac-rs/.config/nextest.toml`); this applies only to external processes.
 pub const DEFAULT_CHECK_TIMEOUT_SECS: u64 = 10;
 
-/// Wall-clock limit for a single check line (eval or SymPy verify).
-pub fn check_timeout() -> Duration {
+/// Timeout for `python3` SymPy verify/equiv subprocesses.
+pub fn subprocess_timeout() -> Duration {
     std::env::var("GIAC_CHECK_TIMEOUT_SECS")
         .ok()
         .and_then(|s| s.parse().ok())
         .map(Duration::from_secs)
         .unwrap_or_else(|| Duration::from_secs(DEFAULT_CHECK_TIMEOUT_SECS))
-}
-
-fn with_timeout<T: Send + 'static>(
-    timeout: Duration,
-    label: &str,
-    f: impl FnOnce() -> Result<T, String> + Send + 'static,
-) -> Result<T, String> {
-    let label = label.to_string();
-    let (tx, rx) = mpsc::channel();
-    thread::spawn(move || {
-        let _ = tx.send(f());
-    });
-    match rx.recv_timeout(timeout) {
-        Ok(r) => r,
-        Err(mpsc::RecvTimeoutError::Timeout) => Err(format!("timeout ({timeout:?}) on {label}")),
-        Err(mpsc::RecvTimeoutError::Disconnected) => {
-            Err(format!("worker disconnected on {label}"))
-        }
-    }
 }
 
 fn command_with_timeout(
@@ -317,20 +300,7 @@ pub fn run_script(path: &Path) -> Result<Vec<String>, String> {
 }
 
 pub fn run_line(line: &str) -> Result<String, String> {
-    let line = line.to_string();
-    let timeout = check_timeout();
-    let label = format!("eval `{line}`");
-    with_timeout(timeout, &label, move || {
-        eval_line_in_ctx(&line, xcas_default()).map(|r| r.output)
-    })
-}
-
-pub fn run_line_with_timeout(line: &str, timeout: Duration) -> Result<String, String> {
-    let line = line.to_string();
-    let label = format!("eval `{line}`");
-    with_timeout(timeout, &label, move || {
-        eval_line_in_ctx(&line, xcas_default()).map(|r| r.output)
-    })
+    eval_line_in_ctx(line, xcas_default()).map(|r| r.output)
 }
 
 pub fn verify_sympy_with_timeout(
@@ -401,7 +371,7 @@ fn parse_giac_output(output: &Output) -> Result<String, String> {
 }
 
 pub fn verify_sympy(line: &str, output: &str) -> Result<(), String> {
-    verify_sympy_with_timeout(line, output, check_timeout())
+    verify_sympy_with_timeout(line, output, subprocess_timeout())
 }
 
 pub fn sympy_equiv(a: &str, b: &str) -> Result<(), String> {
@@ -409,7 +379,7 @@ pub fn sympy_equiv(a: &str, b: &str) -> Result<(), String> {
         return Ok(());
     }
     let script = sympy_script();
-    let timeout = check_timeout();
+    let timeout = subprocess_timeout();
     let mut cmd = Command::new("python3");
     cmd.arg(&script).arg("equiv").arg(a).arg(b);
     let finished = command_with_timeout(cmd, timeout, "SymPy equiv")?;
@@ -567,7 +537,7 @@ pub fn sympy_verify_script(name: &str) -> Result<Vec<SympyResult>, String> {
 
 /// SymPy-verify giac-rs output for a single input line.
 pub fn sympy_verify_line(line: &str, output: &str) -> Result<SympyResult, String> {
-    sympy_verify_line_with_timeout(line, output, check_timeout())
+    sympy_verify_line_with_timeout(line, output, subprocess_timeout())
 }
 
 pub fn sympy_verify_line_with_timeout(
@@ -584,7 +554,7 @@ pub fn sympy_verify_line_with_timeout(
 
 /// SymPy-verify a batch of input lines (e.g. testcas subset).
 pub fn sympy_verify_lines(lines: &[String], outputs: &[String]) -> Result<Vec<SympyResult>, String> {
-    sympy_verify_lines_with_timeout(lines, outputs, check_timeout())
+    sympy_verify_lines_with_timeout(lines, outputs, subprocess_timeout())
 }
 
 pub fn sympy_verify_lines_with_timeout(
@@ -632,20 +602,10 @@ pub fn load_testcas_lines(n: usize) -> Result<(Vec<String>, Vec<String>), String
 }
 
 pub fn run_lines(lines: &[String]) -> Result<Vec<String>, String> {
-    run_lines_with_timeout(lines, check_timeout())
-}
-
-pub fn run_lines_with_timeout(
-    lines: &[String],
-    timeout: Duration,
-) -> Result<Vec<String>, String> {
     let mut ctx = xcas_default();
     let mut out = Vec::new();
-    for (idx, line) in lines.iter().enumerate() {
-        let line = line.clone();
-        let ctx_in = ctx.clone();
-        let label = format!("eval line {idx} `{line}`");
-        let result = with_timeout(timeout, &label, move || eval_line_in_ctx(&line, ctx_in))?;
+    for line in lines {
+        let result = eval_line_in_ctx(line, ctx.clone())?;
         out.push(result.output);
         ctx = result.ctx;
     }
@@ -723,7 +683,7 @@ pub fn assert_testcas_sympy_range(
 }
 
 /// SymPy-verify one upstream factor check line by index (skips `cas_setup`).
-pub fn assert_factor_line_sympy(index: usize, timeout: Duration) -> Result<(), String> {
+pub fn assert_factor_line_sympy(index: usize) -> Result<(), String> {
     let (inputs, _) = load_factor_check_lines()?;
     let line = inputs.get(index).ok_or_else(|| {
         format!(
@@ -731,7 +691,8 @@ pub fn assert_factor_line_sympy(index: usize, timeout: Duration) -> Result<(), S
             inputs.len()
         )
     })?;
-    let outputs = run_lines_with_timeout(std::slice::from_ref(line), timeout)?;
+    let timeout = subprocess_timeout();
+    let outputs = run_lines(std::slice::from_ref(line))?;
     let results =
         sympy_verify_lines_with_timeout(std::slice::from_ref(line), &outputs, timeout)?;
     assert!(
@@ -797,8 +758,8 @@ pub fn assert_check_integrate_non_integrate_sympy(id: &str) -> Result<(), String
         entry.kind, "integrate",
         "{id} is integrate; use assert_check_integrate_risch"
     );
-    let timeout = check_integrate_line_timeout(id);
-    let got = run_line_with_timeout(&entry.line, timeout)?;
+    let timeout = subprocess_timeout();
+    let got = run_line(&entry.line)?;
     let results = sympy_verify_lines_with_timeout(
         std::slice::from_ref(&entry.line),
         std::slice::from_ref(&got),
@@ -810,14 +771,6 @@ pub fn assert_check_integrate_non_integrate_sympy(id: &str) -> Result<(), String
         entry.line, got
     );
     Ok(())
-}
-
-fn check_integrate_line_timeout(id: &str) -> Duration {
-    match id {
-        // Heavy MRV limits from upstream check/testintegrate.
-        "CK-INT-60" | "CK-INT-61" => Duration::from_secs(30),
-        _ => check_timeout(),
-    }
 }
 
 /// `risch(f,x)` agrees with `integrate(f,x)` for one enabled integrate row.
@@ -836,17 +789,16 @@ mod timeout_tests {
     use std::time::Duration;
 
     #[test]
-    fn with_timeout_fires_on_slow_work() {
-        let err = with_timeout(Duration::from_millis(100), "sleep", || {
-            thread::sleep(Duration::from_secs(2));
-            Ok::<(), String>(())
-        })
-        .unwrap_err();
+    fn command_with_timeout_kills_slow_subprocess() {
+        let mut cmd = Command::new("sleep");
+        cmd.arg("5");
+        let err = command_with_timeout(cmd, Duration::from_millis(200), "sleep")
+            .unwrap_err();
         assert!(err.contains("timeout"), "{err}");
     }
 
     #[test]
-    fn check_timeout_default_is_ten_seconds() {
-        assert_eq!(check_timeout(), Duration::from_secs(10));
+    fn subprocess_timeout_default_is_ten_seconds() {
+        assert_eq!(subprocess_timeout(), Duration::from_secs(10));
     }
 }

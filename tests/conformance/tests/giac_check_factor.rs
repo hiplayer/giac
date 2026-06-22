@@ -3,13 +3,14 @@
 //! MVP: SymPy verifies `expand(factor(p)) == expand(p)` (identity factorization allowed).
 //! Golden literal match is reported but not required until general factor is implemented.
 //!
-//! **Gate:** per-line wall-clock cap (`check_timeout()`, default 10s).
+//! **Gate:** eval hangs capped by nextest per-test `slow-timeout`; SymPy subprocess cap
+//! `subprocess_timeout()` / `GIAC_CHECK_TIMEOUT_SECS` (default 10s).
 //! Full workspace: `cargo test-timeout` (nextest **--release** via `.cargo/config.toml`).
 //! Run subset: `cargo nextest run --release -p giac-conformance --test giac_check_factor`.
 
 use giac_conformance::{
-    assert_factor_line_sympy, check_timeout, factor_check_paths, load_factor_check_lines,
-    outputs_assert_equiv, run_lines_with_timeout, sympy_equiv, giac_check_dir,
+    assert_factor_line_sympy, factor_check_paths, load_factor_check_lines, outputs_assert_equiv,
+    run_lines, sympy_equiv, giac_check_dir,
 };
 
 #[test]
@@ -31,7 +32,7 @@ macro_rules! factor_line_sympy {
     ($fn_name:ident, $idx:literal) => {
         #[test]
         fn $fn_name() -> Result<(), String> {
-            assert_factor_line_sympy($idx, check_timeout())
+            assert_factor_line_sympy($idx)
         }
     };
 }
@@ -69,9 +70,8 @@ factor_line_sympy!(factor_sympy_line_29, 29);
 
 #[test]
 fn giac_check_factor_golden_report() -> Result<(), String> {
-    let timeout = check_timeout();
     let (inputs, golden) = load_factor_check_lines()?;
-    let outputs = run_lines_with_timeout(&inputs, timeout)?;
+    let outputs = run_lines(&inputs)?;
     let mut exact = 0usize;
     let mut equiv = 0usize;
     for ((line, out), want) in inputs.iter().zip(outputs.iter()).zip(golden.iter()) {

@@ -68,9 +68,9 @@ cargo test-timeout                     # alias → nextest run --workspace --rel
 ./scripts/test-with-timeout.sh
 ```
 
-Timeout policy: [`.config/nextest.toml`](.config/nextest.toml) — default **33s** slow cap; `cargo test-timeout` uses **--release** (`.cargo/config.toml`).
+Timeout policy: [`.config/nextest.toml`](.config/nextest.toml) — per-test **10s** slow cap (`slow-timeout`); `cargo test-timeout` uses **--release** (`.cargo/config.toml`).
 
-Per-line eval/SymPy cap: `GIAC_CHECK_TIMEOUT_SECS` (default **10**).
+SymPy `python3` subprocess cap: `GIAC_CHECK_TIMEOUT_SECS` (default **10**), via `giac_conformance::subprocess_timeout()`. Rust eval hangs rely on nextest, not per-line thread timeouts in the harness.
 
 Without nextest, `./scripts/test-with-timeout.sh` falls back to GNU `timeout` **one test at a time** (correct but **much slower** — install nextest).
 

@@ -13,11 +13,6 @@ use super::alg_ext::AlgExtData;
 use super::ext_tower::ExtensionField;
 use super::field_arith::{coords_to_expr, CoordsQ};
 
-/// Length of the global `common_over_q` cache (for regression tests).
-pub fn common_cache_len() -> usize {
-    super::ext_tower::common_cache_len_for_test()
-}
-
 /// Second `Arc` with the same tower/minpoly but a distinct field id (for merge tests).
 pub fn duplicate_field_arc(f: &Arc<ExtensionField>) -> Arc<ExtensionField> {
     super::ext_tower::duplicate_field_arc_for_test(f)

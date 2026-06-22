@@ -1,5 +1,5 @@
 use std::collections::HashMap;
-use std::sync::Arc;
+use std::rc::Rc;
 
 use crate::expr::ExprArc;
 use crate::ident::Ident;
@@ -8,6 +8,8 @@ use crate::calculus_plugin::CalculusPlugin;
 use crate::linalg_plugin::LinalgPlugin;
 use crate::ode_plugin::OdePlugin;
 use crate::solve_plugin::SolvePlugin;
+use crate::algebra::ext_tower::ExtensionField;
+use crate::algebra::field_session::FieldSession;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub enum Assumption {
@@ -32,12 +34,14 @@ pub struct Context {
     pub epsilon: f64,
     pub series_order: u32,
     pub float_digits: u32,
-    pub(crate) linalg_plugin: Option<Arc<dyn LinalgPlugin>>,
-    pub(crate) solve_plugin: Option<Arc<dyn SolvePlugin>>,
-    pub(crate) algebra_plugin: Option<Arc<dyn AlgebraPlugin>>,
-    pub(crate) calculus_plugin: Option<Arc<dyn CalculusPlugin>>,
-    pub(crate) ode_plugin: Option<Arc<dyn OdePlugin>>,
+    pub(crate) linalg_plugin: Option<std::sync::Arc<dyn LinalgPlugin>>,
+    pub(crate) solve_plugin: Option<std::sync::Arc<dyn SolvePlugin>>,
+    pub(crate) algebra_plugin: Option<std::sync::Arc<dyn AlgebraPlugin>>,
+    pub(crate) calculus_plugin: Option<std::sync::Arc<dyn CalculusPlugin>>,
+    pub(crate) ode_plugin: Option<std::sync::Arc<dyn OdePlugin>>,
     pub with_sqrt: bool,
+    /// Per-context extension field session (R5a); `Clone` shares the same `Rc`.
+    field_session: Rc<FieldSession>,
 }
 
 impl Default for Context {
@@ -56,6 +60,7 @@ impl Default for Context {
             calculus_plugin: None,
             ode_plugin: None,
             with_sqrt: true,
+            field_session: Rc::new(FieldSession::new(ExtensionField::rational())),
         }
     }
 }
@@ -63,6 +68,18 @@ impl Default for Context {
 impl Context {
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// Extension field session owned by this context (R5a).
+    /// **Stable (bounded)** — session accessor
+    pub fn session(&self) -> Rc<FieldSession> {
+        Rc::clone(&self.field_session)
+    }
+
+    /// Alias for [`Self::session`] (R5 eval / solve wiring).
+    /// **Stable (bounded)** — session accessor
+    pub fn session_mut(&self) -> Rc<FieldSession> {
+        self.session()
     }
 
     /// Default Xcas script setup (`xcas_mode(0)`).
@@ -137,7 +154,10 @@ pub fn expr_mentions_ident(e: &crate::expr::Expr, name: &Ident) -> bool {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use super::*;
+    use crate::algebra::test_fixtures::{k1_adjoin_sqrt2, k1_adjoin_sqrt3};
     use crate::expr::Expr;
 
     #[test]
@@ -146,5 +166,30 @@ mod tests {
         let x = Ident::new("x");
         ctx.set(x.clone(), Expr::int(42));
         assert_eq!(ctx.get(&x), Some(&Expr::int(42)));
+    }
+
+    #[test]
+    fn context_new_has_independent_session_cache() {
+        let ctx1 = Context::new();
+        let ctx2 = Context::new();
+        let sqrt2 = k1_adjoin_sqrt2();
+        let sqrt3 = k1_adjoin_sqrt3();
+        let _ = ctx1.session().common_over_q(&sqrt2, &sqrt3).unwrap();
+        assert_eq!(ctx1.session().common_cache_len(), 1);
+        assert_eq!(ctx2.session().common_cache_len(), 0);
+    }
+
+    #[test]
+    fn context_clone_shares_common_cache() {
+        let ctx1 = Context::new();
+        let sqrt2 = k1_adjoin_sqrt2();
+        let sqrt3 = k1_adjoin_sqrt3();
+        let c1 = ctx1.session().common_over_q(&sqrt2, &sqrt3).unwrap();
+        assert_eq!(ctx1.session().common_cache_len(), 1);
+        let ctx2 = ctx1.clone();
+        assert_eq!(ctx2.session().common_cache_len(), 1);
+        let c2 = ctx2.session().common_over_q(&sqrt3, &sqrt2).unwrap();
+        assert_eq!(ctx1.session().common_cache_len(), 1);
+        assert!(Arc::ptr_eq(&c1.field, &c2.field));
     }
 }

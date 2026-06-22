@@ -36,10 +36,10 @@ pub struct AlgExtData {
 }
 
 impl AlgExtData {
-    /// Backward-compatible `min_poly` view (defining polynomial over ℚ).
+    /// Layer minimal polynomial for this field's top adjoin (adoption §8.2).
     /// **Stable** — `Poly::min_poly`
     pub fn min_poly(&self) -> Vec<ExprArc> {
-        self.field.top_min_poly_exprs().unwrap_or_default()
+        self.field.layer_min_poly_exprs().unwrap_or_default()
     }
 
     /// **Stable** — Poly zero
@@ -208,8 +208,42 @@ fn fields_same(a: &Arc<ExtensionField>, b: &Arc<ExtensionField>) -> bool {
 
 // **Pipeline private** — `align_pair`
 fn align_pair(a: &AlgExtData, b: &AlgExtData) -> Result<(Arc<ExtensionField>, CoordsQ, CoordsQ), EvalError> {
-    let aligned = ExtensionField::align_elements(&a.field, &a.coords_q()?, &b.field, &b.coords_q()?)?;
+    align_pair_with_session(a, b, None)
+}
+
+// **Pipeline private** — align with optional Context session (R5)
+fn align_pair_with_session(
+    a: &AlgExtData,
+    b: &AlgExtData,
+    session: Option<&super::field_session::FieldSession>,
+) -> Result<(Arc<ExtensionField>, CoordsQ, CoordsQ), EvalError> {
+    let aligned = match session {
+        Some(s) => s.align_elements(&a.field, &a.coords_q()?, &b.field, &b.coords_q()?)?,
+        None => ExtensionField::align_elements(&a.field, &a.coords_q()?, &b.field, &b.coords_q()?)?,
+    };
     Ok((aligned.field, aligned.left, aligned.right))
+}
+
+// **Pipeline private** — add after align (optional session)
+fn add_aligned(
+    a: &AlgExtData,
+    b: &AlgExtData,
+    session: Option<&super::field_session::FieldSession>,
+) -> Result<AlgExtData, EvalError> {
+    let (field, la, lb) = align_pair_with_session(a, b, session)?;
+    let sum = field.element_add(&la, &lb)?;
+    AlgExtData::from_coords_q(field, sum, None)
+}
+
+// **Pipeline private** — mul after align (optional session)
+fn mul_aligned(
+    a: &AlgExtData,
+    b: &AlgExtData,
+    session: Option<&super::field_session::FieldSession>,
+) -> Result<AlgExtData, EvalError> {
+    let (field, la, lb) = align_pair_with_session(a, b, session)?;
+    let prod = field.element_mul(&la, &lb)?;
+    AlgExtData::from_coords_q(field, prod, None)
 }
 
 /// How [`fold_algext_sum_mode`] merges unlike [`ExtensionField`] groups.
@@ -218,7 +252,7 @@ pub enum FoldAlgExtMode {
     /// Default: Expr traversal order; unlike fields may stay an `Add` tree (S1).
     #[default]
     Split,
-    /// Sort groups by `field.id()` then pairwise `add` (S1-opt); order-independent.
+    /// Sort groups by [`ExtensionField::semantic_key`] then pairwise `add` (S1-opt); order-independent.
     Canonical,
 }
 
@@ -229,14 +263,31 @@ pub enum FoldAlgExtMode {
 /// one group exists and a new term lies in a different field, that pairwise `add` may
 /// `common`; otherwise unlike fields stay as an `Add` tree. See
 /// [GIAC-lazy-common-tower-plan.md] §11.6 E.
+///
+/// **R5c:** No session cache — prefer [`fold_algext_sum_for_ctx`] on eval hot paths.
 /// **Stable** — canonical sum of AlgExt terms
 pub fn fold_algext_sum(terms: &[ExprArc]) -> Result<ExprArc, EvalError> {
-    fold_algext_sum_mode(terms, FoldAlgExtMode::Split)
+    fold_algext_sum_mode_impl(terms, FoldAlgExtMode::Split, None)
+}
+
+/// Like [`fold_algext_sum`] using `ctx` session cache (R5 eval).
+/// **Stable (bounded)** — fold sum with Context session
+pub fn fold_algext_sum_for_ctx(terms: &[ExprArc], ctx: &crate::context::Context) -> Result<ExprArc, EvalError> {
+    let session = ctx.session();
+    fold_algext_sum_mode_impl(terms, FoldAlgExtMode::Split, Some(session.as_ref()))
 }
 
 /// Like [`fold_algext_sum`] with explicit merge mode (plan S1-opt).
 /// **Stable** — fold_algext_sum with mode
 pub fn fold_algext_sum_mode(terms: &[ExprArc], mode: FoldAlgExtMode) -> Result<ExprArc, EvalError> {
+    fold_algext_sum_mode_impl(terms, mode, None)
+}
+
+fn fold_algext_sum_mode_impl(
+    terms: &[ExprArc],
+    mode: FoldAlgExtMode,
+    session: Option<&super::field_session::FieldSession>,
+) -> Result<ExprArc, EvalError> {
     let mut groups: Vec<(Arc<ExtensionField>, AlgExtData)> = Vec::new();
     let mut rat_sum = Ratio::<BigInt>::zero();
     let mut rest = Vec::new();
@@ -244,10 +295,10 @@ pub fn fold_algext_sum_mode(terms: &[ExprArc], mode: FoldAlgExtMode) -> Result<E
         match t.as_ref() {
             Expr::AlgExt(a) => {
                 if let Some((_, acc)) = groups.iter_mut().find(|(f, _)| fields_same(f, &a.field)) {
-                    *acc = acc.add(a)?;
+                    *acc = add_aligned(acc, a, session)?;
                 } else if groups.len() == 1 && mode == FoldAlgExtMode::Split {
                     let (f, acc) = groups.remove(0);
-                    let sum = acc.add(a)?;
+                    let sum = add_aligned(&acc, a, session)?;
                     groups.push((Arc::clone(&sum.field), sum));
                     let _ = f;
                 } else {
@@ -260,10 +311,10 @@ pub fn fold_algext_sum_mode(terms: &[ExprArc], mode: FoldAlgExtMode) -> Result<E
         }
     }
     if mode == FoldAlgExtMode::Canonical && groups.len() > 1 {
-        groups.sort_by_key(|(f, _)| f.id());
+        groups.sort_by_key(|(f, _)| f.semantic_key());
         let mut acc = groups.remove(0).1;
         for (_, next) in groups {
-            acc = acc.add(&next)?;
+            acc = add_aligned(&acc, &next, session)?;
         }
         groups = vec![(Arc::clone(&acc.field), acc)];
     }
@@ -369,7 +420,26 @@ fn complex_algext_mul_parts(
 }
 
 /// **Stable** — canonical product of AlgExt terms
+/// **R5c:** No session cache — prefer [`fold_algext_product_for_ctx`] on eval hot paths.
+/// **Stable** — canonical product of AlgExt terms
 pub fn fold_algext_product(factors: &[ExprArc]) -> Result<ExprArc, EvalError> {
+    fold_algext_product_impl(factors, None)
+}
+
+/// Like [`fold_algext_product`] using `ctx` session cache (R5 eval).
+/// **Stable (bounded)** — fold product with Context session
+pub fn fold_algext_product_for_ctx(
+    factors: &[ExprArc],
+    ctx: &crate::context::Context,
+) -> Result<ExprArc, EvalError> {
+    let session = ctx.session();
+    fold_algext_product_impl(factors, Some(session.as_ref()))
+}
+
+fn fold_algext_product_impl(
+    factors: &[ExprArc],
+    session: Option<&super::field_session::FieldSession>,
+) -> Result<ExprArc, EvalError> {
     let mut acc_ext: Option<AlgExtData> = None;
     let mut rat_prod = Ratio::<BigInt>::one();
     let mut rest = Vec::new();
@@ -378,7 +448,7 @@ pub fn fold_algext_product(factors: &[ExprArc]) -> Result<ExprArc, EvalError> {
             Expr::AlgExt(a) => {
                 acc_ext = Some(match acc_ext {
                     None => (**a).clone(),
-                    Some(e) => e.mul(a)?,
+                    Some(e) => mul_aligned(&e, a, session)?,
                 });
             }
             Expr::Int(n) => {
@@ -597,7 +667,8 @@ mod tests {
     use super::*;
     use crate::algebra::test_fixtures::{
         algext_on_t1b_k2, algext_with_coords, cbrt2_algext, duplicate_field_arc,
-        neg_sqrt2_algext, sqrt2_algext, sqrt3_algext, t1b_k2_adjoin_sqrt3_over_k1,
+        minpoly_u2_minus, neg_sqrt2_algext, sqrt2_algext, sqrt3_algext,
+        t1b_k2_adjoin_sqrt3_over_k1,
     };
 
     // **B** — AlgExt::mul; eq_mod α² = 2.
@@ -678,6 +749,19 @@ mod tests {
         assert!(sum.is_zero());
     }
 
+    // **B** — R3: `min_poly` is layer minpoly, not ℚ-flatten metadata.
+    #[test]
+    fn min_poly_is_layer_not_flatten_over_nested_adjoin() {
+        let k1 = Arc::clone(&sqrt2_algext().field);
+        let k2 = ExtensionField::adjoin_irreducible(&k1, minpoly_u2_minus(-3)).unwrap();
+        let layer = k2.layer_min_poly_exprs().unwrap();
+        let flat = k2.top_min_poly_exprs().unwrap();
+        assert_eq!(layer.len(), 3, "layer u²−3 has degree 2");
+        assert_eq!(flat.len(), 5, "flatten over ℚ has degree 4");
+        let alpha = AlgExtData::from_field_coords(k2, vec![Expr::int(1)]).unwrap();
+        assert_eq!(alpha.min_poly().len(), 3);
+    }
+
     // **B** — to_rootof_expr / try_as_algext_data roundtrip; eq_mod.
     #[test]
     fn algext_to_rootof_roundtrip_display() {
@@ -734,7 +818,7 @@ mod tests {
         let sum_ab = one.add(&sqrt2).unwrap();
         let sum_ba = sqrt2.add(&one).unwrap();
         assert!(sum_ab.eq_mod(&sum_ba).unwrap());
-        assert_eq!(sum_ab.field.id(), sqrt2.field.id());
+        assert_eq!(sum_ab.field, sqrt2.field);
         assert!(!sum_ab.is_zero());
     }
 

@@ -244,6 +244,29 @@ impl AlgExtCData {
         ))
     }
 
+    // **Stable** — `align_pair_in_cache`
+    pub(crate) fn align_pair_in_cache(
+        a: &Self,
+        b: &Self,
+        cache: &mut super::ext_tower::CommonCache,
+    ) -> Result<(Self, Self), EvalError> {
+        let pair = a.align_with_in_cache(b, cache)?;
+        Ok((
+            Self::from_coords_q(
+                Arc::clone(&pair.field),
+                &pair.self_re,
+                &pair.self_im,
+                None,
+            )?,
+            Self::from_coords_q(
+                Arc::clone(&pair.field),
+                &pair.other_re,
+                &pair.other_im,
+                None,
+            )?,
+        ))
+    }
+
     // **Pipeline private** — `align_with`
     fn align_with(&self, other: &Self) -> Result<AlignedPair, EvalError> {
         if Arc::ptr_eq(&self.field, &other.field) || self.field == other.field {
@@ -259,7 +282,48 @@ impl AlgExtCData {
             ExtensionField::align_elements(&self.field, &self.re_q()?, &other.field, &other.re_q()?)?;
         let aligned_im =
             ExtensionField::align_elements(&self.field, &self.im_q()?, &other.field, &other.im_q()?)?;
-        debug_assert_eq!(aligned_re.field.id(), aligned_im.field.id());
+        debug_assert_eq!(aligned_re.field, aligned_im.field);
+        Ok(AlignedPair {
+            field: aligned_re.field,
+            self_re: aligned_re.left,
+            self_im: aligned_im.left,
+            other_re: aligned_re.right,
+            other_im: aligned_im.right,
+        })
+    }
+
+    // **Pipeline private** — `align_with_in_cache`
+    fn align_with_in_cache(
+        &self,
+        other: &Self,
+        cache: &mut super::ext_tower::CommonCache,
+    ) -> Result<AlignedPair, EvalError> {
+        if Arc::ptr_eq(&self.field, &other.field) || self.field == other.field {
+            return Ok(AlignedPair {
+                field: Arc::clone(&self.field),
+                self_re: self.re_q()?,
+                self_im: self.im_q()?,
+                other_re: other.re_q()?,
+                other_im: other.im_q()?,
+            });
+        }
+        let aligned_re = super::ext_tower::align_elements_in_cache(
+            &self.field,
+            &self.re_q()?,
+            &other.field,
+            &other.re_q()?,
+            cache,
+            None,
+        )?;
+        let aligned_im = super::ext_tower::align_elements_in_cache(
+            &self.field,
+            &self.im_q()?,
+            &other.field,
+            &other.im_q()?,
+            cache,
+            None,
+        )?;
+        debug_assert!(aligned_re.field == aligned_im.field);
         Ok(AlignedPair {
             field: aligned_re.field,
             self_re: aligned_re.left,
