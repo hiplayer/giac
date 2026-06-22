@@ -51,6 +51,7 @@ giac-rs 算法 crate 在 [algorithm-expr-api.md](../algorithm-expr-api.md) 落�
 | 2A | [GIAC-limit-mrv-followup](GIAC-limit-mrv-followup.md) Phase 3A | 子任务 |
 | 2B | [GIAC-algext-adoption](GIAC-algext-adoption.md) A-03 | 子任务 |
 | 4C | [GIAC-poly-nested-ring-types](GIAC-poly-nested-ring-types.md) | 子任务 |
+| — | [GIAC-rs-crate-dedup-plan](GIAC-rs-crate-dedup-plan.md) | **函数合并 + crate 内整理** 执行计划（D0–D5）；补本索引未拆的竖切 |
 
 ---
 
@@ -447,3 +448,4 @@ grep 审计 `Poly::div_rem` 用于验 ℚ[others][main] 整除的误用；推广
 - [giac-calculus-api-stability.md](../giac-calculus-api-stability.md)
 - [giac-poly-api-stability.md](../giac-poly-api-stability.md)
 - [giac-simplify-api-stability.md](../giac-simplify-api-stability.md)
+- [GIAC-rs-crate-dedup-plan.md](GIAC-rs-crate-dedup-plan.md) — crate 去重与临时代码退役（D0–D5）

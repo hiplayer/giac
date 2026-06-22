@@ -197,6 +197,15 @@ pub fn test_context_with_fixed_rng() -> Context {
 
 单元测试与 conformance 均可能因逻辑死循环挂起。giac-rs 全 workspace **800+** 测，**默认用 `cargo test-timeout`**，不要习惯性跑裸 `cargo test --workspace`。
 
+**两层超时（职责不同）：**
+
+| 层 | 机制 | 作用 |
+|----|------|------|
+| **整测** | `giac-rs/.config/nextest.toml` → `slow-timeout`（默认 **10s**） | 挂死的 Rust `#[test]` 进程被 nextest 终止，套件继续 |
+| **子进程** | `GIAC_CHECK_TIMEOUT_SECS`（默认 **10**）→ `subprocess_timeout()` | SymPy `python3` 校验：`command_with_timeout` 轮询 + `kill`，避免 `wait` 无限阻塞 |
+
+Rust `eval` / `run_line` / `run_lines` **不再**包线程级 per-line 超时；挂死由 nextest 整测上限兜底。多行脚本合在一个 `#[test]` 里时，任一行挂死会耗尽该测的 nextest 预算。
+
 **为什么更快：**
 
 | | `cargo test-timeout` | `cargo test --workspace` |
@@ -215,7 +224,7 @@ cargo test-timeout                      # 推荐：workspace 全量
 ./scripts/test-with-timeout.sh
 ```
 
-超时策略见 `giac-rs/.config/nextest.toml`（`cargo test-timeout` 经 `.cargo/config.toml` 使用 **--release**；默认 slow-timeout **33s**）。行内 eval/SymPy 上限：`GIAC_CHECK_TIMEOUT_SECS`（默认 10）。
+超时策略见 `giac-rs/.config/nextest.toml`（`cargo test-timeout` 经 `.cargo/config.toml` 使用 **--release**；默认 slow-timeout **10s**）。SymPy 子进程上限：`GIAC_CHECK_TIMEOUT_SECS`（默认 10），见 `giac_conformance::subprocess_timeout()`。
 
 **调试子集**可用 debug `cargo nextest run`（较慢，重算路径可能触发 slow-timeout）：
 
@@ -255,4 +264,4 @@ cargo test -p giac-core tower_common_matches_flatten -- --ignored  # flatten 慢
 
 **原则：** 数学正确性以 oracle + 不变量为主；Lean 证引理、Rust 测实例（见 giac-tower-common-math §4.2 层 D）。
 
-**并发：** `ext_tower` 单元测已 `#[serial]`；`cargo nextest` 对 `giac-core` 串行（`giac-rs/.config/nextest.toml`）。
+**并发：** R4/R5 后无进程级 `FieldRegistry`；`ext_tower` 单元测可并行（`cargo nextest` 默认多核）。

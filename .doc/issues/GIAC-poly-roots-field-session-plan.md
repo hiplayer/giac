@@ -229,7 +229,7 @@ verify_root(session, p_raw, root):
 - [x] resolvent golden `resolvent_golden_t4_plus_t_plus_1`（PR-D′）
 - [ ] `roots_quartic_t4_plus_t_plus_1`：4 根，无 ignore，≤10s（PR-E′）
 - [ ] [GIAC-poly-p3-6-quartic-roots-gaps.md](GIAC-poly-p3-6-quartic-roots-gaps.md) G0–G5 行更新
-- [ ] [algorithm-expr-api.md](../algorithm-expr-api.md) §6.3 草图改为 **Stable API** 表（实现后）
+- [x] [algorithm-expr-api.md](../algorithm-expr-api.md) §6.3 + [giac-core-algebra-api-stability.md](../giac-core-algebra-api-stability.md) R5 API 表
 
 ---
 
@@ -238,6 +238,12 @@ verify_root(session, p_raw, root):
 | 文档 | 关系 |
 |------|------|
 | [algorithm-expr-api.md §6.3](../algorithm-expr-api.md) | `FieldSession` 设计规则来源 |
+| [giac-core-algebra-api-stability.md](../giac-core-algebra-api-stability.md) | API tier / I/O 表 |
+| [GIAC-ext-registry-removal-plan.md](GIAC-ext-registry-removal-plan.md) R5 | `fork_ambient`、`Context::session`、`poly_algext_roots_for_ctx` |
 | [GIAC-poly-p3-6-quartic-roots-gaps.md](GIAC-poly-p3-6-quartic-roots-gaps.md) | 缺口 / 验收 |
 | [expr-poly-conversion.md](../expr-poly-conversion.md) | path B 混合系数 |
 | [giac-tower-common-math.md](../giac-tower-common-math.md) | T2/T4a common 策略 |
+
+### R5 补充（2026-06）
+
+`FieldSession::fork_ambient(K)`：roots 保留 ambient/working 语义，extension cache 与 `Context::session()` 共享。见 [giac-core-algebra-api-stability.md](../giac-core-algebra-api-stability.md) §2.3。

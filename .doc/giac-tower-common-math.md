@@ -229,7 +229,7 @@ cargo test -p giac-core tower_common_matches_flatten -- --ignored
 
 Lean 证明仓库（若另建 `giac-proofs/`）**不**阻塞 Rust CI。
 
-**并发：** 全局 `field_registry`；`ext_tower` 测已 `#[serial]`；`cargo nextest` 对 `giac-core` 串行（见 `giac-rs/.config/nextest.toml`）。
+**并发：** R4/R5 后无进程级 `field_registry`；`ext_tower` 单元测可并行（`cargo nextest` 默认多核）。
 
 ### 4.5 与项目其它文档的关系
 
@@ -247,5 +247,6 @@ Lean 证明仓库（若另建 `giac-proofs/`）**不**阻塞 Rust CI。
 | 坐标基对照 | 同上 §12.9 |
 | dense poly1 转换 | [GIAC-dense-poly1-refactor.md](issues/GIAC-dense-poly1-refactor.md) §4.2；`giac-poly::dense::convert` |
 | adoption B-05 | [GIAC-algext-adoption.md](issues/GIAC-algext-adoption.md) |
+| 四次 roots Lean 4 | [GIAC-poly-quartic-lean4-verification.md](issues/GIAC-poly-quartic-lean4-verification.md) |
 | 测试规格 | [conformance-testing.md](conformance-testing.md) §7 |
 | 已知偏离 | [known-divergences.md](known-divergences.md) |

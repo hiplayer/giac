@@ -3,6 +3,7 @@
 **规范来源:** [algorithm-expr-api.md](algorithm-expr-api.md)  
 **Expr ↔ Poly 边界:** [expr-poly-conversion.md](expr-poly-conversion.md)（normative）  
 **扩域求根:** [issues/GIAC-poly-roots-field-session-plan.md](issues/GIAC-poly-roots-field-session-plan.md)  
+**Registry 移除 / session 接线:** [issues/GIAC-ext-registry-removal-plan.md](issues/GIAC-ext-registry-removal-plan.md)（R4–R5）  
 **代码:** `giac-rs/crates/giac-core/src/algebra/*`
 
 ---
@@ -42,11 +43,26 @@
 |------|------|------|------|
 | `AlgExtData` 算术 | **Stable** | `alg_ext` | 同域 ±×、`inv`、`eq_mod` |
 | `fold_algext_sum` / `fold_algext_product` | **Stable** | `alg_ext` | 规范合并 |
+| `fold_algext_sum_for_ctx` / `fold_algext_product_for_ctx` | **Stable (bounded)** | `alg_ext` | 经 `Context::session()` 的 `common_cache`（R5 eval） |
 | `common_ext` | **Stable** | `alg_ext` | 两元公共扩域 |
 | `algext_square_roots` / `algext_cube_root` | **Stable (bounded)** | `alg_ext` | 扩域内开方 |
 | `canonicalize_to_algext_c` | **Stable** | `alg_ext_c` | Expr → `AlgExtCData` |
-| `ExtensionField` / `ExtensionTower` | **Stable** | `ext_tower` | 塔登记、`adjoin_*` |
-| `poly_algext_roots` | **Stable (bounded)** | `poly_roots` | deg 1–4；一般四次 resolvent 超时见 issue |
+| `ExtensionField` / `ExtensionTower` / `ExtensionDesc` | **Stable** | `ext_tower` | R3：`ExtensionField` = `ExtensionDesc`；`layer_min_poly_exprs` / `top_min_poly_exprs` |
+| `AlgExtData::min_poly` | **Stable** | `alg_ext` | R3：塔顶 **layer** minpoly（非 ℚ-flatten） |
+| `poly_algext_roots` | **Stable (bounded)** | `poly_roots` | deg 1–4；独立 session（测试 / 无 Context 调用方） |
+| `poly_algext_roots_for_ctx` | **Stable (bounded)** | `poly_roots` | 同上；`fork_ambient` 共享 `ctx.session()` extension cache（R5 solve） |
+| `FieldSession` | **Stable (bounded)** | `field_session` | ambient K + working L；extension cache 可 `fork_ambient` 共享 |
+| `Context::session` / `session_mut` | **Stable (bounded)** | `context` | 每 `Context` 一份 `Rc<FieldSession>`；`Clone` 浅拷贝共享 cache（`!Send`） |
+
+### 2.3 Extension cache 与线程（R4–R5）
+
+| 存储 | 位置 | 生命周期 | 键 |
+|------|------|----------|-----|
+| `common_cache` | `FieldSession`（`RefCell<…>`，可 `fork_ambient` 共享） | per `Context`；`Clone` 共享 | 域对 `semantic_key` 字典序 |
+| `adjoin_cache` / `base_by_min_poly` | 同上 | 同上 | adjoin 语义键 / ℚ minpoly 字节 |
+| 进程级 `FieldRegistry` | — | **已删除**（R4） | — |
+
+静态 `ExtensionField::{adjoin_irreducible, common_over_q, align_elements}`：**无 session 时**每调用 ephemeral cache（R5b，无跨调用 dedup）。热路径用 `FieldSession` / `Context::session()` 做 adjoin 与 common dedup。
 
 ---
 
@@ -74,8 +90,46 @@
 |------|------|
 | **输入** | `&PolyAlgExt`, `&Var` |
 | **输出** | `Vec<AlgExtCPolyCoeff>` |
-| **上下文** | `FieldSession`：ambient K + working L（PR-B′）；Cardano/resolvent 在 L 上 |
+| **上下文** | 内部 `FieldSession::new(infer_field(p))`；与 `Context` 无关 |
 | **边界** | deg≤4；纯三次 `t³+a` 三根（ω 分支）；resolvent 公式见 `resolvent_golden_*`；一般四次 e2e 见 `#[ignore]` |
+
+### `poly_algext_roots_for_ctx`
+
+| 字段 | 说明 |
+|------|------|
+| **输入** | `&PolyAlgExt`, `&Var`, `&Context` |
+| **输出** | 同 `poly_algext_roots` |
+| **上下文** | `ctx.session().fork_ambient(K)`：独立 ambient/working，**共享** extension cache（`common` / adjoin dedup） |
+| **调用方** | `giac-solve::eval_solve` → `try_algext_or_rootof_roots` |
+| **边界** | 同 `poly_algext_roots` |
+
+### `Context::session` / `session_mut`
+
+| 字段 | 说明 |
+|------|------|
+| **输入** | `&Context` |
+| **输出** | `Rc<FieldSession>` |
+| **语义** | 该 `Context` 拥有的 session；`Context::new()` 各自独立 cache |
+| **`Clone`** | 浅拷贝 `Rc` → 兄弟 handle 共享 cache |
+| **线程** | `Context: !Send`（`Rc<FieldSession>`） |
+
+### `fold_algext_sum_for_ctx` / `fold_algext_product_for_ctx`
+
+| 字段 | 说明 |
+|------|------|
+| **输入** | `&[ExprArc]`, `&Context` |
+| **输出** | 合并后的 `ExprArc` |
+| **上下文** | 跨域 `align` 走 `ctx.session().common_cache`（`eval` Add/Mul 路径） |
+| **对比** | 无 Context 的 `fold_algext_sum` 用 ephemeral `align_elements`（无 session cache） |
+
+### `ExtensionField::common_over_q` / `align_elements`
+
+| 字段 | 说明 |
+|------|------|
+| **输入** | 两个 `Arc<ExtensionField>`（+ coords for align） |
+| **输出** | `CommonFieldPair` / `AlignedElements` |
+| **缓存** | 无跨调用 cache；`FieldSession::common_over_q` / `common_over_q_with_cache` |
+| **显式 session** | `common_over_q_with_cache` / `align_elements_with_cache`；`FieldSession::common_over_q` |
 
 ### `expr_contains_alg_coeff`
 
@@ -92,19 +146,18 @@
 | 模块 | 函数 | 说明 |
 |------|------|------|
 | `poly_roots` | `infer_field`, `normalize_coeffs`, `pure_cubic_roots`, `build_resolvent_cubic` | 算术在 `FieldSession`；入口 normalize 到 K |
-| `field_session` | `adjoin_sqrt`, `adjoin_cbrt`, `adjoin_primitive_cube_root_of_unity` | working L 单调扩大 |
+| `field_session` | `fork_ambient`, `adjoin_irreducible*`, `adjoin_sqrt` | extension cache + working L（R4–R5） |
 | `field_arith` | `poly_*_with_coeffs_in_field` | 坐标多项式算术 |
-| `ext_tower` | `align_elements`, `embedding_for` | 域嵌入与对齐 |
-
----
+| `ext_tower` | `align_elements_in_cache`, `common_over_q_in_cache`, `build_adjoin_*` | R4：无 `FieldRegistry`；dedup 在 session |
 
 ## 5. 跨 crate 契约
 
 | 调用方 | Stable API | 注意 |
 |--------|------------|------|
 | `giac-simplify` | `expr_to_poly`, `poly_to_expr` | 超越叶子失败时原样返回 |
-| `giac-solve` | `expr_to_poly`, `quadratic_rootof_roots` | 一般四次 → `poly_algext_roots` 或 NotImplemented |
+| `giac-solve` | `expr_to_poly`, `poly_algext_roots_for_ctx`, `quadratic_rootof_roots` | solve 经 `Context` session cache；一般四次 → `poly_algext_roots_for_ctx` 或 NotImplemented |
 | `giac-calculus` | `expr_to_poly`（partfrac） | 仅 ℚ 有理分式 |
+| `giac-core::eval` | `fold_algext_*_for_ctx` | Add/Mul 中 AlgExt 合并用 `ctx.session()` |
 | `giac-poly` | — | 本模块提供 Expr 边界，算法在 `giac-poly` |
 
 ---
@@ -151,6 +204,7 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `fields_same` | **Pipeline private** | `fields_same` |
 | `align_pair` | **Pipeline private** | `align_pair` |
 | `fold_algext_sum` | **Stable** | canonical sum of AlgExt terms |
+| `fold_algext_sum_for_ctx` | **Stable (bounded)** | fold sum with Context session cache (R5 eval) |
 | `fold_algext_sum_mode` | **Stable** | fold_algext_sum with mode |
 | `complex_algext_parts` | **Pipeline private** | `complex_algext_parts` |
 | `complex_algext_to_expr` | **Pipeline private** | `complex_algext_to_expr` |
@@ -158,6 +212,7 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `fold_complex_algext_product` | **Stable** | product with complex AlgExtC parts |
 | `complex_algext_mul_parts` | **Pipeline private** | `complex_algext_mul_parts` |
 | `fold_algext_product` | **Stable** | canonical product of AlgExt terms |
+| `fold_algext_product_for_ctx` | **Stable (bounded)** | fold product with Context session cache (R5 eval) |
 | `try_rootof_to_algext` | **Stable** | Func(RootOf) → AlgExt Expr |
 | `contains_algext` | **Stable** | subtree contains AlgExt or rootof |
 | `try_as_algext_data` | **Stable** | view Expr as AlgExtData if present |
@@ -233,7 +288,6 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `id` | **Stable** | `id` |
 | `tower` | **Stable** | `tower` |
 | `dimension` | **Stable** | `dimension` |
-| `min_poly_over_q` | **Stable** | `min_poly_over_q` |
 | `parent_field` | **Stable** | `parent_field` |
 | `adjoin_irreducible` | **Stable** | `adjoin_irreducible` |
 | `adjoin_irreducible_parent_coeffs` | **Stable** | `adjoin_irreducible_parent_coeffs` |
@@ -269,23 +323,30 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `element_is_zero` | **Stable** | `element_is_zero` |
 | `element_is_one` | **Stable** | `element_is_one` |
 | `ensure_same_field_len` | **Pipeline private** | `ensure_same_field_len` |
-| `common_over_q` | **Stable** | `common_over_q` |
+| `common_over_q` | **Stable** | ephemeral per-call cache；`FieldSession` 显式 dedup |
+| `common_over_q_with_cache` | **Stable (bounded)** | explicit `CommonCache` |
 | `embedding_for` | **Stable** | `embedding_for` |
-| `align_elements` | **Stable** | `align_elements` |
+| `align_elements` | **Stable** | ephemeral per-call cache（R5b） |
+| `align_elements_with_cache` | **Stable (bounded)** | explicit session cache |
 | `apply` | **Stable** | `Poly::apply` |
 | `identity` | **Stable** | `Poly::identity` |
 | `new` | **Pipeline private** | `new` |
-| `min_poly_key` | **Stable** | `Poly::min_poly_key` |
-| `parent_blocks_key` | **Pipeline private** | `parent_blocks_key` |
-| `register_adjoin` | **Pipeline private** | `register_adjoin` |
-| `register_adjoin_parent_coeffs` | **Pipeline private** | `register_adjoin_parent_coeffs` |
-| `register_common` | **Pipeline private** | `register_common` |
-| `common_cached` | **Pipeline private** | `common_cached` |
+| `min_poly_key_bytes` | **Pipeline private** | adjoin / base dedup key (R4) |
+| `adjoin_cache_key_rational` | **Pipeline private** | session adjoin dedup key |
+| `build_adjoin_irreducible` | **Pipeline private** | construct adjoin without dedup |
+| `build_adjoin_parent_coeffs` | **Pipeline private** | parent-coeff adjoin construct |
+| `build_base_extension_uncached` | **Pipeline private** | ℚ(θ) field without dedup |
+| `get_or_create_base_by_min_poly` | **Pipeline private** | flatten compositum field dedup |
+| `common_over_q_in_cache` | **Pipeline private** | `common_over_q_in_cache` |
+| `align_elements_in_cache` | **Pipeline private** | `align_elements_in_cache` |
 | `compute_common_flatten_for_test` | **Stable** | `compute_common_flatten_for_test` |
-| `field_registry` | **Pipeline private** | `field_registry` |
 | `common_cache_len_for_test` | **Stable** | `common_cache_len_for_test` |
 | `duplicate_field_arc_for_test` | **Stable** | `duplicate_field_arc_for_test` |
+| `layer_min_poly_exprs` | **Stable** | R3：塔顶 layer minpoly（`AlgExtData::min_poly`） |
+| `top_min_poly_exprs` | **Stable** | ℚ-flatten primitive poly（roots 元数据） |
 | `layer_minpoly_rational_constants` | **Pipeline private** | `layer_minpoly_rational_constants` |
+| `flatten_min_poly_over_q` | **Pipeline private** | explicit ℚ-flatten (+ optional session memo) |
+| `flatten_min_poly_over_q_cold` | **Pipeline private** | cold flatten without memo |
 | `compose_min_poly_over_q` | **Pipeline private** | `compose_min_poly_over_q` |
 | `rational_subfield_embedding` | **Pipeline private** | `rational_subfield_embedding` |
 | `flatten_layer_blocks` | **Pipeline private** | `flatten_layer_blocks` |
@@ -314,7 +375,7 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `common_sqrt2_cbrt2_has_degree_six` | **Pipeline private** | `common_sqrt2_cbrt2_has_degree_six` |
 | `common_cache_identity_is_fast` | **Pipeline private** | `common_cache_identity_is_fast` |
 | `common_cache_hits_same_pair` | **Pipeline private** | `common_cache_hits_same_pair` |
-| `field_registry_dedup_same_minpoly` | **Pipeline private** | `field_registry_dedup_same_minpoly` |
+| `field_registry_dedup_same_minpoly` | **Pipeline private** | renamed `adjoin_cache_dedup_same_minpoly` (R4) |
 | `embedding_for_matches_source_not_operand_order` | **Pipeline private** | `embedding_for_matches_source_not_operand_order` |
 | `align_elements_reverse_order_after_cache_warm` | **Pipeline private** | `align_elements_reverse_order_after_cache_warm` |
 | `t1a_adjoin_base_sqrt2_matches_legacy` | **Pipeline private** | `t1a_adjoin_base_sqrt2_matches_legacy` |
@@ -463,10 +524,16 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 
 | Function | Tier | Description |
 |----------|------|-------------|
-| `FieldSession` | **Stable (bounded)** | ambient K + working L for `poly_algext_roots` |
-| `new` | **Stable** | `FieldSession::new` |
+| `FieldSession` | **Stable (bounded)** | ambient K + working L；interior `RefCell` on caches / working |
+| `new` | **Stable** | independent extension caches |
+| `fork_ambient` | **Stable (bounded)** | fresh K/L; share `common` / adjoin caches with parent session (R5) |
+| `adjoin_irreducible` | **Stable (bounded)** | session adjoin dedup (R4) |
+| `adjoin_irreducible_parent_coeffs` | **Stable (bounded)** | T3+ parent-coeff adjoin dedup |
+| `common_over_q` | **Stable (bounded)** | `common_over_q` with session cache |
+| `align_elements` | **Stable (bounded)** | align coords with session cache |
+| `common_cache_len` | **Stable (bounded)** | diagnostics / tests |
 | `ambient` | **Stable** | ambient K (normalized poly coefficients) |
-| `working` | **Stable** | current working L |
+| `working` | **Stable** | current working L (`Arc` clone) |
 | `zero` / `one` / `int` / `half` | **Stable** | constants in L |
 | `lift` | **Stable** | embed coeff into working L |
 | `align` | **Stable** | align pair; bump L to common field |
@@ -475,12 +542,16 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `adjoin_primitive_cube_root_of_unity` | **Stable (bounded)** | adjoin ω with ω²+ω+1=0; pure cubic roots |
 | `add` / `mul` / `div` / `neg` | **Stable** | arithmetic with auto-align |
 | `bump_to` | **Pipeline private** | grow working L toward superfield or align target |
+| `with_common_cache` | **Pipeline private** | reentrant cache closure (static API) |
+| `get_or_create_base_by_min_poly` | **Pipeline private** | flatten path ℚ(θ) dedup |
+| `set_working` | **Pipeline private** | Euler branch checkpoint |
 
 ### `poly_roots.rs`
 
 | Function | Tier | Description |
 |----------|------|-------------|
-| `poly_algext_roots` | **Stable (bounded)** | exact AlgExtC roots deg 1–4; quartic e2e gap |
+| `poly_algext_roots` | **Stable (bounded)** | exact AlgExtC roots deg 1–4; own `FieldSession::new` |
+| `poly_algext_roots_for_ctx` | **Stable (bounded)** | roots with `ctx.session()` shared extension cache |
 | `infer_field` | **Pipeline private** | infer ambient K from PolyAlgExt coefficients |
 | `coeff_at` | **Stable** | univariate coefficient at exponent (uses session.zero) |
 | `normalize_coeffs` | **Pipeline private** | lift all coeffs to ambient K via session |

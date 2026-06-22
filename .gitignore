@@ -4,6 +4,7 @@ bin/
 obj/
 session.tex
 giac-rs
+giac-proofs
 giac/giac_stable.tgz
 
 # giac-2.0.0 build artifacts (must not be versioned; libgiac.a/icas exceed GitHub limits)

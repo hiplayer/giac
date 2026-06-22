@@ -45,9 +45,17 @@
 |------|------|
 | **输入** | `solve(equation, var)` 或 `solve([eqs], [vars])` |
 | **输出** | `List<Expr>` 解 |
-| **表示** | 低次：`Poly::roots` → `poly_to_expr`；二次/双二次：`rootof`；否则 Err |
-| **前提** | 方程经 `eval` 后可 `expr_to_poly`（ℚ 多项式） |
+| **表示** | 低次：`Poly::roots` → `poly_to_expr`；代数扩域：`poly_algext_roots_for_ctx`；二次/双二次 fallback：`rootof` |
+| **前提** | 方程经 `eval` 后可 `expr_to_poly`（ℚ 多项式）；`ctx` 传入 session cache（R5） |
 | **禁止** | 对含超越式未走 MRV/级数路径而强行 poly |
+
+### `poly_roots_as_exprs` / `try_algext_or_rootof_roots`（pipeline）
+
+| 字段 | 说明 |
+|------|------|
+| **输入** | `&Poly`, `&Var`, `&Context` |
+| **路径** | `giac_poly::roots` → 失败时 `poly_algext_roots_for_ctx(p, var, ctx)` → `quadratic_rootof_roots` / `biquadratic_rootof_roots` |
+| **缓存** | `ctx.session()` extension cache（与 eval 同线程 `Context` 共享） |
 
 ### `quadratic_rootof_roots` / `biquadratic_rootof_roots`
 
@@ -64,6 +72,7 @@
 | 模块 | 函数 | 说明 |
 |------|------|------|
 | `solve` | `equation_to_poly`, `try_transcendental_solve` | lhs-rhs → poly；`sin(x)=0` 等 |
+| `solve` | `poly_roots_as_exprs`, `try_algext_or_rootof_roots` | ℚ roots → `poly_algext_roots_for_ctx(ctx)` |
 | `froot` | 有理根搜索链 | 依赖 `giac-poly` |
 | `rootof` | `rootof_expr` | Expr 构造 |
 
@@ -73,7 +82,7 @@
 
 | 缺口 | 说明 |
 |------|------|
-| 一般四次 | 应收敛到 `poly_algext_roots`（[GIAC-poly-p3-6](issues/GIAC-poly-p3-6-quartic-roots-gaps.md)） |
+| 一般四次 | 经 `poly_algext_roots_for_ctx`（[GIAC-poly-p3-6](issues/GIAC-poly-p3-6-quartic-roots-gaps.md)）；e2e perf 见 `#[ignore]` |
 | `froots` / assume | [GIAC-algorithm-gaps-open](GIAC-algorithm-gaps-open.md) SOL-G1/G5 |
 | 测试契约 | [GIAC-expr-api-tech-debt](issues/GIAC-expr-api-tech-debt.md) 3A |
 
@@ -161,6 +170,8 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | Function | Tier | Description |
 |----------|------|-------------|
 | `eval_solve` | **Stable (bounded)** | solve via poly roots, rootof, or linsolve |
+| `poly_roots_as_exprs` | **Pipeline private** | ℚ roots or `poly_algext_roots_for_ctx` |
+| `try_algext_or_rootof_roots` | **Pipeline private** | AlgExt roots with `ctx.session()` cache |
 | `equation_to_poly` | **Pipeline private** | `equation_to_poly` |
 | `ident_from_expr` | **Pipeline private** | `ident_from_expr` |
 | `try_transcendental_solve` | **Pipeline private** | optional fallback `try_transcendental_solve` |

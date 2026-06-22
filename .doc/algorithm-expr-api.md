@@ -171,6 +171,13 @@ FieldSession { ambient: K, working: L }
 **`build_resolvent_cubic`（PR-D′）：** 对 depressed 四次 \(y^4+py^2+qy+r\)，
 \(R(z)=z^3-pz^2-4rz+(4pr-q^2)\)；golden：`t^4+t+1` → \((p,q,r)=(0,1,1)\) → \(z^3-4z-1\)。
 
+**Eval / solve 接线（R5，[GIAC-ext-registry-removal-plan](issues/GIAC-ext-registry-removal-plan.md)）：**
+
+- `Context` 内嵌 `Rc<FieldSession>`；`Clone` 共享 extension cache。独立 `Context::new()` → 独立 cache。静态 `ExtensionField::*` 无 session 时不跨调用 dedup（R5b ephemeral）。
+- `poly_algext_roots_for_ctx`：`fork_ambient(K)` 保留 roots 的 K/L 语义，复用 `ctx` 的 `common_cache` / adjoin dedup。
+- `eval` 中 `fold_algext_*_for_ctx`：跨域 AlgExt 合并走 `ctx.session()`，避免与 solve 分裂 cache。
+- 静态 `ExtensionField::common_over_q` 在无 Context 时仍可用（同一 per-thread session）。
+
 **适用：** `poly_algext_roots`、resolvent cubic、Cardano、双二次 split、将来 `Poly<AlgExtC>::factor/gcd` over K。  
 **索引：** [GIAC-poly-roots-field-session-plan.md](issues/GIAC-poly-roots-field-session-plan.md)；[GIAC-poly-p3-6-quartic-roots-gaps.md](issues/GIAC-poly-p3-6-quartic-roots-gaps.md) G5；[expr-poly-conversion.md](expr-poly-conversion.md) path B。
 

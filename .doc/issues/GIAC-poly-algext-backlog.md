@@ -109,7 +109,7 @@ giac-poly 表示层（PolyCoeff + Poly<C> + Expr 桥接）
 | **P3-3** | **`factor` 一元 over K** | 先二次/有理根子集，再 Zassenhaus 泛化 | `factor(x⁴−4)` |
 | **P3-4** | **`resultant` / `sturm` over `Poly<AlgExt>`** | 实代数 Sturm（B-04） | `realroot(x²−2)` 区间形式 |
 | **P3-5** | **嵌套环 `Poly<AlgExtC>[main]`** | `UnivariateIn<C>` 泛化；FAC 管线最后接 | 参系数 + 代数系数塔 — **长期** |
-| **P3-6** | **`Poly<AlgExtC>::roots` 通用四次** | resolvent cubic + K 上二次 split | `solve(t⁴+t+1=0,t)` 四根 `eq_mod` | **P2-6** + **P3-3** + 塔 **T3+**（\(u^2-\alpha\) adjoin）；缺口清单 → [GIAC-poly-p3-6-quartic-roots-gaps](GIAC-poly-p3-6-quartic-roots-gaps.md) |
+| **P3-6** | **`Poly<AlgExtC>::roots` 通用四次** | resolvent cubic + K 上二次 split | `solve(t⁴+t+1=0,t)` 四根 `eq_mod` | **P2-6** + **P3-3** + 塔 **T3+**（\(u^2-\alpha\) adjoin）；实施顺序 **F1→F5** → [GIAC-poly-quartic-roots-F1-F5](GIAC-poly-quartic-roots-F1-F5.md) |
 | **P3-7** | **`factor` + 有理根降次（deg≥5 前置）** | `factor_into` / sqff 与 solve 共用 | `(x²+1)(x³−x+1)` 分解后递归 | 不实现通用五次根式 |
 
 **过渡期明确不做：** `Poly<AlgExtC>` 上的 Hensel / sparse_bi / unitaryfactor — 上游 `gausspol` 对 `_EXT` 系数也极受限。  
