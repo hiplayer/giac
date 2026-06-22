@@ -351,19 +351,13 @@ pub fn canonicalize_to_algext_c(e: &Expr) -> Result<AlgExtCData, EvalError> {
         Expr::Complex(re, im) => AlgExtCData::from_complex_parts(re, im),
         Expr::Int(n) => {
             let q = ExtensionField::rational();
-            let mut re = q.zero_coords();
-            if let Some(c) = re.last_mut() {
-                *c = Ratio::from_integer(n.clone());
-            }
+            let re = q.embed_rational(&Ratio::from_integer(n.clone()));
             let im = q.zero_coords();
             AlgExtCData::from_coords_q(q, &re, &im, None)
         }
         Expr::Rat(r) => {
             let q = ExtensionField::rational();
-            let mut re = q.zero_coords();
-            if let Some(c) = re.last_mut() {
-                *c = r.clone();
-            }
+            let re = q.embed_rational(r);
             let im = q.zero_coords();
             AlgExtCData::from_coords_q(q, &re, &im, None)
         }
@@ -385,18 +379,12 @@ fn expr_to_field_element(e: &ExprArc) -> Result<(Arc<ExtensionField>, CoordsQ), 
         Expr::AlgExtC(z) => Ok((Arc::clone(&z.field), z.re_q()?)),
         Expr::Int(n) => {
             let q = ExtensionField::rational();
-            let mut re = q.zero_coords();
-            if let Some(c) = re.last_mut() {
-                *c = Ratio::from_integer(n.clone());
-            }
+            let re = q.embed_rational(&Ratio::from_integer(n.clone()));
             Ok((q, re))
         }
         Expr::Rat(r) => {
             let q = ExtensionField::rational();
-            let mut re = q.zero_coords();
-            if let Some(c) = re.last_mut() {
-                *c = r.clone();
-            }
+            let re = q.embed_rational(r);
             Ok((q, re))
         }
         Expr::Func(FuncKind::RootOf, args) if args.len() == 2 => {

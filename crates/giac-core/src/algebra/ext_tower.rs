@@ -2,12 +2,27 @@
 //!
 //! Normative model: [GIAC-algext-adoption.md](../../../../.doc/issues/GIAC-algext-adoption.md) §8.2.
 //!
+//! **Dev note — primitive vs tower + `parent_coeff_ring`:** see
+//! [giac-tower-common-math.md](../../../../.doc/giac-tower-common-math.md) §1.1.
+//! Summary: `element_*` dispatches primitive (single `Adj{parent:ℚ}`) vs tower
+//! (`min_poly_parent_blocks` or nontrivial `parent_field`). Tower layer ops unflatten
+//! coords into parent-field coefficients; **`parent_coeff_ring!` must call `element_*`
+//! on the parent, never `element_*_primitive`** — otherwise adjoin on a composite parent
+//! (e.g. dim-6 after resolvent √Δ) hits `primitive modulus: expected simple over Q`.
+//!
 //! Phase 0 scope: coefficients in ℚ only; each [`ExtensionField`] is described by a
 //! primitive/minimal polynomial over ℚ (single adjoin or `common` composite).
 //!
 //! T1+: nontrivial adjoins record a true [`ExtensionTower::Adj`] parent chain and
 //! `(parent_id, min_poly)` registry keys; see [GIAC-lazy-common-tower-plan.md] T1.
-
+//!
+//! ## Square roots in K (F5)
+//!
+//! | API | Behavior |
+//! |-----|----------|
+//! | [`ExtensionField::try_square_root_in_field`] | Probe only; **no** tower extension |
+//! | [`super::field_session::FieldSession::sqrt_in_field`] | try → adjoin fallback |
+//! | [`super::alg_ext::algext_square_roots`] | **Always** adjoin; roots pipeline must not call |
 //!
 //! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
 //! full module index in `.doc/giac-core-algebra-api-stability.md`.
@@ -23,13 +38,15 @@ use num_traits::{One, Zero};
 use crate::error::EvalError;
 use crate::expr::{Expr, ExprArc, FuncKind};
 
+use super::alg_ext::AlgExtData;
 use super::field_arith::{
     apply_linear_map, char_poly_matrix, coords_all_zero, embed_in_square_extension,
     generator_coords, kron_left, mat_mul, mult_matrix_of_adjoin_generator,
     mult_matrix_of_element, pad_to_len, poly_add, poly_degree, poly_inv_mod, poly_mul, poly_neg,
     poly_reduce, poly_sub, poly_add_with_coeffs_in_field, poly_inv_mod_with_coeffs_in_field,
     poly_mul_with_coeffs_in_field, poly_neg_with_coeffs_in_field,
-    poly_reduce_with_coeffs_in_field, ParentCoeffRing, trim_leading_zero, CoordsQ,
+    poly_reduce_with_coeffs_in_field, ParentCoeffRing, rationalize_poly1, trim_leading_zero,
+    coords_to_expr, CoordsQ,
 };
 
 static FIELD_ID: AtomicU64 = AtomicU64::new(1);
@@ -173,17 +190,32 @@ impl PartialEq for ExtensionDesc {
 
 impl Eq for ExtensionDesc {}
 
+/// Diagnostic: how [`ExtensionField::element_*`] reduces coords on this layer.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum LayerArithMode {
+    /// Single `Adj { parent: ℚ, min_poly_q }` with registered parent.
+    PrimitiveOverQ,
+    /// `min_poly_parent_blocks` or nested adjoin parent chain.
+    Tower,
+    /// Flatten compositum: `Adj { parent: ℚ }` but `parent_field: None`.
+    FlattenOverQ,
+}
+
 macro_rules! parent_coeff_ring {
     ($parent:ident) => {
         ParentCoeffRing {
             zero: $parent.zero_coords(),
             one: $parent.one_coords(),
-            add: &|a, b| $parent.element_add_primitive(a, b),
-            sub: &|a, b| $parent.element_sub_primitive(a, b),
-            mul: &|a, b| $parent.element_mul_primitive(a, b),
-            neg: &|a| $parent.element_neg_primitive(a),
-            inv: &|a| $parent.element_inv_primitive(a),
-            is_zero: &|a| $parent.element_is_zero(a),
+            add: &|a, b| $parent.element_add(a, b),
+            sub: &|a, b| $parent.element_sub(a, b),
+            mul: &|a, b| $parent.element_mul(a, b),
+            neg: &|a| $parent.element_neg(a),
+            inv: &|a| $parent.element_inv(a),
+            is_zero: &|a| {
+                $parent
+                    .element_eq_mod(a, &$parent.zero_coords())
+                    .unwrap_or(false)
+            },
         }
     };
 }
@@ -447,9 +479,48 @@ impl ExtensionDesc {
 
     // **Pipeline private** — `uses_tower_arithmetic`
     fn uses_tower_arithmetic(&self) -> bool {
+        if matches!(
+            self.tower.as_ref(),
+            ExtensionTower::Adj {
+                min_poly_parent_blocks: Some(_),
+                ..
+            }
+        ) {
+            return true;
+        }
         self.parent_field
             .as_ref()
             .is_some_and(|parent| !parent.is_base())
+    }
+
+    /// **Pipeline private** — `layer_arith_mode`
+    pub(crate) fn layer_arith_mode(&self) -> LayerArithMode {
+        if self.is_base() {
+            return LayerArithMode::PrimitiveOverQ;
+        }
+        match self.tower.as_ref() {
+            ExtensionTower::Adj {
+                min_poly_parent_blocks: Some(_),
+                ..
+            } => LayerArithMode::Tower,
+            ExtensionTower::Adj { parent, .. }
+                if matches!(parent.as_ref(), ExtensionTower::Base) =>
+            {
+                if self.parent_field.is_none() {
+                    LayerArithMode::FlattenOverQ
+                } else {
+                    LayerArithMode::PrimitiveOverQ
+                }
+            }
+            ExtensionTower::Adj { .. } => LayerArithMode::Tower,
+            ExtensionTower::Base => LayerArithMode::PrimitiveOverQ,
+        }
+    }
+
+    /// True when [`Self`] may be parent of parent-coeff adjoin (non-trivial `element_*`).
+    /// **Pipeline private** — `parent_coeff_ring_capable`
+    pub(crate) fn parent_coeff_ring_capable(&self) -> bool {
+        !self.is_base()
     }
 
     /// Embed a rational constant into this field (constant term at layer 0).
@@ -479,7 +550,7 @@ impl ExtensionDesc {
     }
 
     // **Pipeline private** — `layer_ext_degree`
-    fn layer_ext_degree(&self) -> Result<usize, EvalError> {
+    pub(crate) fn layer_ext_degree(&self) -> Result<usize, EvalError> {
         match self.tower.as_ref() {
             ExtensionTower::Adj { ext_degree, .. } => Ok(*ext_degree),
             ExtensionTower::Base => Err(EvalError::TypeError("expected extension field")),
@@ -730,6 +801,22 @@ impl ExtensionDesc {
     pub fn element_eq_mod(&self, a: &CoordsQ, b: &CoordsQ) -> Result<bool, EvalError> {
         let diff = self.element_sub(a, b)?;
         Ok(coords_all_zero(&diff))
+    }
+
+    /// Try to find ε ∈ K with ε² ≡ u (coords). Returns `None` if no probe hits.
+    ///
+    /// Scan: deg-2 layer generators (±g, k·g), basis ±eᵢ, then bounded ±1 linear
+    /// combos when `dim(K) ≤` [`TRY_SQRT_ENUM_DIM_CEILING`].
+    ///
+    /// Does **not** adjoin. For adjoin fallback use
+    /// [`super::alg_ext::algext_square_roots`] or
+    /// [`super::field_session::FieldSession::sqrt_in_field`].
+    /// **Stable (bounded)** — try square root in extension field
+    pub fn try_square_root_in_field(
+        field: &Arc<ExtensionField>,
+        u: &CoordsQ,
+    ) -> Result<Option<CoordsQ>, EvalError> {
+        try_square_root_in_field_impl(field, u)
     }
 
     /// **Stable** — `element_is_zero`
@@ -1001,7 +1088,125 @@ pub(crate) fn adjoin_cache_key_parent_blocks(
     k
 }
 
+/// ponytail: ±1 combo enum ceiling; quartic splitting-field dim≤12.
+const TRY_SQRT_ENUM_DIM_CEILING: usize = 12;
+
+// **Pipeline private** — F5 core: probe ε²≡u without adjoining.
+fn try_square_root_in_field_impl(
+    field: &Arc<ExtensionField>,
+    u: &CoordsQ,
+) -> Result<Option<CoordsQ>, EvalError> {
+    let u = pad_to_len(u, field.dimension());
+    if field.element_is_zero(&u) {
+        return Ok(Some(field.zero_coords()));
+    }
+    let mut cur: Option<Arc<ExtensionField>> = Some(Arc::clone(field));
+    while let Some(layer) = cur {
+        if layer.layer_ext_degree().ok() == Some(2) {
+            let gen = embed_coords_in(field, &layer, &layer.generator_coords())?;
+            for cand in [gen.clone(), field.element_neg(&gen)?] {
+                if coords_square_eq_mod(field, &cand, &u)? {
+                    return Ok(Some(cand));
+                }
+            }
+            // ponytail: k·g (e.g. √8 = 2√2); ceiling k≤8.
+            for k in 2i32..=8 {
+                let k_rat = field.embed_rational(&Ratio::from_integer(BigInt::from(k)));
+                for cand in [
+                    field.element_mul(&k_rat, &gen)?,
+                    field.element_neg(&field.element_mul(&k_rat, &gen)?)?,
+                ] {
+                    if coords_square_eq_mod(field, &cand, &u)? {
+                        return Ok(Some(cand));
+                    }
+                }
+            }
+        }
+        cur = layer.parent_field().map(Arc::clone);
+    }
+    let dim = field.dimension();
+    for i in 0..dim {
+        let mut e = field.zero_coords();
+        e[i] = Ratio::one();
+        for cand in [e.clone(), field.element_neg(&e)?] {
+            if coords_square_eq_mod(field, &cand, &u)? {
+                return Ok(Some(cand));
+            }
+        }
+    }
+    if dim <= TRY_SQRT_ENUM_DIM_CEILING {
+        for i in 0..dim {
+            for j in (i + 1)..dim {
+                for &ci in &[1i32, -1i32] {
+                    for &cj in &[1i32, -1i32] {
+                        let mut v = field.zero_coords();
+                        v[i] = Ratio::from_integer(BigInt::from(ci));
+                        v[j] = Ratio::from_integer(BigInt::from(cj));
+                        if field.element_is_zero(&v) {
+                            continue;
+                        }
+                        for cand in [v.clone(), field.element_neg(&v)?] {
+                            if coords_square_eq_mod(field, &cand, &u)? {
+                                return Ok(Some(cand));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        for i in 0..dim {
+            for j in (i + 1)..dim {
+                for k in (j + 1)..dim {
+                    for &ci in &[1i32, -1i32] {
+                        for &cj in &[1i32, -1i32] {
+                            for &ck in &[1i32, -1i32] {
+                                let mut v = field.zero_coords();
+                                v[i] = Ratio::from_integer(BigInt::from(ci));
+                                v[j] = Ratio::from_integer(BigInt::from(cj));
+                                v[k] = Ratio::from_integer(BigInt::from(ck));
+                                for cand in [v.clone(), field.element_neg(&v)?] {
+                                    if coords_square_eq_mod(field, &cand, &u)? {
+                                        return Ok(Some(cand));
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(None)
+}
+
+fn embed_coords_in(
+    sup: &Arc<ExtensionField>,
+    sub: &Arc<ExtensionField>,
+    coords: &CoordsQ,
+) -> Result<CoordsQ, EvalError> {
+    let emb = ExtensionField::try_subfield_embedding(sub, sup)?
+        .ok_or(EvalError::TypeError("subfield embedding"))?;
+    Ok(emb.apply(coords))
+}
+
+fn coords_square_eq_mod(
+    field: &ExtensionField,
+    cand: &CoordsQ,
+    u: &CoordsQ,
+) -> Result<bool, EvalError> {
+    let sq = field.element_mul(cand, cand)?;
+    field.element_eq_mod(&sq, u)
+}
+
 /// **Pipeline private** — T1 layer minpoly coefficient check.
+// **Pipeline private** — `AlgExtData` from operational coords in `field`.
+fn algext_from_coords(field: &Arc<ExtensionField>, coords: &CoordsQ) -> Result<AlgExtData, EvalError> {
+    AlgExtData::from_field_coords(
+        Arc::clone(field),
+        coords_to_expr(&pad_to_len(coords, field.dimension()))?,
+    )
+}
+
 pub(crate) fn layer_minpoly_rational_constants(min_poly_q: &[Ratio<BigInt>]) -> bool {
     min_poly_q.iter().all(|c| c.denom().is_one())
 }
@@ -1030,6 +1235,11 @@ pub(crate) fn build_adjoin_parent_coeffs(
     parent: &Arc<ExtensionField>,
     layer_blocks: Vec<CoordsQ>,
 ) -> Result<Arc<ExtensionField>, EvalError> {
+    if !parent.parent_coeff_ring_capable() {
+        return Err(EvalError::TypeError(
+            "parent not suitable for parent-coeff adjoin",
+        ));
+    }
     let ext_degree = layer_blocks.len() - 1;
     Ok(Arc::new(ExtensionDesc {
         id: next_field_id(),
@@ -1208,8 +1418,10 @@ fn rational_subfield_embedding(
 ) -> FieldEmbedding {
     let dim = sup.dimension();
     let mut m = vec![vec![Ratio::zero(); 1]; dim];
-    if dim > 0 {
-        m[dim - 1][0] = Ratio::one();
+    for (i, c) in sup.embed_rational(&Ratio::one()).into_iter().enumerate() {
+        if i < dim {
+            m[i][0] = c;
+        }
     }
     FieldEmbedding {
         source: Arc::clone(sub),
@@ -1543,8 +1755,10 @@ fn embed_rationals_into(
     let dim = ext.dimension();
     let rational_embed = || {
         let mut m = vec![vec![Ratio::zero(); 1]; dim];
-        if dim > 0 {
-            m[dim - 1][0] = Ratio::one();
+        for (i, c) in ext.embed_rational(&Ratio::one()).into_iter().enumerate() {
+            if i < dim {
+                m[i][0] = c;
+            }
         }
         m
     };
@@ -1672,8 +1886,88 @@ pub fn embed_coords(embedding: &FieldEmbedding, coords: &CoordsQ) -> CoordsQ {
 mod tests {
     use super::*;
     use crate::algebra::test_fixtures::{
-        k1_adjoin_cbrt2, k1_adjoin_sqrt2, minpoly_u2_minus,
+        k1_adjoin_cbrt2, k1_adjoin_sqrt2, k1_adjoin_sqrt3, minpoly_u2_minus,
     };
+
+    #[derive(Clone)]
+    struct CoordsInFieldForTest {
+        field: Arc<ExtensionField>,
+        coords: CoordsQ,
+    }
+
+    impl CoordsInFieldForTest {
+        fn new(field: Arc<ExtensionField>, coords: CoordsQ) -> Self {
+            let coords = pad_to_len(&coords, field.dimension());
+            Self { field, coords }
+        }
+
+        fn zero(field: &Arc<ExtensionField>) -> Self {
+            Self::new(Arc::clone(field), field.zero_coords())
+        }
+
+        fn one(field: &Arc<ExtensionField>) -> Self {
+            Self::new(Arc::clone(field), field.one_coords())
+        }
+
+        fn rational(field: &Arc<ExtensionField>, n: i64) -> Self {
+            Self::new(
+                Arc::clone(field),
+                field.embed_rational(&Ratio::from_integer(n.into())),
+            )
+        }
+
+        fn generator(field: &Arc<ExtensionField>) -> Self {
+            Self::new(Arc::clone(field), field.generator_coords())
+        }
+
+        fn add(&self, rhs: &Self) -> Self {
+            assert_eq!(*self.field, *rhs.field);
+            Self::new(
+                Arc::clone(&self.field),
+                self.field.element_add(&self.coords, &rhs.coords).unwrap(),
+            )
+        }
+
+        fn mul(&self, rhs: &Self) -> Self {
+            assert_eq!(*self.field, *rhs.field);
+            Self::new(
+                Arc::clone(&self.field),
+                self.field.element_mul(&self.coords, &rhs.coords).unwrap(),
+            )
+        }
+
+        fn embedded_by(&self, emb: &FieldEmbedding) -> Self {
+            assert_eq!(*self.field, *emb.source);
+            Self::new(Arc::clone(&emb.target), emb.apply(&self.coords))
+        }
+
+        fn eq_mod(&self, rhs: &Self) -> bool {
+            assert_eq!(*self.field, *rhs.field);
+            self.field.element_eq_mod(&self.coords, &rhs.coords).unwrap()
+        }
+    }
+
+    fn assert_embedding_ring_hom(
+        emb: &FieldEmbedding,
+        a: &CoordsInFieldForTest,
+        b: &CoordsInFieldForTest,
+    ) {
+        let target = &emb.target;
+        assert!(CoordsInFieldForTest::zero(&emb.source)
+            .embedded_by(emb)
+            .eq_mod(&CoordsInFieldForTest::zero(target)));
+        assert!(CoordsInFieldForTest::one(&emb.source)
+            .embedded_by(emb)
+            .eq_mod(&CoordsInFieldForTest::one(target)));
+        assert!(a
+            .add(b)
+            .embedded_by(emb)
+            .eq_mod(&a.embedded_by(emb).add(&b.embedded_by(emb))));
+        assert!(a
+            .mul(b)
+            .embedded_by(emb)
+            .eq_mod(&a.embedded_by(emb).mul(&b.embedded_by(emb))));
+    }
 
     #[test]
     fn r6_nested_adjoin_layer_two_flatten_explicit_four() {
@@ -1728,6 +2022,66 @@ mod tests {
     }
 
     #[test]
+    fn rational_embedding_into_tower_uses_constant_block() {
+        let (k1, k2) = crate::algebra::test_fixtures::t3a_k2_adjoin_u2_minus_sqrt2_over_k1();
+        let q = ExtensionField::rational();
+        let emb = ExtensionField::try_subfield_embedding(&q, &k2)
+            .unwrap()
+            .expect("Q embeds in tower");
+        let one = emb.apply(&q.one_coords());
+        assert_eq!(one, k2.embed_rational(&Ratio::one()));
+    }
+
+    #[test]
+    fn embedding_ring_hom_rational_to_tower() {
+        let (_k1, k2) = crate::algebra::test_fixtures::t3a_k2_adjoin_u2_minus_sqrt2_over_k1();
+        let q = ExtensionField::rational();
+        let emb = ExtensionField::try_subfield_embedding(&q, &k2)
+            .unwrap()
+            .expect("Q embeds in tower");
+        let two = CoordsInFieldForTest::rational(&q, 2);
+        let three = CoordsInFieldForTest::rational(&q, 3);
+        assert_embedding_ring_hom(&emb, &two, &three);
+    }
+
+    #[test]
+    fn common_rational_to_tower_embedding_uses_constant_block() {
+        let (_k1, k2) = crate::algebra::test_fixtures::t3a_k2_adjoin_u2_minus_sqrt2_over_k1();
+        let q = ExtensionField::rational();
+        let pair = ExtensionField::common_over_q(&q, &k2).unwrap();
+        let emb = ExtensionField::embedding_for(&q, &pair).unwrap();
+        let one = CoordsInFieldForTest::one(&q).embedded_by(emb);
+        assert!(one.eq_mod(&CoordsInFieldForTest::one(&k2)));
+    }
+
+    #[test]
+    fn embedding_ring_hom_parent_to_child() {
+        let k1 = k1_adjoin_sqrt2();
+        let k2 = ExtensionField::adjoin_irreducible(&k1, minpoly_u2_minus(-3)).unwrap();
+        let emb = ExtensionField::try_subfield_embedding(&k1, &k2)
+            .unwrap()
+            .expect("K1 embeds in child");
+        let alpha = CoordsInFieldForTest::generator(&k1);
+        let one = CoordsInFieldForTest::one(&k1);
+        let alpha_plus_one = alpha.add(&one);
+        assert_embedding_ring_hom(&emb, &alpha, &alpha_plus_one);
+    }
+
+    #[test]
+    fn embedding_ring_hom_composite_chain() {
+        let k1 = k1_adjoin_sqrt2();
+        let k2 = ExtensionField::adjoin_irreducible(&k1, minpoly_u2_minus(-3)).unwrap();
+        let k3 = ExtensionField::adjoin_irreducible(&k2, minpoly_u2_minus(-5)).unwrap();
+        let emb = ExtensionField::try_subfield_embedding(&k1, &k3)
+            .unwrap()
+            .expect("K1 embeds through composite parent chain");
+        let alpha = CoordsInFieldForTest::generator(&k1);
+        let two = CoordsInFieldForTest::rational(&k1, 2);
+        let alpha_plus_two = alpha.add(&two);
+        assert_embedding_ring_hom(&emb, &alpha, &alpha_plus_two);
+    }
+
+    #[test]
     fn adjoin_cbrt2_generator_cubes_to_two() {
         let k = k1_adjoin_cbrt2();
         assert_eq!(k.dimension(), 3);
@@ -1746,6 +2100,64 @@ mod tests {
         let sq = k.element_mul(&alpha, &alpha).unwrap();
         let two = pad_to_len(&[Ratio::from_integer(2.into())], 2);
         assert!(k.element_eq_mod(&sq, &two).unwrap());
+    }
+
+    // **B** — F5: √8 in ℚ(√2) without new adjoin.
+    #[test]
+    fn try_square_root_sqrt8_in_q_sqrt2() {
+        let k = k1_adjoin_sqrt2();
+        let eight = k.embed_rational(&Ratio::from_integer(8.into()));
+        let root = ExtensionField::try_square_root_in_field(&k, &eight)
+            .unwrap()
+            .expect("sqrt(8) in Q(sqrt2)");
+        let sq = k.element_mul(&root, &root).unwrap();
+        assert!(k.element_eq_mod(&sq, &eight).unwrap());
+    }
+
+    // **B** — F5: √2 in ℚ(√2) via layer generator scan.
+    #[test]
+    fn try_square_root_sqrt2_in_q_sqrt2() {
+        let k = k1_adjoin_sqrt2();
+        let two = k.embed_rational(&Ratio::from_integer(2.into()));
+        let root = ExtensionField::try_square_root_in_field(&k, &two)
+            .unwrap()
+            .expect("sqrt(2) in Q(sqrt2)");
+        let sq = k.element_mul(&root, &root).unwrap();
+        assert!(k.element_eq_mod(&sq, &two).unwrap());
+    }
+
+    // **B** — F5: parent-coeff tower; subfield √2 recognized after embed.
+    #[test]
+    fn try_square_root_in_parent_coeff_tower() {
+        let k1 = k1_adjoin_sqrt2();
+        let one = k1.one_coords();
+        let sqrt2 = k1.generator_coords();
+        let three = k1.embed_rational(&Ratio::from_integer(3.into()));
+        let field =
+            ExtensionField::adjoin_irreducible_parent_coeffs(&k1, vec![one, sqrt2, three])
+                .unwrap();
+        let two = field.embed_rational(&Ratio::from_integer(2.into()));
+        let root = ExtensionField::try_square_root_in_field(&field, &two)
+            .unwrap()
+            .expect("sqrt(2) in parent-coeff tower");
+        let sq = field.element_mul(&root, &root).unwrap();
+        assert!(field.element_eq_mod(&sq, &two).unwrap());
+    }
+
+    // **B** — F5: align then probe √ in common superfield.
+    #[test]
+    fn try_square_root_after_align_in_common() {
+        let k1 = k1_adjoin_sqrt2();
+        let k3 = k1_adjoin_sqrt3();
+        let common = ExtensionField::common_over_q(&k1, &k3).unwrap();
+        let emb = ExtensionField::embedding_for(&k1, &common).unwrap();
+        let alpha = emb.apply(&k1.generator_coords());
+        let sq_alpha = common.field.element_mul(&alpha, &alpha).unwrap();
+        let root = ExtensionField::try_square_root_in_field(&common.field, &sq_alpha)
+            .unwrap()
+            .expect("sqrt(alpha^2) in common field");
+        let sq = common.field.element_mul(&root, &root).unwrap();
+        assert!(common.field.element_eq_mod(&sq, &sq_alpha).unwrap());
     }
 
     #[test]

@@ -520,7 +520,11 @@ pub fn try_as_algext_data(e: &Expr) -> Option<AlgExtData> {
     }
 }
 
-/// **Stable (bounded)** — square roots in extension field
+/// **Stable (bounded)** — square roots in extension field (blind adjoin)
+///
+/// Always extends the tower. **Do not use from `poly_roots`**; prefer
+/// [`ExtensionField::try_square_root_in_field`] (probe only) or
+/// [`super::field_session::FieldSession::sqrt_in_field`] (try then adjoin).
 pub fn algext_square_roots(u: &AlgExtData) -> Result<Vec<AlgExtData>, EvalError> {
     if u.is_zero() {
         return Ok(vec![AlgExtData::zero(Arc::clone(&u.field))]);

@@ -2,7 +2,19 @@
 //!
 //! Coefficients are lifted and aligned on **L**; `ambient` stays fixed for normalized
 //! polynomial input. See [FieldSession plan](../../../../.doc/issues/GIAC-poly-roots-field-session-plan.md).
-
+//!
+//! ## Session 契约（F4 / M4）
+//!
+//! | 不变量 | 规则 |
+//! |--------|------|
+//! | **ambient K** | 创建后不变；`normalize_coeffs` 将输入系数 embed 到 K |
+//! | **working L** | 单调扩域：`bump_to` / `lift` / `align` / `adjoin_*` 仅当新域 ⊇ 当前 L 时增大 L |
+//! | **checkpoint** | [`Self::checkpoint`] 快照 L；[`Self::restore`] 回退到快照（放弃更大分支） |
+//! | **lift / align** | 两操作数对齐到同一 **L** 后再算术；`align` 后 `bump_to` 到公共超域 |
+//! | **开方 / adjoin** | 生产路径经 [`Self::sqrt_in_field`]（先 [`Self::try_sqrt_in_field`] → [`ExtensionField::try_square_root_in_field`]）；[`Self::adjoin_sqrt_new`] 仅 blind fallback |
+//!
+//! 四次 `t⁴+t+1` 维数门禁（CI 默认）：resolvent 阶段 `dim(L)≤6`；全流程分裂域硬顶 `dim(L)≤24`
+//!（S₄）；见 `poly_roots::tests::field_session_dimension_bound_quartic`。
 //!
 //! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
 //! full module index in `.doc/giac-core-algebra-api-stability.md`.
@@ -19,10 +31,10 @@ use num_traits::One;
 
 use crate::error::EvalError;
 
-use super::alg_ext::{algext_cube_root, algext_square_roots, AlgExtData};
+use super::alg_ext::{algext_cube_root, AlgExtData};
 use super::alg_ext_c::AlgExtCData;
 use super::ext_tower::{self, AlignedElements, CommonCache, ExtensionField};
-use super::field_arith::{coords_to_expr, poly_degree, trim_leading_zero, CoordsQ};
+use super::field_arith::{coords_to_expr, poly_degree, rationalize_poly1, trim_leading_zero, CoordsQ, pad_to_len};
 use super::poly_alg_coeff::AlgExtCPolyCoeff;
 
 type AdjoinCache = HashMap<Vec<u8>, Arc<ExtensionField>>;
@@ -143,6 +155,11 @@ impl FieldSession {
         parent: &Arc<ExtensionField>,
         layer_blocks: Vec<CoordsQ>,
     ) -> Result<Arc<ExtensionField>, EvalError> {
+        if !parent.parent_coeff_ring_capable() {
+            return Err(EvalError::TypeError(
+                "parent not suitable for parent-coeff adjoin",
+            ));
+        }
         if parent.is_base() {
             return Err(EvalError::TypeError(
                 "parent-coeff adjoin requires nontrivial parent",
@@ -164,6 +181,16 @@ impl FieldSession {
             .borrow_mut()
             .insert(key, Arc::clone(&field));
         Ok(field)
+    }
+
+    /// Adjoin a layer over current **L** with parent-field minpoly coefficients.
+    /// **Stable (bounded)** — parent-coeff adjoin on working field
+    pub fn adjoin_parent_coeff_layer(
+        &self,
+        layer_blocks: Vec<CoordsQ>,
+    ) -> Result<Arc<ExtensionField>, EvalError> {
+        let parent = self.working();
+        self.adjoin_irreducible_parent_coeffs(&parent, layer_blocks)
     }
 
     pub(crate) fn adjoin_cache_len(&self) -> usize {
@@ -307,8 +334,7 @@ impl FieldSession {
 
     /// Canonical principal square root on **L** (may extend the tower).
     ///
-    /// ℚ negative → i√|u|; real u → adjoin x²−u (or u²−u over K); see `sqrt_euler_options`
-    /// when Euler needs both real and i·√(−u) candidates.
+    /// ℚ negative → i√|u|; real u → [`sqrt_in_field`].
     /// **Stable (bounded)** — principal sqrt on working field
     pub fn sqrt_principal(&self, u: &AlgExtCPolyCoeff) -> Result<AlgExtCPolyCoeff, EvalError> {
         let u = self.lift(u)?;
@@ -317,28 +343,91 @@ impl FieldSession {
         }
         if is_negative_rational(&u) {
             let abs = self.neg(&u)?;
-            let beta = self.adjoin_sqrt(&abs)?;
+            let beta = self.sqrt_in_field(&abs)?;
             return self.mul_formal_i(&beta);
         }
-        self.adjoin_sqrt(&u)
+        self.sqrt_in_field(&u)
+    }
+
+    /// Return ε ∈ **L** with ε² ≡ u, adjoining only when u is not already a square in L.
+    /// **Stable (bounded)** — sqrt in field or adjoin
+    pub fn sqrt_in_field(&self, u: &AlgExtCPolyCoeff) -> Result<AlgExtCPolyCoeff, EvalError> {
+        let u = self.lift(u)?;
+        if let Some(beta) = self.try_sqrt_in_field(&u)? {
+            let sq = self.mul(&beta, &beta)?;
+            let (sq_a, u_a) = self.align(&sq, &u)?;
+            debug_assert!(
+                sq_a.coeff_sub(&u_a).unwrap().coeff_is_zero(),
+                "sqrt_in_field: beta^2 must eq_mod u"
+            );
+            return Ok(beta);
+        }
+        self.adjoin_sqrt_new(&u)
+    }
+
+    /// If u is a square in **L**, return some square root (no tower extension).
+    /// Delegates to [`ExtensionField::try_square_root_in_field`] on **L**.
+    /// **Stable (bounded)** — try existing square root
+    pub fn try_sqrt_in_field(
+        &self,
+        u: &AlgExtCPolyCoeff,
+    ) -> Result<Option<AlgExtCPolyCoeff>, EvalError> {
+        let u = self.lift(u)?;
+        let inner = u.as_inner();
+        if !inner.im.iter().all(|e| e.is_zero()) {
+            return Ok(None);
+        }
+        if u.coeff_is_zero() {
+            return Ok(Some(self.zero()));
+        }
+        let field = self.working();
+        let re = rationalize_poly1(&inner.re)?;
+        let coords = pad_to_len(&re, field.dimension());
+        if let Some(root_coords) = ExtensionField::try_square_root_in_field(&field, &coords)? {
+            let beta = AlgExtData::from_field_coords(
+                Arc::clone(&field),
+                coords_to_expr(&root_coords)?,
+            )?;
+            return Ok(Some(AlgExtCPolyCoeff::from(AlgExtCData::from_alg_ext(&beta)?)));
+        }
+        Ok(None)
     }
 
     /// Adjoin √u (real part) and return a square root generator in **L**.
     /// **Stable (bounded)** — adjoin sqrt primitive
     pub fn adjoin_sqrt(&self, u: &AlgExtCPolyCoeff) -> Result<AlgExtCPolyCoeff, EvalError> {
+        self.sqrt_in_field(u)
+    }
+
+    /// Always adjoin a new √u layer (skips [`Self::try_sqrt_in_field`]).
+    /// **Pipeline private** — blind adjoin sqrt
+    pub(crate) fn adjoin_sqrt_new(
+        &self,
+        u: &AlgExtCPolyCoeff,
+    ) -> Result<AlgExtCPolyCoeff, EvalError> {
         let u = self.lift(u)?;
         let inner = u.as_inner();
         if !inner.im.iter().all(|e| e.is_zero()) {
             return Err(EvalError::NotImplemented("adjoin_sqrt complex"));
         }
-        let re = AlgExtData::from_field_coords(Arc::clone(&inner.field), inner.re.clone())?;
-        let mut roots = algext_square_roots(&re)?;
-        let beta = roots
-            .pop()
-            .ok_or(EvalError::NotImplemented("adjoin_sqrt empty"))?;
-        let out = AlgExtCPolyCoeff::from(AlgExtCData::from_alg_ext(&beta)?);
-        self.bump_to(&out.as_inner().field);
-        Ok(out)
+        let parent = self.working();
+        let sqrt_field = if parent.is_base() {
+            let re = rationalize_poly1(&inner.re)?;
+            let u_val = pad_to_len(&re, 1)[0].clone();
+            self.adjoin_irreducible(
+                &parent,
+                vec![Ratio::one(), Ratio::from_integer(0.into()), -u_val],
+            )?
+        } else {
+            let one = parent.one_coords();
+            let zero = parent.zero_coords();
+            let u_coords = coords_in_field(self, &u, &parent)?;
+            let neg = parent.element_neg(&u_coords)?;
+            self.adjoin_parent_coeff_layer(vec![one, zero, neg])?
+        };
+        let beta = coeff_from_coords(&sqrt_field, &sqrt_field.generator_coords())?;
+        self.bump_to(&sqrt_field);
+        Ok(beta)
     }
 
     /// Adjoin ∛u (real part) and return a cube root generator in **L**.
@@ -378,6 +467,18 @@ impl FieldSession {
         let out = AlgExtCPolyCoeff::from(AlgExtCData::from_alg_ext(&omega)?);
         self.bump_to(&out.as_inner().field);
         Ok(out)
+    }
+
+    /// Snapshot current **L** for later [`Self::restore`].
+    /// **Stable (bounded)** — working-field checkpoint
+    pub fn checkpoint(&self) -> Arc<ExtensionField> {
+        self.working()
+    }
+
+    /// Reset **L** to a prior [`Self::checkpoint`] (abandons extensions after that point).
+    /// **Pipeline private** — restore working field
+    pub(crate) fn restore(&self, field: &Arc<ExtensionField>) {
+        self.set_working(field);
     }
 
     /// Reset **L** to a prior checkpoint (Euler branch search).
@@ -473,6 +574,33 @@ fn is_negative_rational(c: &AlgExtCPolyCoeff) -> bool {
     pad_to_len(&re, 1)[0] < Ratio::zero()
 }
 
+// **Pipeline private** — embed real coeff coords into `target`.
+fn coords_in_field(
+    session: &FieldSession,
+    c: &AlgExtCPolyCoeff,
+    target: &Arc<ExtensionField>,
+) -> Result<CoordsQ, EvalError> {
+    let inner = c.as_inner();
+    if !inner.im.iter().all(|e| e.is_zero()) {
+        return Err(EvalError::TypeError("expected real coefficient"));
+    }
+    let re = rationalize_poly1(&inner.re)?;
+    let aligned = session.align_elements(&inner.field, &re, target, &target.zero_coords())?;
+    Ok(pad_to_len(&aligned.left, target.dimension()))
+}
+
+// **Pipeline private** — embed coords as coeff in `field`.
+fn coeff_from_coords(
+    field: &Arc<ExtensionField>,
+    coords: &CoordsQ,
+) -> Result<AlgExtCPolyCoeff, EvalError> {
+    let data = AlgExtData::from_field_coords(
+        Arc::clone(field),
+        coords_to_expr(&pad_to_len(coords, field.dimension()))?,
+    )?;
+    Ok(AlgExtCPolyCoeff::from(AlgExtCData::from_alg_ext(&data)?))
+}
+
 #[cfg(test)]
 mod tests {
     use giac_poly::PolyCoeff;
@@ -525,7 +653,7 @@ mod tests {
     }
 
     #[test]
-    fn adjoin_sqrt_matches_algext_square_roots() {
+    fn adjoin_sqrt_matches_sqrt_layer() {
         let k1 = k1_adjoin_sqrt2();
         let mut session = FieldSession::new(Arc::clone(&k1));
         let sqrt2 = AlgExtCPolyCoeff::from(
@@ -537,6 +665,67 @@ mod tests {
         let sq = session.mul(&beta, &beta).unwrap();
         let (sq_a, u_a) = session.align(&sq, &u).unwrap();
         assert!(sq_a.coeff_sub(&u_a).unwrap().coeff_is_zero());
+    }
+
+    #[test]
+    fn adjoin_parent_coeff_quadratic_with_linear_term() {
+        let k1 = k1_adjoin_sqrt2();
+        let session = FieldSession::new(Arc::clone(&k1));
+        let one = k1.one_coords();
+        let sqrt2 = k1.generator_coords();
+        let three = k1.embed_rational(&Ratio::from_integer(3.into()));
+        let field = session
+            .adjoin_parent_coeff_layer(vec![one, sqrt2, three])
+            .unwrap();
+        session.bump_to(&field);
+        let beta = coeff_from_coords(&field, &field.generator_coords()).unwrap();
+        let beta2 = session.mul(&beta, &beta).unwrap();
+        let sqrt2 = AlgExtCPolyCoeff::from(
+            AlgExtCData::from_alg_ext(&sqrt2_algext()).unwrap(),
+        );
+        let linear = session.mul(&sqrt2, &beta).unwrap();
+        let three = session.int(3).unwrap();
+        let sum = session
+            .add(&session.add(&beta2, &linear).unwrap(), &three)
+            .unwrap();
+        assert!(
+            sum.as_inner()
+                .eq_mod(session.zero().as_inner())
+                .unwrap_or(false),
+            "generator must satisfy beta^2 + sqrt2*beta + 3"
+        );
+    }
+
+    #[test]
+    fn adjoin_quadratic_over_parent_coeff_cubic_parent() {
+        let k1 = k1_adjoin_sqrt2();
+        let session = FieldSession::new(Arc::clone(&k1));
+        let one = k1.one_coords();
+        let zero = k1.zero_coords();
+        let sqrt2 = k1.generator_coords();
+        let cubic = session
+            .adjoin_parent_coeff_layer(vec![one.clone(), zero, sqrt2, one])
+            .unwrap();
+        session.bump_to(&cubic);
+        let gamma = coeff_from_coords(&cubic, &cubic.generator_coords()).unwrap();
+        let gamma_coords = coords_in_field(&session, &gamma, &cubic).unwrap();
+        let three = cubic.embed_rational(&Ratio::from_integer(3.into()));
+        let quad = session
+            .adjoin_parent_coeff_layer(vec![cubic.one_coords(), gamma_coords, three])
+            .unwrap();
+        session.bump_to(&quad);
+        let beta = coeff_from_coords(&quad, &quad.generator_coords()).unwrap();
+        let beta2 = session.mul(&beta, &beta).unwrap();
+        let linear = session.mul(&gamma, &beta).unwrap();
+        let sum = session
+            .add(&session.add(&beta2, &linear).unwrap(), &session.int(3).unwrap())
+            .unwrap();
+        assert!(
+            sum.as_inner()
+                .eq_mod(session.zero().as_inner())
+                .unwrap_or(false),
+            "generator must satisfy beta^2 + gamma*beta + 3"
+        );
     }
 
     #[test]
@@ -560,5 +749,24 @@ mod tests {
         let sqrt2 = k1_adjoin_sqrt2();
         let _ = session.flatten_min_poly_over_q(&sqrt2).unwrap();
         assert_eq!(session.flatten_cache_len(), 0);
+    }
+
+    // **B** — F4: restore after adjoin abandons the expanded branch.
+    #[test]
+    fn set_working_restores_adjoin() {
+        let k1 = k1_adjoin_sqrt2();
+        let session = FieldSession::new(Arc::clone(&k1));
+        let cp = session.checkpoint();
+        let dim_cp = cp.dimension();
+        assert_eq!(dim_cp, 2);
+        let three = session.int(3).unwrap();
+        let _ = session.sqrt_in_field(&three).unwrap();
+        assert!(
+            session.working().dimension() > dim_cp,
+            "sqrt(3) over Q(sqrt2) should extend L"
+        );
+        session.restore(&cp);
+        assert_eq!(session.working().dimension(), dim_cp);
+        assert!(Arc::ptr_eq(&session.working(), &cp));
     }
 }

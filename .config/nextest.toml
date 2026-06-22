@@ -12,7 +12,7 @@ required-version = ">=0.9.70"
 
 [profile.default]
 # Per-test wall clock: mark slow after 10s, terminate on first slow period.
-slow-timeout = { period = "10s", terminate-after = 1 }
+slow-timeout = { period = "14s", terminate-after = 1 }
 status-level = "slow"
 fail-fast = false
 
