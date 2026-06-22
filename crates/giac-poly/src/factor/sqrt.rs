@@ -12,7 +12,7 @@ use num_traits::{One, Zero};
 
 use crate::monomial::Var;
 use crate::poly::Poly;
-use crate::resultant::{univariate_degree};
+use crate::resultant::{quadratic_abc, univariate_degree};
 
 use super::util::{ratio_perfect_sqrt, vars_in};
 
@@ -26,23 +26,7 @@ pub fn quadratic_sqrt_factor_exprs(
         return None;
     }
     let var = &vars[0];
-    if univariate_degree(p, var) != 2 {
-        return None;
-    }
-    let mut a = Ratio::zero();
-    let mut b = Ratio::zero();
-    let mut c = Ratio::zero();
-    for (m, coeff) in &p.terms {
-        match m.exp_of(var) {
-            2 => a += coeff,
-            1 => b += coeff,
-            0 => c += coeff,
-            _ => return None,
-        }
-    }
-    if a.is_zero() {
-        return None;
-    }
+    let (a, b, c) = quadratic_abc(p, var)?;
     let disc = &b * &b - Ratio::from_integer(BigInt::from(4)) * &a * &c;
     if disc.is_zero() || ratio_perfect_sqrt(&disc).is_some() {
         return None;

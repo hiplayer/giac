@@ -17,6 +17,8 @@ use giac_core::{
     bigint_to_i64, EvalError, Expr, ExprArc, FuncKind, Ident,
 };
 
+use crate::expr_util::is_var;
+
 /// **Stable** — symbolic differentiation (GIAC-113 / `giac-calculus`).
 pub fn diff(expr: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
     match expr.as_ref() {
@@ -162,11 +164,6 @@ fn diff_tan(arg: &ExprArc, var: &Ident) -> Result<ExprArc, EvalError> {
         diff(arg, var)?,
         Expr::pow(cos, Expr::int(-2)),
     ]))
-}
-
-// **Pipeline private** — syntactic equality with `var`.
-fn is_var(e: &ExprArc, var: &Ident) -> bool {
-    matches!(e.as_ref(), Expr::Symbol(id) if id == var)
 }
 
 // **Pipeline private** — syntactic constness w.r.t. `var` (local copy).

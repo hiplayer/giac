@@ -15,7 +15,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use giac_core::{
-    bigint_to_i64, eval, eval_subst_map, Context, EvalError, Expr, ExprArc, FuncKind, Ident,
+    bigint_to_i64, eval, eval_subst_map, ident_from_expr, is_ln_of_var, is_sin_of_var, is_var,
+    Context, EvalError, Expr, ExprArc, FuncKind, Ident,
 };
 use num_bigint::BigInt;
 use num_traits::{Zero};
@@ -70,14 +71,6 @@ fn classify_limit_point(e: &ExprArc) -> Result<LimitPoint, EvalError> {
             Ok(LimitPoint::Finite)
         }
         _ => Ok(LimitPoint::Finite),
-    }
-}
-
-// **Pipeline private** — extract variable name from `Expr::Symbol`.
-fn ident_from_expr(e: &Expr) -> Result<Ident, EvalError> {
-    match e {
-        Expr::Symbol(id) => Ok(id.clone()),
-        _ => Err(EvalError::TypeError("variable name expected")),
     }
 }
 
@@ -265,21 +258,6 @@ fn is_one_plus_reciprocal_var(e: &ExprArc, var: &Ident) -> bool {
         }
         _ => false,
     }
-}
-
-// **Pipeline private** — syntactic equality with `var`.
-fn is_var(e: &ExprArc, var: &Ident) -> bool {
-    matches!(e.as_ref(), Expr::Symbol(id) if id == var)
-}
-
-// **Pipeline private** — detect `sin(var)`.
-fn is_sin_of_var(e: &ExprArc, var: &Ident) -> bool {
-    matches!(e.as_ref(), Expr::Func(FuncKind::Sin, args) if args.len() == 1 && is_var(&args[0], var))
-}
-
-// **Pipeline private** — detect `ln(var)`.
-fn is_ln_of_var(e: &ExprArc, var: &Ident) -> bool {
-    matches!(e.as_ref(), Expr::Func(FuncKind::Ln, args) if args.len() == 1 && is_var(&args[0], var))
 }
 
 // **Pipeline private** — detect `var^2`.

@@ -182,11 +182,14 @@ pub fn roots(p: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
     }
 }
 
-// **Pipeline private** — `quadratic_coeffs`
-fn quadratic_coeffs(
+/// Coefficients `(a, b, c)` of `a·var² + b·var + c`; `None` if not quadratic or `a = 0`.
+pub fn quadratic_abc(
     p: &Poly,
     var: &Var,
-) -> Result<(Ratio<BigInt>, Ratio<BigInt>, Ratio<BigInt>), EvalError> {
+) -> Option<(Ratio<BigInt>, Ratio<BigInt>, Ratio<BigInt>)> {
+    if univariate_degree(p, var) != 2 {
+        return None;
+    }
     let mut a = Ratio::zero();
     let mut b = Ratio::zero();
     let mut c = Ratio::zero();
@@ -195,13 +198,21 @@ fn quadratic_coeffs(
             2 => a += coeff,
             1 => b += coeff,
             0 => c += coeff,
-            _ => return Err(EvalError::TypeError("not quadratic")),
+            _ => return None,
         }
     }
     if a.is_zero() {
-        return Err(EvalError::TypeError("not quadratic"));
+        return None;
     }
-    Ok((a, b, c))
+    Some((a, b, c))
+}
+
+// **Pipeline private** — `quadratic_coeffs`
+fn quadratic_coeffs(
+    p: &Poly,
+    var: &Var,
+) -> Result<(Ratio<BigInt>, Ratio<BigInt>, Ratio<BigInt>), EvalError> {
+    quadratic_abc(p, var).ok_or(EvalError::TypeError("not quadratic"))
 }
 
 // **Pipeline private** — `ratio_is_perfect_square`
@@ -323,6 +334,17 @@ mod tests {
         let b = x().pow(2).sub(&Poly::one());
         let r = resultant(&a, &b, &Var::from("x")).unwrap();
         assert_eq!(r, Poly::constant(Ratio::from_integer(BigInt::from(4))));
+    }
+
+    #[test]
+    fn quadratic_abc_x2_minus_2() {
+        let x = Var::from("x");
+        let mut p = Poly::var(x.clone()).pow(2);
+        p = p.sub(&Poly::constant(Ratio::from_integer(BigInt::from(2))));
+        let (a, b, c) = quadratic_abc(&p, &x).unwrap();
+        assert_eq!(a, Ratio::one());
+        assert!(b.is_zero());
+        assert_eq!(c, Ratio::from_integer(BigInt::from(-2)));
     }
 
     #[test]

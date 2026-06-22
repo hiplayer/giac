@@ -25,6 +25,7 @@ use num_rational::Ratio;
 use num_traits::{One, Signed, Zero};
 
 use super::bounds::{mrv_limit_eligible, too_heavy_for_expand, MAX_SERIES_EXPANSION_ORDER};
+use super::util::is_half_exponent;
 use super::exp_diff::{
     classify_exp_at_plus_infinity, classify_signed_exp_at_plus_infinity, simplify_add_sum,
     unwrap_signed_frac,
@@ -37,7 +38,7 @@ use super::simplify_util::simplify_limit_expr;
 use super::sparse_series::series_at_zero_order;
 
 use crate::integrate::try_as_rational;
-use crate::expr_util::depends_on_var;
+use crate::expr_util::{depends_on_var, is_var, var_to_expr};
 
 const ASYM_U: &str = "_asym_u";
 const MAX_PUMP: i64 = 12;
@@ -690,11 +691,6 @@ fn limit_rational_leading_at_infinity(
     Some(ratio_to_expr(&ratio))
 }
 
-// **Pipeline private** — is var
-fn is_var(e: &ExprArc, var: &Ident) -> bool {
-    matches!(e.as_ref(), Expr::Symbol(id) if id == var)
-}
-
 // **Pipeline private** — is sqrt
 fn is_sqrt(e: &ExprArc) -> bool {
     matches!(e.as_ref(), Expr::Func(giac_core::FuncKind::Sqrt, args) if args.len() == 1)
@@ -1120,17 +1116,6 @@ fn is_u_var(e: &ExprArc, u: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Symbol(id) if id == u)
 }
 
-// **Pipeline private** — is half exponent
-fn is_half_exponent(exp: &ExprArc) -> bool {
-    matches!(exp.as_ref(), Expr::Rat(r) if *r == Ratio::new(1.into(), 2.into()))
-        || matches!(
-            exp.as_ref(),
-            Expr::Frac(n, d)
-                if matches!(n.as_ref(), Expr::Int(nn) if nn.is_one())
-                    && matches!(d.as_ref(), Expr::Int(dd) if dd == &BigInt::from(2))
-        )
-}
-
 // **Pipeline private** — is one plus u inv sq
 fn is_one_plus_u_inv_sq(b: &ExprArc, u: &Ident) -> bool {
     let Expr::Add(ts) = b.as_ref() else {
@@ -1247,11 +1232,6 @@ fn subst_map(var: &Ident, value: ExprArc) -> HashMap<Ident, ExprArc> {
     let mut m = HashMap::new();
     m.insert(var.clone(), value);
     m
-}
-
-// **Pipeline private** — var to expr
-fn var_to_expr(var: &Ident) -> ExprArc {
-    Expr::sym(var.as_str())
 }
 
 // **Pipeline private** — limit from rational laurent

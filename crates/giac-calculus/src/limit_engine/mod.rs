@@ -25,6 +25,7 @@ use num_rational::Ratio;
 use num_traits::{Signed, Zero};
 
 use crate::diff::diff;
+use crate::expr_util::{is_var, var_to_expr};
 use crate::integrate::try_as_rational;
 
 use bounds::too_heavy_for_expand;
@@ -32,6 +33,7 @@ use bounds::too_heavy_for_expand;
 const MAX_LHOPITAL: usize = 8;
 
 mod simplify_util;
+mod util;
 mod asymptotic;
 mod bounds;
 mod exp_diff;
@@ -308,11 +310,6 @@ pub(crate) fn limit_plus_infinity_algebraic(
     limit_via_reciprocal(expr, var, ctx)
 }
 
-// **Pipeline private** — is var
-fn is_var(e: &ExprArc, var: &Ident) -> bool {
-    matches!(e.as_ref(), Expr::Symbol(id) if id == var)
-}
-
 /// **Pipeline** — `-∞` 代数极限
 pub(crate) fn limit_minus_infinity_algebraic(
     expr: &ExprArc,
@@ -538,11 +535,6 @@ fn subst_map(var: &Ident, value: ExprArc) -> HashMap<Ident, ExprArc> {
     let mut m = HashMap::new();
     m.insert(var.clone(), value);
     m
-}
-
-// **Pipeline private** — var to expr
-fn var_to_expr(var: &Ident) -> ExprArc {
-    Expr::sym(var.as_str())
 }
 
 // **Pipeline private** — is zero

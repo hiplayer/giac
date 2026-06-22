@@ -16,7 +16,7 @@ use crate::error::{EvalError, PolyResult};
 use crate::monomial::Var;
 use crate::poly::Poly;
 use crate::nested::{FlatUni, MainVar};
-use crate::resultant::{coeff_at, univariate_degree};
+use crate::resultant::{coeff_at, quadratic_abc, univariate_degree};
 use crate::univariate::{eval_univariate_at, square_free_factorization};
 
 use super::power::as_perfect_power;
@@ -252,20 +252,9 @@ pub(crate) fn find_rational_root(p: &Poly, var: &Var) -> Option<Ratio<BigInt>> {
 
 // **Pipeline private** — `factor_quadratic`
 fn factor_quadratic(p: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
-    let mut a = Ratio::zero();
-    let mut b = Ratio::zero();
-    let mut c = Ratio::zero();
-    for (m, coeff) in &p.terms {
-        match m.exp_of(var) {
-            2 => a += coeff,
-            1 => b += coeff,
-            0 => c += coeff,
-            _ => return Err(EvalError::TypeError("not quadratic")),
-        }
-    }
-    if a.is_zero() {
+    let Some((a, b, c)) = quadratic_abc(p, var) else {
         return Ok(vec![p.clone()]);
-    }
+    };
     let disc = &b * &b - Ratio::from_integer(BigInt::from(4)) * &a * &c;
     if disc.is_zero() {
         let r = -&b / (Ratio::from_integer(BigInt::from(2)) * &a);

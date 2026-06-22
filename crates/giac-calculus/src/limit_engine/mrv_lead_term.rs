@@ -22,7 +22,7 @@ use giac_core::{
 use giac_simplify::ratnormal;
 use num_traits::{Signed, Zero};
 
-use crate::expr_util::depends_on_var;
+use crate::expr_util::{depends_on_var, is_var};
 use super::bounds::{
     mrv_limit_eligible, mrv_rewrite_bounded, MAX_SERIES_EXPANSION_ORDER, MAX_SERIES_ORDER,
 };
@@ -877,11 +877,6 @@ fn depends_on_w(e: &ExprArc, w: &Ident) -> bool {
         Expr::Func(_, args) => args.iter().any(|a| depends_on_w(a, w)),
         _ => false,
     }
-}
-
-// **Pipeline private** — is var
-fn is_var(e: &ExprArc, var: &Ident) -> bool {
-    matches!(e.as_ref(), Expr::Symbol(id) if id == var)
 }
 
 // **Pipeline private** — sign infinity

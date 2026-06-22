@@ -27,7 +27,7 @@ use giac_core::{Context, Expr, ExprArc, FuncKind, Ident};
 use num_bigint::BigInt;
 use num_traits::{One, Signed, Zero};
 
-use crate::expr_util::depends_on_var;
+use crate::expr_util::{depends_on_var, is_var};
 
 /// Normal form: `exp(scale_log) * (exp(epsilon) - 1)` [× optional complement].
 #[derive(Clone, Debug)]
@@ -1010,11 +1010,6 @@ pub(crate) fn epsilon_vanishes_at_plus_infinity(e: &ExprArc, var: &Ident) -> boo
 // **Pipeline private** — balance epsilon expr
 fn balance_epsilon_expr(e: &ExprArc, var: &Ident) -> ExprArc {
     try_balance_frac_minus_var(e, var).unwrap_or_else(|| Arc::clone(e))
-}
-
-// **Pipeline private** — is var
-fn is_var(e: &ExprArc, var: &Ident) -> bool {
-    matches!(e.as_ref(), Expr::Symbol(id) if id == var)
 }
 
 // **Pipeline private** — exp inner vanishes at plus infinity

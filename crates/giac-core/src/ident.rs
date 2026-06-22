@@ -1,6 +1,8 @@
 use std::fmt;
 use std::sync::Arc;
 
+use crate::{EvalError, Expr};
+
 /// A symbol name (variable or function).
 #[derive(Clone, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 pub struct Ident(Arc<str>);
@@ -31,6 +33,14 @@ impl From<&str> for Ident {
     }
 }
 
+/// Parse a single variable symbol from an expression leaf.
+pub fn ident_from_expr(e: &Expr) -> Result<Ident, EvalError> {
+    match e {
+        Expr::Symbol(id) => Ok(id.clone()),
+        _ => Err(EvalError::TypeError("variable name expected")),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -54,5 +64,12 @@ mod tests {
     fn ident_from_str() {
         let id: Ident = "y".into();
         assert_eq!(id.as_str(), "y");
+    }
+
+    #[test]
+    fn ident_from_expr_symbol() {
+        let id = ident_from_expr(Expr::sym("z").as_ref()).unwrap();
+        assert_eq!(id.as_str(), "z");
+        assert!(ident_from_expr(Expr::int(1).as_ref()).is_err());
     }
 }

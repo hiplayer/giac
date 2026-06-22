@@ -30,12 +30,13 @@ use num_traits::{One, Signed, Zero};
 
 use super::bounds::{MAX_SERIES_DEPTH, MAX_SERIES_EXPANSION_ORDER, MAX_SERIES_ORDER, MAX_SERIES_TERMS};
 use super::mrv_w::{
-    decompose_ln_w_coeff, decompose_mrv_coeff, is_expr_one, is_expr_zero as mrv_is_zero,
-    is_mrv_w_var, mrv_ln_w_expr, neg_ln_w_expr,
+    decompose_ln_w_coeff, decompose_mrv_coeff, is_expr_one, is_expr_zero, is_mrv_w_var,
+    mrv_ln_w_expr, neg_ln_w_expr,
 };
+use super::util::is_half_exponent;
 use super::remove_lnexp::{expr_contains_exp_or_ln, remove_lnexp};
 use crate::integrate::try_as_rational;
-use crate::expr_util::depends_on_var;
+use crate::expr_util::{depends_on_var, var_to_expr};
 
 /// `sum coeff * var^exponent` with integer exponents, sorted ascending.
 #[derive(Clone, Debug, Default)]
@@ -671,7 +672,7 @@ fn series_exp_mrv_positive(
             terms: vec![(k, Expr::int(1))],
         }
     };
-    let exp_a = if mrv_is_zero(&a_rest) || is_expr_one(&a_rest) {
+    let exp_a = if is_expr_zero(&a_rest) || is_expr_one(&a_rest) {
         SparseSeries::constant(Expr::int(1))
     } else {
         SparseSeries::constant(Expr::func(FuncKind::Exp, vec![a_rest]))
@@ -705,7 +706,7 @@ fn series_ln_mrv(arg: &SparseSeries, order: usize, ctx: &Context) -> Result<Spar
         if total_k != 0 {
             parts.push(Expr::mul(vec![Expr::int(i64::from(total_k)), mrv_ln_w_expr()]));
         }
-        if !is_expr_one(&c_rest) && !mrv_is_zero(&c_rest) {
+        if !is_expr_one(&c_rest) && !is_expr_zero(&c_rest) {
             parts.push(Expr::func(FuncKind::Ln, vec![c_rest]));
         }
         if parts.is_empty() {
@@ -719,7 +720,7 @@ fn series_ln_mrv(arg: &SparseSeries, order: usize, ctx: &Context) -> Result<Spar
         if k != 0 {
             parts.push(Expr::mul(vec![Expr::int(i64::from(k)), mrv_ln_w_expr()]));
         }
-        if !is_expr_one(&rest) && !mrv_is_zero(&rest) {
+        if !is_expr_one(&rest) && !is_expr_zero(&rest) {
             parts.push(Expr::func(FuncKind::Ln, vec![rest]));
         }
         if parts.is_empty() {
@@ -923,16 +924,6 @@ fn factorial(n: usize) -> Result<i64, EvalError> {
     Ok(acc)
 }
 
-// **Pipeline private** — var to expr
-fn var_to_expr(var: &Ident) -> ExprArc {
-    Expr::sym(var.as_str())
-}
-
-// **Pipeline private** — is expr zero
-fn is_expr_zero(e: &ExprArc) -> bool {
-    matches!(e.as_ref(), Expr::Int(n) if n.is_zero())
-}
-
 // **Pipeline private** — is series var
 fn is_series_var(e: &ExprArc, var: &Ident) -> bool {
     matches!(e.as_ref(), Expr::Symbol(id) if id == var)
@@ -942,19 +933,6 @@ fn is_series_var(e: &ExprArc, var: &Ident) -> bool {
 fn arg_has_symbolic_ln_w(arg: &SparseSeries) -> bool {
     arg.iter_terms()
         .any(|(_, c)| decompose_mrv_coeff(c).pending_for_series())
-}
-
-// **Pipeline private** — is half exponent
-fn is_half_exponent(exp: &ExprArc) -> bool {
-    use num_bigint::BigInt;
-    use num_rational::Ratio;
-    matches!(exp.as_ref(), Expr::Rat(r) if *r == Ratio::new(1.into(), 2.into()))
-        || matches!(
-            exp.as_ref(),
-            Expr::Frac(n, d)
-                if matches!(n.as_ref(), Expr::Int(nn) if nn.is_one())
-                    && matches!(d.as_ref(), Expr::Int(dd) if dd == &BigInt::from(2))
-        )
 }
 
 // **Pipeline private** — is mrv symbolic pow

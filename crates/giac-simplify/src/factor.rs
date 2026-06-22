@@ -9,7 +9,7 @@ use num_rational::Ratio;
 use num_traits::{One, Signed, Zero};
 
 use giac_core::{Context, EvalError, Expr, ExprArc, FuncKind};
-use giac_poly::{factor_into, factor_poly, ratio_perfect_sqrt, univariate_degree, vars_in, coeff_at};
+use giac_poly::{factor_into, factor_poly, quadratic_abc, ratio_perfect_sqrt, vars_in};
 use giac_poly::Poly;
 
 use crate::ifactor::ifactor;
@@ -119,23 +119,7 @@ fn try_factor_quadratic_rootof(p: &Poly) -> Option<Vec<ExprArc>> {
         return None;
     }
     let var = &vars[0];
-    if univariate_degree(p, var) != 2 {
-        return None;
-    }
-    let mut a = Ratio::zero();
-    let mut b = Ratio::zero();
-    let mut c = Ratio::zero();
-    for (m, coeff) in &p.terms {
-        match m.exp_of(var) {
-            2 => a += coeff,
-            1 => b += coeff,
-            0 => c += coeff,
-            _ => return None,
-        }
-    }
-    if a.is_zero() {
-        return None;
-    }
+    let (a, b, c) = quadratic_abc(p, var)?;
     let disc = &b * &b - Ratio::from_integer(BigInt::from(4)) * &a * &c;
     if disc.is_zero() || ratio_perfect_sqrt(&disc).is_some() {
         return None;
@@ -171,23 +155,7 @@ fn try_factor_quadratic_sqrt(p: &Poly) -> Option<Vec<ExprArc>> {
         return None;
     }
     let var = &vars[0];
-    if univariate_degree(p, var) != 2 {
-        return None;
-    }
-    let mut a = Ratio::zero();
-    let mut b = Ratio::zero();
-    let mut c = Ratio::zero();
-    for (m, coeff) in &p.terms {
-        match m.exp_of(var) {
-            2 => a += coeff,
-            1 => b += coeff,
-            0 => c += coeff,
-            _ => return None,
-        }
-    }
-    if a.is_zero() {
-        return None;
-    }
+    let (a, b, c) = quadratic_abc(p, var)?;
     let disc = &b * &b - Ratio::from_integer(BigInt::from(4)) * &a * &c;
     if disc.is_zero() {
         return None;

@@ -18,6 +18,7 @@ use std::sync::Arc;
 use giac_core::{bigint_to_i64, Expr, ExprArc, FuncKind, Ident, Context};
 use num_traits::{Signed, ToPrimitive};
 
+use crate::expr_util::{is_var, var_to_expr};
 use crate::expr_util::depends_on_var;
 use super::simplify_util::{int_pow_growth_sub_rank, is_negative_const_expr as is_neg_const};
 #[derive(Clone, Debug, Default)]
@@ -638,16 +639,6 @@ fn expr_size(e: &ExprArc) -> usize {
         Expr::Func(_, args) => 1 + args.iter().map(expr_size).sum::<usize>(),
         _ => 1,
     }
-}
-
-// **Pipeline private** — is var
-fn is_var(e: &ExprArc, var: &Ident) -> bool {
-    matches!(e.as_ref(), Expr::Symbol(id) if id == var)
-}
-
-// **Pipeline private** — var to expr
-fn var_to_expr(var: &Ident) -> ExprArc {
-    Expr::sym(var.as_str())
 }
 
 #[cfg(test)]

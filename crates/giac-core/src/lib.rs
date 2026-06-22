@@ -5,6 +5,7 @@
 mod algebra;
 mod algebra_plugin;
 mod context;
+mod expr_shape;
 mod display;
 mod error;
 mod eval;
@@ -31,7 +32,10 @@ pub use error::EvalError;
 pub use eval::{eval, eval_subst_map};
 pub use expr::{Expr, ExprArc, FuncKind, RelOp};
 pub use float_format::format_float;
-pub use ident::Ident;
+pub use expr_shape::{
+    is_cos_of_var, is_ln_of_var, is_sin_of_var, is_sin_of_var_expr, is_var, is_var_expr, var_to_expr,
+};
+pub use ident::{ident_from_expr, Ident};
 pub use limits::MAX_POLY_EXPONENT;
 pub use algebra_plugin::AlgebraPlugin;
 pub use calculus_plugin::CalculusPlugin;
@@ -47,7 +51,7 @@ pub use algebra::alg_ext_c::{canonicalize_to_algext_c, AlgExtCData};
 pub use algebra::ext_tower::{AlignedElements, CommonFieldPair, ExtensionField, ExtensionTower, FieldEmbedding};
 pub use algebra::poly::{
     algext_poly_to_expr, expr_contains_alg_coeff, expr_to_poly, poly_alg_from_expr,
-    poly_mod_to_expr, poly_to_expr, univariate_poly_to_poly1_expr, ratio_to_expr, vars_from_expr,
+    poly_algext_from_poly, poly_mod_to_expr, poly_to_expr, univariate_poly_to_poly1_expr, ratio_to_expr, vars_from_expr,
     PolyAlgExt,
 };
 pub use algebra::poly_alg_coeff::AlgExtCPolyCoeff;

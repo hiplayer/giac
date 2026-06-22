@@ -101,6 +101,37 @@ impl FieldSession {
         Ok((AlgExtCPolyCoeff::from(aa), AlgExtCPolyCoeff::from(bb)))
     }
 
+    /// Formal i·z with z ∈ K embedded in current **L** (i² = −1, not adjoined to the tower).
+    /// **Stable (bounded)** — multiply by formal i
+    pub fn mul_formal_i(&mut self, z: &AlgExtCPolyCoeff) -> Result<AlgExtCPolyCoeff, EvalError> {
+        let z = self.lift(z)?;
+        let inner = z.as_inner();
+        Ok(AlgExtCPolyCoeff::from(AlgExtCData {
+            field: Arc::clone(&inner.field),
+            re: coords_to_expr(&inner.field.zero_coords())?,
+            im: inner.re.clone(),
+            root_index: None,
+        }))
+    }
+
+    /// Canonical principal square root on **L** (may extend the tower).
+    ///
+    /// ℚ negative → i√|u|; real u → adjoin x²−u (or u²−u over K); see `sqrt_euler_options`
+    /// when Euler needs both real and i·√(−u) candidates.
+    /// **Stable (bounded)** — principal sqrt on working field
+    pub fn sqrt_principal(&mut self, u: &AlgExtCPolyCoeff) -> Result<AlgExtCPolyCoeff, EvalError> {
+        let u = self.lift(u)?;
+        if u.coeff_is_zero() {
+            return Ok(self.zero());
+        }
+        if is_negative_rational(&u) {
+            let abs = self.neg(&u)?;
+            let beta = self.adjoin_sqrt(&abs)?;
+            return self.mul_formal_i(&beta);
+        }
+        self.adjoin_sqrt(&u)
+    }
+
     /// Adjoin √u (real part) and return a square root generator in **L**.
     /// **Stable (bounded)** — adjoin sqrt primitive
     pub fn adjoin_sqrt(&mut self, u: &AlgExtCPolyCoeff) -> Result<AlgExtCPolyCoeff, EvalError> {
@@ -156,6 +187,12 @@ impl FieldSession {
         let out = AlgExtCPolyCoeff::from(AlgExtCData::from_alg_ext(&omega)?);
         self.bump_to(&out.as_inner().field);
         Ok(out)
+    }
+
+    /// Reset **L** to a prior checkpoint (Euler branch search).
+    /// **Pipeline private** — `set_working`
+    pub(crate) fn set_working(&mut self, field: &Arc<ExtensionField>) {
+        self.working = Arc::clone(field);
     }
 
     /// **Stable** — add with auto-align
@@ -224,6 +261,24 @@ fn coeff_in_field(
     f: impl FnOnce(&Arc<ExtensionField>) -> AlgExtCData,
 ) -> AlgExtCPolyCoeff {
     AlgExtCPolyCoeff::from(f(field))
+}
+
+// **Pipeline private** — negative constant in ℚ ⊂ K
+fn is_negative_rational(c: &AlgExtCPolyCoeff) -> bool {
+    use super::field_arith::{pad_to_len, rationalize_poly1};
+    use num_traits::Zero;
+
+    let inner = c.as_inner();
+    if !inner.im.iter().all(|e| e.is_zero()) {
+        return false;
+    }
+    let Ok(re) = rationalize_poly1(&inner.re) else {
+        return false;
+    };
+    if inner.field.dimension() != 1 {
+        return false;
+    }
+    pad_to_len(&re, 1)[0] < Ratio::zero()
 }
 
 #[cfg(test)]

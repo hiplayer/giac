@@ -15,7 +15,7 @@ use std::sync::Arc;
 
 use giac_core::{Expr, ExprArc, FuncKind, Ident};
 
-use crate::expr_util::depends_on_var;
+use crate::expr_util::{depends_on_var, is_var};
 use super::pow2expln::pow2expln;
 
 #[derive(Debug, Clone, PartialEq, Eq)]
@@ -123,11 +123,6 @@ fn contains_non_elementary_transcendental(e: &ExprArc, var: &Ident) -> bool {
         Expr::Symbol(_) | Expr::Int(_) | Expr::Rat(_) => false,
         _ => false,
     }
-}
-
-// **Pipeline private** — symbol equals integration variable.
-fn is_var(e: &ExprArc, var: &Ident) -> bool {
-    matches!(e.as_ref(), Expr::Symbol(id) if id == var)
 }
 
 // **Pipeline private** — append extension atom if not already present.

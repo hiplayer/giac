@@ -23,6 +23,7 @@ use num_traits::{One, Signed};
 use giac_simplify::{normal, ratnormal};
 
 use crate::risch::pow2expln;
+use super::util::is_half_exponent;
 
 use super::exp_diff::{
     algebraize_exp_vanishing_products, balance_exp_arguments_frac_var, first_order_exp_vanishing_epsilon,
@@ -105,17 +106,6 @@ pub(crate) fn surd2pow(expr: &ExprArc) -> ExprArc {
         Expr::Func(k, args) => Expr::func(*k, args.iter().map(surd2pow).collect()),
         _ => Arc::clone(expr),
     }
-}
-
-// **Pipeline private** — is half exponent
-fn is_half_exponent(exp: &ExprArc) -> bool {
-    matches!(exp.as_ref(), Expr::Rat(r) if *r == Ratio::new(1.into(), 2.into()))
-        || matches!(
-            exp.as_ref(),
-            Expr::Frac(n, d)
-                if matches!(n.as_ref(), Expr::Int(nn) if nn.is_one())
-                    && matches!(d.as_ref(), Expr::Int(dd) if dd == &BigInt::from(2))
-        )
 }
 
 // **Pipeline private** — sqrt operand

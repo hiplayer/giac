@@ -4,7 +4,8 @@
 use std::sync::Arc;
 
 use giac_core::{
-    eval, bigint_to_i64, ratio_to_expr, Context, EvalError, Expr, ExprArc, FuncKind, Ident, RelOp,
+    eval, bigint_to_i64, is_sin_of_var, ratio_to_expr, Context, EvalError, Expr, ExprArc, FuncKind,
+    Ident, RelOp,
 };
 use num_bigint::BigInt;
 use num_rational::Ratio;
@@ -425,16 +426,6 @@ fn integer_sqrt(n: &BigInt) -> Option<BigInt> {
 // **Pipeline private** — `is_zero_expr`
 fn is_zero_expr(e: &ExprArc) -> bool {
     matches!(e.as_ref(), Expr::Int(n) if n.is_zero())
-}
-
-// **Pipeline private** — `is_sin_of_var`
-fn is_sin_of_var(e: &ExprArc, indep: &Ident) -> bool {
-    matches!(
-        e.as_ref(),
-        Expr::Func(FuncKind::Sin, args)
-            if args.len() == 1
-                && matches!(args[0].as_ref(), Expr::Symbol(id) if id.as_str() == indep.as_str())
-    )
 }
 
 #[cfg(test)]

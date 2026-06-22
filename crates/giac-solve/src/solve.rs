@@ -3,7 +3,10 @@
 //!
 use std::sync::Arc;
 
-use giac_core::{eval, expr_to_poly, poly_to_expr, Context, EvalError, Expr, ExprArc, FuncKind, Ident, RelOp};
+use giac_core::{
+    eval, expr_to_poly, poly_algext_from_poly, poly_algext_roots, poly_to_expr, ident_from_expr,
+    is_sin_of_var_expr, Context, EvalError, Expr, ExprArc, Ident, RelOp,
+};
 use num_bigint::BigInt;
 use giac_linalg::eval_linsolve;
 use giac_poly::{roots, Var};
@@ -25,13 +28,32 @@ pub fn eval_solve(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError>
     }
     let poly = equation_to_poly(args[0].as_ref(), ctx)?;
     let v = Var::from(var.as_str());
-    let items: Vec<ExprArc> = match roots(&poly, &v) {
-        Ok(rs) => rs.into_iter().map(|p| poly_to_expr(&p)).collect(),
-        Err(EvalError::NotImplemented(_)) => quadratic_rootof_roots(&poly, &v)
-            .or_else(|_| biquadratic_rootof_roots(&poly, &v))?,
-        Err(e) => return Err(e),
-    };
+    let items = poly_roots_as_exprs(&poly, &v)?;
     eval(Arc::new(Expr::List(items)).as_ref(), ctx)
+}
+
+// **Pipeline private** — ℚ roots → Expr list, with algext / rootof fallbacks.
+fn poly_roots_as_exprs(poly: &giac_poly::Poly, var: &Var) -> Result<Vec<ExprArc>, EvalError> {
+    match roots(poly, var) {
+        Ok(rs) => Ok(rs.into_iter().map(|p| poly_to_expr(&p)).collect()),
+        Err(EvalError::NotImplemented(_)) => try_algext_or_rootof_roots(poly, var),
+        Err(e) => Err(e),
+    }
+}
+
+// **Pipeline private** — `poly_algext_roots` then legacy `rootof` fast paths.
+fn try_algext_or_rootof_roots(
+    poly: &giac_poly::Poly,
+    var: &Var,
+) -> Result<Vec<ExprArc>, EvalError> {
+    let p_alg = poly_algext_from_poly(poly)?;
+    if let Ok(rs) = poly_algext_roots(&p_alg, var) {
+        return Ok(rs
+            .into_iter()
+            .map(|r| Arc::new(r.as_inner().to_expr()))
+            .collect());
+    }
+    quadratic_rootof_roots(poly, var).or_else(|_| biquadratic_rootof_roots(poly, var))
 }
 
 // **Pipeline private** — `equation_to_poly`
@@ -47,24 +69,16 @@ fn equation_to_poly(eq: &Expr, ctx: &Context) -> Result<giac_poly::Poly, EvalErr
     expr_to_poly(diff.as_ref())
 }
 
-// **Pipeline private** — `ident_from_expr`
-fn ident_from_expr(e: &Expr) -> Result<Ident, EvalError> {
-    match e {
-        Expr::Symbol(id) => Ok(id.clone()),
-        _ => Err(EvalError::TypeError("variable name expected")),
-    }
-}
-
 // **Pipeline private** — optional fallback `try_transcendental_solve`
 fn try_transcendental_solve(eq: &Expr, var: &Ident) -> Option<Vec<ExprArc>> {
     let (lhs, rhs) = match eq {
         Expr::Relation(RelOp::Eq, l, r) => (l.as_ref(), r.as_ref()),
         _ => return None,
     };
-    if is_zero(rhs) && is_sin_of_var(lhs, var) {
+    if is_zero(rhs) && is_sin_of_var_expr(lhs, var) {
         return Some(vec![Expr::int(0)]);
     }
-    if is_zero(lhs) && is_sin_of_var(rhs, var) {
+    if is_zero(lhs) && is_sin_of_var_expr(rhs, var) {
         return Some(vec![Expr::int(0)]);
     }
     None
@@ -73,11 +87,6 @@ fn try_transcendental_solve(eq: &Expr, var: &Ident) -> Option<Vec<ExprArc>> {
 // **Stable** — Poly is zero
 fn is_zero(e: &Expr) -> bool {
     matches!(e, Expr::Int(n) if *n == BigInt::from(0))
-}
-
-// **Pipeline private** — `is_sin_of_var`
-fn is_sin_of_var(e: &Expr, var: &Ident) -> bool {
-    matches!(e, Expr::Func(FuncKind::Sin, args) if args.len() == 1 && matches!(args[0].as_ref(), Expr::Symbol(id) if id == var))
 }
 
 #[cfg(test)]
@@ -166,5 +175,51 @@ mod tests {
         let y = eval_const_expr(solutions[1].as_ref()).expect("y value");
         assert_eq!(x + y, 3);
         assert_eq!(x - y, 1);
+    }
+
+    // **B** — biquadratic via poly_algext_roots fallback (D3-1).
+    #[test]
+    fn solve_biquadratic_t4_minus_2() {
+        let ctx = xcas_default();
+        let e = Expr::func(
+            FuncKind::Solve,
+            vec![
+                Arc::new(Expr::Relation(
+                    RelOp::Eq,
+                    Expr::add(vec![
+                        Expr::pow(Expr::sym("t"), Expr::int(4)),
+                        Expr::int(-2),
+                    ]),
+                    Expr::int(0),
+                )),
+                Expr::sym("t"),
+            ],
+        );
+        let r = giac_core::eval(e.as_ref(), &ctx).unwrap();
+        assert_eq!(list_items(&r).len(), 4);
+    }
+
+    // **B** — general quartic; blocked on F1–F5 tower sqrt (same as poly_roots ignore).
+    #[test]
+    #[ignore = "tower sqrt embedding: adjoin_sqrt after resolvent split breaks ε²=u"]
+    fn solve_quartic_t4_plus_t_plus_1() {
+        let ctx = xcas_default();
+        let e = Expr::func(
+            FuncKind::Solve,
+            vec![
+                Arc::new(Expr::Relation(
+                    RelOp::Eq,
+                    Expr::add(vec![
+                        Expr::pow(Expr::sym("t"), Expr::int(4)),
+                        Expr::sym("t"),
+                        Expr::int(1),
+                    ]),
+                    Expr::int(0),
+                )),
+                Expr::sym("t"),
+            ],
+        );
+        let r = giac_core::eval(e.as_ref(), &ctx).unwrap();
+        assert_eq!(list_items(&r).len(), 4);
     }
 }

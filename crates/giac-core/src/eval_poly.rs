@@ -13,7 +13,7 @@ use num_traits::One;
 
 use crate::error::EvalError;
 use crate::expr::{Expr, ExprArc};
-use crate::ident::Ident;
+use crate::ident::{ident_from_expr, Ident};
 
 use crate::algebra::poly::{expr_to_poly, poly_to_expr, ratio_to_expr, vars_from_expr};
 
@@ -299,13 +299,6 @@ fn list_to_polys(e: &Expr) -> Result<Vec<Poly>, EvalError> {
     match e {
         Expr::List(items) | Expr::Seq(items) => items.iter().map(|i| expr_to_poly(i)).collect(),
         other => Ok(vec![expr_to_poly(other)?]),
-    }
-}
-
-fn ident_from_expr(e: &Expr) -> Result<Ident, EvalError> {
-    match e {
-        Expr::Symbol(id) => Ok(id.clone()),
-        _ => Err(EvalError::TypeError("expected variable")),
     }
 }
 

@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use giac_core::{
-    eval, expr_to_poly, poly_to_expr, Context, EvalError, Expr, ExprArc, Ident,
+    eval, expr_to_poly, poly_to_expr, ident_from_expr, Context, EvalError, Expr, ExprArc, Ident,
 };
 use giac_poly::{
     sturm_sequence, sturmab_count, univariate_degree, Var,
@@ -60,14 +60,6 @@ fn poly_and_var(args: &[ExprArc], ctx: &Context) -> Result<(giac_poly::Poly, Var
             Ok((poly, Var::from(var.as_str())))
         }
         _ => Err(EvalError::TooFewArgs("sturm")),
-    }
-}
-
-// **Pipeline private** — `ident_from_expr`
-fn ident_from_expr(e: &Expr) -> Result<Ident, EvalError> {
-    match e {
-        Expr::Symbol(id) => Ok(id.clone()),
-        _ => Err(EvalError::TypeError("variable name expected")),
     }
 }
 

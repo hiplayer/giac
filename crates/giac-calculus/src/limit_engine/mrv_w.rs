@@ -67,9 +67,7 @@ pub(crate) fn is_expr_one(e: &ExprArc) -> bool {
 }
 
 /// **Stable** — 谓词：表达式为常数 0
-pub(crate) fn is_expr_zero(e: &ExprArc) -> bool {
-    matches!(e.as_ref(), Expr::Int(n) if n.is_zero())
-}
+pub(crate) use super::util::is_expr_zero;
 
 /// **Stable** — 谓词：Laurent 因子 `w^-1`（≠ `(-ln w)^-1`）
 pub(crate) fn is_neg_w_inv(e: &ExprArc) -> bool {

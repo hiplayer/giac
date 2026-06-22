@@ -15,8 +15,8 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use giac_core::{
-    eval, eval_subst_map, bigint_to_i64, Context, EvalError, Expr, ExprArc, FuncKind, Ident,
-    RelOp,
+    eval, eval_subst_map, bigint_to_i64, ident_from_expr, var_to_expr, Context, EvalError, Expr,
+    ExprArc, FuncKind, Ident, RelOp,
 };
 use num_traits::Zero;
 
@@ -84,14 +84,6 @@ fn series_order_arg(e: &ExprArc, ctx: &Context) -> Result<usize, EvalError> {
     match ev.as_ref() {
         Expr::Int(n) => usize::try_from(bigint_to_i64(n)?).map_err(|_| EvalError::TypeError("series order")),
         _ => Err(EvalError::TypeError("series order")),
-    }
-}
-
-// **Pipeline private** — extract variable name from `Expr::Symbol`.
-fn ident_from_expr(e: &Expr) -> Result<Ident, EvalError> {
-    match e {
-        Expr::Symbol(id) => Ok(id.clone()),
-        _ => Err(EvalError::TypeError("variable name expected")),
     }
 }
 
@@ -163,11 +155,6 @@ fn series_term(coeff: &ExprArc, var: &Ident, center: &ExprArc, k: usize) -> Resu
         return Ok(Expr::mul(vec![scaled, delta]));
     }
     Ok(Expr::mul(vec![scaled, Expr::pow(delta, Expr::int(i64::try_from(k).unwrap_or(0)))]))
-}
-
-// **Pipeline private** — wrap `Ident` as `Expr::Symbol`.
-fn var_to_expr(var: &Ident) -> ExprArc {
-    Expr::sym(var.as_str())
 }
 
 // **Pipeline private** — substitute `var ↦ center` and fold elementary values.

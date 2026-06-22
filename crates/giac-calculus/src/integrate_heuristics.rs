@@ -20,11 +20,13 @@ use num_rational::Ratio;
 use giac_core::{bigint_to_i64, Context, EvalError, Expr, ExprArc, FuncKind, Ident};
 use giac_simplify::{expand, ratnormal};
 
-use crate::integrate::{
-    integrate_frac, is_const_wrt, is_var, ln_abs_expr, try_as_rational, var_to_expr,
+use crate::integrate::{integrate_frac, try_as_rational};
+use crate::expr_util::{is_const_wrt, is_var, var_to_expr};
+use crate::integrate_helpers::{is_exp_of_var, ln_abs_expr};
+use crate::integrate_try_rules::{
     try_integrate_exp_over_linear_exp, try_integrate_exp_over_one_plus_exp2,
     try_integrate_one_over_cos_squared, try_integrate_sin_over_cos_sq_frac,
-    try_integrate_tanh_exp_form, is_exp_of_var, try_integrate_tan_plus_tan_cubed,
+    try_integrate_tanh_exp_form, try_integrate_tan_plus_tan_cubed,
 };
 
 /// **Pipeline** — top-level sqrt / trig-fraction hooks before generic `integrate` dispatch.

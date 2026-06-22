@@ -4,13 +4,14 @@
 //!
 //! | Tier | 函数 |
 //! |------|------|
-//! | **Stable** | `depends_on_var`, `is_const_wrt` |
+//! | **Stable** | `depends_on_var`, `is_const_wrt`, `is_var`, `var_to_expr` |
 
 //!
 //! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
 //! full module index in `.doc/giac-calculus-api-stability.md`.
 //!
 use giac_core::{Expr, ExprArc, Ident};
+pub(crate) use giac_core::{is_cos_of_var, is_ln_of_var, is_sin_of_var, is_var, var_to_expr};
 
 /// **Stable** — whether `e` syntactically depends on `var`.
 pub fn depends_on_var(e: &ExprArc, var: &Ident) -> bool {

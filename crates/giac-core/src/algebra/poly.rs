@@ -135,6 +135,32 @@ pub fn poly_alg_from_expr(expr: &Expr) -> Result<PolyAlgExt, EvalError> {
     poly_from_expr_shape(expr, algext_leaf, &algext_poly_ring())
 }
 
+/// Embed a `Poly` over ℚ into `PolyAlgExt` (coefficients in ℚ ⊂ K).
+///
+/// **Stable** — lift rational polynomial for `poly_algext_roots`.
+pub fn poly_algext_from_poly(p: &Poly) -> Result<PolyAlgExt, EvalError> {
+    use super::alg_ext::AlgExtData;
+    use super::alg_ext_c::AlgExtCData;
+    use super::ext_tower::ExtensionField;
+    use super::field_arith::coords_to_expr;
+
+    let field = ExtensionField::rational();
+    let mut out = PolyAlgExt::ring_zero();
+    for (m, r) in &p.terms {
+        let coords = field.embed_rational(r);
+        let a = AlgExtData::from_field_coords(Arc::clone(&field), coords_to_expr(&coords)?)?;
+        let c = AlgExtCPolyCoeff::from(AlgExtCData::from_alg_ext(&a)?);
+        let mut term = PolyAlgExt::ring_constant(c);
+        if !m.is_const() {
+            for (v, e) in m.iter() {
+                term = term.try_mul(&PolyAlgExt::ring_var(v.clone()).try_pow(e)?)?;
+            }
+        }
+        out = out.try_add(&term)?;
+    }
+    Ok(out)
+}
+
 /// Assemble sparse terms into a sum expression (M1).
 // **Pipeline private** — `assemble_poly_expr`
 fn assemble_poly_expr<I>(terms: I, zero: ExprArc) -> ExprArc
@@ -393,6 +419,20 @@ mod tests {
             poly_alg_from_expr(&e),
             Err(EvalError::TypeError(ERR_POLY_ALG_NO_ALG_COEFF))
         ));
+    }
+
+    #[test]
+    fn poly_algext_from_poly_embeds_rational() {
+        let p = expr_to_poly(
+            &Expr::add(vec![
+                Expr::pow(Expr::sym("x"), Expr::int(2)),
+                Expr::int(1),
+            ]),
+        )
+        .unwrap();
+        let p_alg = poly_algext_from_poly(&p).unwrap();
+        assert_eq!(p_alg.degree(), p.degree());
+        assert!(!p_alg.is_zero());
     }
 
     #[test]

@@ -13,6 +13,8 @@
 //!
 use giac_core::{Expr, ExprArc, FuncKind, Ident};
 
+pub(crate) use crate::expr_util::is_var;
+
 pub(crate) const MAX_SERIES_ORDER: usize = 10;
 /// Upper bound for MRV `mrv_lead_term` ordre escalation (`series.cc` `max_series_expansion_order`).
 pub(crate) const MAX_SERIES_EXPANSION_ORDER: usize = 24;
@@ -101,11 +103,6 @@ pub(crate) fn expr_contains_nested_exp(e: &ExprArc) -> bool {
         }
     }
     walk(e, false)
-}
-
-/// **Pipeline** — 谓词：表达式是否为给定变量符号
-pub(crate) fn is_var(e: &ExprArc, var: &Ident) -> bool {
-    matches!(e.as_ref(), Expr::Symbol(id) if id == var)
 }
 
 #[cfg(test)]

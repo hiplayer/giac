@@ -5,7 +5,7 @@ use std::collections::HashMap;
 use std::sync::Arc;
 
 use giac_core::{
-    eval, eval_subst_map, Context, EvalError, Expr, ExprArc, Ident, RelOp,
+    eval, eval_subst_map, ident_from_expr, Context, EvalError, Expr, ExprArc, Ident, RelOp,
 };
 use giac_linalg::f64_to_expr_numeric;
 
@@ -28,14 +28,6 @@ fn equation_to_expr(e: &ExprArc) -> Result<ExprArc, EvalError> {
             Expr::mul(vec![Expr::int(-1), Arc::clone(rhs)]),
         ])),
         _ => Ok(Arc::clone(e)),
-    }
-}
-
-// **Pipeline private** — `ident_from_expr`
-fn ident_from_expr(e: &Expr) -> Result<Ident, EvalError> {
-    match e {
-        Expr::Symbol(id) => Ok(id.clone()),
-        _ => Err(EvalError::TypeError("variable name expected")),
     }
 }
 

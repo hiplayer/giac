@@ -32,6 +32,8 @@ mod diff;
 mod eval_diff;
 mod eval_integrate;
 mod expr_util;
+mod integrate_helpers;
+mod integrate_try_rules;
 mod integrate;
 mod integrate_heuristics;
 mod partfrac_integrate;
