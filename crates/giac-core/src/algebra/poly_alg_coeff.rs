@@ -6,7 +6,7 @@
 //!
 use std::fmt::{self, Debug};
 
-use giac_poly::{PolyCoeff, PolyResult};
+use giac_poly::{FieldCoeff, PolyCoeff, PolyResult};
 
 use super::alg_ext_c::AlgExtCData;
 
@@ -44,6 +44,8 @@ impl From<AlgExtCData> for AlgExtCPolyCoeff {
         Self(data)
     }
 }
+
+impl FieldCoeff for AlgExtCPolyCoeff {}
 
 impl PolyCoeff for AlgExtCPolyCoeff {
     // **Stable** — `Poly::coeff_zero`

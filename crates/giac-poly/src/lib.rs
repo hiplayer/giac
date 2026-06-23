@@ -33,7 +33,7 @@ pub use giac_error::EvalError;
 pub use error::PolyResult;
 pub use monomial::{Monomial, Var};
 pub use poly::{Poly, PolyQ, abcuv, egcd, quo, rem, simp2};
-pub use poly_coeff::PolyCoeff;
+pub use poly_coeff::{FieldCoeff, PolyCoeff};
 pub use modint::{ModInt, irem, smod};
 pub use modular::{PolyMod, modp};
 pub use resultant::{coeff_at, resultant, roots, univariate_coeffs_ascending, univariate_degree};

@@ -38,6 +38,31 @@ pub trait PolyCoeff: Clone + PartialEq + Debug {
     fn coeff_div(&self, rhs: &Self) -> PolyResult<Self>;
 }
 
+/// Field coefficients: nonzero elements invertible via [`PolyCoeff::coeff_div`].
+///
+/// **Stable** — flat K[var] Euclidean division / gcd / Yun sqff require `C: FieldCoeff`.
+/// Nested ℚ[others] coefficients implement [`PolyCoeff`] only, not this trait.
+/// See `.doc/issues/GIAC-poly-flat-field-division-layering.md`.
+pub trait FieldCoeff: PolyCoeff {
+    /// Multiplicative inverse in K.
+    fn coeff_inv(&self) -> PolyResult<Self> {
+        if self.coeff_is_zero() {
+            return Err(EvalError::DivisionByZero);
+        }
+        Self::coeff_one().coeff_div(self)
+    }
+
+    /// Exact field division `self / b`.
+    fn field_div(&self, b: &Self) -> PolyResult<Self> {
+        if b.coeff_is_zero() {
+            return Err(EvalError::DivisionByZero);
+        }
+        self.coeff_div(b)
+    }
+}
+
+impl FieldCoeff for Ratio<BigInt> {}
+
 impl PolyCoeff for Ratio<BigInt> {
     // **Stable** — `Poly::coeff_zero`
     fn coeff_zero() -> Self {
@@ -100,5 +125,11 @@ mod tests {
         assert_eq!(a.coeff_add(&b).unwrap(), Ratio::from_integer(5.into()));
         assert_eq!(a.coeff_mul(&b).unwrap(), Ratio::from_integer(6.into()));
         assert_eq!(b.coeff_div(&a).unwrap(), Ratio::new(2.into(), 3.into()));
+    }
+
+    #[test]
+    fn ratio_field_coeff_inv() {
+        let b = Ratio::from_integer(2.into());
+        assert_eq!(b.coeff_inv().unwrap(), Ratio::from_integer(1.into()) / b);
     }
 }
