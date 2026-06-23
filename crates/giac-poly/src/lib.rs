@@ -4,6 +4,7 @@
 //!
 mod nested;
 mod subresultant;
+mod square_free;
 mod tresultant;
 mod univariate;
 mod error;

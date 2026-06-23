@@ -182,38 +182,41 @@ fn random_poly(deg: u64, modulus: &BigInt, rng: &mut Lcg) -> PolyMod {
 
 // **Pipeline private** — `square_free_yun`
 fn square_free_yun(p: &PolyMod) -> PolyResult<Vec<(PolyMod, usize)>> {
-    if p.is_zero() {
-        return Err(EvalError::TypeError("zero polynomial"));
-    }
-    let mut factors = Vec::new();
-    let mut w = p.clone();
-    let mut y = derivative(&w)?;
-    let mut g = w.gcd(&y)?;
-    if !is_poly_one(&g) {
-        w = div_exact(&w, &g)?;
-        y = div_exact(&y, &g)?;
-    }
-    y = y.sub(&derivative(&w)?)?;
-    let mut k = 1usize;
-    loop {
-        if degree(&w) == 0 {
-            break;
+    struct FpxRing;
+
+    impl crate::square_free::SquareFreeRing for FpxRing {
+        type Poly = PolyMod;
+
+        fn is_zero(&self, p: &PolyMod) -> bool {
+            p.is_zero()
         }
-        g = w.gcd(&y)?;
-        if !is_poly_one(&g) {
-            factors.push((g.clone(), k));
-            w = div_exact(&w, &g)?;
+
+        fn is_one(&self, p: &PolyMod) -> bool {
+            is_poly_one(p)
         }
-        if degree(&w) == 0 {
-            break;
+
+        fn derivative(&self, p: &PolyMod) -> PolyResult<PolyMod> {
+            derivative(p)
         }
-        k += 1;
-        y = div_exact(&y, &g)?;
+
+        fn gcd(&self, a: &PolyMod, b: &PolyMod) -> PolyResult<PolyMod> {
+            a.gcd(b)
+        }
+
+        fn div_exact(&self, a: &PolyMod, b: &PolyMod) -> PolyResult<PolyMod> {
+            div_exact(a, b)
+        }
+
+        fn sub(&self, a: &PolyMod, b: &PolyMod) -> PolyResult<PolyMod> {
+            a.sub(b)
+        }
+
+        fn max_exponent(&self, p: &PolyMod) -> usize {
+            degree(p) as usize
+        }
     }
-    if !is_poly_one(&w) {
-        factors.push((w, k));
-    }
-    Ok(factors)
+
+    crate::square_free::square_free_yun_mod(&FpxRing, p, degree)
 }
 
 /// GIAC `ddf`: distinct-degree factorization into blocks of fixed irreducible degree.

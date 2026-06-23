@@ -239,29 +239,8 @@ pub fn univariate_derivative(p: &Poly, var: &Var) -> Poly {
 /// Square-free factorization `p = ∏ f_k^k` (giac `Tsqff_char0`).
 /// **Stable** — Yun square-free factors
 pub fn square_free_factorization(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>> {
-    if p.is_zero() {
-        return Err(EvalError::TypeError("zero polynomial"));
-    }
-    let mut w = p.clone();
-    let mut y = univariate_derivative(p, var);
-    gcd_reduce(&mut w, &mut y, var);
-    y = y.sub(&univariate_derivative(&w, var));
-
-    let mut factors = Vec::new();
-    let mut k = 1usize;
-    let max_k = univariate_degree(p, var) as usize + 2;
-    while !y.is_zero() && k <= max_k {
-        let g = gcd_reduce(&mut w, &mut y, var);
-        if !g.is_one() {
-            factors.push((g, k));
-        }
-        y = y.sub(&univariate_derivative(&w, var));
-        k += 1;
-    }
-    if !w.is_one() {
-        factors.push((w, k));
-    }
-    Ok(factors)
+    let ring = crate::square_free::UniVarRing { var };
+    crate::square_free::square_free_yun(&ring, p)
 }
 
 /// Product of distinct square-free factors (`p = ∏ f_k^k` → `∏ f_k`).
@@ -346,7 +325,7 @@ pub fn gcd_univariate(p: &Poly, q: &Poly, var: &Var) -> Poly {
 }
 
 // **Pipeline private** — `univariate_gcd`
-fn univariate_gcd(p: &Poly, q: &Poly, var: &Var) -> Poly {
+pub(crate) fn univariate_gcd(p: &Poly, q: &Poly, var: &Var) -> Poly {
     let mut a = coeffs_to_integer_primitive(&univariate_coeffs(p, var));
     let mut b = coeffs_to_integer_primitive(&univariate_coeffs(q, var));
     if is_zero_int(&a) {
@@ -369,7 +348,7 @@ fn univariate_gcd(p: &Poly, q: &Poly, var: &Var) -> Poly {
 }
 
 // **Pipeline private** — `univariate_div_exact`
-fn univariate_div_exact(p: &Poly, d: &Poly, var: &Var) -> Option<Poly> {
+pub(crate) fn univariate_div_exact(p: &Poly, d: &Poly, var: &Var) -> Option<Poly> {
     let (q, r) = univariate_div_rem(&univariate_coeffs(p, var), &univariate_coeffs(d, var));
     if r.len() == 1 && r[0].is_zero() {
         Some(poly_from_coeffs(var, &q))

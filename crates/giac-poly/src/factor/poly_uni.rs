@@ -87,34 +87,11 @@ pub fn square_free_wrt(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>> {
 
 // **Pipeline private** — `square_free_wrt_impl`
 fn square_free_wrt_impl(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>> {
-    if p.is_zero() {
-        return Err(EvalError::TypeError("zero polynomial"));
-    }
-    let mut w = p.clone();
-    let mut y = derivative_wrt(&w, var);
-    let g0 = w.gcd(&y);
-    if !g0.is_one() {
-        w = crate::subresultant::quo_exact_wrt(&w, &g0, var)?;
-        y = crate::subresultant::quo_exact_wrt(&y, &g0, var)?;
-    }
-    y = y.sub(&derivative_wrt(&w, var));
-
-    let mut factors = Vec::new();
-    let mut k = 1usize;
-    let max_k = univariate_degree(p, var) as usize + 2;
-    while !y.is_zero() && k <= max_k {
-        let g = w.gcd(&y);
-        if !g.is_one() {
-            factors.push((g.clone(), k));
-            w = crate::subresultant::quo_exact_wrt(&w, &g, var)?;
-        }
-        y = y.sub(&derivative_wrt(&w, var));
-        k += 1;
-    }
-    if !w.is_one() {
-        factors.push((w, k));
-    }
-    Ok(factors)
+    let ring = crate::square_free::WrtVarRing {
+        var,
+        derivative: derivative_wrt,
+    };
+    crate::square_free::square_free_yun(&ring, p)
 }
 
 /// **Stable** — Substitute `sub_var -> sub_poly` in `p`.
