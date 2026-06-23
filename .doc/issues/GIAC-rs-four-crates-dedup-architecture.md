@@ -268,11 +268,11 @@ pub fn quadratic_rootof_branches(poly: &Poly, var: &Var) -> Result<Vec<ExprArc>,
 | C2-1 | `QuadraticCoeffs` + `quadratic_rational_roots` | P1 | `giac-poly/quadratic.rs`（新建） | D1-1 | **done** (PR-D) |
 | C2-2 | `quadratic_algext_roots` 抽自 `poly_roots` | P2 | `giac-core/algebra/poly_roots.rs` | D1-3 | open |
 | C3-1 | `factor_poly_for_solve` → `factor_univariate_pairs` | P1 | `giac-solve/solve_poly.rs` | — | **done** (PR-D) |
-| C3-2 | 退役 `biquadratic_rootof_roots` 生产路径 | P1 | `giac-solve/rootof.rs` | D3-2, [T3-3](GIAC-poly-algext-gcd-factor-priority.md) | open |
+| C3-2 | 退役 `biquadratic_rootof_roots` 生产路径 | P1 | `giac-solve/rootof.rs` | D3-2, [T3-3](GIAC-poly-algext-gcd-factor-priority.md) | **done** (PR-E) |
 | C3-3 | `realroot` 改调 `giac_poly::roots` | P2 | `giac-solve/realroot.rs` | — | open |
 | C4-1 | calculus 删工具拷贝 | P0 | `limit_engine/*`、`partfrac_integrate.rs` | C0-1/C0-2 | **done** (PR-A/B) |
-| C4-3 | 删 `split_depressed_quartic` | P2 | `giac-core/poly_roots.rs` | D4-3 | open |
-| C4-4 | 删 `field_session::is_negative_rational` 副本 | P1 | `giac-core` | — | open |
+| C4-3 | 删 `split_depressed_quartic` | P2 | `giac-core/poly_roots.rs` | D4-3 | **done** (PR-E) |
+| C4-4 | 删 `field_session::is_negative_rational` 副本 | P1 | `giac-core` | — | **done** (PR-E) |
 
 ---
 
@@ -284,7 +284,7 @@ pub fn quadratic_rootof_branches(poly: &Poly, var: &Var) -> Result<Vec<ExprArc>,
 | PR-B | C0-2 + C4-1（integer_nth_root） | 小 | 无 | **done** |
 | PR-C | C1-1 | 中 | 无 | **done** |
 | PR-D | C2-1 + C0-3 + C3-1 | 中 | 无 | **done** |
-| PR-E | C3-2 + C4-3 + C4-4 | 中 | 无（能力已由 D3-1 覆盖） |
+| PR-E | C3-2 + C4-3 + C4-4 | 中 | 无（能力已由 D3-1 覆盖） | **done** |
 | PR-F | C1-2 | 大 | 无 |
 
 **门禁（每 PR）：**
