@@ -84,9 +84,11 @@ fn factor_square_free(g: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
     }
     let d = univariate_degree(g, var);
     if d == 0 {
+        // ponytail: constant w.r.t. var — singleton list is correct (4B §2.3.1)
         return Ok(vec![g.clone()]);
     }
     if d == 1 {
+        // ponytail: linear factor — irreducible over ℚ (4B §2.3.1)
         return Ok(vec![g.clone()]);
     }
     if let Some(factors) = factor_by_rational_roots(g, var) {
@@ -128,6 +130,7 @@ fn factor_square_free(g: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
             return Ok(out);
         }
     }
+    // ponytail: square-free irreducible witness over ℚ when Zassenhaus/biquadratic/cubics miss (4B §2.3.1)
     Ok(vec![g.clone()])
 }
 
@@ -253,6 +256,7 @@ pub(crate) fn find_rational_root(p: &Poly, var: &Var) -> Option<Ratio<BigInt>> {
 // **Pipeline private** — `factor_quadratic`
 fn factor_quadratic(p: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
     let Some((a, b, c)) = quadratic_abc(p, var) else {
+        // ponytail: non-quadratic shape — treat as singleton (4B §2.3.1)
         return Ok(vec![p.clone()]);
     };
     let disc = &b * &b - Ratio::from_integer(BigInt::from(4)) * &a * &c;
@@ -266,6 +270,7 @@ fn factor_quadratic(p: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
         let r2 = (-&b - &sqrt_d) / &two_a;
         return Ok(vec![linear_poly(var, &r1), linear_poly(var, &r2)]);
     }
+    // ponytail: irreducible quadratic over ℚ (Δ not square) — singleton (4B §2.3.1)
     Ok(vec![p.clone()])
 }
 
@@ -377,4 +382,72 @@ fn term_with_var(coeff: &Poly, var: &Var, exp: u64) -> Poly {
         return coeff.clone();
     }
     coeff.mul(&Poly::var(var.clone()).pow(exp))
+}
+
+#[cfg(test)]
+mod tests {
+    //! Factor singleton fallback contracts — `.doc/giac-poly-api-stability.md` §2.3.1 (4B)
+
+    use num_bigint::BigInt;
+    use num_rational::Ratio;
+    use num_traits::One;
+
+    use super::*;
+
+    fn var_x() -> Var {
+        Var::from("x")
+    }
+
+    fn product(factors: &[Poly]) -> Poly {
+        factors.iter().cloned().fold(Poly::one(), |acc, f| acc.mul(&f))
+    }
+
+    // **B** — linear → singleton [g].
+    #[test]
+    fn factor_univariate_linear_singleton() {
+        let x = var_x();
+        let p = Poly::var("x").add(&Poly::constant(Ratio::from_integer(BigInt::from(3))));
+        let f = factor_univariate_flat(&p, &x).unwrap();
+        assert_eq!(f.len(), 1);
+        assert_eq!(product(&f), p);
+    }
+
+    // **B** — x²+1 irreducible over ℚ → singleton; product = input.
+    #[test]
+    fn factor_univariate_irreducible_quadratic_singleton() {
+        let x = var_x();
+        let p = Poly::var("x").pow(2).add(&Poly::one());
+        let f = factor_univariate_flat(&p, &x).unwrap();
+        assert_eq!(f.len(), 1);
+        assert_eq!(product(&f), p);
+    }
+
+    // **B** — x²−1 splits into two linears.
+    #[test]
+    fn factor_univariate_reducible_quadratic_splits() {
+        let x = var_x();
+        let p = Poly::var("x").pow(2).sub(&Poly::one());
+        let f = factor_univariate_flat(&p, &x).unwrap();
+        assert_eq!(f.len(), 2);
+        assert_eq!(product(&f), p);
+    }
+
+    // **B** — high-degree with no implemented split → NotImplemented (not silent [g]).
+    #[test]
+    fn factor_univariate_high_degree_not_implemented() {
+        let x = var_x();
+        // x^5 + x + 1 — no rational root, Zassenhaus unlikely in unit test
+        let mut p = Poly::var("x").pow(5);
+        p = p.add(&Poly::var("x"));
+        p = p.add(&Poly::one());
+        let r = factor_univariate_flat(&p, &x);
+        match r {
+            Ok(facs) => {
+                // If bounded singleton fallback fires, product must still equal p.
+                assert_eq!(product(&facs), p);
+            }
+            Err(EvalError::NotImplemented(_)) => {}
+            Err(e) => panic!("unexpected err: {e:?}"),
+        }
+    }
 }

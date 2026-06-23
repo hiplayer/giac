@@ -181,67 +181,109 @@ fn is_const_wrt(e: &ExprArc, var: &Ident) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-    use giac_core::{format_expr, simplify, Context};
+    //! Test tiers — `.doc/test-writing-spec.md` · audit §5b (`diff.rs`)
+
+    use std::sync::Arc;
+
+    use giac_core::{eval, format_expr, simplify, Context, Expr, FuncKind};
     use giac_simplify::assert_equiv;
+
+    use super::*;
 
     fn x() -> Ident {
         Ident::new("x")
     }
 
+    fn xcas() -> Context {
+        crate::plugin::xcas_default()
+    }
+
     fn diff_simplified(e: ExprArc) -> ExprArc {
-        let ctx = Context::default();
+        let ctx = xcas();
         simplify(diff(&e, &x()).unwrap().as_ref(), &ctx).unwrap()
     }
 
+    fn diff_matches(e: &Expr, expected: &Expr) {
+        let ctx = xcas();
+        let r = diff_simplified(Arc::new(e.clone()));
+        assert!(
+            assert_equiv(r.as_ref(), expected, &ctx).expect("assert_equiv"),
+            "diff mismatch: got {}",
+            format_expr(r.as_ref())
+        );
+    }
+
+    fn eval_diff_matches(e: &Expr, expected: &Expr) {
+        let ctx = xcas();
+        let call = Expr::func(
+            FuncKind::Diff,
+            vec![Arc::new(e.clone()), Expr::sym("x")],
+        );
+        let r = eval(call.as_ref(), &ctx).unwrap();
+        assert!(
+            assert_equiv(r.as_ref(), expected, &ctx).expect("assert_equiv"),
+            "eval(Diff) mismatch: got {}",
+            format_expr(r.as_ref())
+        );
+    }
+
+    // **B** + **A** — power rule.
     #[test]
     fn diff_x_squared() {
         let e = Expr::pow(Expr::sym("x"), Expr::int(2));
-        let r = diff_simplified(e);
         let expected = Expr::mul(vec![Expr::int(2), Expr::sym("x")]);
-        let ctx = Context::default();
-        assert!(assert_equiv(r.as_ref(), expected.as_ref(), &ctx).unwrap());
+        diff_matches(&e, expected.as_ref());
+        eval_diff_matches(&e, expected.as_ref());
     }
 
+    // **B** + **A** — chain rule sin(x²); factor order matches `diff` output.
     #[test]
     fn diff_sin_x_squared() {
         let e = Expr::func(FuncKind::Sin, vec![Expr::pow(Expr::sym("x"), Expr::int(2))]);
-        let r = diff_simplified(e);
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("cos(x^2)"));
-        assert!(s.contains("2") && s.contains("x"));
+        let expected = Expr::mul(vec![
+            Expr::int(2),
+            Expr::func(FuncKind::Cos, vec![Expr::pow(Expr::sym("x"), Expr::int(2))]),
+            Expr::sym("x"),
+        ]);
+        diff_matches(&e, expected.as_ref());
+        eval_diff_matches(&e, expected.as_ref());
     }
 
+    // **B** + **A** — product rule ln(x)·x²; C display + eval agrees with `diff`.
     #[test]
     fn diff_ln_times_x_squared() {
         let e = Expr::mul(vec![
             Expr::func(FuncKind::Ln, vec![Expr::sym("x")]),
             Expr::pow(Expr::sym("x"), Expr::int(2)),
         ]);
-        let r = diff_simplified(e);
+        let r = diff_simplified(Arc::clone(&e));
         let s = format_expr(r.as_ref());
-        assert!(s.contains("ln(x)"));
-        assert!(s.contains("x^2") || s.contains("x^2"));
+        assert_eq!(s, "(1)/(x)*x^2+(2*x^1)*ln(x)");
+        eval_diff_matches(e.as_ref(), r.as_ref());
     }
 
+    // **B** + **A** — constant → 0.
     #[test]
     fn diff_constant_is_zero() {
-        let r = diff_simplified(Expr::int(5));
-        assert_eq!(format_expr(r.as_ref()), "0");
+        let expected = Expr::int(0);
+        diff_matches(&Expr::int(5), expected.as_ref());
+        eval_diff_matches(&Expr::int(5), expected.as_ref());
     }
 
+    // **B** — atan(x) supported path smoke.
     #[test]
     fn diff_atan_x() {
         let e = Expr::func(FuncKind::Atan, vec![Expr::sym("x")]);
-        let r = diff(&e, &x());
-        assert!(r.is_ok(), "{:?}", r);
+        assert!(diff(&e, &x()).is_ok());
     }
 
+    // **B** + **A** — d/dx(1/x); display golden on quotient form from `diff`.
     #[test]
     fn diff_frac_one_over_x() {
         let e = Expr::Frac(Expr::int(1), Expr::sym("x"));
-        let r = diff_simplified(e.into());
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("-1") && s.contains("x"), "got {s}");
+        let e_arc = Arc::new(e.clone());
+        let r = diff_simplified(e_arc);
+        assert_eq!(format_expr(r.as_ref()), "(0*x-1*1*1)/(x^2)");
+        eval_diff_matches(&e, r.as_ref());
     }
 }

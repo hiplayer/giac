@@ -293,6 +293,7 @@ fn cantor_zassenhaus_block(block: &PolyMod, i: u64, rng: &mut Lcg) -> PolyResult
         return Ok(vec![]);
     }
     if k == i {
+        // ponytail: DDF block already irreducible of degree i (4B §2.3.1)
         return Ok(vec![block.clone()]);
     }
     if i == 1 {

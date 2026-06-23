@@ -39,12 +39,18 @@ pub fn eval_diff(args: &[ExprArc], _ctx: &Context) -> Result<ExprArc, EvalError>
 
 #[cfg(test)]
 mod tests {
+    //! Test tiers — `.doc/test-writing-spec.md` · audit §5b (`eval_diff.rs`)
+
+    use std::sync::Arc;
+
     use giac_core::{eval, format_expr, Expr, FuncKind};
+    use giac_simplify::assert_equiv;
 
     use crate::plugin::xcas_default;
 
     use super::*;
 
+    // **A** — eval(Diff) on x².
     #[test]
     fn eval_diff_x_squared() {
         let ctx = xcas_default();
@@ -53,10 +59,15 @@ mod tests {
             vec![Expr::pow(Expr::sym("x"), Expr::int(2)), Expr::sym("x")],
         );
         let r = eval(e.as_ref(), &ctx).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("2") && s.contains("x"));
+        let expected = Expr::mul(vec![Expr::int(2), Expr::sym("x")]);
+        assert!(
+            assert_equiv(r.as_ref(), expected.as_ref(), &ctx).expect("assert_equiv"),
+            "got {}",
+            format_expr(r.as_ref())
+        );
     }
 
+    // **A** — eval(Derive) multivariate; assert_equiv on each partial.
     #[test]
     fn eval_derive_multivariate() {
         let ctx = xcas_default();
@@ -80,11 +91,16 @@ mod tests {
             ],
         );
         let r = eval(e.as_ref(), &ctx).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.starts_with('[') && s.ends_with(']'), "expected List, got {s}");
-        assert!(s.contains("4*y") || s.contains("2*y"));
-        assert!(s.contains("2*x^2"));
-        assert!(s.contains("-z^3") || s.contains("3*z^2"));
+        let Expr::List(parts) = r.as_ref() else {
+            panic!("expected List, got {}", format_expr(r.as_ref()));
+        };
+        assert_eq!(parts.len(), 3);
+        let exp_x = Expr::mul(vec![Expr::int(4), Expr::sym("y"), Expr::sym("x")]);
+        let exp_y = Expr::mul(vec![Expr::int(2), Expr::pow(Expr::sym("x"), Expr::int(2))]);
+        let exp_z = Expr::mul(vec![Expr::int(-1), Expr::pow(Expr::sym("z"), Expr::int(3))]);
+        assert!(assert_equiv(parts[0].as_ref(), exp_x.as_ref(), &ctx).unwrap());
+        assert!(assert_equiv(parts[1].as_ref(), exp_y.as_ref(), &ctx).unwrap());
+        assert!(assert_equiv(parts[2].as_ref(), exp_z.as_ref(), &ctx).unwrap());
     }
 
     #[test]
