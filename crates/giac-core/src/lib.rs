@@ -10,6 +10,7 @@ mod display;
 mod error;
 mod eval;
 mod eval_poly;
+mod expr_rational;
 #[cfg(test)]
 mod eval_poly_tests;
 mod expr;
@@ -59,6 +60,7 @@ pub use algebra::poly_roots::{poly_algext_roots, poly_algext_roots_for_ctx};
 pub use algebra::poly_conv::{
     ERR_ALG_EXT_COEFF, ERR_ALG_EXT_C_COEFF, ERR_POLY_ALG_NO_ALG_COEFF, ERR_ROOTOF_COEFF,
 };
+pub use expr_rational::{expr_to_rational_polys, expr_to_rational_polys_eval};
 pub use num_util::{
     bigint_to_i64, bigint_to_nonneg_u32, bigint_to_u32_abs, reduce_rational_pair,
 };

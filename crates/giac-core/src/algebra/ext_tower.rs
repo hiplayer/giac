@@ -20,9 +20,13 @@
 //!
 //! | API | Behavior |
 //! |-----|----------|
-//! | [`ExtensionField::try_square_root_in_field`] | Probe only; **no** tower extension |
+//! | [`ExtensionField::try_square_root_in_field`] | Structural probe S0–S6; **no** adjoin |
+//! | [`ExtensionField::try_square_root_in_field_shallow`] | S1–S3 only (Euler hot path) |
 //! | [`super::field_session::FieldSession::sqrt_in_field`] | try → adjoin fallback |
 //! | [`super::alg_ext::algext_square_roots`] | **Always** adjoin; roots pipeline must not call |
+//!
+//! **F5 probe order:** S1 layer ±g → S2 basis ±eᵢ → S3 subfield descent → S4 top quadratic
+//! closed form → S5 layer-gen products → S6 dim≤6 pairwise ±1 fallback.
 //!
 //! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
 //! full module index in `.doc/giac-core-algebra-api-stability.md`.
@@ -806,7 +810,7 @@ impl ExtensionDesc {
     /// Try to find ε ∈ K with ε² ≡ u (coords). Returns `None` if no probe hits.
     ///
     /// Scan: deg-2 layer generators (±g, k·g), basis ±eᵢ, then bounded ±1 linear
-    /// combos when `dim(K) ≤` [`TRY_SQRT_ENUM_DIM_CEILING`].
+    /// combos when `dim(K) ≤` pairwise/triple ceilings (see `TRY_SQRT_*_DIM_CEILING`).
     ///
     /// Does **not** adjoin. For adjoin fallback use
     /// [`super::alg_ext::algext_square_roots`] or
@@ -817,6 +821,16 @@ impl ExtensionDesc {
         u: &CoordsQ,
     ) -> Result<Option<CoordsQ>, EvalError> {
         try_square_root_in_field_impl(field, u)
+    }
+
+    /// Layer generators + basis squares only (no ±1 combo enum). Hot path for Euler
+    /// second sqrt when blind adjoin is expected.
+    /// **Pipeline private** — shallow sqrt probe
+    pub(crate) fn try_square_root_in_field_shallow(
+        field: &Arc<ExtensionField>,
+        u: &CoordsQ,
+    ) -> Result<Option<CoordsQ>, EvalError> {
+        try_square_root_in_field_shallow_impl(field, u)
     }
 
     /// **Stable** — `element_is_zero`
@@ -1088,10 +1102,328 @@ pub(crate) fn adjoin_cache_key_parent_blocks(
     k
 }
 
-/// ponytail: ±1 combo enum ceiling; quartic splitting-field dim≤12.
-const TRY_SQRT_ENUM_DIM_CEILING: usize = 12;
+/// ponytail: S6 pairwise ±1 fallback only (F5); no dim³ enum.
+const TRY_SQRT_PAIRWISE_DIM_CEILING: usize = 6;
 
-// **Pipeline private** — F5 core: probe ε²≡u without adjoining.
+// **Pipeline private** — collect proper subfields along parent chain (immediate → … → ℚ).
+fn proper_subfields_chain(field: &Arc<ExtensionField>) -> Vec<Arc<ExtensionField>> {
+    let mut out = Vec::new();
+    let mut cur = field.parent_field().map(Arc::clone);
+    while let Some(p) = cur {
+        out.push(Arc::clone(&p));
+        cur = p.parent_field().map(Arc::clone);
+    }
+    out
+}
+
+// **Pipeline private** — solve M·v = u for embedding matrix (tgt × src); None if u ∉ Im(M).
+pub(crate) fn try_preimage_under_embedding(
+    emb: &FieldEmbedding,
+    u: &CoordsQ,
+) -> Option<CoordsQ> {
+    let rows = emb.matrix.len();
+    if rows == 0 {
+        return None;
+    }
+    let cols = emb.matrix[0].len();
+    let u = pad_to_len(u, rows);
+    let mut aug = vec![vec![Ratio::zero(); cols + 1]; rows];
+    for i in 0..rows {
+        for j in 0..cols {
+            aug[i][j] = emb.matrix[i][j].clone();
+        }
+        aug[i][cols] = u[i].clone();
+    }
+    let (pivot_cols, inconsistent) = gauss_elim_rref(&mut aug);
+    if inconsistent {
+        return None;
+    }
+    let mut v = vec![Ratio::zero(); cols];
+    let mut used = vec![false; cols];
+    for (row, &pc) in pivot_cols.iter().enumerate() {
+        if pc >= cols {
+            continue;
+        }
+        used[pc] = true;
+        v[pc] = aug[row][cols].clone();
+    }
+    Some(v)
+}
+
+// **Pipeline private** — ℚ Gaussian elimination; returns pivot column per row, inconsistent flag.
+pub(crate) fn gauss_elim_rref(aug: &mut [Vec<Ratio<BigInt>>]) -> (Vec<usize>, bool) {
+    let rows = aug.len();
+    let cols = aug[0].len().saturating_sub(1);
+    let mut pivot_cols = vec![cols; rows];
+    let mut pivot_row = 0;
+    for col in 0..cols {
+        if pivot_row >= rows {
+            break;
+        }
+        let mut sel = None;
+        for r in pivot_row..rows {
+            if !aug[r][col].is_zero() {
+                sel = Some(r);
+                break;
+            }
+        }
+        let Some(r) = sel else { continue };
+        aug.swap(pivot_row, r);
+        let pivot = aug[pivot_row][col].clone();
+        for c in col..=cols {
+            aug[pivot_row][c] /= pivot.clone();
+        }
+        for r in 0..rows {
+            if r == pivot_row || aug[r][col].is_zero() {
+                continue;
+            }
+            let factor = aug[r][col].clone();
+            let pivot_row_vals: Vec<Ratio<BigInt>> = aug[pivot_row][col..=cols].to_vec();
+            for (c_offset, pv) in pivot_row_vals.iter().enumerate() {
+                aug[r][col + c_offset] -= factor.clone() * pv.clone();
+            }
+        }
+        pivot_cols[pivot_row] = col;
+        pivot_row += 1;
+    }
+    let inconsistent = (pivot_row..rows).any(|r| {
+        aug[r][cols].is_zero() == false && (0..cols).all(|c| aug[r][c].is_zero())
+    });
+    (pivot_cols, inconsistent)
+}
+
+// **Pipeline private** — F5 S3: u ∈ F ⊂ L → sqrt in F, embed back.
+fn try_sqrt_subfield_descent(
+    field: &Arc<ExtensionField>,
+    u: &CoordsQ,
+) -> Result<Option<CoordsQ>, EvalError> {
+    for sub in proper_subfields_chain(field) {
+        let emb = match ExtensionField::try_subfield_embedding(&sub, field)? {
+            Some(e) => e,
+            None => continue,
+        };
+        let Some(u_sub) = try_preimage_under_embedding(&emb, u) else {
+            continue;
+        };
+        if let Some(root_sub) = try_square_root_in_field_impl(&sub, &u_sub)? {
+            return Ok(Some(emb.apply(&root_sub)));
+        }
+    }
+    Ok(None)
+}
+
+// **Pipeline private** — F5 S4: top deg-2 layer u = a + b·g, (a+bg)² = u (standard 2×pd layout).
+fn try_sqrt_quadratic_top_layer(
+    field: &Arc<ExtensionField>,
+    u: &CoordsQ,
+) -> Result<Option<CoordsQ>, EvalError> {
+    let parent = match field.parent_field() {
+        Some(p) => Arc::clone(p),
+        None => return Ok(None),
+    };
+    if field.layer_ext_degree().ok() != Some(2) {
+        return Ok(None);
+    }
+    let pd = parent.dimension();
+    let cd = field.dimension();
+    if cd != 2 * pd {
+        return Ok(None);
+    }
+    let u = pad_to_len(u, cd);
+    let u_a = pad_to_len(&u[0..pd], pd);
+    let u_b = pad_to_len(&u[pd..2 * pd], pd);
+    let g = field.generator_coords();
+    let g_sq = field.element_mul(&g, &g)?;
+    let d = pad_to_len(&g_sq[0..pd], pd);
+
+    let try_pair = |a: &CoordsQ, b: &CoordsQ| -> Result<Option<CoordsQ>, EvalError> {
+        let mut out = parent.zero_coords();
+        out.extend(pad_to_len(a, pd));
+        out.extend(pad_to_len(b, pd));
+        let out = pad_to_len(&out, cd);
+        for cand in [out.clone(), field.element_neg(&out)?] {
+            if coords_square_eq_mod(field, &cand, &u)? {
+                return Ok(Some(cand));
+            }
+        }
+        Ok(None)
+    };
+
+    // u = b²·d (no g-component): √u = ±b·g
+    if u_b.iter().all(|c| c.is_zero()) {
+        if let Ok(inv_d) = parent.element_inv(&d) {
+            let ratio = parent.element_mul(&u_a, &inv_d)?;
+            if let Some(b_cand) = try_square_root_in_field_impl(&parent, &ratio)? {
+                if let Some(hit) = try_pair(&parent.zero_coords(), &b_cand)? {
+                    return Ok(Some(hit));
+                }
+            }
+        }
+    } else if !u_a.iter().all(|c| c.is_zero()) {
+        // F5 S4 general: (a+bg)² = u_a + u_b·g, g²=d → a² = (u_a ± √(u_a² − u_b²d)) / 2.
+        let u_b_sq = parent.element_mul(&u_b, &u_b)?;
+        let u_b_sq_d = parent.element_mul(&u_b_sq, &d)?;
+        let ua_sq = parent.element_mul(&u_a, &u_a)?;
+        let inner = parent.element_sub(&ua_sq, &u_b_sq_d)?;
+        let two = parent.embed_rational(&Ratio::from_integer(2.into()));
+        let Ok(two_inv) = parent.element_inv(&two) else {
+            return Ok(None);
+        };
+        let Some(sqrt_inner) = try_square_root_in_field_impl(&parent, &inner)? else {
+            return Ok(None);
+        };
+        for sign in [1i32, -1i32] {
+            let signed = if sign > 0 {
+                sqrt_inner.clone()
+            } else {
+                parent.element_neg(&sqrt_inner)?
+            };
+            let a_sq = parent.element_mul(&parent.element_add(&u_a, &signed)?, &two_inv)?;
+            if let Some(a_cand) = try_square_root_in_field_impl(&parent, &a_sq)? {
+                let two_a = parent.element_mul(&two, &a_cand)?;
+                if let Ok(inv_two_a) = parent.element_inv(&two_a) {
+                    let b_cand = parent.element_mul(&u_b, &inv_two_a)?;
+                    for a_try in [a_cand.clone(), parent.element_neg(&a_cand)?] {
+                        if let Some(hit) = try_pair(&a_try, &b_cand)? {
+                            return Ok(Some(hit));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(None)
+}
+
+// **Pipeline private** — collect deg-2 layer generators embedded in `field`.
+fn quadratic_layer_generators(field: &Arc<ExtensionField>) -> Result<Vec<CoordsQ>, EvalError> {
+    let mut gens = Vec::new();
+    let mut cur: Option<Arc<ExtensionField>> = Some(Arc::clone(field));
+    while let Some(layer) = cur {
+        if layer.layer_ext_degree().ok() == Some(2) {
+            gens.push(embed_coords_in(field, &layer, &layer.generator_coords())?);
+        }
+        cur = layer.parent_field().map(Arc::clone);
+    }
+    Ok(gens)
+}
+
+// **Pipeline private** — F5 S5: products / ratios of quadratic layer generators.
+fn try_sqrt_layer_generator_algebra(
+    field: &Arc<ExtensionField>,
+    u: &CoordsQ,
+) -> Result<Option<CoordsQ>, EvalError> {
+    let gens = quadratic_layer_generators(field)?;
+    let n = gens.len();
+    for i in 0..n {
+        for j in i..n {
+            let prod = if i == j {
+                gens[i].clone()
+            } else {
+                field.element_mul(&gens[i], &gens[j])?
+            };
+            for cand in [prod.clone(), field.element_neg(&prod)?] {
+                if coords_square_eq_mod(field, &cand, u)? {
+                    return Ok(Some(cand));
+                }
+            }
+            if i != j {
+                if let Ok(inv_j) = field.element_inv(&gens[j]) {
+                    let quot = field.element_mul(&gens[i], &inv_j)?;
+                    for cand in [quot.clone(), field.element_neg(&quot)?] {
+                        if coords_square_eq_mod(field, &cand, u)? {
+                            return Ok(Some(cand));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    try_sqrt_small_combo_with_quadratic_gens(field, u)
+}
+
+// **Pipeline private** — S6: dim≤6 pairwise ±1 ponytail fallback.
+fn try_sqrt_pairwise_fallback(
+    field: &Arc<ExtensionField>,
+    u: &CoordsQ,
+) -> Result<Option<CoordsQ>, EvalError> {
+    let dim = field.dimension();
+    if dim > TRY_SQRT_PAIRWISE_DIM_CEILING {
+        return Ok(None);
+    }
+    for i in 0..dim {
+        for j in (i + 1)..dim {
+            for &ci in &[1i32, -1i32] {
+                for &cj in &[1i32, -1i32] {
+                    let mut v = field.zero_coords();
+                    v[i] = Ratio::from_integer(BigInt::from(ci));
+                    v[j] = Ratio::from_integer(BigInt::from(cj));
+                    if field.element_is_zero(&v) {
+                        continue;
+                    }
+                    for cand in [v.clone(), field.element_neg(&v)?] {
+                        if coords_square_eq_mod(field, &cand, u)? {
+                            return Ok(Some(cand));
+                        }
+                    }
+                }
+            }
+        }
+    }
+    Ok(None)
+}
+
+/// ponytail: k·g scan ceiling when dim>8 (F5 S1).
+fn try_sqrt_layer_generators(
+    field: &Arc<ExtensionField>,
+    u: &CoordsQ,
+) -> Result<Option<CoordsQ>, EvalError> {
+    let k_max = if field.dimension() > 8 { 4 } else { 8 };
+    let mut cur: Option<Arc<ExtensionField>> = Some(Arc::clone(field));
+    while let Some(layer) = cur {
+        if layer.layer_ext_degree().ok() == Some(2) {
+            let gen = embed_coords_in(field, &layer, &layer.generator_coords())?;
+            for cand in [gen.clone(), field.element_neg(&gen)?] {
+                if coords_square_eq_mod(field, &cand, u)? {
+                    return Ok(Some(cand));
+                }
+            }
+            for k in 2i32..=k_max {
+                let k_rat = field.embed_rational(&Ratio::from_integer(BigInt::from(k)));
+                for cand in [
+                    field.element_mul(&k_rat, &gen)?,
+                    field.element_neg(&field.element_mul(&k_rat, &gen)?)?,
+                ] {
+                    if coords_square_eq_mod(field, &cand, u)? {
+                        return Ok(Some(cand));
+                    }
+                }
+            }
+        }
+        cur = layer.parent_field().map(Arc::clone);
+    }
+    Ok(None)
+}
+
+// **Pipeline private** — operational basis ±eᵢ.
+fn try_sqrt_basis_squares(
+    field: &Arc<ExtensionField>,
+    u: &CoordsQ,
+) -> Result<Option<CoordsQ>, EvalError> {
+    let dim = field.dimension();
+    for i in 0..dim {
+        let mut e = field.zero_coords();
+        e[i] = Ratio::one();
+        for cand in [e.clone(), field.element_neg(&e)?] {
+            if coords_square_eq_mod(field, &cand, u)? {
+                return Ok(Some(cand));
+            }
+        }
+    }
+    Ok(None)
+}
+
+// **Pipeline private** — F5 core: structural probes S0–S6 (no dim³ enum).
 fn try_square_root_in_field_impl(
     field: &Arc<ExtensionField>,
     u: &CoordsQ,
@@ -1100,78 +1432,93 @@ fn try_square_root_in_field_impl(
     if field.element_is_zero(&u) {
         return Ok(Some(field.zero_coords()));
     }
+    if let Some(c) = try_sqrt_layer_generators(field, &u)? {
+        return Ok(Some(c));
+    }
+    if let Some(c) = try_sqrt_basis_squares(field, &u)? {
+        return Ok(Some(c));
+    }
+    if let Some(c) = try_sqrt_subfield_descent(field, &u)? {
+        return Ok(Some(c));
+    }
+    if let Some(c) = try_sqrt_quadratic_top_layer(field, &u)? {
+        return Ok(Some(c));
+    }
+    if let Some(c) = try_sqrt_layer_generator_algebra(field, &u)? {
+        return Ok(Some(c));
+    }
+    try_sqrt_pairwise_fallback(field, &u)
+}
+
+// **Pipeline private** — shallow: S1–S3 + S5 products (Euler hot path).
+fn try_square_root_in_field_shallow_impl(
+    field: &Arc<ExtensionField>,
+    u: &CoordsQ,
+) -> Result<Option<CoordsQ>, EvalError> {
+    let u = pad_to_len(u, field.dimension());
+    if field.element_is_zero(&u) {
+        return Ok(Some(field.zero_coords()));
+    }
+    if let Some(c) = try_sqrt_layer_generators(field, &u)? {
+        return Ok(Some(c));
+    }
+    if let Some(c) = try_sqrt_basis_squares(field, &u)? {
+        return Ok(Some(c));
+    }
+    if let Some(c) = try_sqrt_subfield_descent(field, &u)? {
+        return Ok(Some(c));
+    }
+    try_sqrt_layer_generator_algebra(field, &u)
+}
+
+// **Pipeline private** — F4: e_i ± k·g combinations for last quadratic adjoin layers (dim≤12).
+fn try_sqrt_small_combo_with_quadratic_gens(
+    field: &Arc<ExtensionField>,
+    u: &CoordsQ,
+) -> Result<Option<CoordsQ>, EvalError> {
+    let dim = field.dimension();
+    let mut gens = Vec::new();
     let mut cur: Option<Arc<ExtensionField>> = Some(Arc::clone(field));
     while let Some(layer) = cur {
         if layer.layer_ext_degree().ok() == Some(2) {
-            let gen = embed_coords_in(field, &layer, &layer.generator_coords())?;
-            for cand in [gen.clone(), field.element_neg(&gen)?] {
-                if coords_square_eq_mod(field, &cand, &u)? {
-                    return Ok(Some(cand));
-                }
-            }
-            // ponytail: k·g (e.g. √8 = 2√2); ceiling k≤8.
-            for k in 2i32..=8 {
-                let k_rat = field.embed_rational(&Ratio::from_integer(BigInt::from(k)));
-                for cand in [
-                    field.element_mul(&k_rat, &gen)?,
-                    field.element_neg(&field.element_mul(&k_rat, &gen)?)?,
-                ] {
-                    if coords_square_eq_mod(field, &cand, &u)? {
-                        return Ok(Some(cand));
-                    }
-                }
-            }
+            gens.push(embed_coords_in(field, &layer, &layer.generator_coords())?);
         }
         cur = layer.parent_field().map(Arc::clone);
     }
-    let dim = field.dimension();
     for i in 0..dim {
         let mut e = field.zero_coords();
         e[i] = Ratio::one();
-        for cand in [e.clone(), field.element_neg(&e)?] {
-            if coords_square_eq_mod(field, &cand, &u)? {
-                return Ok(Some(cand));
-            }
-        }
-    }
-    if dim <= TRY_SQRT_ENUM_DIM_CEILING {
-        for i in 0..dim {
-            for j in (i + 1)..dim {
-                for &ci in &[1i32, -1i32] {
-                    for &cj in &[1i32, -1i32] {
-                        let mut v = field.zero_coords();
-                        v[i] = Ratio::from_integer(BigInt::from(ci));
-                        v[j] = Ratio::from_integer(BigInt::from(cj));
-                        if field.element_is_zero(&v) {
-                            continue;
-                        }
-                        for cand in [v.clone(), field.element_neg(&v)?] {
-                            if coords_square_eq_mod(field, &cand, &u)? {
-                                return Ok(Some(cand));
-                            }
+        for g in &gens {
+            for &ci in &[-2i32, -1, 1, 2] {
+                for &cj in &[-2i32, -1, 1, 2] {
+                    if ci == 0 && cj == 0 {
+                        continue;
+                    }
+                    let ci_r = field.embed_rational(&Ratio::from_integer(BigInt::from(ci)));
+                    let cj_r = field.embed_rational(&Ratio::from_integer(BigInt::from(cj)));
+                    let mut v = field.zero_coords();
+                    if ci != 0 {
+                        v = field.element_add(&v, &field.element_mul(&ci_r, &e)?)?;
+                    }
+                    if cj != 0 {
+                        v = field.element_add(&v, &field.element_mul(&cj_r, g)?)?;
+                    }
+                    if field.element_is_zero(&v) {
+                        continue;
+                    }
+                    for cand in [v.clone(), field.element_neg(&v)?] {
+                        if coords_square_eq_mod(field, &cand, u)? {
+                            return Ok(Some(cand));
                         }
                     }
                 }
             }
-        }
-        for i in 0..dim {
-            for j in (i + 1)..dim {
-                for k in (j + 1)..dim {
-                    for &ci in &[1i32, -1i32] {
-                        for &cj in &[1i32, -1i32] {
-                            for &ck in &[1i32, -1i32] {
-                                let mut v = field.zero_coords();
-                                v[i] = Ratio::from_integer(BigInt::from(ci));
-                                v[j] = Ratio::from_integer(BigInt::from(cj));
-                                v[k] = Ratio::from_integer(BigInt::from(ck));
-                                for cand in [v.clone(), field.element_neg(&v)?] {
-                                    if coords_square_eq_mod(field, &cand, &u)? {
-                                        return Ok(Some(cand));
-                                    }
-                                }
-                            }
-                        }
-                    }
+            for cand in [
+                field.element_mul(&e, g)?,
+                field.element_neg(&field.element_mul(&e, g)?)?,
+            ] {
+                if coords_square_eq_mod(field, &cand, u)? {
+                    return Ok(Some(cand));
                 }
             }
         }
@@ -2100,6 +2447,33 @@ mod tests {
         let sq = k.element_mul(&alpha, &alpha).unwrap();
         let two = pad_to_len(&[Ratio::from_integer(2.into())], 2);
         assert!(k.element_eq_mod(&sq, &two).unwrap());
+    }
+
+    // **B** — F5 S3: √2 in ℚ(√2,√3) via subfield descent (no new adjoin).
+    #[test]
+    fn try_square_root_sqrt2_in_q_sqrt2_sqrt3() {
+        let k1 = k1_adjoin_sqrt2();
+        let k2 = ExtensionField::adjoin_irreducible(&k1, minpoly_u2_minus(-3)).unwrap();
+        assert_eq!(k2.dimension(), 4);
+        let two = k2.embed_rational(&Ratio::from_integer(2.into()));
+        let root = ExtensionField::try_square_root_in_field(&k2, &two)
+            .unwrap()
+            .expect("sqrt(2) in Q(sqrt2,sqrt3) via S3");
+        let sq = k2.element_mul(&root, &root).unwrap();
+        assert!(k2.element_eq_mod(&sq, &two).unwrap());
+    }
+
+    // **B** — F5 S5: √6 = √2·√3 in ℚ(√2,√3).
+    #[test]
+    fn try_square_root_sqrt6_in_q_sqrt2_sqrt3() {
+        let k1 = k1_adjoin_sqrt2();
+        let k2 = ExtensionField::adjoin_irreducible(&k1, minpoly_u2_minus(-3)).unwrap();
+        let six = k2.embed_rational(&Ratio::from_integer(6.into()));
+        let root = ExtensionField::try_square_root_in_field(&k2, &six)
+            .unwrap()
+            .expect("sqrt(6) in Q(sqrt2,sqrt3) via S5");
+        let sq = k2.element_mul(&root, &root).unwrap();
+        assert!(k2.element_eq_mod(&sq, &six).unwrap());
     }
 
     // **B** — F5: √8 in ℚ(√2) without new adjoin.

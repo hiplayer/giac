@@ -20,6 +20,13 @@
 //! full module index in `.doc/giac-core-algebra-api-stability.md`.
 //!
 use std::cell::RefCell;
+
+/// Splitting-field hard cap for deg≤4 root pipelines (F1/F4).
+pub(crate) const POLY_ROOTS_DIM_HARD: usize = 24;
+/// Resolvent cubic stage bound at \(d_K=1\) (F2 A′ + deflate for \(p\neq0\)).
+pub(crate) const POLY_ROOTS_DIM_RESOLVENT: usize = 6;
+/// Target splitting-field bound for general quartic four roots at \(d_K=1\) (F4).
+pub(crate) const POLY_ROOTS_DIM_QUARTIC_OUT: usize = 12;
 use std::collections::HashMap;
 use std::rc::Rc;
 use std::sync::Arc;
@@ -362,6 +369,9 @@ impl FieldSession {
             );
             return Ok(beta);
         }
+        if self.working().dimension() >= POLY_ROOTS_DIM_HARD {
+            return Err(EvalError::NotImplemented("poly roots dim bound"));
+        }
         self.adjoin_sqrt_new(&u)
     }
 
@@ -384,6 +394,33 @@ impl FieldSession {
         let re = rationalize_poly1(&inner.re)?;
         let coords = pad_to_len(&re, field.dimension());
         if let Some(root_coords) = ExtensionField::try_square_root_in_field(&field, &coords)? {
+            let beta = AlgExtData::from_field_coords(
+                Arc::clone(&field),
+                coords_to_expr(&root_coords)?,
+            )?;
+            return Ok(Some(AlgExtCPolyCoeff::from(AlgExtCData::from_alg_ext(&beta)?)));
+        }
+        Ok(None)
+    }
+
+    /// Shallow [`Self::try_sqrt_in_field`]: deg-2 layer scan + basis squares only.
+    /// **Pipeline private** — Euler second-sqrt fast path before blind adjoin
+    pub(crate) fn try_sqrt_in_field_shallow(
+        &self,
+        u: &AlgExtCPolyCoeff,
+    ) -> Result<Option<AlgExtCPolyCoeff>, EvalError> {
+        let u = self.lift(u)?;
+        let inner = u.as_inner();
+        if !inner.im.iter().all(|e| e.is_zero()) {
+            return Ok(None);
+        }
+        if u.coeff_is_zero() {
+            return Ok(Some(self.zero()));
+        }
+        let field = self.working();
+        let re = rationalize_poly1(&inner.re)?;
+        let coords = pad_to_len(&re, field.dimension());
+        if let Some(root_coords) = ExtensionField::try_square_root_in_field_shallow(&field, &coords)? {
             let beta = AlgExtData::from_field_coords(
                 Arc::clone(&field),
                 coords_to_expr(&root_coords)?,
@@ -575,7 +612,7 @@ fn is_negative_rational(c: &AlgExtCPolyCoeff) -> bool {
 }
 
 // **Pipeline private** — embed real coeff coords into `target`.
-fn coords_in_field(
+pub(crate) fn coords_in_field(
     session: &FieldSession,
     c: &AlgExtCPolyCoeff,
     target: &Arc<ExtensionField>,
@@ -590,7 +627,7 @@ fn coords_in_field(
 }
 
 // **Pipeline private** — embed coords as coeff in `field`.
-fn coeff_from_coords(
+pub(crate) fn coeff_from_coords(
     field: &Arc<ExtensionField>,
     coords: &CoordsQ,
 ) -> Result<AlgExtCPolyCoeff, EvalError> {
@@ -619,6 +656,21 @@ mod tests {
         assert!(before >= 1);
         let _ = session.common_over_q(&sqrt3, &sqrt2).unwrap();
         assert_eq!(session.common_cache_len(), before);
+    }
+
+    #[test]
+    fn restore_checkpoint_discards_later_adjoin() {
+        let session = FieldSession::new(ExtensionField::rational());
+        let cp = session.checkpoint();
+        let two = session.int(2).unwrap();
+        let _ = session.adjoin_sqrt(&two).unwrap();
+        assert!(session.working().dimension() > 1);
+        session.restore(&cp);
+        assert_eq!(session.working().dimension(), 1);
+        let beta = session.sqrt_in_field(&two).unwrap();
+        let sq = session.mul(&beta, &beta).unwrap();
+        let (sq_a, two_a) = session.align(&sq, &two).unwrap();
+        assert!(sq_a.coeff_sub(&two_a).unwrap().coeff_is_zero());
     }
 
     #[test]

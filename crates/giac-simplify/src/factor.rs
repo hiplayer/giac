@@ -14,7 +14,7 @@ use giac_poly::Poly;
 
 use crate::ifactor::ifactor;
 use crate::expand::normal;
-use giac_core::{expr_to_poly, poly_to_expr, univariate_poly_to_poly1_expr, ratio_to_expr};
+use giac_core::{expr_to_poly, expr_to_rational_polys, poly_to_expr, univariate_poly_to_poly1_expr, ratio_to_expr};
 
 /// **Stable (bounded)** — structural (`Mul`/`Pow`/`Frac`) then polynomial factorization.
 ///
@@ -77,7 +77,7 @@ fn flatten_mul(e: &Expr) -> Vec<ExprArc> {
 
 // **Pipeline private** — normal→poly→factor_into chain
 fn factor_poly_form(e: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
-    if let Ok((num, den)) = rational_num_den(e) {
+    if let Ok((num, den)) = expr_to_rational_polys(e) {
         if !den.is_one() {
             let fn_ = factor_poly_form(&poly_to_expr(&num), ctx)?;
             let fd = factor_poly_form(&poly_to_expr(&den), ctx)?;
@@ -179,18 +179,4 @@ fn try_factor_quadratic_sqrt(p: &Poly) -> Option<Vec<ExprArc>> {
         Expr::add(vec![x.clone(), Expr::mul(vec![Expr::int(-1), r1])]),
         Expr::add(vec![x, Expr::mul(vec![Expr::int(-1), r2])]),
     ])
-}
-
-// **Pipeline private** — Expr leaf to (num,den) Poly
-fn rational_num_den(e: &Expr) -> Result<(Poly, Poly), EvalError> {
-    match e {
-        Expr::Pow(base, exp) if matches!(exp.as_ref(), Expr::Int(n) if n == &-BigInt::from(1)) => {
-            Ok((Poly::one(), expr_to_poly(base.as_ref())?))
-        }
-        Expr::Frac(n, d) => Ok((
-            expr_to_poly(n.as_ref())?,
-            expr_to_poly(d.as_ref())?,
-        )),
-        other => Ok((expr_to_poly(other)?, Poly::one())),
-    }
 }

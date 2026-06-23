@@ -7,6 +7,7 @@
 
 mod plugin;
 mod solve;
+mod solve_poly;
 mod rootof;
 mod sturm;
 mod fsolve;

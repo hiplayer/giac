@@ -1,6 +1,4 @@
-//! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
-//! full module index in `.doc/giac-solve-api-stability.md`.
-//!
+//! `rootof` branch helpers — **tests / reference only** (S4: production uses `poly_algext_roots`).
 use std::sync::Arc;
 
 use giac_core::{algext_sqrt_branches, univariate_poly_to_poly1_expr, AlgExtData, EvalError, Expr, ExprArc, FuncKind};

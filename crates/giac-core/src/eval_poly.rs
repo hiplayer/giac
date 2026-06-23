@@ -16,6 +16,7 @@ use crate::expr::{Expr, ExprArc};
 use crate::ident::{ident_from_expr, Ident};
 
 use crate::algebra::poly::{expr_to_poly, poly_to_expr, ratio_to_expr, vars_from_expr};
+use crate::expr_rational::expr_to_rational_polys;
 
 pub fn eval_quo(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc, EvalError> {
     if args.len() != 2 {
@@ -195,7 +196,7 @@ pub fn eval_partfrac(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc,
     }
     let var = ident_from_expr(args[1].as_ref())?;
     let var_poly = Var::from(var.as_str());
-    let (num, den) = rational_num_den(args[0].as_ref())?;
+    let (num, den) = expr_to_rational_polys(args[0].as_ref())?;
     let (poly_part, terms) = partfrac_rational_terms(&num, &den, &var_poly)?;
     let mut out = Vec::new();
     if let Some(q) = poly_part {
@@ -214,16 +215,6 @@ pub fn eval_partfrac(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc,
         0 => Ok(Expr::int(0)),
         1 => Ok(out[0].clone()),
         _ => Ok(Expr::add(out)),
-    }
-}
-
-fn rational_num_den(e: &Expr) -> Result<(Poly, Poly), EvalError> {
-    match e {
-        Expr::Pow(base, exp) if matches!(exp.as_ref(), Expr::Int(n) if n == &-BigInt::from(1)) => {
-            Ok((Poly::one(), expr_to_poly(base)?))
-        }
-        Expr::Frac(n, d) => Ok((expr_to_poly(n.as_ref())?, expr_to_poly(d.as_ref())?)),
-        other => Ok((expr_to_poly(other)?, Poly::one())),
     }
 }
 

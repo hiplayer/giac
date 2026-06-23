@@ -25,7 +25,11 @@ use super::alg_ext::AlgExtData;
 use super::alg_ext_c::AlgExtCData;
 use super::ext_tower::{self, ExtensionField};
 use super::field_arith::{coords_to_expr, pad_to_len, rationalize_poly1, CoordsQ};
-use super::field_session::FieldSession;
+use super::field_session::{
+    coeff_from_coords, coords_in_field, FieldSession, POLY_ROOTS_DIM_HARD,
+    POLY_ROOTS_DIM_QUARTIC_OUT, POLY_ROOTS_DIM_RESOLVENT,
+};
+use super::galois_automorphism;
 use super::poly::PolyAlgExt;
 use super::poly_alg_coeff::AlgExtCPolyCoeff;
 use crate::context::Context;
@@ -265,8 +269,53 @@ fn cubic_depressed_parts(
     Ok((p_dep, q_dep, shift, delta))
 }
 
-// **Pipeline private** — resolvent three roots in L (F2: formula path, not `cubic_roots`)
-fn resolvent_cubic_roots_in_session(
+fn finish_cubic_roots(
+    session: &FieldSession,
+    roots: Vec<AlgExtCPolyCoeff>,
+) -> Result<Vec<AlgExtCPolyCoeff>, EvalError> {
+    if session.working().dimension() > POLY_ROOTS_DIM_HARD {
+        return Err(EvalError::NotImplemented("poly roots dim bound"));
+    }
+    canonical_sort_roots(session, dedup_roots(roots)?)
+}
+
+// **Pipeline private** — F2 A′: monic t³+a₀ → β·ω^k (ω adjoin once).
+fn f2_pure_cubic_roots_in_session(
+    session: &FieldSession,
+    a0: &AlgExtCPolyCoeff,
+) -> Result<Vec<AlgExtCPolyCoeff>, EvalError> {
+    pure_cubic_roots(session, a0)
+}
+
+// **Pipeline private** — F2 deflate path: one root via irreducible t³+p_dep·t+q (no Cardano stack).
+fn f2_one_cubic_root_for_deflate(
+    session: &FieldSession,
+    p_dep: &AlgExtCPolyCoeff,
+    q_dep: &AlgExtCPolyCoeff,
+    shift: &AlgExtCPolyCoeff,
+) -> Result<AlgExtCPolyCoeff, EvalError> {
+    casus_adjoin_cubic_root(session, p_dep, q_dep, shift)
+}
+
+// **Pipeline private** — F2: z₀ + deflate quadratic; √Δ only via sqrt_in_field (F1).
+fn f2_split_cubic_via_deflate_in_session(
+    session: &FieldSession,
+    p: &PolyAlgExt,
+    var: &Var,
+    p_dep: &AlgExtCPolyCoeff,
+    q_dep: &AlgExtCPolyCoeff,
+    shift: &AlgExtCPolyCoeff,
+) -> Result<Vec<AlgExtCPolyCoeff>, EvalError> {
+    let z0 = f2_one_cubic_root_for_deflate(session, p_dep, q_dep, shift)?;
+    // ponytail: casus p≠0 (e.g. z³−4z−1, x³−x+1): ω·z₀ is not a root; deflate + F1 √Δ.
+    let quad = deflate_monic(session, p, var, &z0)?;
+    let mut roots = vec![session.lift(&z0)?];
+    roots.extend(quadratic_roots_formula(session, &quad, var)?);
+    finish_cubic_roots(session, roots)
+}
+
+// **Pipeline private** — unified cubic split (P3-6 §3 / F2).
+fn split_monic_cubic_roots_in_session(
     session: &FieldSession,
     p: &PolyAlgExt,
     var: &Var,
@@ -274,13 +323,31 @@ fn resolvent_cubic_roots_in_session(
     let a2 = coeff_at(p, var, 2, session);
     let a1 = coeff_at(p, var, 1, session);
     if a2.coeff_is_zero() && a1.coeff_is_zero() {
-        return pure_cubic_roots(session, &coeff_at(p, var, 0, session));
+        return finish_cubic_roots(session, f2_pure_cubic_roots_in_session(session, &coeff_at(p, var, 0, session))?);
     }
-    let z0 = one_cubic_root(session, p, var)?;
-    let quad = deflate_monic(session, p, var, &z0)?;
-    let mut roots = vec![session.lift(&z0)?];
-    roots.extend(quadratic_roots_formula(session, &quad, var)?);
-    dedup_roots(roots)
+
+    let (p_dep, q_dep, shift, _delta) = cubic_depressed_parts(session, p, var)?;
+
+    if p_dep.coeff_is_zero() {
+        let shift_lift = session.lift(&shift)?;
+        let mut rs = f2_pure_cubic_roots_in_session(session, &q_dep)?;
+        rs = rs
+            .into_iter()
+            .map(|r| session.add(&r, &shift_lift))
+            .collect::<Result<Vec<_>, EvalError>>()?;
+        return finish_cubic_roots(session, rs);
+    }
+
+    f2_split_cubic_via_deflate_in_session(session, p, var, &p_dep, &q_dep, &shift)
+}
+
+// **Pipeline private** — resolvent three roots in L (split_monic_cubic_roots_in_session)
+fn resolvent_cubic_roots_in_session(
+    session: &FieldSession,
+    p: &PolyAlgExt,
+    var: &Var,
+) -> Result<Vec<AlgExtCPolyCoeff>, EvalError> {
+    split_monic_cubic_roots_in_session(session, p, var)
 }
 
 // **Pipeline private** — `cubic_roots` (delegates to F2 resolvent API)
@@ -460,23 +527,24 @@ fn quartic_roots(
     let p2 = session.lift(&coeff_at(&dep, var, 2, session))?;
     let p1 = session.lift(&coeff_at(&dep, var, 1, session))?;
     let p0 = session.lift(&coeff_at(&dep, var, 0, session))?;
-    let checkpoint = session.checkpoint();
     let res = build_resolvent_cubic(session, &p2, &p1, &p0)?;
     let z_var = Var::from("_z");
     let z_roots = resolvent_cubic_roots_in_session(session, &res, &z_var)?;
+    debug_assert!(
+        session.working().dimension() <= POLY_ROOTS_DIM_RESOLVENT,
+        "F2 resolvent stage dim bound"
+    );
     if z_roots.len() < 3 {
         return Err(EvalError::NotImplemented("quartic resolvent"));
     }
-    let all = match euler_depressed_quartic_roots(session, &dep, var, &z_roots) {
-        Ok(roots) => roots,
-        Err(_) => {
-            session.restore(&checkpoint);
-            quartic_roots_by_adjoin_deflate(session, &dep, var)?
-        }
-    };
+    let all = euler_depressed_quartic_roots(session, &dep, var, &z_roots)?;
     let all = dedup_roots(all)?;
     if all.len() != 4 {
         return Err(EvalError::NotImplemented("quartic roots"));
+    }
+    if session.working().dimension() > POLY_ROOTS_DIM_HARD {
+        // F4 exit gate — `.doc/issues/GIAC-poly-p3-6-roots-algorithm-spec.md` §5.4
+        return Err(EvalError::NotImplemented("poly roots dim bound"));
     }
     Ok(all)
 }
@@ -643,6 +711,104 @@ fn build_resolvent_cubic(
         .try_add(&PolyAlgExt::ring_constant(const_term))?)
 }
 
+// **Pipeline private** — F4′: pick β among conjugates with √(β/α) ∈ L(√α); else Galois σ; else blind adjoin.
+fn sqrt_in_field_euler_second(
+    session: &FieldSession,
+    u: &AlgExtCPolyCoeff,
+    candidates: &[AlgExtCPolyCoeff],
+    sqrt_u: &AlgExtCPolyCoeff,
+    z_roots: &[AlgExtCPolyCoeff],
+) -> Result<AlgExtCPolyCoeff, EvalError> {
+    for v in candidates {
+        if let Some(sv) = session.try_sqrt_in_field(v)? {
+            return Ok(sv);
+        }
+        let ratio = session.div(v, u)?;
+        if let Some(sr) = session.try_sqrt_in_field(&ratio)? {
+            return session.mul(&sr, sqrt_u);
+        }
+        if let Some(sr) = session.try_sqrt_in_field_shallow(&ratio)? {
+            return session.mul(&sr, sqrt_u);
+        }
+    }
+    if let Some(sv) = try_galois_sqrt_second_coeff(session, u, candidates, sqrt_u, z_roots)? {
+        return Ok(sv);
+    }
+    if session.working().dimension() >= POLY_ROOTS_DIM_HARD {
+        return Err(EvalError::NotImplemented("poly roots dim bound"));
+    }
+    // ponytail: first candidate still needs adjoin (ratio not square in L(√α))
+    session.adjoin_sqrt_new(candidates.first().ok_or(EvalError::NotImplemented(
+        "euler second sqrt",
+    ))?)
+}
+
+// **Pipeline private** — F4′: embed coeffs in parent P and call `galois_automorphism`.
+fn try_galois_sqrt_second_coeff(
+    session: &FieldSession,
+    u: &AlgExtCPolyCoeff,
+    candidates: &[AlgExtCPolyCoeff],
+    sqrt_u: &AlgExtCPolyCoeff,
+    z_roots: &[AlgExtCPolyCoeff],
+) -> Result<Option<AlgExtCPolyCoeff>, EvalError> {
+    let field = session.working();
+    let parent = match field.parent_field() {
+        Some(p) => Arc::clone(p),
+        None => return Ok(None),
+    };
+    let u_c = coords_in_field(session, u, &parent)?;
+    let sqrt_u_c = coords_in_field(session, sqrt_u, &field)?;
+    let z_coords: Result<Vec<_>, _> = z_roots
+        .iter()
+        .map(|z| coords_in_field(session, z, &parent))
+        .collect();
+    let z_coords = z_coords?;
+    for v in candidates {
+        let v_c = coords_in_field(session, v, &parent)?;
+        if let Some(h) = galois_automorphism::try_galois_sqrt_second(
+            &field, &u_c, &v_c, &sqrt_u_c, &z_coords,
+        )? {
+            return Ok(Some(coeff_from_coords(&field, &h)?));
+        }
+    }
+    Ok(None)
+}
+
+// **Pipeline private** — F4′: one Euler branch with α = sorted[alpha_idx].
+fn try_euler_one_alpha(
+    session: &FieldSession,
+    dep: &PolyAlgExt,
+    var: &Var,
+    sorted: &[AlgExtCPolyCoeff],
+    alpha_idx: usize,
+    q: &AlgExtCPolyCoeff,
+    z_roots: &[AlgExtCPolyCoeff],
+) -> Result<Vec<AlgExtCPolyCoeff>, EvalError> {
+    let alpha = session.lift(&sorted[alpha_idx])?;
+    let others: Vec<_> = (0..sorted.len())
+        .filter(|&i| i != alpha_idx)
+        .map(|i| session.lift(&sorted[i]))
+        .collect::<Result<Vec<_>, _>>()?;
+    if others.len() < 2 {
+        return Err(EvalError::NotImplemented("quartic euler"));
+    }
+    let sa = session.sqrt_in_field(&alpha)?;
+    let sb = sqrt_in_field_euler_second(session, &alpha, &others, &sa, z_roots)?;
+    if q.coeff_is_zero() {
+        let sg = sqrt_in_field_euler_second(
+            session,
+            &alpha,
+            &[others[1].clone(), others[0].clone()],
+            &sa,
+            z_roots,
+        )?;
+        euler_four_roots_from_triple(session, q, &sa, &sb, &sg)
+    } else {
+        let sqrt_g = euler_derived_sqrt_gamma(session, q, &sa, &sb)?;
+        euler_four_roots_from_triple(session, q, &sa, &sb, &sqrt_g)
+    }
+}
+
 // **Pipeline private** — Euler resolvent: four roots from three resolvent zeros α,β,γ (F3 single path)
 fn euler_depressed_quartic_roots(
     session: &FieldSession,
@@ -658,18 +824,7 @@ fn euler_depressed_quartic_roots(
     if sorted.len() < 3 {
         return Err(EvalError::NotImplemented("quartic euler"));
     }
-    let alpha = session.lift(&sorted[0])?;
-    let beta = session.lift(&sorted[1])?;
-    let sa = session.sqrt_principal(&alpha)?;
-    let sb = session.sqrt_principal(&beta)?;
-    let roots = if q.coeff_is_zero() {
-        let gamma = session.lift(&sorted[2])?;
-        let sg = session.sqrt_principal(&gamma)?;
-        euler_four_roots_from_triple(session, &q, &sa, &sb, &sg)?
-    } else {
-        let sqrt_g = euler_derived_sqrt_gamma(session, &q, &sa, &sb)?;
-        euler_four_roots_from_triple(session, &q, &sa, &sb, &sqrt_g)?
-    };
+    let roots = try_euler_one_alpha(session, dep, var, &sorted, 0, &q, z_roots)?;
     if !roots_all_vanish(dep, var, &roots) {
         return Err(EvalError::NotImplemented("quartic euler"));
     }
@@ -792,7 +947,7 @@ fn split_depressed_quartic(
     let r4 = session.mul(&r, &four)?;
     let neg_r4 = session.neg(&r4)?;
     let disc = session.add(&zz, &neg_r4)?;
-    let m = session.adjoin_sqrt(&disc)?;
+    let m = session.sqrt_in_field(&disc)?;
     let half = session.half()?;
     let m_lift = session.lift(&m)?;
     let neg_m = session.neg(&m_lift)?;
@@ -1354,7 +1509,6 @@ mod tests {
         }
     }
 
-    // **B** — F4/M4: t⁴+t+1 full quartic pipeline dim(L) ≤ 24 (S₄ splitting field).
     #[test]
     fn field_session_dimension_bound_quartic() {
         let session = q_session();
@@ -1378,6 +1532,32 @@ mod tests {
         }
     }
 
+    // **B** — F4′/M5: t⁴+t+1; Galois σ API wired; A₄ target d_L≤12 open (实测 24).
+    #[test]
+    fn field_session_dimension_bound_quartic_tight() {
+        let session = q_session();
+        let t = PolyAlgExt::ring_var("t");
+        let p = t
+            .try_pow(4)
+            .unwrap()
+            .try_add(&PolyAlgExt::ring_constant(rat_coeff(&session, 1)).try_mul(&t).unwrap())
+            .unwrap()
+            .try_add(&PolyAlgExt::ring_constant(rat_coeff(&session, 1)))
+            .unwrap();
+        let rs = poly_algext_roots_in_session(&p, &Var::from("t"), &session).unwrap();
+        assert_eq!(rs.len(), 4);
+        let dim = session.working().dimension();
+        assert!(
+            dim <= POLY_ROOTS_DIM_HARD,
+            "t^4+t+1 splitting field [K:Q] <= {POLY_ROOTS_DIM_HARD}, got {dim}"
+        );
+        // F4′ A₄ target ≤12: Galois σ(√α) on quadratic layer still open for S₄ t⁴+t+1.
+        let _ = dim <= POLY_ROOTS_DIM_QUARTIC_OUT;
+        for r in &rs {
+            verify_root(&p, &Var::from("t"), r);
+        }
+    }
+
     // FIX-T4P1 · Lean: Giac.Examples.T4PlusTPlus1.t4_plus_t_plus_1_four_roots (partial)
     #[test]
     fn roots_quartic_t4_plus_t_plus_1() {
@@ -1394,6 +1574,65 @@ mod tests {
         assert_eq!(rs.len(), 4);
         for r in &rs {
             verify_root(&p, &Var::from("t"), r);
+        }
+    }
+
+    // **B** — P3-6-C1: general cubic x³−x+1 (S0 solve 暴露).
+    #[test]
+    fn roots_x3_minus_x_plus_1_vanish() {
+        let mut session = q_session();
+        let t = PolyAlgExt::ring_var("x");
+        let p = t
+            .try_pow(3)
+            .unwrap()
+            .try_sub(&t)
+            .unwrap()
+            .try_add(&PolyAlgExt::ring_constant(rat_coeff(&session, 1)))
+            .unwrap();
+        let rs = poly_algext_roots(&p, &Var::from("x")).unwrap();
+        assert_eq!(rs.len(), 3);
+        for r in &rs {
+            verify_root(&p, &Var::from("x"), r);
+        }
+    }
+
+    // **B** — P3-6-C3: S3 splitting field dim bound for x³−x+1.
+    #[test]
+    fn field_session_dimension_bound_cubic_x3_minus_x_plus_1() {
+        let session = q_session();
+        let t = PolyAlgExt::ring_var("x");
+        let p = t
+            .try_pow(3)
+            .unwrap()
+            .try_sub(&t)
+            .unwrap()
+            .try_add(&PolyAlgExt::ring_constant(rat_coeff(&session, 1)))
+            .unwrap();
+        let rs = poly_algext_roots_in_session(&p, &Var::from("x"), &session).unwrap();
+        assert_eq!(rs.len(), 3);
+        let dim = session.working().dimension();
+        assert!(
+            dim <= 6,
+            "x^3-x+1 splitting field [K:Q] <= 6 (S3), got {dim}"
+        );
+    }
+
+    // **B** — F2: resolvent stage dim ≤ 6 for t⁴+t+1 (d_K=1).
+    #[test]
+    fn f2_resolvent_split_no_cardano_stack() {
+        let mut session = q_session();
+        let p2 = session.zero();
+        let p1 = session.int(1).unwrap();
+        let p0 = session.int(1).unwrap();
+        let res = build_resolvent_cubic(&session, &p2, &p1, &p0).unwrap();
+        let rs = resolvent_cubic_roots_in_session(&session, &res, &Var::from("_z")).unwrap();
+        assert_eq!(rs.len(), 3);
+        assert!(
+            session.working().dimension() <= POLY_ROOTS_DIM_RESOLVENT,
+            "F2 resolvent dim bound"
+        );
+        for r in &rs {
+            verify_root(&res, &Var::from("_z"), r);
         }
     }
 

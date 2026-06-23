@@ -4,14 +4,14 @@
 use std::sync::Arc;
 
 use giac_core::{
-    eval, expr_to_poly, poly_algext_from_poly, poly_algext_roots_for_ctx, poly_to_expr, ident_from_expr,
-    is_sin_of_var_expr, Context, EvalError, Expr, ExprArc, Ident, RelOp,
+    eval, expr_to_poly, ident_from_expr, is_sin_of_var_expr, Context, EvalError, Expr, ExprArc,
+    Ident, RelOp,
 };
 use num_bigint::BigInt;
 use giac_linalg::eval_linsolve;
-use giac_poly::{roots, Var};
+use giac_poly::Var;
 
-use crate::rootof::{biquadratic_rootof_roots, quadratic_rootof_roots};
+use crate::solve_poly::solve_univariate_over_q;
 
 /// `solve(equation, var)` or `solve([equations], [vars])`.
 /// **Stable (bounded)** — solve via poly roots, rootof, or linsolve
@@ -28,37 +28,8 @@ pub fn eval_solve(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError>
     }
     let poly = equation_to_poly(args[0].as_ref(), ctx)?;
     let v = Var::from(var.as_str());
-    let items = poly_roots_as_exprs(&poly, &v, ctx)?;
+    let items = solve_univariate_over_q(&poly, &v, ctx)?;
     eval(Arc::new(Expr::List(items)).as_ref(), ctx)
-}
-
-// **Pipeline private** — ℚ roots → Expr list, with algext / rootof fallbacks.
-fn poly_roots_as_exprs(
-    poly: &giac_poly::Poly,
-    var: &Var,
-    ctx: &Context,
-) -> Result<Vec<ExprArc>, EvalError> {
-    match roots(poly, var) {
-        Ok(rs) => Ok(rs.into_iter().map(|p| poly_to_expr(&p)).collect()),
-        Err(EvalError::NotImplemented(_)) => try_algext_or_rootof_roots(poly, var, ctx),
-        Err(e) => Err(e),
-    }
-}
-
-// **Pipeline private** — `poly_algext_roots` then legacy `rootof` fast paths.
-fn try_algext_or_rootof_roots(
-    poly: &giac_poly::Poly,
-    var: &Var,
-    ctx: &Context,
-) -> Result<Vec<ExprArc>, EvalError> {
-    let p_alg = poly_algext_from_poly(poly)?;
-    if let Ok(rs) = poly_algext_roots_for_ctx(&p_alg, var, ctx) {
-        return Ok(rs
-            .into_iter()
-            .map(|r| Arc::new(r.as_inner().to_expr()))
-            .collect());
-    }
-    quadratic_rootof_roots(poly, var).or_else(|_| biquadratic_rootof_roots(poly, var))
 }
 
 // **Pipeline private** — `equation_to_poly`
@@ -99,7 +70,7 @@ mod tests {
     //! Test tiers: **A** / **A′** / **B** / **C** — `.doc/test-writing-spec.md`
     //! Audit: `.doc/issues/GIAC-expr-api-test-audit.md` §2
 
-    use giac_core::{FuncKind, Ident, RelOp};
+    use giac_core::{FuncKind, RelOp};
     use giac_simplify::assert_equiv;
     use num_traits::One;
 
@@ -182,7 +153,7 @@ mod tests {
         assert_eq!(x - y, 1);
     }
 
-    // **B** — biquadratic via poly_algext_roots fallback (D3-1).
+    // **B** — biquadratic via poly_algext_roots (S0 factor descent).
     #[test]
     fn solve_biquadratic_t4_minus_2() {
         let ctx = xcas_default();
@@ -204,9 +175,8 @@ mod tests {
         assert_eq!(list_items(&r).len(), 4);
     }
 
-    // **B** — general quartic; blocked on F1–F5 tower sqrt (same as poly_roots ignore).
+    // **B** — general quartic solve e2e (S2: stale ignore removed after F1–F3).
     #[test]
-    #[ignore = "tower sqrt embedding: adjoin_sqrt after resolvent split breaks ε²=u"]
     fn solve_quartic_t4_plus_t_plus_1() {
         let ctx = xcas_default();
         let e = Expr::func(

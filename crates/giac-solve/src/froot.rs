@@ -3,19 +3,15 @@
 //!
 use std::sync::Arc;
 
-use giac_core::{eval, expr_to_poly, poly_to_expr, Context, EvalError, Expr, ExprArc, FuncKind, Ident};
-use giac_poly::{
-    coeff_at, roots, square_free_factorization, univariate_degree, Poly, Var,
-};
-use num_rational::Ratio;
-use num_traits::{Signed, Zero};
+use giac_core::{eval, expr_to_rational_polys_eval, Context, EvalError, Expr, ExprArc, Ident};
+use giac_poly::{square_free_factorization, Poly, Var};
 
 /// `froot(p)` or `froot(p,x)` — factor roots with signed multiplicities (upstream `misc.cc` `_froot`).
 /// **Stable (bounded)** — rational roots of univariate poly
 pub fn eval_froot(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
     let (expr, var) = parse_froot_args(args, ctx)?;
     let ev = eval(expr.as_ref(), ctx)?;
-    let (num, den) = rational_num_den(ev.as_ref(), ctx)?;
+    let (num, den) = expr_to_rational_polys_eval(ev.as_ref(), ctx)?;
     let v = Var::from(var.as_str());
     let mut out = Vec::new();
     append_factor_roots(&num, &v, 1, &mut out, ctx)?;
@@ -42,41 +38,13 @@ fn parse_froot_args(args: &[ExprArc], ctx: &Context) -> Result<(ExprArc, Ident),
     }
 }
 
-// **Pipeline private** — Expr leaf to (num,den) Poly
-fn rational_num_den(expr: &Expr, ctx: &Context) -> Result<(Poly, Poly), EvalError> {
-    match expr {
-        Expr::Pow(base, exp) if matches!(exp.as_ref(), Expr::Int(n) if n.is_negative()) => Ok((
-            Poly::one(),
-            expr_to_poly(eval(base.as_ref(), ctx)?.as_ref())?,
-        )),
-        Expr::Frac(num, den) => Ok((
-            expr_to_poly(eval(num.as_ref(), ctx)?.as_ref())?,
-            expr_to_poly(eval(den.as_ref(), ctx)?.as_ref())?,
-        )),
-        Expr::Mul(factors) => {
-            if factors.len() == 2 {
-                if let Expr::Pow(base, exp) = factors[1].as_ref() {
-                    if matches!(exp.as_ref(), Expr::Int(n) if n.is_negative()) {
-                        return Ok((
-                            expr_to_poly(eval(factors[0].as_ref(), ctx)?.as_ref())?,
-                            expr_to_poly(eval(base.as_ref(), ctx)?.as_ref())?,
-                        ));
-                    }
-                }
-            }
-            Ok((expr_to_poly(eval(expr, ctx)?.as_ref())?, Poly::one()))
-        }
-        other => Ok((expr_to_poly(eval(other, ctx)?.as_ref())?, Poly::one())),
-    }
-}
-
 // **Pipeline private** — `append_factor_roots`
 fn append_factor_roots(
     poly: &Poly,
     var: &Var,
     sign: i32,
     out: &mut Vec<(ExprArc, i32)>,
-    _ctx: &Context,
+    ctx: &Context,
 ) -> Result<(), EvalError> {
     if poly.is_zero() {
         return Ok(());
@@ -84,33 +52,20 @@ fn append_factor_roots(
     let factors = square_free_factorization(poly, var)?;
     for (factor, mult) in factors {
         let signed = mult as i32 * sign;
-        for root in solve_factor_roots(&factor, var)? {
+        for root in solve_factor_roots(&factor, var, ctx)? {
             out.push((root, signed));
         }
     }
     Ok(())
 }
 
-// **Pipeline private** — `solve_factor_roots`
-fn solve_factor_roots(factor: &Poly, var: &Var) -> Result<Vec<ExprArc>, EvalError> {
-    let d = univariate_degree(factor, var);
-    match d {
-        0 => Ok(vec![]),
-        1 => {
-            let a = coeff_at(factor, var, 1);
-            if a.is_zero() {
-                return Err(EvalError::TypeError("degenerate linear factor"));
-            }
-            let root = -coeff_at(factor, var, 0) / a;
-            Ok(vec![poly_to_expr(&Poly::constant(root))])
-        }
-        2 | 3 => roots(factor, var)
-            ?
-            .into_iter()
-            .map(|p| Ok(poly_to_expr(&p)))
-            .collect(),
-        _ => Err(EvalError::NotImplemented("froot")),
-    }
+// **Pipeline private** — S3: deg≤4 via S0 kernel; deg≥5 rootof branch
+fn solve_factor_roots(
+    factor: &Poly,
+    var: &Var,
+    ctx: &Context,
+) -> Result<Vec<ExprArc>, EvalError> {
+    crate::solve_poly::solve_irreducible_factor(factor, var, ctx)
 }
 
 #[cfg(test)]
@@ -140,6 +95,21 @@ mod tests {
         for root in [Expr::int(0), Expr::int(1), Expr::int(2)] {
             assert_froot_has_root(items, &root, &ctx);
         }
+    }
+
+    // **B** — S3: deg-4 factor via poly_algext_roots (same kernel as solve).
+    #[test]
+    fn froot_quartic_t4_plus_t_plus_1() {
+        let ctx = xcas_default();
+        let p = Expr::add(vec![
+            Expr::pow(Expr::sym("t"), Expr::int(4)),
+            Expr::sym("t"),
+            Expr::int(1),
+        ]);
+        let e = Expr::func(FuncKind::Froot, vec![p, Expr::sym("t")]);
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        let items = list_items(&r);
+        assert_eq!(items.len(), 8, "4 roots × (root, mult) pairs");
     }
 
     // **A** — eval(Froot); rational roots in flat list.
