@@ -78,20 +78,53 @@ pub fn derivative_wrt(p: &Poly, var: &Var) -> Poly {
 
 /// **Stable** — Square-free factorization w.r.t. `var` over ℚ[others] (Yun-style via gcd).
 pub fn square_free_wrt(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>> {
-    match square_free_wrt_impl(p, var) {
+    match square_free_wrt_yun(p, var) {
         Ok(f) => Ok(f),
         Err(crate::error::EvalError::NotImplemented("poly division")) => Ok(vec![(p.clone(), 1)]),
         Err(e) => Err(e),
     }
 }
 
-// **Pipeline private** — `square_free_wrt_impl`
-fn square_free_wrt_impl(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>> {
-    let ring = crate::square_free::WrtVarRing {
-        var,
-        derivative: derivative_wrt,
-    };
-    crate::square_free::square_free_yun(&ring, p)
+// **Pipeline private** — `WrtRing`
+struct WrtRing<'a> {
+    var: &'a Var,
+}
+
+impl crate::square_free::SquareFreeRing for WrtRing<'_> {
+    type Poly = Poly;
+
+    fn is_zero(&self, p: &Poly) -> bool {
+        p.is_zero()
+    }
+
+    fn is_one(&self, p: &Poly) -> bool {
+        p.is_one()
+    }
+
+    fn derivative(&self, p: &Poly) -> PolyResult<Poly> {
+        Ok(derivative_wrt(p, self.var))
+    }
+
+    fn gcd(&self, a: &Poly, b: &Poly) -> PolyResult<Poly> {
+        Ok(a.gcd(b))
+    }
+
+    fn div_exact(&self, a: &Poly, b: &Poly) -> PolyResult<Poly> {
+        crate::subresultant::quo_exact_wrt(a, b, self.var)
+    }
+
+    fn sub(&self, a: &Poly, b: &Poly) -> PolyResult<Poly> {
+        Ok(a.sub(b))
+    }
+
+    fn max_exponent(&self, p: &Poly) -> usize {
+        univariate_degree(p, self.var) as usize
+    }
+}
+
+// **Pipeline private** — Yun sqff over ℚ[others][var]
+fn square_free_wrt_yun(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>> {
+    crate::square_free::square_free_yun(&WrtRing { var }, p)
 }
 
 /// **Stable** — Substitute `sub_var -> sub_poly` in `p`.

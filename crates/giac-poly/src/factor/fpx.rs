@@ -180,43 +180,44 @@ fn random_poly(deg: u64, modulus: &BigInt, rng: &mut Lcg) -> PolyMod {
     from_coeffs(modulus, &coeffs)
 }
 
-// **Pipeline private** — `square_free_yun`
-fn square_free_yun(p: &PolyMod) -> PolyResult<Vec<(PolyMod, usize)>> {
-    struct FpxRing;
+// **Pipeline private** — `FpxModRing`
+struct FpxModRing;
 
-    impl crate::square_free::SquareFreeRing for FpxRing {
-        type Poly = PolyMod;
+impl crate::square_free::SquareFreeRing for FpxModRing {
+    type Poly = PolyMod;
 
-        fn is_zero(&self, p: &PolyMod) -> bool {
-            p.is_zero()
-        }
-
-        fn is_one(&self, p: &PolyMod) -> bool {
-            is_poly_one(p)
-        }
-
-        fn derivative(&self, p: &PolyMod) -> PolyResult<PolyMod> {
-            derivative(p)
-        }
-
-        fn gcd(&self, a: &PolyMod, b: &PolyMod) -> PolyResult<PolyMod> {
-            a.gcd(b)
-        }
-
-        fn div_exact(&self, a: &PolyMod, b: &PolyMod) -> PolyResult<PolyMod> {
-            div_exact(a, b)
-        }
-
-        fn sub(&self, a: &PolyMod, b: &PolyMod) -> PolyResult<PolyMod> {
-            a.sub(b)
-        }
-
-        fn max_exponent(&self, p: &PolyMod) -> usize {
-            degree(p) as usize
-        }
+    fn is_zero(&self, p: &PolyMod) -> bool {
+        p.is_zero()
     }
 
-    crate::square_free::square_free_yun_mod(&FpxRing, p, degree)
+    fn is_one(&self, p: &PolyMod) -> bool {
+        is_poly_one(p)
+    }
+
+    fn derivative(&self, p: &PolyMod) -> PolyResult<PolyMod> {
+        derivative(p)
+    }
+
+    fn gcd(&self, a: &PolyMod, b: &PolyMod) -> PolyResult<PolyMod> {
+        a.gcd(b)
+    }
+
+    fn div_exact(&self, a: &PolyMod, b: &PolyMod) -> PolyResult<PolyMod> {
+        div_exact(a, b)
+    }
+
+    fn sub(&self, a: &PolyMod, b: &PolyMod) -> PolyResult<PolyMod> {
+        a.sub(b)
+    }
+
+    fn max_exponent(&self, p: &PolyMod) -> usize {
+        degree(p) as usize
+    }
+}
+
+// **Pipeline private** — `square_free_yun`
+fn square_free_yun(p: &PolyMod) -> PolyResult<Vec<(PolyMod, usize)>> {
+    crate::square_free::square_free_yun_mod(&FpxModRing, p, degree)
 }
 
 /// GIAC `ddf`: distinct-degree factorization into blocks of fixed irreducible degree.

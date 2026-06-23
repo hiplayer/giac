@@ -296,16 +296,17 @@ pub fn odd_multiplicity_part(p: &Poly, var: &Var) -> PolyResult<Poly> {
 
 // **Pipeline private** — `odd_part_core`
 fn odd_part_core(p: &Poly, var: &Var) -> PolyResult<Poly> {
+    let ring = crate::square_free::UniVarRing { var };
     let mut w = p.clone();
     let mut y = univariate_derivative(p, var);
-    gcd_reduce(&mut w, &mut y, var);
+    crate::square_free::gcd_reduce(&ring, &mut w, &mut y)?;
     y = y.sub(&univariate_derivative(&w, var));
 
     let mut odd = Poly::one();
     let mut k = 1usize;
     let max_k = univariate_degree(p, var) as usize + 2;
     while !y.is_zero() && k <= max_k {
-        let g = gcd_reduce(&mut w, &mut y, var);
+        let g = crate::square_free::gcd_reduce(&ring, &mut w, &mut y)?;
         if !g.is_one() && k % 2 == 1 {
             odd = odd.mul(&g);
         }
@@ -355,18 +356,6 @@ pub(crate) fn univariate_div_exact(p: &Poly, d: &Poly, var: &Var) -> Option<Poly
     } else {
         None
     }
-}
-
-// **Pipeline private** — `gcd_reduce`
-fn gcd_reduce(w: &mut Poly, y: &mut Poly, var: &Var) -> Poly {
-    let g = univariate_gcd(w, y, var);
-    if !g.is_one() {
-        if let (Some(wq), Some(yq)) = (w.div_exact(&g), y.div_exact(&g)) {
-            *w = wq;
-            *y = yq;
-        }
-    }
-    g
 }
 
 // **Pipeline private** — `univariate_rem`

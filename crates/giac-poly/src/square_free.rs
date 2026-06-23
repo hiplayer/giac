@@ -1,13 +1,12 @@
 //! Generic Yun square-free factorization over univariate polynomial rings.
 //!
 //! **Stable (bounded):** [`square_free_yun`] (char 0), [`square_free_yun_mod`] (finite field).
-//! **Pipeline private:** [`SquareFreeRing`], [`UniVarRing`], [`WrtVarRing`].
+//! **Pipeline private:** [`SquareFreeRing`], [`UniVarRing`].
 
 use crate::error::{EvalError, PolyResult};
 use crate::monomial::Var;
 use crate::poly::Poly;
 use crate::resultant::univariate_degree;
-use crate::subresultant::quo_exact_wrt;
 use crate::univariate::{univariate_derivative, univariate_div_exact, univariate_gcd};
 
 /// Ring operations for Yun square-free factorization.
@@ -24,7 +23,7 @@ pub(crate) trait SquareFreeRing {
 }
 
 // **Pipeline private** — divide `w,y` by gcd(w,y); return that gcd
-fn gcd_reduce<R: SquareFreeRing>(
+pub(crate) fn gcd_reduce<R: SquareFreeRing>(
     ring: &R,
     w: &mut R::Poly,
     y: &mut R::Poly,
@@ -79,18 +78,14 @@ pub(crate) fn square_free_yun_mod<R: SquareFreeRing>(
     let mut factors = Vec::new();
     let mut w = p.clone();
     let mut y = ring.derivative(p)?;
-    let mut g = ring.gcd(&w, &y)?;
-    if !ring.is_one(&g) {
-        w = ring.div_exact(&w, &g)?;
-        y = ring.div_exact(&y, &g)?;
-    }
+    gcd_reduce(ring, &mut w, &mut y)?;
     y = ring.sub(&y, &ring.derivative(&w)?)?;
     let mut k = 1usize;
     loop {
         if degree(&w) == 0 {
             break;
         }
-        g = ring.gcd(&w, &y)?;
+        let g = ring.gcd(&w, &y)?;
         if !ring.is_one(&g) {
             factors.push((g.clone(), k));
             w = ring.div_exact(&w, &g)?;
@@ -133,44 +128,6 @@ impl SquareFreeRing for UniVarRing<'_> {
 
     fn div_exact(&self, a: &Poly, b: &Poly) -> PolyResult<Poly> {
         univariate_div_exact(a, b, self.var).ok_or(EvalError::NotImplemented("poly division"))
-    }
-
-    fn sub(&self, a: &Poly, b: &Poly) -> PolyResult<Poly> {
-        Ok(a.sub(b))
-    }
-
-    fn max_exponent(&self, p: &Poly) -> usize {
-        univariate_degree(p, self.var) as usize
-    }
-}
-
-/// ℚ[others][var] with formal derivative w.r.t. `var`.
-pub(crate) struct WrtVarRing<'a> {
-    pub var: &'a Var,
-    pub derivative: fn(&Poly, &Var) -> Poly,
-}
-
-impl SquareFreeRing for WrtVarRing<'_> {
-    type Poly = Poly;
-
-    fn is_zero(&self, p: &Poly) -> bool {
-        p.is_zero()
-    }
-
-    fn is_one(&self, p: &Poly) -> bool {
-        p.is_one()
-    }
-
-    fn derivative(&self, p: &Poly) -> PolyResult<Poly> {
-        Ok((self.derivative)(p, self.var))
-    }
-
-    fn gcd(&self, a: &Poly, b: &Poly) -> PolyResult<Poly> {
-        Ok(a.gcd(b))
-    }
-
-    fn div_exact(&self, a: &Poly, b: &Poly) -> PolyResult<Poly> {
-        quo_exact_wrt(a, b, self.var)
     }
 
     fn sub(&self, a: &Poly, b: &Poly) -> PolyResult<Poly> {
