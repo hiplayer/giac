@@ -250,10 +250,10 @@ P2 `factor_univariate_over_k` 应接收 **`FlatUni<AlgExtCPolyCoeff>`**（或 `&
 | **P2** | **L3-1** | `factor_univariate_over_k(&FlatUni<AlgExtCPolyCoeff>)` | P2 主路径（§5） | T1 ✅, L1-1a | ✅ |
 | **P2** | **L1-1b** | `div_rem → (FlatUni, FlatUni)`；`FlatUni<C: FieldCoeff>` 收紧 | API 清洁；`factor/*` 有 churn | L1-1a | 部分 ✅（`FieldCoeff` 已收紧） |
 | **P2** | **L1-2** | giac-core `poly_alg_ops` 改走 `FlatUni` 方法 | 与 L1-1 同步 | L1-1a | ✅ |
-| **P3** | **L1-3** | deprecate crate 根 `gcd_wrt` 等自由函数 | 减裸调 | L1-2 | T2-2 前后 |
-| **P3** | **L2-1** | nested 除法重命名 + `univ_wrt` → `pub(crate)` | 纯 churn/消歧 | L1 稳定 | **P2 绿后再做** |
-| **P3** | **L2-2** | Cursor rule / nested issue 交叉链接 | 纪律 | L2-1 | 随 L2 |
-| **P4** | **L3-2** | `factor/*` 全量 `FlatUniQ`（nested issue 迁移表） | ℚ 路径清理 | L2-1 | 按需 / 与 nested §1.4 合并 |
+| **P3** | **L1-3** | deprecate crate 根 `gcd_wrt` 等自由函数 | 减裸调 | L1-2 | ✅ |
+| **P3** | **L2-1** | nested 除法重命名 + `univ_wrt` → `pub(crate)` | 纯 churn/消歧 | L1 稳定 | ✅ |
+| **P3** | **L2-2** | Cursor rule / nested issue 交叉链接 | 纪律 | L2-1 | ✅ |
+| **P4** | **L3-2** | `factor/*` 全量 `FlatUniQ`（nested issue 迁移表） | ℚ 路径清理 | L2-1 | ✅ |
 
 ### 6.2 推荐 PR 线
 
@@ -261,7 +261,7 @@ P2 `factor_univariate_over_k` 应接收 **`FlatUni<AlgExtCPolyCoeff>`**（或 `&
 PR-1（~0.5d）  L0-2a + L0-2b + L0-2c
 PR-2（~1d）    L0-1 + L0-3
 PR-3（~2–3d）  L1-1a + L3-1 + L1-2（T2-1）；可选同 PR：L1-1b
-PR-4（P2 后）  L2-* + L1-3 + L3-2
+PR-4（P2 后）  L2-* + L1-3 + L3-2  ✅
 ```
 
 ### 6.3 与 P2 硬/软门禁

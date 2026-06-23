@@ -22,10 +22,10 @@
 | API | 环 | 语义 |
 |-----|-----|------|
 | `Poly::div_rem` | 多元展示环 | leading-monomial 除法 |
-| `subresultant::univariate_div_rem_wrt` | **ℚ[others][var]** nested | leading-term 商；`deg(d)=0` 通常不 closed |
-| `subresultant::quo_exact_wrt` | **ℚ[others][var]** | 上一元除法，余式非零 → `Err` |
-| `univ_wrt::univariate_div_rem_wrt` | **K[var]** flat，K 域 | Euclidean；`deg r < deg b`；`d=0`/`lc=0` → `Err` |
-| `univ_wrt::{gcd_wrt,egcd_wrt,square_free_part_wrt}` | **K[var]** flat | 要求 `C: FieldCoeff`（语义）；L1 起经 [`FlatUni`] |
+| `subresultant::nested_div_rem_wrt_in` | **ℚ[others][var]** nested | leading-term 商；`deg(d)=0` 通常不 closed |
+| `subresultant::nested_exact_quo_wrt_in` | **ℚ[others][var]** | 上一元除法，余式非零 → `Err` |
+| `univ_wrt::univariate_div_rem_wrt` | **K[var]** flat，K 域 | Euclidean；`deg r < deg b`；`d=0`/`lc=0` → `Err`（**crate-internal**） |
+| `univ_wrt::{gcd_wrt,egcd_wrt,square_free_part_wrt}` | **K[var]** flat | 要求 `C: FieldCoeff`；**经 [`FlatUni`] 方法**（L1-3 起不再 crate 根 re-export） |
 | `nested::FlatUni::div_rem` | **K[var]** flat | 绑定 `MainVar`；内部调 `univ_wrt` |
 
 相关 issue：[GIAC-poly-flat-field-division-layering](issues/GIAC-poly-flat-field-division-layering.md)、[GIAC-poly-nested-ring-types](issues/GIAC-poly-nested-ring-types.md)。
@@ -63,16 +63,14 @@
 | `sturm_sequence`, `sturm_sign_variations_at`, `sturmab_count` | `univariate` | giac-solve 用 |
 | `chinrem`, `chinrem_lists` | `chinrem` | |
 
-### 2.2.1 Flat K[var]（`univ_wrt`）— **Stable**
+### 2.2.1 Flat K[var]（`univ_wrt` + `FlatUni`）— **Stable**
 
 | 符号 | 环 | 说明 |
 |------|-----|------|
-| `is_univariate_in`, `scalar_coeff_wrt` | — | 一元检测 / 系数抽取 |
-| `univariate_div_rem_wrt`, `quo_exact_wrt` | **K[var]** | Euclidean 除法；K 域 |
-| `derivative_wrt`, `monic_wrt` | **K[var]** | 形式导数 / monic 归一 |
-| `egcd_wrt`, `gcd_wrt` | **K[var]** | 欧几里得 gcd（语义需 `FieldCoeff`） |
-| `content_scalars`, `content_wrt`, `primitive_part_wrt` | **K[var]** | content / pp |
-| `square_free_part_wrt`, `quadratic_coeffs_wrt` | **K[var]** | Yun sqff / 二次系数 |
+| `FlatUni::{try_new,div_rem,gcd,sqff,…}` | **K[var]** | **首选** flat 一元入口（`C: FieldCoeff`） |
+| `is_univariate_in`, `scalar_coeff_wrt` | — | 一元检测 / 系数抽取（crate 根 re-export） |
+| `derivative_wrt`, `content_scalars`, `quadratic_coeffs_wrt` | **K[var]** | 辅助（crate 根 re-export） |
+| `univ_wrt::{gcd_wrt,div_rem,…}` | **K[var]** | **crate-internal**；勿裸调，用 `FlatUni` |
 
 ### 2.3 因式分解 — **Stable (bounded)**
 

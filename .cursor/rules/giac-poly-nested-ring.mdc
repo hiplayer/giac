@@ -9,6 +9,7 @@ alwaysApply: false
 `Poly` 是 **intentionally erased** 的通用稀疏多项式：同一类型承载 ℚ[x]、ℚ[others][main]、embed 像 ℚ[main,t] 等。环结构、主元、管线阶段**默认不在类型里**，须用 API 显式携带。
 
 **完整除法语义表：** [`.doc/giac-poly-api-stability.md`](../../.doc/giac-poly-api-stability.md) §1。  
+**平坦 K[var] 分层：** [`.doc/issues/GIAC-poly-flat-field-division-layering.md`](../../.doc/issues/GIAC-poly-flat-field-division-layering.md)（flat vs nested 除法、`FieldCoeff`、`FlatUni::try_new`）。  
 **类型化路线图：** [`.doc/issues/GIAC-poly-nested-ring-types.md`](../../.doc/issues/GIAC-poly-nested-ring-types.md)。
 
 ## 管线排错顺序（优先于改 bug）
@@ -25,7 +26,7 @@ alwaysApply: false
 
 | 数学对象 | Rust 类型 | 整除 / 商 |
 |----------|-----------|-----------|
-| ℚ[others][main] | `MainVar` + `UnivariateIn` / `UnivariatePoly` | `.divides()` / `.exact_quo_dividing()` → `quo_exact_wrt` |
+| ℚ[others][main] | `MainVar` + `UnivariateIn` / `UnivariatePoly` | `.divides()` / `.exact_quo_dividing()` → `nested_exact_quo_wrt_in` |
 | ℚ[others] 系数 | `CoeffRingPoly` | `.exact_quo()` → `div_exact_coeff` |
 | sparse_bi embed | `TnEmbed` → [`BivariateEmbed`] | `.embed()`；`.view_main()` / `.view_t()` / `.to_recon_draft()` |
 | (main,t) 重建 IR | [`EmbedFactorDraft`] + `EmbedMonomial` | monomial 逐项对比；`.materialize()` → `UnivariatePoly` |
@@ -35,7 +36,7 @@ alwaysApply: false
 | Hensel 双因子 | `HenselPair` + `AuxIndepFactor` | aux 常系数约束进构造 |
 | aux 赋值 | `UnivariateIn::eval_aux` | main 不变 |
 | `PolyFactorTower` | `factor/tower` | FAC-G2：`factor_sqff_chain` = aux-lift → good_eval → sparse_bi |
-| 平坦一元 | `FlatUni` | ℚ[var]；`div_rem` 仅在此类型上 |
+| 平坦一元 | `FlatUni` | K[var]；`try_new` + `div_rem`/`gcd`/`sqff`（勿裸调 `univ_wrt::gcd_wrt`） |
 | 多元边界 | `MultivariatePoly` | 展示/启发式 `div_rem` |
 | primitive part | `PrimitivePart` | `primitive_part_wrt` tagged |
 | dilation | `DilationMap` | sparse_bi `apply` / `undo` |
@@ -45,7 +46,7 @@ alwaysApply: false
 
 | ❌ | ✅ |
 |----|-----|
-| `Poly::div_rem` 验证 ℚ[others][main] 因子整除 | `UnivariateIn::divides` / `quo_exact_wrt` |
+| `Poly::div_rem` 验证 ℚ[others][main] 因子整除 | `UnivariateIn::divides` / `nested_exact_quo_wrt_in` |
 | `div_rem` 归一化系数环 `lcpt/lc` | `CoeffRingPoly::exact_quo` |
 | 裸 `&Var` 当主元传参（新代码） | `MainVar` 或 `UnivariateIn::new(poly, main)` |
 
