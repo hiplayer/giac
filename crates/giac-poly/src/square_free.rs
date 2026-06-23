@@ -6,6 +6,7 @@
 use crate::error::{EvalError, PolyResult};
 use crate::monomial::Var;
 use crate::poly::Poly;
+use crate::poly_coeff::PolyCoeff;
 use crate::resultant::univariate_degree;
 use crate::univariate::{univariate_derivative, univariate_div_exact, univariate_gcd};
 
@@ -136,5 +137,53 @@ impl SquareFreeRing for UniVarRing<'_> {
 
     fn max_exponent(&self, p: &Poly) -> usize {
         univariate_degree(p, self.var) as usize
+    }
+}
+
+/// K[var] with scalar coefficients in ring `C` (P1 / T1-2).
+pub struct FlatCoeffVarRing<'a, C: PolyCoeff> {
+    pub var: &'a Var,
+    _c: std::marker::PhantomData<C>,
+}
+
+impl<'a, C: PolyCoeff> FlatCoeffVarRing<'a, C> {
+    /// **Stable (crate-internal)** — ring view for Yun sqff over `Poly<C>`.
+    pub fn new(var: &'a Var) -> Self {
+        Self {
+            var,
+            _c: std::marker::PhantomData,
+        }
+    }
+}
+
+impl<C: PolyCoeff> SquareFreeRing for FlatCoeffVarRing<'_, C> {
+    type Poly = Poly<C>;
+
+    fn is_zero(&self, p: &Self::Poly) -> bool {
+        p.is_zero()
+    }
+
+    fn is_one(&self, p: &Self::Poly) -> bool {
+        p.is_one()
+    }
+
+    fn derivative(&self, p: &Self::Poly) -> PolyResult<Self::Poly> {
+        crate::univ_wrt::derivative_wrt(p, self.var)
+    }
+
+    fn gcd(&self, a: &Self::Poly, b: &Self::Poly) -> PolyResult<Self::Poly> {
+        crate::univ_wrt::gcd_wrt(a, b, self.var)
+    }
+
+    fn div_exact(&self, a: &Self::Poly, b: &Self::Poly) -> PolyResult<Self::Poly> {
+        crate::univ_wrt::quo_exact_wrt(a, b, self.var)
+    }
+
+    fn sub(&self, a: &Self::Poly, b: &Self::Poly) -> PolyResult<Self::Poly> {
+        a.try_sub(b)
+    }
+
+    fn max_exponent(&self, p: &Self::Poly) -> usize {
+        p.degree_wrt(self.var) as usize
     }
 }

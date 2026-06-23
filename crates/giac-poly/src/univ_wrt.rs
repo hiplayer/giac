@@ -48,7 +48,28 @@ pub fn univariate_div_rem_wrt<C: PolyCoeff>(
     let mut quotient = Poly::ring_zero();
     let db = b.degree_wrt(var);
     if db == 0 {
-        return Ok((quotient, remainder));
+        if b.is_zero() {
+            return Ok((quotient, remainder));
+        }
+        if remainder.is_zero() {
+            return Ok((quotient, Poly::ring_zero()));
+        }
+        // K is a field: nonzero constant divisor divides exactly.
+        let bc = scalar_coeff_wrt(b, var, 0);
+        if bc.coeff_is_zero() {
+            return Ok((quotient, remainder));
+        }
+        let inv = C::coeff_one().coeff_div(&bc)?;
+        let deg = remainder.degree_wrt(var);
+        for exp in 0..=deg {
+            let c = scalar_coeff_wrt(&remainder, var, exp);
+            if c.coeff_is_zero() {
+                continue;
+            }
+            let scaled = c.coeff_mul(&inv)?;
+            quotient = quotient.try_add(&term_with_var(&scaled, var, exp)?)?;
+        }
+        return Ok((quotient, Poly::ring_zero()));
     }
     let lc_b = scalar_coeff_wrt(b, var, db);
     if lc_b.coeff_is_zero() {
@@ -81,6 +102,172 @@ pub fn quo_exact_wrt<C: PolyCoeff>(
         Ok(q)
     } else {
         Err(EvalError::NotImplemented("poly division"))
+    }
+}
+
+/// **Stable** — formal derivative w.r.t. `var` in K[var].
+pub fn derivative_wrt<C: PolyCoeff>(p: &Poly<C>, var: &Var) -> PolyResult<Poly<C>> {
+    if !is_univariate_in(p, var) {
+        return Err(EvalError::TypeError("not univariate"));
+    }
+    let deg = p.degree_wrt(var);
+    let mut out = Poly::ring_zero();
+    for exp in 1..=deg {
+        let c = scalar_coeff_wrt(p, var, exp);
+        if c.coeff_is_zero() {
+            continue;
+        }
+        let coeff = c.coeff_mul(&scalar_coeff_from_u64(exp as u64)?)?;
+        out = out.try_add(&term_with_var(&coeff, var, exp - 1)?)?;
+    }
+    Ok(out)
+}
+
+// **Pipeline private** — embed small integer into C via 1+1+…
+fn scalar_coeff_from_u64<C: PolyCoeff>(n: u64) -> PolyResult<C> {
+    let mut acc = C::coeff_zero();
+    for _ in 0..n {
+        acc = acc.coeff_add(&C::coeff_one())?;
+    }
+    Ok(acc)
+}
+
+/// **Stable** — extended gcd in K[var]; returns `(g, s, t)` with `g` monic.
+pub fn egcd_wrt<C: PolyCoeff>(
+    a: &Poly<C>,
+    b: &Poly<C>,
+    var: &Var,
+) -> PolyResult<(Poly<C>, Poly<C>, Poly<C>)> {
+    let mut old_r = a.clone();
+    let mut r = b.clone();
+    let mut old_s = Poly::ring_one();
+    let mut s = Poly::ring_zero();
+    let mut old_t = Poly::ring_zero();
+    let mut t = Poly::ring_one();
+
+    while !r.is_zero() {
+        let (q, new_r) = univariate_div_rem_wrt(&old_r, &r, var)?;
+        old_r = r;
+        r = new_r;
+        let new_s = old_s.try_sub(&q.try_mul(&s)?)?;
+        old_s = s;
+        s = new_s;
+        let new_t = old_t.try_sub(&q.try_mul(&t)?)?;
+        old_t = t;
+        t = new_t;
+    }
+    Ok((monic_wrt(&old_r, var)?, old_s, old_t))
+}
+
+/// **Stable** — gcd in K[var] (monic).
+pub fn gcd_wrt<C: PolyCoeff>(a: &Poly<C>, b: &Poly<C>, var: &Var) -> PolyResult<Poly<C>> {
+    Ok(egcd_wrt(a, b, var)?.0)
+}
+
+/// **Stable** — gcd of scalar coefficients (content in K).
+pub fn content_scalars<C: PolyCoeff>(p: &Poly<C>) -> PolyResult<C> {
+    let mut g: Option<C> = None;
+    for c in p.terms.values() {
+        if c.coeff_is_zero() {
+            continue;
+        }
+        g = Some(match g {
+            None => c.clone(),
+            Some(prev) => coeff_gcd(&prev, c)?,
+        });
+    }
+    Ok(g.unwrap_or_else(C::coeff_zero))
+}
+
+/// **Stable** — content w.r.t. `var` (univariate; equals scalar content in K).
+pub fn content_wrt<C: PolyCoeff>(p: &Poly<C>, var: &Var) -> PolyResult<C> {
+    if !is_univariate_in(p, var) {
+        return Err(EvalError::TypeError("not univariate"));
+    }
+    content_scalars(p)
+}
+
+/// **Stable** — primitive part w.r.t. `var` in K[var].
+pub fn primitive_part_wrt<C: PolyCoeff>(p: &Poly<C>, var: &Var) -> PolyResult<Poly<C>> {
+    let c = content_wrt(p, var)?;
+    if c.coeff_is_zero() {
+        return Ok(p.clone());
+    }
+    if c.coeff_is_one() {
+        return Ok(p.clone());
+    }
+    let inv = C::coeff_one().coeff_div(&c)?;
+    let deg = p.degree_wrt(var);
+    let mut out = Poly::ring_zero();
+    for exp in 0..=deg {
+        let coeff = scalar_coeff_wrt(p, var, exp);
+        if coeff.coeff_is_zero() {
+            continue;
+        }
+        let scaled = coeff.coeff_mul(&inv)?;
+        out = out.try_add(&term_with_var(&scaled, var, exp)?)?;
+    }
+    Ok(out)
+}
+
+/// **Stable** — square-free part w.r.t. `var` in K[var].
+pub fn square_free_part_wrt<C: PolyCoeff>(p: &Poly<C>, var: &Var) -> PolyResult<Poly<C>> {
+    let ring = crate::square_free::FlatCoeffVarRing::new(var);
+    let mut prod = Poly::ring_one();
+    for (g, _) in crate::square_free::square_free_yun(&ring, p)? {
+        prod = prod.try_mul(&g)?;
+    }
+    Ok(prod)
+}
+
+/// **Stable** — `(a, b, c)` for univariate quadratic `a·var² + b·var + c`.
+pub fn quadratic_coeffs_wrt<C: PolyCoeff>(
+    p: &Poly<C>,
+    var: &Var,
+) -> Option<(C, C, C)> {
+    if p.degree_wrt(var) != 2 {
+        return None;
+    }
+    if !is_univariate_in(p, var) {
+        return None;
+    }
+    let a = scalar_coeff_wrt(p, var, 2);
+    if a.coeff_is_zero() {
+        return None;
+    }
+    Some((a, scalar_coeff_wrt(p, var, 1), scalar_coeff_wrt(p, var, 0)))
+}
+
+// **Pipeline private** — gcd in coefficient ring K
+fn coeff_gcd<C: PolyCoeff>(a: &C, b: &C) -> PolyResult<C> {
+    if a.coeff_is_zero() {
+        return Ok(b.clone());
+    }
+    if b.coeff_is_zero() {
+        return Ok(a.clone());
+    }
+    let mut x = a.clone();
+    let mut y = b.clone();
+    loop {
+        if y.coeff_is_zero() {
+            break;
+        }
+        match x.coeff_div(&y) {
+            Ok(q) => {
+                let qy = q.coeff_mul(&y)?;
+                x = x.coeff_sub(&qy)?;
+                std::mem::swap(&mut x, &mut y);
+            }
+            Err(_) => {
+                // K is a field: coprime scalars → unit content
+                return Ok(C::coeff_one());
+            }
+        }
+    }
+    if x.coeff_is_zero() {
+        Ok(C::coeff_zero())
+    } else {
+        Ok(C::coeff_one())
     }
 }
 
@@ -141,5 +328,15 @@ mod tests {
         let m = monic_wrt(&p, &x()).unwrap();
         let lc = scalar_coeff_wrt(&m, &x(), 2);
         assert!(lc.coeff_is_one());
+    }
+
+    #[test]
+    fn gcd_wrt_rational_coprimality() {
+        let p = Poly::var(x()).try_pow(2).unwrap().try_add(&Poly::one()).unwrap();
+        let d = Poly::var(x()).try_sub(&Poly::one()).unwrap();
+        assert!(gcd_wrt(&p, &d, &x()).unwrap().is_one());
+        let p2 = Poly::var(x()).try_pow(2).unwrap().try_sub(&Poly::one()).unwrap();
+        let d2 = Poly::var(x()).try_sub(&Poly::one()).unwrap();
+        assert_eq!(gcd_wrt(&p2, &d2, &x()).unwrap(), d2);
     }
 }

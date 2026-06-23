@@ -107,6 +107,80 @@ pub fn monic_wrt_algext(
     monic_wrt(&p, var).map_err(Into::into)
 }
 
+/// **Stable** — gcd in K[var] after coefficient alignment (monic).
+pub fn gcd_wrt_algext(
+    session: &FieldSession,
+    a: &PolyAlgExt,
+    b: &PolyAlgExt,
+    var: &Var,
+) -> Result<PolyAlgExt, EvalError> {
+    let (a, b) = align_algext_polys(session, a, b)?;
+    giac_poly::gcd_wrt(&a, &b, var).map_err(Into::into)
+}
+
+/// **Stable** — extended gcd in K[var]; `(g, s, t)` with monic `g`.
+pub fn egcd_wrt_algext(
+    session: &FieldSession,
+    a: &PolyAlgExt,
+    b: &PolyAlgExt,
+    var: &Var,
+) -> Result<(PolyAlgExt, PolyAlgExt, PolyAlgExt), EvalError> {
+    let (a, b) = align_algext_polys(session, a, b)?;
+    giac_poly::egcd_wrt(&a, &b, var).map_err(Into::into)
+}
+
+/// **Stable** — scalar content in K.
+pub fn content_wrt_algext(
+    session: &FieldSession,
+    p: &PolyAlgExt,
+    var: &Var,
+) -> Result<AlgExtCPolyCoeff, EvalError> {
+    let p = normalize_algext_poly(p, session)?;
+    giac_poly::content_wrt(&p, var).map_err(Into::into)
+}
+
+/// **Stable** — primitive part in K[var].
+pub fn primitive_part_wrt_algext(
+    session: &FieldSession,
+    p: &PolyAlgExt,
+    var: &Var,
+) -> Result<PolyAlgExt, EvalError> {
+    let p = normalize_algext_poly(p, session)?;
+    giac_poly::primitive_part_wrt(&p, var).map_err(Into::into)
+}
+
+/// **Stable** — square-free part in K[var].
+pub fn square_free_part_wrt_algext(
+    session: &FieldSession,
+    p: &PolyAlgExt,
+    var: &Var,
+) -> Result<PolyAlgExt, EvalError> {
+    let p = normalize_algext_poly(p, session)?;
+    giac_poly::square_free_part_wrt(&p, var).map_err(Into::into)
+}
+
+/// **Stable** — split monic quadratic into linear factors `(var − root)` over K.
+pub fn split_quadratic_factor(
+    session: &FieldSession,
+    p: &PolyAlgExt,
+    var: &Var,
+) -> Result<Vec<PolyAlgExt>, EvalError> {
+    let monic = monic_wrt_algext(session, p, var)?;
+    if monic.degree_wrt(var) != 2 {
+        return Err(EvalError::TypeError("not quadratic"));
+    }
+    let roots = super::poly_roots::poly_algext_roots(&monic, var)?;
+    roots
+        .into_iter()
+        .map(|r| {
+            let r = session.lift(&r)?;
+            PolyAlgExt::ring_var(var.clone())
+                .try_sub(&PolyAlgExt::ring_constant(r))
+                .map_err(Into::into)
+        })
+        .collect()
+}
+
 // **Pipeline private** — `monomial_to_poly`
 fn monomial_to_poly(m: &giac_poly::Monomial) -> Result<PolyAlgExt, EvalError> {
     let mut out = PolyAlgExt::ring_one();
@@ -181,6 +255,75 @@ mod tests {
         let (_, r2) = div_rem_wrt_algext(&session, &scaled_p, &d, &x_var()).unwrap();
         assert!(r1.is_zero());
         assert!(r2.is_zero());
+    }
+
+    fn x_plus_sqrt2(session: &FieldSession) -> PolyAlgExt {
+        let alpha = session.lift(&sqrt2_coeff()).unwrap();
+        PolyAlgExt::ring_var(x_var())
+            .try_add(&PolyAlgExt::ring_constant(alpha))
+            .unwrap()
+    }
+
+    #[test]
+    fn gcd_x_squared_minus_2_and_x_minus_sqrt2() {
+        let k = k1_adjoin_sqrt2();
+        let session = FieldSession::new(k);
+        let p = x_squared_minus_2(&session);
+        let d = x_minus_sqrt2(&session);
+        let g = gcd_wrt_algext(&session, &p, &d, &x_var()).unwrap();
+        let (_, r) = div_rem_wrt_algext(&session, &d, &g, &x_var()).unwrap();
+        assert!(r.is_zero());
+        assert_eq!(g.degree_wrt(&x_var()), 1);
+    }
+
+    #[test]
+    fn gcd_x_squared_minus_2_and_x_plus_sqrt2() {
+        let k = k1_adjoin_sqrt2();
+        let session = FieldSession::new(k);
+        let p = x_squared_minus_2(&session);
+        let d = x_plus_sqrt2(&session);
+        let g = gcd_wrt_algext(&session, &p, &d, &x_var()).unwrap();
+        let (_, r) = div_rem_wrt_algext(&session, &d, &g, &x_var()).unwrap();
+        assert!(r.is_zero());
+        assert_eq!(g.degree_wrt(&x_var()), 1);
+    }
+
+    #[test]
+    fn gcd_x_squared_minus_2_and_x_plus_one_is_one() {
+        let k = k1_adjoin_sqrt2();
+        let session = FieldSession::new(k);
+        let p = x_squared_minus_2(&session);
+        let one = session.int(1).unwrap();
+        let d = PolyAlgExt::ring_var(x_var())
+            .try_add(&PolyAlgExt::ring_constant(one))
+            .unwrap();
+        let g = gcd_wrt_algext(&session, &p, &d, &x_var()).unwrap();
+        assert!(g.is_one());
+    }
+
+    #[test]
+    fn split_quadratic_x_squared_minus_2() {
+        let k = k1_adjoin_sqrt2();
+        let session = FieldSession::new(k);
+        let p = x_squared_minus_2(&session);
+        let factors = split_quadratic_factor(&session, &p, &x_var()).unwrap();
+        assert_eq!(factors.len(), 2);
+        let prod = factors
+            .iter()
+            .try_fold(PolyAlgExt::ring_one(), |acc, f| acc.try_mul(f))
+            .unwrap();
+        let (_, r) = div_rem_wrt_algext(&session, &p, &prod, &x_var()).unwrap();
+        assert!(r.is_zero());
+    }
+
+    #[test]
+    fn square_free_part_x_squared_minus_2_is_self() {
+        let k = k1_adjoin_sqrt2();
+        let session = FieldSession::new(k);
+        let p = x_squared_minus_2(&session);
+        let sq = square_free_part_wrt_algext(&session, &p, &x_var()).unwrap();
+        let (_, r) = div_rem_wrt_algext(&session, &p, &sq, &x_var()).unwrap();
+        assert!(r.is_zero());
     }
 
     #[test]
