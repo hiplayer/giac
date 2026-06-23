@@ -5,7 +5,7 @@
 **触发:** P1 `univ_wrt::univariate_div_rem_wrt` 常数除数死循环 — flat 域除法误抄 nested 环语义；`gcd(x²−2,x+√2)` 验收写错暴露 K[x] 语境未钉死  
 **父项:** [GIAC-poly-nested-ring-types](GIAC-poly-nested-ring-types.md) §1.4、[GIAC-poly-algext-gcd-factor-priority](GIAC-poly-algext-gcd-factor-priority.md) T0–T1  
 **Rust 落点:** `giac-poly::{poly_coeff, nested, univ_wrt, square_free}`、`giac-core::algebra::{field_session, poly_alg_ops}`  
-**快照:** 2026-06-23（**L0-2a/b/c ✅ P0**）
+**快照:** 2026-06-23（**L0-2a/b/c ✅ P0**、**L0-1/L0-3 ✅ PR-2**）
 
 ---
 
@@ -244,8 +244,8 @@ P2 `factor_univariate_over_k` 应接收 **`FlatUni<AlgExtCPolyCoeff>`**（或 `&
 | **P0** | **L0-2a** | `debug_assert` 欧几里得 post；**`d=0` / `lc=0` → `Err`** | 防死循环再现；零 runtime 成本（release） | — | ✅ |
 | **P0** | **L0-2b** | B 测试：`gcd(x²−2,x+1)=1` on **ℚ**（常数除数 path） | P1 漏测根因；不依赖 AlgExt | — | ✅ |
 | **P1** | **L0-2c** | `univ_wrt` doc：pre/post + §4.2 nested 对照 | 防再抄；无 API 变更 | L0-2a | ✅ |
-| **P1** | **L0-1** | `FieldCoeff` trait + `Ratio` / `AlgExtCPolyCoeff` impl | 编译期钉死「K 是域」 | — | T2-1 前（小 PR） |
-| **P1** | **L0-3** | `giac-poly-api-stability.md` 增 `univ_wrt` / `FlatUni` **环列** | 文档门禁 | L0-2c | 可并行 |
+| **P1** | **L0-1** | `FieldCoeff` trait + `Ratio` / `AlgExtCPolyCoeff` impl | 编译期钉死「K 是域」 | — | ✅ |
+| **P1** | **L0-3** | `giac-poly-api-stability.md` 增 `univ_wrt` / `FlatUni` **环列** | 文档门禁 | L0-2c | ✅ |
 | **P2** | **L1-1a** | `FlatUni::try_new` 验一元；`gcd` / `sqff` **方法**（`div_rem` 可先仍返回 `Poly`） | T2-1 需 typed 入口 | L0-1 | **与 T2-1 同波** |
 | **P2** | **L3-1** | `factor_univariate_over_k(&FlatUni<AlgExtCPolyCoeff>)` | P2 主路径（§5） | T1 ✅, L1-1a | **T2-1 本体** |
 | **P2** | **L1-1b** | `div_rem → (FlatUni, FlatUni)`；`FlatUni<C: FieldCoeff>` 收紧 | API 清洁；`factor/*` 有 churn | L1-1a | T2-1 后或同 PR 局部 |
@@ -319,8 +319,8 @@ cargo test -p giac-poly --lib   # 全量回归
 | L0-2a | post 断言 + `d=0`/`lc=0` → Err | P0 ✅ | PR-1 |
 | L0-2b | ℚ `gcd(x²−2,x+1)` B 测试 | P0 ✅ | PR-1 |
 | L0-2c | `univ_wrt` doc 契约 | P1 ✅ | PR-1 |
-| L0-1 | `FieldCoeff` trait + impl | P1 | PR-2 |
-| L0-3 | api-stability 环列 | P1 | PR-2 |
+| L0-1 | `FieldCoeff` trait + impl | P1 ✅ | PR-2 |
+| L0-3 | api-stability 环列 | P1 ✅ | PR-2 |
 | L1-1a | `try_new` + `FlatUni::{gcd,sqff,…}` | P2 | PR-3 |
 | L1-1b | `div_rem→FlatUni` + `C: FieldCoeff` | P2 | PR-3（可选） |
 | L1-2 | giac-core → `FlatUni` | P2 | PR-3 |

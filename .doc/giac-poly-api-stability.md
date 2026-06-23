@@ -19,11 +19,16 @@
 
 **除法语义（禁止混用）：**
 
-| API | 语义 |
-|-----|------|
-| `Poly::div_rem` | 多元 leading-monomial 除法 |
-| `subresultant::univariate_div_rem_wrt` | ℚ[others][var] 上一元除法 |
-| `subresultant::quo_exact_wrt` | 上一元除法，余式非零 → `Err` |
+| API | 环 | 语义 |
+|-----|-----|------|
+| `Poly::div_rem` | 多元展示环 | leading-monomial 除法 |
+| `subresultant::univariate_div_rem_wrt` | **ℚ[others][var]** nested | leading-term 商；`deg(d)=0` 通常不 closed |
+| `subresultant::quo_exact_wrt` | **ℚ[others][var]** | 上一元除法，余式非零 → `Err` |
+| `univ_wrt::univariate_div_rem_wrt` | **K[var]** flat，K 域 | Euclidean；`deg r < deg b`；`d=0`/`lc=0` → `Err` |
+| `univ_wrt::{gcd_wrt,egcd_wrt,square_free_part_wrt}` | **K[var]** flat | 要求 `C: FieldCoeff`（语义）；L1 起经 [`FlatUni`] |
+| `nested::FlatUni::div_rem` | **K[var]** flat | 绑定 `MainVar`；内部调 `univ_wrt` |
+
+相关 issue：[GIAC-poly-flat-field-division-layering](issues/GIAC-poly-flat-field-division-layering.md)、[GIAC-poly-nested-ring-types](issues/GIAC-poly-nested-ring-types.md)。
 
 **命名:** 公开 `try_*`（如 `try_hensel_lift_bivariate`）表示 **可选算法路径**，非 [algorithm-expr-api](algorithm-expr-api.md) 意义的临时 `shim_*`；失败时静默 `None`，调用方须处理。
 
@@ -38,9 +43,9 @@
 | 符号 | 模块 | 说明 |
 |------|------|------|
 | `Poly`, `PolyQ`, `Poly<C>` | `poly` | 稀疏多项式；默认 `Poly` = ℚ |
-| `PolyCoeff` | `poly_coeff` | 系数环 trait |
+| `PolyCoeff`, `FieldCoeff` | `poly_coeff` | 系数环 / 系数域 trait（flat gcd 需后者） |
 | `Monomial`, `Var` | `monomial` | 指数向量（与 `C` 无关，P1-5） |
-| `UnivariateIn<C>`, `UnivariatePoly<C>`, `FlatUni<C>` | `nested` | 单变量视图；`divides`/`div_rem` 仅 ℚ |
+| `UnivariateIn<C>`, `UnivariatePoly<C>`, `FlatUni<C>` | `nested` | 单变量视图；`FlatUni` = flat K[var]（`div_rem` 经 `univ_wrt`） |
 | `PolyError`, `PolyResult` | `error` | |
 | `quo`, `rem`, `egcd`, `simp2`, `abcuv` | `poly` | 精确除法；失败 → Err |
 | `content`, `gauss` | `ops` | |
@@ -57,6 +62,17 @@
 | `eval_univariate_at`, `sign_variations` | `univariate` | |
 | `sturm_sequence`, `sturm_sign_variations_at`, `sturmab_count` | `univariate` | giac-solve 用 |
 | `chinrem`, `chinrem_lists` | `chinrem` | |
+
+### 2.2.1 Flat K[var]（`univ_wrt`）— **Stable**
+
+| 符号 | 环 | 说明 |
+|------|-----|------|
+| `is_univariate_in`, `scalar_coeff_wrt` | — | 一元检测 / 系数抽取 |
+| `univariate_div_rem_wrt`, `quo_exact_wrt` | **K[var]** | Euclidean 除法；K 域 |
+| `derivative_wrt`, `monic_wrt` | **K[var]** | 形式导数 / monic 归一 |
+| `egcd_wrt`, `gcd_wrt` | **K[var]** | 欧几里得 gcd（语义需 `FieldCoeff`） |
+| `content_scalars`, `content_wrt`, `primitive_part_wrt` | **K[var]** | content / pp |
+| `square_free_part_wrt`, `quadratic_coeffs_wrt` | **K[var]** | Yun sqff / 二次系数 |
 
 ### 2.3 因式分解 — **Stable (bounded)**
 
@@ -122,7 +138,7 @@
 | `factor_bivariate_flat` | `factor/sparse` | ℚ[main,aux] 二元分解，无嵌套 `factor_multivariate_rec` |
 | `HenselPair` | `factor/ctx` | 二元 Hensel @ aux=0（crate-internal） |
 | `EmbedFactorDraft` | `nested` | sparse_bi 重建 IR（crate-internal） |
-| `FlatUni` | `nested` | ℚ[var] 平坦一元；factor 内唯一允许经典 `div_rem` 的子路径 |
+| `FlatUni` | `nested` | **K[var]** flat；`C: PolyCoeff`（L1→`FieldCoeff`）；经典 Euclidean `div_rem` |
 | `MultivariatePoly` | `nested` | 多元展示环边界；显式 leading-monomial `div_rem` |
 | `PrimitivePart` | `nested` | `primitive_part_wrt` 结果 tagged |
 | `DilationMap` | `nested` | sparse_bi dilation `{ aux_a, aux_b }` + apply/undo（crate-internal） |
@@ -1088,27 +1104,44 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 
 ### `poly_coeff.rs`
 
-| Function | Tier | Description |
-|----------|------|-------------|
-| `coeff_zero` | **Pipeline private** | `coeff_zero` |
-| `coeff_one` | **Pipeline private** | `coeff_one` |
-| `coeff_is_zero` | **Pipeline private** | `coeff_is_zero` |
-| `coeff_is_one` | **Pipeline private** | `coeff_is_one` |
-| `coeff_add` | **Pipeline private** | `coeff_add` |
-| `coeff_sub` | **Pipeline private** | `coeff_sub` |
-| `coeff_neg` | **Pipeline private** | `coeff_neg` |
-| `coeff_mul` | **Pipeline private** | `coeff_mul` |
-| `coeff_div` | **Pipeline private** | `coeff_div` |
-| `coeff_zero` | **Stable** | `Poly::coeff_zero` |
-| `coeff_one` | **Stable** | `Poly::coeff_one` |
-| `coeff_is_zero` | **Stable** | `Poly::coeff_is_zero` |
-| `coeff_is_one` | **Stable** | `Poly::coeff_is_one` |
-| `coeff_add` | **Pipeline private** | `coeff_add` |
-| `coeff_sub` | **Pipeline private** | `coeff_sub` |
-| `coeff_neg` | **Pipeline private** | `coeff_neg` |
-| `coeff_mul` | **Pipeline private** | `coeff_mul` |
-| `coeff_div` | **Pipeline private** | `coeff_div` |
-| `ratio_coeff_ring` | **Pipeline private** | `ratio_coeff_ring` |
+| Function / trait | Tier | Ring | Description |
+|------------------|------|------|-------------|
+| `PolyCoeff` | **Stable** | 环 | sparse 系数环 |
+| `FieldCoeff` | **Stable** | **域 K** | flat Euclidean / gcd；impl: `Ratio<BigInt>`, `AlgExtCPolyCoeff` |
+| `coeff_inv`, `field_div` | **Stable** | 域 | default via `coeff_div` |
+| `coeff_zero` | **Pipeline private** | — | `coeff_zero` |
+| `coeff_one` | **Pipeline private** | — | `coeff_one` |
+| `coeff_is_zero` | **Pipeline private** | — | `coeff_is_zero` |
+| `coeff_is_one` | **Pipeline private** | — | `coeff_is_one` |
+| `coeff_add` | **Pipeline private** | — | `coeff_add` |
+| `coeff_sub` | **Pipeline private** | — | `coeff_sub` |
+| `coeff_neg` | **Pipeline private** | — | `coeff_neg` |
+| `coeff_mul` | **Pipeline private** | — | `coeff_mul` |
+| `coeff_div` | **Pipeline private** | — | `coeff_div` |
+| `coeff_zero` | **Stable** | — | `Poly::coeff_zero` |
+| `coeff_one` | **Stable** | — | `Poly::coeff_one` |
+| `coeff_is_zero` | **Stable** | — | `Poly::coeff_is_zero` |
+| `coeff_is_one` | **Stable** | — | `Poly::coeff_is_one` |
+| `ratio_coeff_ring` | **Pipeline private** | — | `ratio_coeff_ring` |
+
+### `univ_wrt.rs`
+
+| Function | Tier | Ring | Description |
+|----------|------|------|-------------|
+| `is_univariate_in` | **Stable** | — | only powers of `var` |
+| `scalar_coeff_wrt` | **Stable** | K | coefficient of `var^exp` |
+| `univariate_div_rem_wrt` | **Stable** | **K[var]** | Euclidean `(q,r)`; `d=0`/`lc=0` → Err |
+| `quo_exact_wrt` | **Stable** | **K[var]** | exact quotient |
+| `derivative_wrt` | **Stable** | **K[var]** | formal derivative |
+| `egcd_wrt` | **Stable** | **K[var]** | extended gcd (monic) |
+| `gcd_wrt` | **Stable** | **K[var]** | gcd (monic) |
+| `content_scalars` | **Stable** | K | scalar content |
+| `content_wrt` | **Stable** | **K[var]** | content w.r.t. var |
+| `primitive_part_wrt` | **Stable** | **K[var]** | primitive part |
+| `square_free_part_wrt` | **Stable** | **K[var]** | square-free part (Yun) |
+| `quadratic_coeffs_wrt` | **Stable** | **K[var]** | `(a,b,c)` for deg-2 |
+| `monic_wrt` | **Stable** | **K[var]** | monic normalize |
+| `debug_assert_euclidean_post` | **Pipeline private** | — | debug-only post check |
 
 ### `resultant.rs`
 
