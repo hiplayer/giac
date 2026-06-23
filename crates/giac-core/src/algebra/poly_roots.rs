@@ -34,6 +34,36 @@ use super::poly::PolyAlgExt;
 use super::poly_alg_coeff::AlgExtCPolyCoeff;
 use crate::context::Context;
 
+/// Normalized monic univariate input over fixed ambient **K** (algorithm-expr-api §6.3 / 1B).
+struct PolyInK {
+    poly: PolyAlgExt,
+    ambient: Arc<ExtensionField>,
+}
+
+impl PolyInK {
+    // **Pipeline private** — infer K → normalize → monic; sole entry to roots_dispatch
+    fn prepare(
+        p: &PolyAlgExt,
+        var: &Var,
+        session: &FieldSession,
+    ) -> Result<Self, EvalError> {
+        let p = normalize_coeffs(p, session)?;
+        let poly = monic_univariate(&p, var, session)?;
+        Ok(Self {
+            poly,
+            ambient: Arc::clone(session.ambient()),
+        })
+    }
+
+    // **Pipeline private** — prepare with fresh session from coefficient field of p
+    fn prepare_with_session(p: &PolyAlgExt, var: &Var) -> Result<(Self, FieldSession), EvalError> {
+        let ambient = infer_field(p)?;
+        let session = FieldSession::new(ambient);
+        let input = Self::prepare(p, var, &session)?;
+        Ok((input, session))
+    }
+}
+
 /// Exact roots of univariate `p` w.r.t. `var` over the coefficient field of `p`.
 /// **Stable (bounded)** — exact AlgExtC roots deg 1–4; quartic resolvent gap
 pub fn poly_algext_roots(p: &PolyAlgExt, var: &Var) -> Result<Vec<AlgExtCPolyCoeff>, EvalError> {
@@ -60,8 +90,18 @@ fn poly_algext_roots_in_session(
     var: &Var,
     session: &FieldSession,
 ) -> Result<Vec<AlgExtCPolyCoeff>, EvalError> {
-    let p = normalize_coeffs(p, session)?;
-    let monic = monic_univariate(&p, var, session)?;
+    let input = PolyInK::prepare(p, var, session)?;
+    roots_dispatch(&input, var, session)
+}
+
+// **Pipeline private** — degree dispatch on prepared monic input
+fn roots_dispatch(
+    input: &PolyInK,
+    var: &Var,
+    session: &FieldSession,
+) -> Result<Vec<AlgExtCPolyCoeff>, EvalError> {
+    debug_assert!(Arc::ptr_eq(&input.ambient, session.ambient()));
+    let monic = &input.poly;
     let d = monic.degree_wrt(var);
     match d {
         0 => {
@@ -1036,19 +1076,12 @@ impl CoeffInv for AlgExtCPolyCoeff {
     }
 }
 
-// **Pipeline private** — verify root vanishes mod minpoly
+// **Pipeline private** — verify root vanishes mod minpoly (same prepare path as roots)
 fn verify_root(p: &PolyAlgExt, var: &Var, root: &AlgExtCPolyCoeff) {
-    let ambient = infer_field(p).expect("infer field");
-    let mut session = FieldSession::new(ambient);
-    let p = monic_univariate(
-        &normalize_coeffs(p, &session).expect("normalize"),
-        var,
-        &session,
-    )
-    .expect("monic");
+    let (input, mut session) = PolyInK::prepare_with_session(p, var).expect("prepare");
     session.bump_to(&root.as_inner().field);
     let mut val = session.zero();
-    for (m, c) in &p.terms {
+    for (m, c) in &input.poly.terms {
         let exp = m.exp_of(var);
         let mut pow = session.one();
         for _ in 0..exp {
@@ -1532,7 +1565,7 @@ mod tests {
         }
     }
 
-    // **B** — F4′/M5: t⁴+t+1; Galois σ API wired; A₄ target d_L≤12 open (实测 24).
+    // **B** — F4: t⁴+t+1 baseline d_L ≤ D_HARD (24); D_QUARTIC_OUT=12 is A₄ reference only.
     #[test]
     fn field_session_dimension_bound_quartic_tight() {
         let session = q_session();
@@ -1551,7 +1584,7 @@ mod tests {
             dim <= POLY_ROOTS_DIM_HARD,
             "t^4+t+1 splitting field [K:Q] <= {POLY_ROOTS_DIM_HARD}, got {dim}"
         );
-        // F4′ A₄ target ≤12: Galois σ(√α) on quadratic layer still open for S₄ t⁴+t+1.
+        // ponytail: informational only — not asserted; see algorithm spec §5.4.
         let _ = dim <= POLY_ROOTS_DIM_QUARTIC_OUT;
         for r in &rs {
             verify_root(&p, &Var::from("t"), r);

@@ -67,7 +67,13 @@ mod tests {
             FuncKind::Integrate,
             vec![Expr::pow(Expr::sym("x"), Expr::int(-1)), Expr::sym("x")],
         );
-        assert!(eval(e.as_ref(), &ctx).is_ok());
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        let expected = crate::integrate_helpers::ln_abs_expr(Expr::sym("x"));
+        assert!(
+            giac_simplify::assert_equiv(r.as_ref(), expected.as_ref(), &ctx).expect("assert_equiv"),
+            "got {}",
+            format_expr(r.as_ref())
+        );
     }
 
     #[test]

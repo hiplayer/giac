@@ -25,7 +25,7 @@ use std::cell::RefCell;
 pub(crate) const POLY_ROOTS_DIM_HARD: usize = 24;
 /// Resolvent cubic stage bound at \(d_K=1\) (F2 A′ + deflate for \(p\neq0\)).
 pub(crate) const POLY_ROOTS_DIM_RESOLVENT: usize = 6;
-/// Target splitting-field bound for general quartic four roots at \(d_K=1\) (F4).
+/// Reference degree when Gal(f) ≅ A₄ ([K_f:Q]=12); **not** a CI gate for all quartics (see algorithm spec §5.4).
 pub(crate) const POLY_ROOTS_DIM_QUARTIC_OUT: usize = 12;
 use std::collections::HashMap;
 use std::rc::Rc;

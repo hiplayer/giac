@@ -71,7 +71,7 @@ mod tests {
 
     use super::xcas_default;
 
-    // **A** + **C** — eval(Integrate); contains shape (TODO: assert_equiv).
+    // **A** + **B** — eval(Integrate); assert_equiv vs x²/2.
     #[test]
     fn eval_integrate_via_plugin() {
         let ctx = xcas_default();
@@ -80,8 +80,12 @@ mod tests {
             vec![Expr::sym("x"), Expr::sym("x")],
         );
         let r = eval(e.as_ref(), &ctx).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("1/2") && s.contains("x^2"), "got {s}");
+        let expected = Expr::mul(vec![Expr::rat(1, 2), Expr::pow(Expr::sym("x"), Expr::int(2))]);
+        assert!(
+            giac_simplify::assert_equiv(r.as_ref(), expected.as_ref(), &ctx).expect("assert_equiv"),
+            "got {}",
+            format_expr(r.as_ref())
+        );
     }
 
     // **A** — eval(Limit); limit(x⁻¹, x→+∞) == 0.

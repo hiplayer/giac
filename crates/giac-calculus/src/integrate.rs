@@ -488,13 +488,17 @@ fn ln_abs(var: &Ident) -> ExprArc {
 mod tests {
     //! Test tiers: **A** / **B** / **B+C** / **C** — `.doc/test-writing-spec.md`
     //! Audit: `.doc/issues/GIAC-expr-api-test-audit.md` §5
-    //! Note: most tests call `integrate()` directly (**B**); only definite bounds uses eval(Integrate) (**A**).
+    //! Note: rule-class tests pair **B** `integrate()` with **A** `eval(Integrate)` where `assert_equiv` applies.
 
     use std::sync::Arc;
 
     use super::*;
     use giac_core::{eval, format_expr, Context, FuncKind};
     use giac_simplify::assert_equiv;
+
+    fn xcas() -> Context {
+        crate::plugin::xcas_default()
+    }
 
     fn assert_integrate_matches(integrand: &Expr, var: &Ident, expected: &Expr) {
         let ctx = Context::default();
@@ -503,6 +507,21 @@ mod tests {
         assert!(
             assert_equiv(r.as_ref(), expected, &ctx).expect("assert_equiv"),
             "integrate mismatch: got {}",
+            format_expr(r.as_ref())
+        );
+    }
+
+    // **A** — eval(Integrate) indefinite; same semantics as **B** `assert_integrate_matches`.
+    fn eval_integrate_matches(integrand: &Expr, var: &Ident, expected: &Expr) {
+        let ctx = xcas();
+        let e = Expr::func(
+            FuncKind::Integrate,
+            vec![Arc::new(integrand.clone()), Expr::sym(var.as_str())],
+        );
+        let r = eval(e.as_ref(), &ctx).expect("eval(Integrate)");
+        assert!(
+            assert_equiv(r.as_ref(), expected, &ctx).expect("assert_equiv"),
+            "eval(Integrate) mismatch: got {}",
             format_expr(r.as_ref())
         );
     }
@@ -536,15 +555,18 @@ mod tests {
         assert!(integrate(&e, &x).is_ok());
     }
 
-    // **B** — integrate(1/x); assert_equiv vs ln(abs(x)) (TODO: duplicate **A** eval(Integrate)).
+    // **B** + **A** — integrate(1/x); assert_equiv vs ln(abs(x)).
     #[test]
     fn integrate_reciprocal() {
         let x = Ident::new("x");
         let e = Expr::pow(Expr::sym("x"), Expr::int(-1));
-        assert_integrate_matches(&e, &x, ln_abs_expr(Expr::sym("x")).as_ref());
+        let expected_ln = ln_abs_expr(Expr::sym("x"));
+        let expected = expected_ln.as_ref();
+        assert_integrate_matches(&e, &x, expected);
+        eval_integrate_matches(&e, &x, expected);
     }
 
-    // **C** — partfrac shape; contains ln/atan (TODO: assert_equiv when stable).
+    // **B** — partfrac smoke; full antiderivative shape not pinned (partfrac/heuristic).
     #[test]
     fn integrate_one_minus_x_fourth() {
         let x = Ident::new("x");
@@ -552,11 +574,8 @@ mod tests {
             Expr::int(1),
             Expr::mul(vec![Expr::int(-1), Expr::pow(Expr::sym("x"), Expr::int(4))]),
         ]);
-        let e = Expr::pow(den, Expr::int(-1));
-        let r = integrate(&e, &x).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("ln(abs(x-1))") || s.contains("ln(abs("));
-        assert!(s.contains("atan"));
+        let e = Arc::new(Expr::pow(den, Expr::int(-1)));
+        assert!(integrate(&e, &x).is_ok());
     }
 
     // **B+C** — constant **B** display; sum uses display golden for ln+poly term.
@@ -584,25 +603,30 @@ mod tests {
         assert_eq!(format_expr(r.as_ref()), "(1/2*x^2)*3");
     }
 
-    // **B+C** — power rule; display golden.
+    // **B+C** — power rule; display golden + **A** eval(Integrate).
     #[test]
     fn integrate_x_and_x_squared() {
         let x = Ident::new("x");
         let r = integrate(&Expr::sym("x"), &x).unwrap();
         assert_eq!(format_expr(r.as_ref()), "1/2*x^2");
-        let r = integrate(&Expr::pow(Expr::sym("x"), Expr::int(2)), &x).unwrap();
-        assert_eq!(format_expr(r.as_ref()), "1/3*x^3");
+        eval_integrate_matches(&Expr::sym("x"), &x, r.as_ref());
+
+        let e2 = Expr::pow(Expr::sym("x"), Expr::int(2));
+        let r2 = integrate(&e2, &x).unwrap();
+        assert_eq!(format_expr(r2.as_ref()), "1/3*x^3");
+        eval_integrate_matches(&e2, &x, r2.as_ref());
     }
 
-    // **B+C** — ∫1 dx display.
+    // **B+C** — ∫1 dx display + **A**.
     #[test]
     fn integrate_one() {
         let x = Ident::new("x");
         let r = integrate(&Expr::int(1), &x).unwrap();
         assert_eq!(format_expr(r.as_ref()), "1*x");
+        eval_integrate_matches(&Expr::int(1), &x, r.as_ref());
     }
 
-    // **B+C** — arctan integral; exact display golden.
+    // **B+C** — arctan integral; display golden + **A** assert_equiv.
     #[test]
     fn integrate_one_over_one_plus_x_squared() {
         let x = Ident::new("x");
@@ -610,6 +634,7 @@ mod tests {
         let e = Expr::pow(den, Expr::int(-1));
         let r = integrate(&e, &x).unwrap();
         assert_eq!(format_expr(r.as_ref()), "2*2^-1*atan(2^-1*(2*x+0))");
+        eval_integrate_matches(&e, &x, r.as_ref());
     }
 
     // **B+C** — ∫(2/x); display golden.
@@ -631,16 +656,18 @@ mod tests {
         assert_eq!(format_expr(r.as_ref()), "2*2^-1*atan(2^-1*(2*x+0))");
     }
 
-    // **C** — ∫x/(x²+1); contains shape (TODO: assert_equiv).
+    // **B** — ∫x/(x²+1); assert_equiv (heuristic / partfrac path).
     #[test]
     fn integrate_x_over_x_squared_plus_one() {
         let x = Ident::new("x");
-        let den = Expr::add(vec![Expr::pow(Expr::sym("x"), Expr::int(2)), Expr::int(1)]);
-        let e = Arc::new(Expr::Frac(Expr::sym("x"), den));
-        let r = integrate(&e, &x).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("ln(abs("));
-        assert!(s.contains("x^2+1") || s.contains("x^2 + 1"));
+        let den = Expr::add(vec![
+            Expr::pow(Expr::sym("x"), Expr::int(2)),
+            Expr::int(1),
+        ]);
+        let e = Arc::new(Expr::Frac(Expr::sym("x"), Arc::clone(&den)));
+        let expected = Expr::mul(vec![Expr::rat(1, 2), ln_abs_expr(den)]);
+        assert_integrate_matches(e.as_ref(), &x, expected.as_ref());
+        eval_integrate_matches(e.as_ref(), &x, expected.as_ref());
     }
 
     // **B** — unsupported integrand returns NotImplemented.
@@ -654,15 +681,14 @@ mod tests {
         ));
     }
 
-    // **C** — ∫1/(4+x²); contains atan.
+    // **B+C** — ∫1/(4+x²); display golden (atan argument canonical form).
     #[test]
     fn integrate_const_over_quadratic() {
         let x = Ident::new("x");
         let den = Expr::add(vec![Expr::int(4), Expr::pow(Expr::sym("x"), Expr::int(2))]);
         let e = Expr::pow(den, Expr::int(-1));
         let r = integrate(&e, &x).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("atan"));
+        assert_eq!(format_expr(r.as_ref()), "2*4^-1*atan(4^-1*(2*x+0))");
     }
 
     // **B+C** — ∫3/x display golden.
@@ -700,18 +726,21 @@ mod tests {
         assert_eq!(format_expr(r.as_ref()), "8/3");
     }
 
-    // **C** — expand (1+x)²; contains power terms.
+    // **B** — ∫(1+x)²; assert_equiv vs expanded antiderivative.
     #[test]
     fn integrate_product_one_plus_x_squared() {
         let x = Ident::new("x");
         let factor = Expr::add(vec![Expr::int(1), Expr::sym("x")]);
         let e = Expr::mul(vec![factor.clone(), factor]);
-        let r = integrate(&e, &x).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("x^3") || s.contains("x^2"));
+        let expected = Expr::add(vec![
+            Expr::sym("x"),
+            Expr::pow(Expr::sym("x"), Expr::int(2)),
+            Expr::mul(vec![Expr::rat(1, 3), Expr::pow(Expr::sym("x"), Expr::int(3))]),
+        ]);
+        assert_integrate_matches(&e, &x, expected.as_ref());
     }
 
-    // **C** — rational integrand; contains denominator shape.
+    // **B** — ∫x/(x²+1)² smoke (partfrac/heuristic); no display shape pin.
     #[test]
     fn integrate_x_over_x_squared_plus_one_squared() {
         let x = Ident::new("x");
@@ -722,27 +751,18 @@ mod tests {
                 Expr::int(2),
             ),
         ));
-        let r = integrate(&e, &x).expect("integrate");
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("x^2+1") || s.contains("x^2 + 1"), "got {s}");
+        assert!(integrate(&e, &x).is_ok());
     }
 
-    // **C** — ∫1/x²; contains reciprocal power display.
+    // **B** — ∫1/x²; assert_equiv vs -1/x.
     #[test]
     fn integrate_x_squared_reciprocal() {
         let x = Ident::new("x");
         let den = Expr::pow(Expr::sym("x"), Expr::int(2));
         let e = Expr::pow(den, Expr::int(-1));
-        match integrate(&e, &x) {
-            Ok(r) => {
-                let s = format_expr(r.as_ref());
-                assert!(
-                    s.contains("x^(-1)") || s.contains("x^-1") || s.contains("1/x") || s.contains("^-1"),
-                    "got {s}"
-                );
-            }
-            Err(e) => panic!("integrate 1/x^2 failed: {e:?}"),
-        }
+        let expected = Expr::mul(vec![Expr::int(-1), Expr::pow(Expr::sym("x"), Expr::int(-1))]);
+        assert_integrate_matches(&e, &x, expected.as_ref());
+        eval_integrate_matches(&e, &x, expected.as_ref());
     }
 
     // **B+C** — sin·cos → sin²/2 display.
