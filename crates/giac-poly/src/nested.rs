@@ -114,7 +114,7 @@ impl<'a, C: PolyCoeff> UnivariateIn<'a, C> {
 impl<'a> UnivariateIn<'a> {
     /// **Stable** — coefficient of `main^exp` as ℚ[others].
     pub fn coeff_at(&self, exp: u64) -> Poly {
-        coeff_wrt_impl(self.poly, self.main.as_var(), exp)
+        crate::subresultant::coeff_wrt(self.poly, self.main.as_var(), exp)
     }
 
     /// **Stable** — leading coefficient w.r.t. `main` (element of ℚ[others]).
@@ -157,7 +157,7 @@ impl<'a> UnivariateIn<'a> {
         let d = univariate_degree(self.poly, aux);
         let mut out = Poly::zero();
         for e in 0..=d {
-            let c = coeff_wrt_impl(self.poly, aux, e);
+            let c = crate::subresultant::coeff_wrt(self.poly, aux, e);
             if c.is_zero() {
                 continue;
             }
@@ -376,7 +376,7 @@ pub(crate) fn substitute_wrt(p: &Poly, sub_var: &Var, sub_poly: &Poly) -> Poly {
     let d = univariate_degree(p, sub_var);
     let mut out = Poly::zero();
     for e in 0..=d {
-        let c = coeff_wrt_impl(p, sub_var, e);
+        let c = crate::subresultant::coeff_wrt(p, sub_var, e);
         if c.is_zero() {
             continue;
         }
@@ -658,7 +658,7 @@ pub(crate) fn div_rem_wrt_aux_indep(
     if dd == 0 {
         return None;
     }
-    let lc = coeff_wrt_impl(div, main_var, dd);
+    let lc = crate::subresultant::coeff_wrt(div, main_var, dd);
     if lc.is_zero() {
         return None;
     }
@@ -725,11 +725,6 @@ pub(crate) fn term_with_var(coeff: &Poly, var: &Var, exp: u64) -> Poly {
         return coeff.clone();
     }
     coeff.mul(&Poly::var(var.clone()).pow(exp))
-}
-
-// **Pipeline private**
-fn coeff_wrt_impl(p: &Poly, var: &Var, exp: u64) -> Poly {
-    crate::subresultant::coeff_wrt(p, var, exp)
 }
 
 // **Pipeline private** — `eval_tn`

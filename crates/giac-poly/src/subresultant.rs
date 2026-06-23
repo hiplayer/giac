@@ -49,7 +49,7 @@ fn term_with_var(coeff: &Poly, var: &Var, exp: u64) -> Poly {
 }
 
 // **Stable** — sorted variables in Poly
-fn vars_in(p: &Poly) -> Vec<Var> {
+pub fn vars_in(p: &Poly) -> Vec<Var> {
     let mut set = BTreeSet::new();
     for m in p.terms.keys() {
         for (v, e) in m.iter() {

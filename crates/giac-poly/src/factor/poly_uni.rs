@@ -15,7 +15,7 @@ use num_traits::{One, Zero};
 
 use crate::error::{EvalError, PolyResult};
 use crate::monomial::Var;
-use crate::nested::{MainVar, UnivariateIn};
+use crate::nested::MainVar;
 use crate::poly::Poly;
 use crate::resultant::univariate_degree;
 
@@ -24,7 +24,7 @@ use super::univariate::factor_univariate_flat;
 
 /// **Stable** — Coefficient of `var^exp` as a polynomial in the remaining variables.
 pub fn coeff_wrt_poly(p: &Poly, var: &Var, exp: u64) -> Poly {
-    UnivariateIn::new(p, MainVar::new(var.clone())).coeff_at(exp)
+    crate::subresultant::coeff_wrt(p, var, exp)
 }
 
 /// **Stable** — Content of `p` w.r.t. `var`: gcd of all x-coefficients in ℚ[others].

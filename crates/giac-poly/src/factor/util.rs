@@ -17,19 +17,6 @@ use crate::nested::MultivariatePoly;
 use crate::poly::Poly;
 use crate::resultant::{coeff_at, univariate_degree};
 
-/// **Stable** — All variables appearing in `p`, lexicographically sorted.
-pub fn vars_in(p: &Poly) -> Vec<Var> {
-    let mut set = BTreeSet::new();
-    for m in p.terms.keys() {
-        for (v, e) in m.iter() {
-            if e > 0 {
-                set.insert(v.clone());
-            }
-        }
-    }
-    set.into_iter().collect()
-}
-
 /// **Stable** — `is_univariate_in`
 pub fn is_univariate_in(p: &Poly, var: &Var) -> bool {
     p.terms
@@ -191,7 +178,8 @@ pub fn rational_factor_pairs(a0: &Ratio<BigInt>) -> Vec<(Ratio<BigInt>, Ratio<Bi
 }
 
 /// **Stable** — Coefficient of `var^exp` (quotient by `var^exp` on matching terms).
-pub use crate::subresultant::coeff_wrt;
+/// **Stable** — sorted variables in `p`.
+pub use crate::subresultant::{coeff_wrt, vars_in};
 /// **Stable** — `is_monic_univariate`
 pub fn is_monic_univariate(p: &Poly, var: &Var) -> bool {
     let d = univariate_degree(p, var);
