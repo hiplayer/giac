@@ -205,7 +205,7 @@ fn dense_div_rem_matches_univariate_div_rem_wrt() {
     use std::sync::Arc;
 
     use crate::resultant::univariate_coeffs_ascending;
-    use crate::subresultant::univariate_div_rem_wrt;
+    use crate::subresultant::nested_div_rem_wrt_in;
 
     let var: Arc<str> = Arc::from("x");
     let a = vec![q(1), q(3), q(2)];
@@ -213,7 +213,7 @@ fn dense_div_rem_matches_univariate_div_rem_wrt() {
     let (dq, dr) = div_rem(&ctx(), &a, &b, Poly1Order::HighFirst).unwrap();
     let pa = super::convert::dense_high_first_to_sparse(&a, &var);
     let pb = super::convert::dense_high_first_to_sparse(&b, &var);
-    let (sq, sr) = univariate_div_rem_wrt(&pa, &pb, &var);
+    let (sq, sr) = nested_div_rem_wrt_in(&pa, &pb, &var);
     assert_eq!(
         univariate_coeffs_ascending(&super::convert::dense_high_first_to_sparse(&dq, &var), &var),
         univariate_coeffs_ascending(&sq, &var)

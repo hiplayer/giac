@@ -5,7 +5,7 @@
 //!
 //! **Upstream:** `_EXT` coefficient `quo`/`rem` in `gausspol.cc` (flat univariate over K).
 //!
-//! **Not** for nested ℚ[others][main] — use [`crate::subresultant::univariate_div_rem_wrt`]
+//! **Not** for nested ℚ[others][main] — use [`crate::subresultant::nested_div_rem_wrt_in`]
 //! there (leading-term quotient; `deg(d)=0` usually **does not** divide).
 //! See `.doc/issues/GIAC-poly-flat-field-division-layering.md` §4.2.
 
@@ -68,7 +68,7 @@ fn debug_assert_euclidean_post<C: PolyCoeff>(
 /// **Stable** — Euclidean `(q, r)` with `a = q*b + r` in K[var].
 ///
 /// **Pre:** K is a field (`coeff_div` exact on nonzero divisors). Prefer [`crate::nested::FlatUni`]
-/// for typed flat context. Not for nested ℚ[others][var] — see [`crate::subresultant::univariate_div_rem_wrt`].
+/// for typed flat context. Not for nested ℚ[others][var] — see [`crate::subresultant::nested_div_rem_wrt_in`].
 ///
 /// **Errors:** `TypeError` if `b = 0`, or `lc(b) = 0` with `deg(b) > 0`, or nonzero constant
 /// divisor with zero scalar coefficient.
@@ -76,12 +76,12 @@ fn debug_assert_euclidean_post<C: PolyCoeff>(
 /// **Post (`b` valid):** `a = q*b + r`; `r = 0` or `deg(r) < deg(b)`; if `deg(b)=0` and `b ≠ 0`
 /// then `r = 0`.
 ///
-/// | Condition | flat (this fn) | nested [`subresultant::univariate_div_rem_wrt`] |
+/// | Condition | flat (this fn) | nested [`subresultant::nested_div_rem_wrt_in`] |
 /// |-----------|----------------|--------------------------------------------------|
 /// | `b = 0` | `Err` | caller must avoid |
 /// | `deg(b)=0`, b≠0 | `r=0`, exact `q=a/b` | usually `(0, a)` |
 /// | `lc(b)=0`, deg>0 | `Err` | pseudo / break |
-pub fn univariate_div_rem_wrt<C: PolyCoeff>(
+pub(crate) fn univariate_div_rem_wrt<C: PolyCoeff>(
     a: &Poly<C>,
     b: &Poly<C>,
     var: &Var,
@@ -137,7 +137,7 @@ pub fn univariate_div_rem_wrt<C: PolyCoeff>(
 }
 
 /// **Stable** — exact quotient in K[var]; fails if remainder is nonzero.
-pub fn quo_exact_wrt<C: PolyCoeff>(
+pub(crate) fn quo_exact_wrt<C: PolyCoeff>(
     num: &Poly<C>,
     den: &Poly<C>,
     var: &Var,
@@ -178,7 +178,7 @@ fn scalar_coeff_from_u64<C: PolyCoeff>(n: u64) -> PolyResult<C> {
 }
 
 /// **Stable** — extended gcd in K[var]; returns `(g, s, t)` with `g` monic.
-pub fn egcd_wrt<C: PolyCoeff>(
+pub(crate) fn egcd_wrt<C: PolyCoeff>(
     a: &Poly<C>,
     b: &Poly<C>,
     var: &Var,
@@ -205,7 +205,7 @@ pub fn egcd_wrt<C: PolyCoeff>(
 }
 
 /// **Stable** — gcd in K[var] (monic).
-pub fn gcd_wrt<C: PolyCoeff>(a: &Poly<C>, b: &Poly<C>, var: &Var) -> PolyResult<Poly<C>> {
+pub(crate) fn gcd_wrt<C: PolyCoeff>(a: &Poly<C>, b: &Poly<C>, var: &Var) -> PolyResult<Poly<C>> {
     Ok(egcd_wrt(a, b, var)?.0)
 }
 
@@ -225,7 +225,7 @@ pub fn content_scalars<C: PolyCoeff>(p: &Poly<C>) -> PolyResult<C> {
 }
 
 /// **Stable** — content w.r.t. `var` (univariate; equals scalar content in K).
-pub fn content_wrt<C: PolyCoeff>(p: &Poly<C>, var: &Var) -> PolyResult<C> {
+pub(crate) fn content_wrt<C: PolyCoeff>(p: &Poly<C>, var: &Var) -> PolyResult<C> {
     if !is_univariate_in(p, var) {
         return Err(EvalError::TypeError("not univariate"));
     }
@@ -233,7 +233,7 @@ pub fn content_wrt<C: PolyCoeff>(p: &Poly<C>, var: &Var) -> PolyResult<C> {
 }
 
 /// **Stable** — primitive part w.r.t. `var` in K[var].
-pub fn primitive_part_wrt<C: PolyCoeff>(p: &Poly<C>, var: &Var) -> PolyResult<Poly<C>> {
+pub(crate) fn primitive_part_wrt<C: PolyCoeff>(p: &Poly<C>, var: &Var) -> PolyResult<Poly<C>> {
     let c = content_wrt(p, var)?;
     if c.coeff_is_zero() {
         return Ok(p.clone());
@@ -256,7 +256,7 @@ pub fn primitive_part_wrt<C: PolyCoeff>(p: &Poly<C>, var: &Var) -> PolyResult<Po
 }
 
 /// **Stable** — square-free factorization `p = ∏ g_k^k` in K[var] (Yun).
-pub fn square_free_factorization_wrt<C: FieldCoeff>(
+pub(crate) fn square_free_factorization_wrt<C: FieldCoeff>(
     p: &Poly<C>,
     var: &Var,
 ) -> PolyResult<Vec<(Poly<C>, usize)>> {
@@ -268,7 +268,7 @@ pub fn square_free_factorization_wrt<C: FieldCoeff>(
 }
 
 /// **Stable** — square-free part w.r.t. `var` in K[var].
-pub fn square_free_part_wrt<C: FieldCoeff>(p: &Poly<C>, var: &Var) -> PolyResult<Poly<C>> {
+pub(crate) fn square_free_part_wrt<C: FieldCoeff>(p: &Poly<C>, var: &Var) -> PolyResult<Poly<C>> {
     let ring = crate::square_free::FlatCoeffVarRing::new(var);
     let mut prod = Poly::ring_one();
     for (g, _) in crate::square_free::square_free_yun(&ring, p)? {
@@ -329,7 +329,7 @@ fn coeff_gcd<C: PolyCoeff>(a: &C, b: &C) -> PolyResult<C> {
 }
 
 /// **Stable** — divide by leading coefficient w.r.t. `var` (monic in K).
-pub fn monic_wrt<C: PolyCoeff>(p: &Poly<C>, var: &Var) -> PolyResult<Poly<C>> {
+pub(crate) fn monic_wrt<C: PolyCoeff>(p: &Poly<C>, var: &Var) -> PolyResult<Poly<C>> {
     let deg = p.degree_wrt(var);
     let lc = scalar_coeff_wrt(p, var, deg);
     if lc.coeff_is_zero() {

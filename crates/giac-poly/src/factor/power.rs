@@ -104,10 +104,10 @@ pub fn try_linear_power(p: &Poly, var: &Var) -> Option<(Poly, u64)> {
     }
     let root = super::univariate::find_rational_root(p, var)?;
     let lin = super::util::linear_poly(var, &root);
-    let flat = FlatUni::new(p.clone(), MainVar::new(var.clone()));
+    let flat = FlatUni::try_new(p.clone(), MainVar::new(var.clone())).ok()?;
     for exp in (2..=deg).rev() {
         let lin_pow = lin.pow(exp);
-        let lin_u = FlatUni::new(lin_pow, MainVar::new(var.clone()));
+        let lin_u = FlatUni::try_new(lin_pow, MainVar::new(var.clone())).ok()?;
         if flat.div_rem(&lin_u).map(|(_, r)| r.is_zero()).unwrap_or(false) {
             return Some((lin, exp));
         }

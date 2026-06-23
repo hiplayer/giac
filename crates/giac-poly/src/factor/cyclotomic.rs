@@ -45,18 +45,18 @@ pub fn cyclotomic_poly(n: u64, var: &Var) -> PolyResult<Poly> {
         return Ok(Poly::var(var.clone()).sub(&Poly::one()));
     }
     let x = Poly::var(var.clone());
-    let mut phi = FlatUni::new(x.pow(n).sub(&Poly::one()), MainVar::new(var.clone()));
+    let mut phi = FlatUni::try_new(x.pow(n).sub(&Poly::one()), MainVar::new(var.clone()))?;
     for d in divisors_u64(n) {
         if d == n {
             continue;
         }
         let sub = cyclotomic_poly(d, var)?;
-        let sub_u = FlatUni::new(sub, MainVar::new(var.clone()));
+        let sub_u = FlatUni::try_new(sub, MainVar::new(var.clone()))?;
         let (_, r) = phi.div_rem(&sub_u).expect("cyclotomic div_rem");
         if !r.is_zero() {
             return Err(EvalError::NotImplemented("cyclotomic division"));
         }
-        phi = FlatUni::new(phi.exact_quo(&sub_u).expect("quotient"), MainVar::new(var.clone()));
+        phi = FlatUni::try_new(phi.exact_quo(&sub_u)?, MainVar::new(var.clone()))?;
     }
     Ok(phi.into_poly())
 }

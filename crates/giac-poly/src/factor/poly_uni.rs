@@ -2,7 +2,7 @@
 //!
 //! **Stable:** `coeff_wrt_poly`, `content_wrt`, `primitive_part_wrt`, `substitute_poly`, …
 //! **Partial:** `factor_sqff_over_coeff_ring` (upstream `do_factor_hensel` slice).
-//! **Ring (crate-internal):** `subresultant::{quo_exact_wrt, quo_exact_coeff, univariate_div_rem_wrt}`.
+//! **Ring (crate-internal):** `subresultant::{nested_exact_quo_wrt_in, div_exact_coeff, nested_div_rem_wrt_in}`.
 //! **Temporary (retired):** `try_factor_bivariate_eval`, `try_kronecker_bivariate` — removed (FAC-G3 covered by sparse→Hensel).
 
 //!
@@ -110,7 +110,7 @@ impl crate::square_free::SquareFreeRing for WrtRing<'_> {
     }
 
     fn div_exact(&self, a: &Poly, b: &Poly) -> PolyResult<Poly> {
-        crate::subresultant::quo_exact_wrt(a, b, self.var)
+        crate::subresultant::nested_exact_quo_wrt_in(a, b, self.var)
     }
 
     fn sub(&self, a: &Poly, b: &Poly) -> PolyResult<Poly> {

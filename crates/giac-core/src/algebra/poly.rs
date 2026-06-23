@@ -466,7 +466,7 @@ mod tests {
             sqrt2_algext_expr(),
         ]);
         let p = poly_alg_from_expr(&e).unwrap();
-        let flat = FlatUni::new(p, MainVar::new("x"));
+        let flat = FlatUni::try_new(p, MainVar::new("x")).unwrap();
         assert_eq!(flat.degree(), 2);
     }
 

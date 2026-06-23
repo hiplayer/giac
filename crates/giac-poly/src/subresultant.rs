@@ -112,9 +112,9 @@ pub(crate) fn quo_exact_coeff(num: &Poly, den: &Poly) -> PolyResult<Poly> {
     div_exact_coeff(num, den).ok_or(EvalError::NotImplemented("poly division"))
 }
 
-/// **Stable (crate-internal)** — division in ℚ[others][var] treating polynomials as univariate in `var`.
-// **Stable** — `univariate_div_rem_wrt`
-pub(crate) fn univariate_div_rem_wrt(a: &Poly, b: &Poly, var: &Var) -> (Poly, Poly) {
+/// **Stable (crate-internal)** — division in ℚ[others][var] (nested; not flat K[var]).
+// **Stable** — `nested_div_rem_wrt_in`
+pub(crate) fn nested_div_rem_wrt_in(a: &Poly, b: &Poly, var: &Var) -> (Poly, Poly) {
     let mut remainder = a.clone();
     let mut quotient = Poly::zero();
     let db = univariate_degree(b, var);
@@ -145,10 +145,10 @@ pub(crate) fn univariate_div_rem_wrt(a: &Poly, b: &Poly, var: &Var) -> (Poly, Po
 
 /// **Stable (crate-internal)** — exact quotient in ℚ[others][var]; fails if remainder nonzero.
 ///
-/// Use this (not `Poly::div_rem`) when coefficients live in ℚ[others].
-// **Stable** — `quo_exact_wrt`
-pub(crate) fn quo_exact_wrt(num: &Poly, den: &Poly, var: &Var) -> PolyResult<Poly> {
-    let (q, r) = univariate_div_rem_wrt(num, den, var);
+/// Use this (not `Poly::div_rem`) when the divisor lives in ℚ[others][var].
+// **Stable** — `nested_exact_quo_wrt_in`
+pub(crate) fn nested_exact_quo_wrt_in(num: &Poly, den: &Poly, var: &Var) -> PolyResult<Poly> {
+    let (q, r) = nested_div_rem_wrt_in(num, den, var);
     if r.is_zero() {
         Ok(q)
     } else {
@@ -173,7 +173,7 @@ fn pseudo_rem_wrt(a: &Poly, b: &Poly, var: &Var) -> Poly {
     }
     let exp = da - db + 1;
     let scaled = a.mul(&lc_b.pow(exp));
-    let (_, r) = univariate_div_rem_wrt(&scaled, b, var);
+    let (_, r) = nested_div_rem_wrt_in(&scaled, b, var);
     r.primitive_part()
 }
 

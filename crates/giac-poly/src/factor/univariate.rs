@@ -192,10 +192,10 @@ fn factor_power_pairs_core(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>
             }
         };
         let lin = linear_poly(var, &root);
-        let lin_u = FlatUni::new(lin.clone(), MainVar::new(var.clone()));
+        let lin_u = FlatUni::try_new(lin.clone(), MainVar::new(var.clone())).expect("linear");
         let mut mult = 0usize;
         loop {
-            let flat = FlatUni::new(rest.clone(), MainVar::new(var.clone()));
+            let flat = FlatUni::try_new(rest.clone(), MainVar::new(var.clone())).expect("univariate");
             let (_, r) = flat.div_rem(&lin_u).expect("flat div_rem");
             if !r.is_zero() {
                 break;
@@ -241,8 +241,8 @@ pub(crate) fn find_rational_root(p: &Poly, var: &Var) -> Option<Ratio<BigInt>> {
                 let r = Ratio::new(&p_cand * pn, &q_cand * qn);
                 if eval_univariate_at(p, var, &r).is_zero() {
                     let lin = linear_poly(var, &r);
-                    let flat = FlatUni::new(p.clone(), MainVar::new(var.clone()));
-                    let lin_u = FlatUni::new(lin, MainVar::new(var.clone()));
+                    let flat = FlatUni::try_new(p.clone(), MainVar::new(var.clone())).ok()?;
+                    let lin_u = FlatUni::try_new(lin, MainVar::new(var.clone())).ok()?;
                     if flat.div_rem(&lin_u).map(|(_, r)| r.is_zero()).unwrap_or(false) {
                         return Some(r);
                     }
@@ -355,8 +355,8 @@ fn try_factor_two_cubics(p: &Poly, var: &Var) -> Option<Vec<Poly>> {
         for a1 in -bound..=bound {
             for a0 in -bound..=bound {
                 let f = monic_cubic_poly(var, a2, a1, a0);
-                let flat = FlatUni::new(p_m.clone(), MainVar::new(var.clone()));
-                let f_u = FlatUni::new(f.clone(), MainVar::new(var.clone()));
+                let flat = FlatUni::try_new(p_m.clone(), MainVar::new(var.clone())).expect("univariate");
+                let f_u = FlatUni::try_new(f.clone(), MainVar::new(var.clone())).expect("cubic");
                 let (_, r) = flat.div_rem(&f_u).expect("flat div_rem");
                 if !r.is_zero() {
                     continue;

@@ -23,7 +23,7 @@ use crate::poly::Poly;
 use crate::poly_coeff::{FieldCoeff, PolyCoeff};
 use crate::resultant::univariate_degree;
 use crate::subresultant::{
-    div_exact_coeff, primitive_part_wrt_impl, quo_exact_wrt, univariate_div_rem_wrt,
+    div_exact_coeff, nested_div_rem_wrt_in, nested_exact_quo_wrt_in, primitive_part_wrt_impl,
 };
 
 /// Main univariate indeterminate of ℚ[others][main].
@@ -128,20 +128,20 @@ impl<'a> UnivariateIn<'a> {
 
     /// **Stable** — whether `self` divides `p` in ℚ[others][main].
     ///
-    /// Uses [`quo_exact_wrt`], **not** [`Poly::div_rem`].
+    /// Uses [`nested_exact_quo_wrt_in`], **not** [`Poly::div_rem`].
     pub fn divides(&self, p: &Poly) -> bool {
         self.exact_quo_dividing(p).is_ok()
     }
 
     /// **Stable** — exact quotient `p / self` in ℚ[others][main].
     pub fn exact_quo_dividing(&self, p: &Poly) -> PolyResult<Poly> {
-        quo_exact_wrt(p, self.poly, self.main.as_var())
+        nested_exact_quo_wrt_in(p, self.poly, self.main.as_var())
     }
 
     /// **Stable (crate-internal)** — `(q, r)` with `rem = q*self + r` in ℚ[aux][main].
     ///
     /// Divisor [`Self`] must be independent of `aux` (Hensel lift step). Uses
-    /// [`univariate_div_rem_wrt`], **not** [`Poly::div_rem`].
+    /// [`nested_div_rem_wrt_in`], **not** [`Poly::div_rem`].
     /// **Stable** — `div_rem_wrt_aux_indep`
     pub fn div_rem_wrt_aux_indep(
         &self,
@@ -710,7 +710,7 @@ pub(crate) fn div_rem_wrt_aux_indep(
     if lc.is_zero() {
         return None;
     }
-    Some(univariate_div_rem_wrt(rem, div, main_var))
+    Some(nested_div_rem_wrt_in(rem, div, main_var))
 }
 
 /// One monomial in `(main, t)` embed space (sparse_bi reconstruction IR).
@@ -810,8 +810,8 @@ mod tests {
         let x = Poly::var("x");
         let p = x.pow(3).sub(&Poly::one());
         let lin = x.sub(&Poly::one());
-        let flat = FlatUni::new(p.clone(), MainVar::new("x"));
-        let div = FlatUni::new(lin.clone(), MainVar::new("x"));
+        let flat = FlatUni::try_new(p.clone(), MainVar::new("x")).unwrap();
+        let div = FlatUni::try_new(lin.clone(), MainVar::new("x")).unwrap();
         let (_, r) = flat.div_rem(&div).expect("flat div_rem");
         assert!(r.is_zero());
         let q = flat.exact_quo(&div).expect("quotient");
@@ -870,7 +870,7 @@ mod tests {
         let main = MainVar::new("x");
         let f = UnivariateIn::new(&factor, main);
 
-        assert!(f.divides(&p), "quo_exact_wrt must see factor");
+        assert!(f.divides(&p), "nested_exact_quo_wrt_in must see factor");
         let (_, rem) = p.div_rem(&factor);
         assert!(
             !rem.is_zero(),
@@ -910,7 +910,7 @@ mod tests {
     fn flat_uni_generic_degree() {
         let x = Poly::var("x");
         let p = x.pow(3).sub(&Poly::one());
-        let flat = FlatUni::new(p, MainVar::new("x"));
+        let flat = FlatUni::try_new(p, MainVar::new("x")).unwrap();
         assert_eq!(flat.degree(), 3);
     }
 
