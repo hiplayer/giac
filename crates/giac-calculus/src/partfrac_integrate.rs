@@ -13,7 +13,10 @@
 //!
 use std::sync::Arc;
 
-use giac_core::{bigint_to_i64, expr_to_poly, poly_to_expr, EvalError, Expr, ExprArc, FuncKind, Ident};
+use giac_core::{
+    bigint_to_i64, expr_to_poly, poly_to_expr, ratio_to_expr, EvalError, Expr, ExprArc, FuncKind,
+    Ident,
+};
 use giac_poly::{
     as_perfect_power, coeff_at, partfrac_rational_terms, substitute_univariate, try_linear_power,
     univariate_degree, Poly, Var,
@@ -535,19 +538,6 @@ fn sqrt_ratio_expr(r: &Ratio<BigInt>) -> Result<ExprArc, EvalError> {
         ));
     }
     Ok(Expr::mul(parts))
-}
-
-// **Pipeline private** — convert `Ratio<BigInt>` to `ExprArc`.
-fn ratio_to_expr(r: &Ratio<BigInt>) -> ExprArc {
-    if r.is_integer() {
-        Expr::int(
-            bigint_to_i64(r.numer()).unwrap_or_else(|_| {
-                panic!("ratio too large for int")
-            }),
-        )
-    } else {
-        Arc::new(Expr::Rat(r.clone()))
-    }
 }
 
 #[cfg(test)]

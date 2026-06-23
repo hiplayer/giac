@@ -15,7 +15,8 @@
 use std::collections::HashMap;
 use std::sync::Arc;
 
-use giac_core::{bigint_to_i64, eval, eval_subst_map, expr_to_poly, Context, EvalError, Expr,
+use giac_core::{
+    bigint_to_i64, eval, eval_subst_map, expr_to_poly, ratio_to_expr, Context, EvalError, Expr,
     ExprArc, FuncKind, Ident,
 };
 use giac_simplify::{normal, ratnormal};
@@ -1283,19 +1284,6 @@ fn sign_infinity(r: &Ratio<BigInt>) -> ExprArc {
     } else {
         Expr::sym("+infinity")
     }
-}
-
-// **Pipeline private** — ratio to expr
-fn ratio_to_expr(r: &Ratio<BigInt>) -> ExprArc {
-    if r.is_integer() {
-        if let Ok(n) = giac_core::bigint_to_i64(r.numer()) {
-            return Expr::int(n);
-        }
-    }
-    Arc::new(Expr::Frac(
-        Arc::new(Expr::Int(r.numer().clone())),
-        Arc::new(Expr::Int(r.denom().clone())),
-    ))
 }
 
 // **Pipeline private** — limit from scaled finite

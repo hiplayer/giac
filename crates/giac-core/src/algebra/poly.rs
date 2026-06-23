@@ -250,7 +250,7 @@ pub fn ratio_to_expr(r: &Ratio<BigInt>) -> ExprArc {
     if r.is_zero() {
         Expr::int(0)
     } else if r.denom() == &BigInt::one() {
-        if let Ok(v) = r.numer().to_string().parse::<i64>() {
+        if let Ok(v) = crate::num_util::bigint_to_i64(r.numer()) {
             Expr::int(v)
         } else {
             Arc::new(Expr::Rat(r.clone()))
