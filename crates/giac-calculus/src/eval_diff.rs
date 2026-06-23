@@ -95,9 +95,16 @@ mod tests {
             panic!("expected List, got {}", format_expr(r.as_ref()));
         };
         assert_eq!(parts.len(), 3);
-        let exp_x = Expr::mul(vec![Expr::int(4), Expr::sym("y"), Expr::sym("x")]);
+        let exp_x = Expr::add(vec![
+            Expr::mul(vec![Expr::int(4), Expr::sym("y"), Expr::sym("x")]),
+            Expr::mul(vec![Expr::int(-1), Expr::pow(Expr::sym("z"), Expr::int(3))]),
+        ]);
         let exp_y = Expr::mul(vec![Expr::int(2), Expr::pow(Expr::sym("x"), Expr::int(2))]);
-        let exp_z = Expr::mul(vec![Expr::int(-1), Expr::pow(Expr::sym("z"), Expr::int(3))]);
+        let exp_z = Expr::mul(vec![
+            Expr::int(-3),
+            Expr::sym("x"),
+            Expr::pow(Expr::sym("z"), Expr::int(2)),
+        ]);
         assert!(assert_equiv(parts[0].as_ref(), exp_x.as_ref(), &ctx).unwrap());
         assert!(assert_equiv(parts[1].as_ref(), exp_y.as_ref(), &ctx).unwrap());
         assert!(assert_equiv(parts[2].as_ref(), exp_z.as_ref(), &ctx).unwrap());
