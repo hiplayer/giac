@@ -34,7 +34,7 @@ use std::sync::Arc;
 use giac_poly::PolyCoeff;
 use num_bigint::BigInt;
 use num_rational::Ratio;
-use num_traits::One;
+use num_traits::{One, Zero};
 
 use crate::error::EvalError;
 
@@ -593,11 +593,8 @@ fn coeff_in_field(
     AlgExtCPolyCoeff::from(f(field))
 }
 
-// **Pipeline private** — negative constant in ℚ ⊂ K
-fn is_negative_rational(c: &AlgExtCPolyCoeff) -> bool {
-    use super::field_arith::{pad_to_len, rationalize_poly1};
-    use num_traits::Zero;
-
+// **Pipeline private** — negative constant in ℚ ⊂ K (for Δ<0 guard)
+pub(crate) fn is_negative_rational(c: &AlgExtCPolyCoeff) -> bool {
     let inner = c.as_inner();
     if !inner.im.iter().all(|e| e.is_zero()) {
         return false;

@@ -26,7 +26,7 @@ use super::alg_ext_c::AlgExtCData;
 use super::ext_tower::{self, ExtensionField};
 use super::field_arith::{coords_to_expr, pad_to_len, rationalize_poly1, CoordsQ};
 use super::field_session::{
-    coeff_from_coords, coords_in_field, FieldSession, POLY_ROOTS_DIM_HARD,
+    coeff_from_coords, coords_in_field, is_negative_rational, FieldSession, POLY_ROOTS_DIM_HARD,
     POLY_ROOTS_DIM_QUARTIC_OUT, POLY_ROOTS_DIM_RESOLVENT,
 };
 use super::galois_automorphism;
@@ -239,21 +239,6 @@ fn quadratic_roots_formula(
     let r2 = session.add(&neg_b_half, &neg_sh)?;
     let _ = var;
     Ok(vec![r1, r2])
-}
-
-// **Pipeline private** — negative constant in ℚ ⊂ K (for Δ<0 guard)
-fn is_negative_rational(c: &AlgExtCPolyCoeff) -> bool {
-    let inner = c.as_inner();
-    if !inner.im.iter().all(|e| e.is_zero()) {
-        return false;
-    }
-    let Ok(re) = rationalize_poly1(&inner.re) else {
-        return false;
-    };
-    if inner.field.dimension() != 1 {
-        return false;
-    }
-    pad_to_len(&re, 1)[0] < Ratio::zero()
 }
 
 // **Pipeline private** — sqrt(Δ) via session; imaginary branch when Δ<0 in ℚ ⊂ K
@@ -969,47 +954,6 @@ fn eval_vanishes(
     val.as_inner()
         .eq_mod(session.zero().as_inner())
         .unwrap_or(false)
-}
-
-// **Pipeline private** — `split_depressed_quartic` (legacy Ferrari; kept for tests)
-fn split_depressed_quartic(
-    session: &FieldSession,
-    dep: &PolyAlgExt,
-    var: &Var,
-    z: &AlgExtCPolyCoeff,
-) -> Result<Vec<AlgExtCPolyCoeff>, EvalError> {
-    let q = session.lift(&coeff_at(dep, var, 1, session))?;
-    let r = session.lift(&coeff_at(dep, var, 0, session))?;
-    let z_lift = session.lift(z)?;
-    session.bump_to(&z_lift.as_inner().field);
-    let four = session.int(4)?;
-    let zz = session.mul(&z_lift, &z_lift)?;
-    let r4 = session.mul(&r, &four)?;
-    let neg_r4 = session.neg(&r4)?;
-    let disc = session.add(&zz, &neg_r4)?;
-    let m = session.sqrt_in_field(&disc)?;
-    let half = session.half()?;
-    let m_lift = session.lift(&m)?;
-    let neg_m = session.neg(&m_lift)?;
-    let mut out = Vec::new();
-    for mp in [
-        session.add(&z_lift, &m_lift)?,
-        session.add(&z_lift, &neg_m)?,
-    ] {
-        let c0 = session.mul(&mp, &half)?;
-        let c1 = if q.coeff_is_zero() {
-            session.zero()
-        } else {
-            let q_over_m = session.div(&q, &m_lift)?;
-            session.mul(&q_over_m, &half)?
-        };
-        let quad = PolyAlgExt::ring_var(var.clone())
-            .try_pow(2)?
-            .try_add(&PolyAlgExt::ring_constant(c1).try_mul(&PolyAlgExt::ring_var(var.clone()))?)?
-            .try_add(&PolyAlgExt::ring_constant(c0))?;
-        out.extend(quadratic_roots_formula(session, &quad, var)?);
-    }
-    Ok(out)
 }
 
 // **Pipeline private** — `deflate_monic`

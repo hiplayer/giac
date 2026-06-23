@@ -280,7 +280,6 @@ FN_TIERS: dict[str, tuple[str, str]] = {
     "eval_sturm": ("Stable", "Sturm sequence for univariate poly"),
     "eval_sturmab": ("Stable", "root count in (a,b) via Sturm"),
     "quadratic_rootof_roots": ("Stable (bounded)", "two rootof branches for quadratic"),
-    "biquadratic_rootof_roots": ("Partial", "biquadratic rootof; general quartic NotImplemented"),
     "install_solve": ("Stable", "register DefaultSolvePlugin"),
     # --- giac-ode ---
     "eval_desolve": ("Stable (bounded)", "linear constant-coefficient ODE subset"),
