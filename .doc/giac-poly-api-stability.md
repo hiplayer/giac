@@ -71,6 +71,25 @@
 | `factor_power_pairs` | `factor/univariate` | 带重数的因子对 |
 | `vars_in`, `ratio_perfect_sqrt` | `factor/util` | |
 
+#### 2.3.1 一元 `Ok(vec![g])` 单因子 fallback（4B / §7.2）
+
+`factor_square_free` / `factor_quadratic` 等在算法未分裂时返回 **单元素列表 `[g]`**。数学上恒为合法因子分解（乘积 = 输入）；调用方须知此为 **不可约见证** 或 **低次正确因子**，非「假失败」。
+
+| 位置 | 条件 | 语义 | 层级 |
+|------|------|------|------|
+| `factor_square_free` | `d == 0` | 常数项（无 `var` 次数）→ 单因子自身 | **Bounded OK** |
+| `factor_square_free` | `d == 1` | 一次多项式已是不可约因子 | **Bounded OK** |
+| `factor_square_free` | 末尾 fallback | Zassenhaus / 双二次 / 双三次 / 完美幂均失败后，**square-free** `g` 在 ℚ 上视为不可约单块 | **Partial** — 见 FAC-G*；乘积仍 = `g` |
+| `factor_quadratic` | `quadratic_abc` 失败 | 非标准二次形 → 原式单块 | **Bounded OK** |
+| `factor_quadratic` | Δ 非 ℚ 平方 | 二次在 ℚ 不可约 → `[p]` | **Bounded OK**（如 `x²+1`） |
+| `factor_power_pairs_core` | `rest` 次数 ≤ 2 | 余式为一次/二次 → `(rest, 1)` | **Bounded OK** |
+| `factor_power_pairs_core` | 无有理根且次数 > 2 | **`Err(NotImplemented)`** — 非静默 | — |
+| `cantor_zassenhaus_block` (fpx) | `k == i` | DDF 块次数 = 目标不可约度 → 块本身 | **Bounded OK**（𝔽_p） |
+
+**禁止误解：** `[g]` 仅当 `g` square-free 且算法链已穷尽 **已实现的** 分裂手段；不等于「giac C++ 完整 factor」对高次多项式的保证。
+
+**单测：** `factor/univariate.rs` `tests::factor_univariate_*` — 可约二次分裂 vs 不可约二次单块 vs 乘积还原。
+
 ### 2.4 部分分式 — **Stable (bounded)**
 
 | 符号 | 模块 | 边界 |
@@ -1105,6 +1124,7 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `univariate_degree` | **Stable** | degree w.r.t. var |
 | `univariate_leading_coeff` | **Pipeline private** | `univariate_leading_coeff` |
 | `roots` | **Stable (bounded)** | low-degree exact roots as Poly factors |
+| `quadratic_abc` | **Pipeline private** | `quadratic_abc` |
 | `quadratic_coeffs` | **Pipeline private** | `quadratic_coeffs` |
 | `ratio_is_perfect_square` | **Pipeline private** | `ratio_is_perfect_square` |
 | `int_isqrt` | **Pipeline private** | `int_isqrt` |
@@ -1116,6 +1136,7 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `resultant_constant_times_linear` | **Pipeline private** | `resultant_constant_times_linear` |
 | `resultant_linear_times_constant` | **Pipeline private** | `resultant_linear_times_constant` |
 | `resultant_quadratic` | **Pipeline private** | `resultant_quadratic` |
+| `quadratic_abc_x2_minus_2` | **Pipeline private** | `quadratic_abc_x2_minus_2` |
 | `roots_linear` | **Pipeline private** | `roots_linear` |
 | `roots_zero_polynomial` | **Pipeline private** | `roots_zero_polynomial` |
 | `roots_constant_nonzero_errors` | **Pipeline private** | `roots_constant_nonzero_errors` |

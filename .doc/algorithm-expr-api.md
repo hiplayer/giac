@@ -158,7 +158,7 @@
 4. **对齐内聚** — `add/mul/div` 仅接受 `session.align(a,b)` 后的对，或 session 上的方法；禁止在 Cardano/resolvent 各层手写 `align_coeff` 链。
 5. **与表示层分离** — `poly_alg_from_expr` 可产生 ℚ/K 混合系数；**算法入口** normalize 到 K 后再进 session；`verify` 与算法共用同一 normalize+monic 路径。
 
-**最小 API（已实现，见 [giac-core-algebra-api-stability.md](giac-core-algebra-api-stability.md) `field_session.rs`）：**
+**最小 API（已实现，见 [giac-core-algebra-api-stability.md](giac-core-algebra-api-stability.md) `field_session.rs` / `PolyInK`）：**
 
 ```text
 FieldSession { ambient: K, working: L }

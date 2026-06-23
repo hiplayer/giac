@@ -88,7 +88,6 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `ratio_sqrt` | **Pipeline private** | `ratio_sqrt` |
 | `integer_sqrt` | **Pipeline private** | `integer_sqrt` |
 | `is_zero_expr` | **Pipeline private** | `is_zero_expr` |
-| `is_sin_of_var` | **Pipeline private** | `is_sin_of_var` |
 | `desolve_harmonic` | **Pipeline private** | `desolve_harmonic` |
 
 ### `plugin.rs`

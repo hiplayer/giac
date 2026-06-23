@@ -1,8 +1,10 @@
 # GIAC-AlgExt — `AlgExtData` / `Expr::AlgExt` 落地与算法适配清单
 
-**状态:** open（Phase A 骨架已合入 giac-rs）  
+**状态:** open（**中期基座已落地**；长期 Poly 算法 / evalf / assume 待做）  
 **类型:** AFK（实现向）  
-**相关:** [GIAC-poly-algext-backlog](GIAC-poly-algext-backlog.md)（giac-poly 分阶段待办）、[rust-migration-plan.md](../rust-migration-plan.md) §3.2、`cas-long-term-vision.md` §5 Phase B、`GIAC-205`（`rootof` 浅层对接）  
+**已归档:** [GIAC-algext-adoption-phase-a-midterm.md](../issues_resolved/GIAC-algext-adoption-phase-a-midterm.md)（Phase A + 塔 + `AlgExtC` 内核 + deg≤4 求根，2026-06-23）  
+**相关:** [GIAC-poly-algext-backlog](GIAC-poly-algext-backlog.md)、[GIAC-lazy-common-tower-plan](GIAC-lazy-common-tower-plan.md)、[rust-migration-plan.md](../rust-migration-plan.md) §3.2、`cas-long-term-vision.md` §5 Phase B  
+**快照:** 2026-06-23  
 **上游参考:** `giac/giac-1.5.0/src/alg_ext.cc`、`alg_ext.h`、`gen.h` `ref_algext`  
 **Rust 落点:** `giac-core::algebra::{alg_ext, ext_tower, alg_ext_c}`、`Expr::AlgExt` / `Expr::AlgExtC`、`giac-poly::Poly<AlgExtC>`
 
@@ -16,7 +18,7 @@ giac-rs 原先仅用 `Func(RootOf, …)` 表示代数数，**没有**扩域算�
 - `normal` / `factor` / `sturm` / `integrate` 遇到代数系数时无法继续
 - `testcas`、`testgeo`、`flanex` 大量 `rootof` 用例只能符号打印，不能参与运算
 
-本 issue 跟踪：**已落地的最小 `AlgExt` 内核** + **各 crate 算法适配优先级**。
+本 issue 跟踪：**仍开放的算法适配与长期目标**。**已交付**见 [issues_resolved 归档](../issues_resolved/GIAC-algext-adoption-phase-a-midterm.md)。
 
 ---
 
@@ -45,8 +47,9 @@ P(α) = 0，P ∈ ℚ[t]，P 不可约（或取最小多项式）
 
 | 字段 | 数学含义 |
 |------|----------|
-| `min_poly` | α 的 **最小多项式** `P`（giac `poly1`，**高次系数在前**） |
-| `coords` | 元素在基 `{1, α, α², …, α^{d−1}}` 下的坐标：`c₀ + c₁α + …`（同 poly1 顺序） |
+| `field` | 元素所属 **扩域** `ExtensionField`（塔顶 K） |
+| `coords` | 元素在 K 的 operational 基下的坐标（primitive 或 parent-coeff block layout，由 `field` 决定） |
+| `min_poly()` | 由 `field.layer_min_poly_exprs()` 导出；不再作为独立存储字段 |
 | `root_index` | 可选：`P` 有多个根时，选定哪一支（对标 `select_root` / `proot`） |
 
 **恒等式：**
@@ -151,7 +154,7 @@ Numeric / evalf  — AlgExtC::evalf → F64，见 cas-long-term-vision CasResult
 | **`i` 为符号而非生成元** | `Complex(re, im)` 中 `im·i` 的 `i` 不在任何 `min_poly` 内 | 阶段 2b：`AlgExtC` 或塔层 `Adj(i, t²+1)` |
 | **双形态** `AlgExt` / `Complex(0, AlgExt)` | 同一复代数数两种 `Expr` 形状，算法需分支 | `canonicalize → AlgExtC` |
 | **跨域 re/im** | 实部、虚部可能落在不同 ℚ(α) | `ExtensionTower::common` |
-| **`common_EXT` MVP** | 仅 primitive element 试探，未缓存、未对齐 upstream 全算法 | 阶段 2：`ExtensionField` + 缓存 |
+| **`common_EXT` flatten 路径** | T4a 塔 compositum 已默认；flatten bisect 仍作 fallback | T3+ `adjoin(K,u²−α)` 后减少 flatten |
 | **无 `evalf`** | 不能从精确根式得到小数近似 | 阶段 4：`AlgExtC::evalf` → `Numeric` |
 
 ### 8. 目标架构：塔式 `_EXT` + `Poly<AlgExtC>`（normative）
@@ -174,14 +177,15 @@ Numeric / evalf  — AlgExtC::evalf → F64，见 cas-long-term-vision CasResult
   Expr 层（用户式）  │  AlgExtC | AlgExt(im=0) | rootof(...) │
                     └─────────────────────────────────────────┘
 
-过渡态（已部分落地）：
-  Expr::AlgExt          — 实代数数 ℚ(α)
-  Expr::Complex(re,im)  — re,im 可为 AlgExt；i 仍为 Context 符号
-  fold_complex_algext_* — 在 eval 中 patch，非一等类型
+当前（2026-06-23）：
+  Expr::AlgExt / Expr::AlgExtC  — 均已存在；AlgExtData.field 已迁移
+  Expr::Complex(re,im)          — re,im 可为 AlgExt；i 仍为 Context 符号
+  fold_complex_algext_*         — eval 过渡 patch；canonicalize_to_algext_c 已可用于桥接
+  eval 对 AlgExtC              — 仅原子传递，未 fold +−×÷
 
 目标态：
-  Expr::AlgExtC(Arc<AlgExtCData>)  — 复代数数唯一标量形态
-  canonicalize: Complex/AlgExt → AlgExtC；im=0 可降回 AlgExt 显示
+  eval 优先产出 AlgExtC；删除 fold_complex_* 与 rootof.rs 特判
+  im=0 显示可降 rootof；i 按需 adjoin 进塔
 ```
 
 #### 8.2 塔式 `ExtensionTower`（对标 upstream `_EXT`）
@@ -347,14 +351,14 @@ i 为符号                i 进塔 / K[i]           evalf；参数 A,B
 
 #### 8.7 实施阶段（交付顺序）
 
-| 阶段 | Horizon | 交付物 | 能力 | 与过渡态关系 |
-|------|---------|--------|------|--------------|
-| **A** ✅ | 现在 | `AlgExtData`, `ext_*`, `inv`, P0/P1 MVP | 实代数数同域运算；`Complex+AlgExt` patch | 当前主分支 |
-| **2** | 中期 | `ExtensionField` + `ExtensionTower::Adj` + `common` 缓存 | 跨域合并、塔顶统一；`AlgExt.min_poly` → `field` | 重构 `AlgExtData` 字段 |
-| **2b** | 中期 | `AlgExtCData`, `Expr::AlgExtC`, `canonicalize` | 复代数数 `+−×÷`；`i` 进塔或 K[i]/(i²+1) | 替代 `fold_complex_algext_*` |
-| **3** | 长期 | `PolyCoeff` / 参数 min_poly | 符号参数 A,B | Phase C |
-| **4** | 长期 | `AlgExtC::evalf` | 浮点近似 | D-03 |
-| **5** | 长期 | `Poly<AlgExtC>` gcd/factor/roots | 通用 solve/factor/sturm | B-02/B-03/B-04 终态 |
+| 阶段 | Horizon | 交付物 | 能力 | 状态 |
+|------|---------|--------|------|------|
+| **A** | 现在 | `AlgExtData`, `ext_*`, `inv`, P0 | 实代数数同域/跨域运算 | ✅ [归档](../issues_resolved/GIAC-algext-adoption-phase-a-midterm.md) |
+| **2** | 中期 | `ExtensionField` + `ExtensionTower::Adj` + `common` 缓存 | 跨域合并、塔顶统一 | ✅（T3+ ☐） |
+| **2b** | 中期 | `AlgExtCData`, `Expr::AlgExtC`, `canonicalize` | 复代数数 `+−×÷`；`i` 进塔 | **部分**：类型/canonicalize ✅；eval fold ☐ |
+| **3** | 长期 | `PolyCoeff` / 参数 min_poly | 符号参数 A,B | ☐ |
+| **4** | 长期 | `AlgExtC::evalf` | 浮点近似 | ☐ |
+| **5** | 长期 | `Poly<AlgExtC>` gcd/factor/roots | 通用 solve/factor/sturm | **部分**：deg≤4 roots ✅；gcd/factor ☐ |
 
 **giac-poly 分任务清单：** [GIAC-poly-algext-backlog](GIAC-poly-algext-backlog.md)（Phase 0–4、P2-3 partfrac、里程碑 M1–M4）。
 
@@ -469,30 +473,22 @@ factor / solve / AlgExtC
 
 ---
 
-## 已落地（Phase A + P1 过渡态）
+## 已落地（归档）
 
-| 项 | 状态 | 说明 |
-|----|------|------|
-| `AlgExtData { min_poly, coords, root_index }` | ✅ | `giac-core/src/algebra/alg_ext.rs` |
-| `Expr::AlgExt(Arc<AlgExtData>)` | ✅ | `giac-core/src/expr.rs` |
-| `from_rootof` / `to_rootof_expr` | ✅ | 有理 `poly1` 系数；显示仍走 `rootof(...)` |
-| `ext_add` / `ext_sub` / `ext_mul` / `inv`（同域） | ✅ | P0 A-01/A-02 |
-| `eval(rootof(...))` 提升 | ✅ | 可构造则 → `AlgExt` |
-| `fold_algext_*` / `ratnormal` / `assert_equiv` | ✅ | P0 A-03/A-04 |
-| `common_EXT` MVP | ✅ | primitive element 试探（B-05 子集） |
-| `algext_square_roots` / `algext_sqrt_branches` | ✅ | 实根 + `Complex(0, AlgExt)` 复根 |
-| `fold_complex_algext_*` | ✅ | **过渡态**：`Complex` 与 `AlgExt` 混合加减乘 |
-| `biquadratic_rootof_roots` | ✅ | `solve(t^4-2=0)` 四根（2 实 + 2 复） |
-| `quadratic_rootof` / `realroot` rootof 端点 | ✅ | B-03/B-04 子集 |
-| `factor(x^2-2)` rootof 钩子 | ✅ | B-02 子集 |
+**完整清单与验收：** [GIAC-algext-adoption-phase-a-midterm.md](../issues_resolved/GIAC-algext-adoption-phase-a-midterm.md)
 
-**过渡态边界（§8.1，待阶段 2/2b/5 消除）：**
+**摘要（2026-06-23）：** P0 全绿；`ExtensionField` + lazy `common`（B-05）；`AlgExtC` 内核 + `canonicalize`（B-06 部分）；`Poly<AlgExtCPolyCoeff>` + `poly_algext_roots` deg 1–4；`solve_poly` deg≤4 走求根管线。
 
-- `i` 为 `Context` 符号，非塔生成元
-- 复代数数为 `Complex(0, AlgExt)` 与 `AlgExt` 双形态
-- `solve` / `roots` 依赖 `biquadratic` / `algext_sqrt_branches` 特判，非 `Poly<AlgExtC>`
-- `common_EXT` 未缓存、未完全对齐 upstream
-- 系数环仍 **ℚ**；`evalf` 未接
+**仍开放（本 issue 继续跟踪）：**
+
+| 缺口 | 说明 |
+|------|------|
+| eval `AlgExtC` 四则 | `eval` 仅原子传递 `AlgExtC` |
+| 删除过渡特判 | `rootof.rs`、`fold_complex_algext_*`、`try_factor_quadratic_rootof` |
+| partfrac disc>0 | P2-3；阻塞 C-02 |
+| `Poly<AlgExtC>` gcd/factor | P3-1/3/3 |
+| T3+ adjoin | `adjoin(K, u²−α)`；阻塞一般四次无 flatten |
+| `evalf` / assume / 参数系数 | 阶段 3–4 |
 
 ---
 
@@ -504,8 +500,8 @@ factor / solve / AlgExtC
 
 | ID | 模块 | 算法 / 入口 | 须适配的行为 | 上游 | 验收 |
 |----|------|-------------|--------------|------|------|
-| A-01 | `giac-core::eval` | `eval_add` / `eval_mul` | `AlgExt ± AlgExt`、`AlgExt * AlgExt`、与 `Int`/`Rat` 混合 | `ext_add` / `ext_mul` | ✅ 同域 `fold_algext_*`；跨域 / `inv` 未做 |
-| A-02 | `giac-core::eval` | `eval_frac` | 分母为 `AlgExt` 时 `inv_EXT` 或 `NotImplemented` | `inv_EXT` | 明确错误，不 panic |
+| A-01 | `giac-core::eval` | `eval_add` / `eval_mul` | `AlgExt ± AlgExt`、`AlgExt * AlgExt`、与 `Int`/`Rat` 混合 | `ext_add` / `ext_mul` | ✅ `fold_algext_*` + 跨域 `align_pair`/`common` |
+| A-02 | `giac-core::eval` | `eval_frac` | 分母为 `AlgExt` 时 `inv_EXT` | `inv_EXT` | ✅ `AlgExt` 分母；`AlgExtC` 分母 ☐ |
 | A-03 | `giac-simplify::normal` | `ratnormal` | `AlgExt` 视为原子常数；`Frac` 中含 `AlgExt` 的约分 | `ext_reduce` | `normal(rootof²-2)` 相关式 |
 | A-04 | `giac-simplify::equiv` | `assert_equiv` | `AlgExt` 同域相等比较（`coords` + `min_poly`） | — | conformance `assert_equiv` |
 | A-05 | `giac-core::display` | `format_expr` | 已走 `to_rootof_expr`；需稳定排序 | `symb_rootof` | golden 字符串不变 |
@@ -515,19 +511,19 @@ factor / solve / AlgExtC
 | ID | 模块 | 算法 | 须适配的行为 | 上游 | 验收 |
 |----|------|------|--------------|------|------|
 | B-01 | `giac-core::algebra::poly` | `expr_to_poly` | **拒绝**代数系数；**提升**走 `poly_alg_from_expr`（P1 stub）；契约 [expr-poly-conversion.md](../expr-poly-conversion.md) | `e2r` + `_EXT` | ✅ `TypeError` + `expr_contains_alg_coeff` |
-| B-02 | `giac-poly` | `gcd` / `factor` / `roots` | 系数环 **`Poly<AlgExtC>`**；过渡态二次 rootof 钩子 | `gausspol` `algext_convert` | `factor(x^2-2)`；终态任意次数 |
-| B-03 | `giac-solve` | `solve` / `roots` | 根为 **`AlgExtC`**；`Poly<AlgExtC>::roots` | `solve.cc` + `rootof` | `solve(t^4-2=0,t)` 四根 ✅ 过渡态 |
-| B-04 | `giac-solve` | `sturm` / `realroot` | 实根：`Poly<AlgExt>`（`AlgExtC.im=0`） | `alg_ext.cc` `sturm` | `realroot(x^2-2)` |
-| B-05 | `giac-core` | **`ExtensionTower::common`** | 塔式 `common_EXT` + 缓存 | `alg_ext.cc` L51–52 | ✅ `(√2)+(∛2)`；[lazy-common-tower](GIAC-lazy-common-tower-plan.md) T4a/T4b |
-| B-06 | `giac-core` | **`AlgExtC`** + `canonicalize` | 复代数数一等类型；`i` 进塔 | — | `i·rootof(...)` 可 `+−×÷` |
+| B-02 | `giac-poly` / `giac-core` | `gcd` / `factor` / `roots` | 系数环 **`Poly<AlgExtC>`** | `gausspol` | **部分**：deg≤4 `poly_algext_roots` ✅；`factor` 二次 hook；通用 gcd/factor ☐ |
+| B-03 | `giac-solve` | `solve` / `roots` | 根为 **`AlgExtC`** | `solve.cc` | **部分**：`solve_poly` deg≤4 → `poly_algext_roots`；删 `rootof.rs` ☐ |
+| B-04 | `giac-solve` | `sturm` / `realroot` | 实根：`Poly<AlgExt>`（`AlgExtC.im=0`） | `sturm` | **部分**：ℚ 上 sturm + algext 端点；K 上 sturm ☐ |
+| B-05 | `giac-core` | **`ExtensionTower::common`** | 塔式 `common_EXT` + 缓存 | `common_EXT` | ✅ [归档](../issues_resolved/GIAC-algext-adoption-phase-a-midterm.md) |
+| B-06 | `giac-core` | **`AlgExtC`** + `canonicalize` | 复代数数一等类型；`i` 进塔 | — | **部分**：`AlgExtCData` + `canonicalize` ✅；eval fold + `i` adjoin ☐ |
 
 ### P2 — 微积分与极限（Phase B）
 
 | ID | 模块 | 算法 | 须适配的行为 | 验收 |
 |----|------|------|--------------|------|
-| C-01 | `giac-calculus::diff` | `diff` | `AlgExt` 对 `x` 为常数（0） | `diff(rootof(...),x)=0` |
-| C-02 | `giac-calculus::integrate` | 有理式 / `partfrac` | 分母含不可约二次 → `AlgExt` 对数项 | `∫1/(x^2-2)dx` |
-| C-03 | `giac-calculus::limit` | 有限点代入 | `AlgExt` 作为常数代入 | `limit(rootof(...),x,0)` |
+| C-01 | `giac-calculus::diff` | `diff` | `AlgExt`/`AlgExtC` 对 `x` 为常数 | `diff(rootof(...),x)=0` | ✅ `is_const_wrt` |
+| C-02 | `giac-calculus::integrate` | 有理式 / `partfrac` | 分母含不可约二次 → `AlgExt` 对数项 | `∫1/(x²-2)dx` | ☐ partfrac disc>0 |
+| C-03 | `giac-calculus::limit` | 有限点代入 | `AlgExt` 作为常数代入 | `limit(rootof(...),x,0)` | ☐ |
 | C-04 | `giac-calculus::risch` | 塔扩展 | 代数塔层识别 `AlgExt` | GIAC-229+ |
 
 ### P3 — 线代、几何、数值（后期）
@@ -551,40 +547,41 @@ factor / solve / AlgExtC
 
 ## 推荐实施顺序
 
-**已完成（过渡态）：**
+**已完成（见 [归档](../issues_resolved/GIAC-algext-adoption-phase-a-midterm.md)）：**
 
 ```text
-P0 (A-01…A-05) → P1 子集 (B-01…B-05 MVP, Complex+AlgExt, t^4-2)
+P0 (A-01…A-05) → B-05 → AlgExtC 内核 → poly_algext_roots deg≤4 → solve_poly deg≤4
 ```
 
-**目标架构（§8.6 中期/长期，§8.7 交付顺序）：**
+**下一步（本 issue）：**
 
 ```text
-ExtensionTower + ExtensionField::common（B-05 重构）
-  → AlgExtC + canonicalize（B-06）
-  → Poly<AlgExtC> roots 二次/双二次（B-03 终态）
-  → 移除 biquadratic / algext_sqrt_branches 特判
-  → Poly<AlgExtC> factor/gcd（B-02 终态）
-  → sturm / realroot on Poly<AlgExt>（B-04）
-  → C-01…C-02 → AlgExtC::evalf（D-03）
+eval AlgExtC fold + eval_frac(AlgExtC)  （收尾 2b）
+  → partfrac disc>0（P2-3）→ C-02
+  → T3+ adjoin → P3-6 一般四次无 flatten
+  → 删 rootof.rs / fold_complex_* / factor 二次 hook（P4-1/4/6）
+  → Poly<AlgExtC> gcd/factor（P3-1/3）
+  → sturm over K（B-04 终态）
+  → AlgExtC::evalf（D-03）
 ```
 
 ---
 
 ## 数据模型
 
-### 当前（过渡态，Phase A + P1）
+### 当前（2026-06-23）
 
 ```rust
 pub struct AlgExtData {
-    pub min_poly: Vec<ExprArc>,
+    pub field: Arc<ExtensionField>,
     pub coords: Vec<ExprArc>,
     pub root_index: Option<u32>,
 }
-// 复根：Expr::Complex(Expr::int(0), AlgExt(...))，i 为符号
+// Expr::AlgExtC(Arc<AlgExtCData>) 已存在
+// 复根仍可显示为 Complex(0, AlgExt)；canonicalize_to_algext_c 可统一
 ```
 
-### 目标（§8 normative）
+### 目标（§8 normative，AlgExtC 已落地；eval/算法接线待完成）
 
 ```rust
 pub enum ExtensionTower { Base, Adj { parent, min_poly, embed_parent, degree } }

@@ -4,7 +4,7 @@
 **类型:** 索引 / AFK（子项见下表）  
 **依据:** [algorithm-expr-api.md](../algorithm-expr-api.md) §1–§7；配套 [algorithm-expr-api.mdc](../../.cursor/rules/algorithm-expr-api.mdc)、[algorithm-before-patch.mdc](../../.cursor/rules/algorithm-before-patch.mdc)  
 **不重复:** 算法能力缺口仍归 [GIAC-algorithm-gaps-open](GIAC-algorithm-gaps-open.md)；本索引只清 **API 分层、显式上下文、临时 API 退役、测试契约、边界审计**。  
-**快照:** 2026-06-20
+**快照:** 2026-06-23（0B / 1B 落地；3B integrate 首批 A 化）
 
 ---
 
@@ -12,15 +12,17 @@
 
 giac-rs 算法 crate 在 [algorithm-expr-api.md](../algorithm-expr-api.md) 落地程度上不均：
 
-| 维度 | 现状 | 文档要求 |
-|------|------|----------|
-| API tier + 稳定性文档 | `giac-simplify` / `giac-poly` 有 doc + `annotate_api_tiers.py`；`giac-calculus` 有 doc 无 inventory；`giac-core/algebra` ~364 fn 仅 7 处 tier；`giac-solve` / `giac-ode` / `giac-groebner` **零 tier** | §2 三层分类；§7.2 inventory |
-| 显式算法上下文 | `poly_roots.rs` 散落 `align_coeff`；**无 `FieldSession`** | §6.3 |
-| 临时 API | `mrv_w` 8× `drift_*`；`equiv::canonical_radical`；`ratnormal_algext` shim | §2 须写退役条件 + issue |
-| 测试契约 | 全库 ~120+ 处 `format_expr(...).contains("…")` 语义断言；`assert_equiv` ~30 处 | §3 / §5 |
-| §4 索引 | `giac-solve` / `giac-groebner` / `giac-ode` / `giac-core::algebra` 未入表 | §4 |
+| 维度 | 现状（2026-06-23） | 文档要求 |
+|------|-------------------|----------|
+| API tier + 稳定性文档 | **7** crate + `giac-core-algebra-api-stability.md`（514 fn inventory）；`giac-core/algebra` ~70% fn 已标 tier | §2 三层分类；§7.2 inventory |
+| 显式算法上下文 | **`FieldSession` + `PolyInK::prepare`** 单路径进 `roots_dispatch` | §6.3 |
+| 临时 API | `mrv_w` **7×** `drift_*`；`equiv::canonical_radical` + `inv_sqrt_to_mul`；`ratnormal_algext` shim — 均未退役 | §2 须写退役条件 + issue |
+| 测试契约 | `integrate.rs` 已补 **A**（`eval_integrate_matches`）+ 语义 `contains` 清零；`diff(integrate)` gap 仍在 | §3 / §5 |
+| §4 索引 | 与 `*-api-stability.md` **一致** | §4 |
 
-**相对健康：** 无 `looks_like_*` 泛滥；`expr_to_poly` 对 `AlgExt` 显式拒绝；limit_engine `canonical_mrv_coeff` / `exp_diff` 契约文档齐全。
+**相对健康：** 无 `looks_like_*` 泛滥；`expr_to_poly` 对 `AlgExt` 显式拒绝；limit_engine `canonical_mrv_coeff` / `exp_diff` 契约文档齐全；`poly_algext_roots` + `t⁴+t+1` 单测已绿。
+
+**当前活跃债（P1）：** 3B 其余 calculus 单测；2A（blocked）；4A expr_to_poly 审计。
 
 ---
 
@@ -30,16 +32,16 @@ giac-rs 算法 crate 在 [algorithm-expr-api.md](../algorithm-expr-api.md) 落�
 |----|------|------|--------|------------|------|
 | [0A](#giac-expr-api-0a) | 扩展 `annotate_api_tiers.py` + inventory | AFK | P0 | — | **done** |
 | [0B](#giac-expr-api-0b) | 补齐 `*-api-stability.md` + §4 索引 | AFK | P0 | 0A | **done** |
-| [1A](#giac-expr-api-1a) | `FieldSession` 落地 | AFK | P0 | — | open |
-| [1B](#giac-expr-api-1b) | `PolyInK` 入口规范化 | AFK | P0 | 1A | open |
+| [1A](#giac-expr-api-1a) | `FieldSession` 落地 | AFK | P0 | — | **done** |
+| [1B](#giac-expr-api-1b) | `PolyInK` 入口规范化 | AFK | P0 | 1A | **done** |
 | [2A](#giac-expr-api-2a) | 退役 `mrv_w::drift_*` | AFK | P1 | [GIAC-limit-mrv-followup](GIAC-limit-mrv-followup.md) Phase 3A | open |
 | [2B](#giac-expr-api-2b) | 退役 `ratnormal_algext` shim | AFK | P2 | [GIAC-algext-adoption](GIAC-algext-adoption.md) A-03 | open |
 | [2C](#giac-expr-api-2c) | `assert_equiv` 漂移收敛 | HITL | P2 | — | open |
 | [3A](#giac-expr-api-3a) | `giac-solve` 测试去字符串语义 | AFK | P1 | 0B | **done** |
 | [3B](#giac-expr-api-3b) | `giac-calculus` 积分 / limit 单测契约 | AFK | P1 | — | **partial** |
-| [3D](#giac-expr-api-3d) | `giac-core/algebra` 扩域单测 | AFK | P1 | 1A | **partial** |
+| [3D](#giac-expr-api-3d) | `giac-core/algebra` 扩域单测 | AFK | P1 | 1A ✅ | **done** |
 | [4A](#giac-expr-api-4a) | `expr_to_poly` 调用方审计 | AFK | P2 | 0B | open |
-| [4B](#giac-expr-api-4b) | factor 静默 fallback 显式化 | AFK | P2 | — | open |
+| [4B](#giac-expr-api-4b) | factor 静默 fallback 显式化 | AFK | P2 | — | **done** |
 | [4C](#giac-expr-api-4c) | 嵌套环上下文 / `div_rem` 误用审计 | AFK | P2 | [GIAC-poly-nested-ring-types](GIAC-poly-nested-ring-types.md) | open |
 
 **与已有 issue 的直接映射（不重复开项）：**
@@ -86,10 +88,10 @@ Phase 4 (边界审计)
 
 ## 4. 验收门禁（父 issue）
 
-- [ ] 子 issue 0A–4C 均有 tracker 条目且状态可跟踪
+- [x] 子 issue 0A–4C 均有 tracker 条目且状态可跟踪
 - [ ] `cargo test-timeout` 全绿（各子 PR 独立保证）
 - [ ] 算法 crate PR 描述含 §7.2 两行摘要：「删除/合并的临时匹配」「新增 fn + tier」
-- [ ] [algorithm-expr-api.md §4](../algorithm-expr-api.md#4-各-crate-规范入口索引) 索引与 `*-api-stability.md` 一致
+- [ ] [algorithm-expr-api.md §4](../algorithm-expr-api.md#4-各-crate-规范入口索引) 索引与 `*-api-stability.md` 一致 — ✅ 2026-06-23
 
 ---
 
@@ -119,9 +121,12 @@ Phase 4 (边界审计)
 
 ### Acceptance criteria
 
-- [ ] 五 crate 均可 `python3 scripts/annotate_api_tiers.py --inventory` 刷新
-- [ ] idempotent：已有 tier 标记的 fn 不被覆盖
-- [ ] inventory 计数写入对应 `*-api-stability.md` Per-file 表（或 0B 消费该输出）
+- [x] 七 crate 目标均在 `CRATE_TARGETS`（含 `giac-core/src/algebra`）
+- [x] idempotent：已有 tier 标记的 fn 不被覆盖
+- [x] 六份 stability doc 可 `--inventory` 刷新 Per-file 表
+- [ ] `giac-core-algebra-api-stability.md` 存在后可 inventory（当前 `skip inventory (no doc)`）
+
+**进展（2026-06-23）：** 脚本已覆盖 simplify / poly / calculus / core-algebra / solve / ode / groebner。
 
 ---
 
@@ -148,9 +153,9 @@ Phase 4 (边界审计)
 
 ### Acceptance criteria
 
-- [ ] 四份新 doc 存在且与源码 `/// **Stable**` 等标记一致
-- [ ] `poly_alg_from_expr` / `poly_algext_roots` / `solve` / `desolve` 等有契约表
-- [ ] `algorithm-expr-api.md` §4 补全四 crate 行
+- [x] 四份 stability doc 存在且可 inventory（含 `giac-core-algebra-api-stability.md`，514 fn）
+- [x] `poly_alg_from_expr` / `poly_algext_roots` 契约表见 core-algebra doc §3
+- [x] `algorithm-expr-api.md` §4 与 stability doc 一致
 
 ---
 
@@ -169,10 +174,14 @@ Phase 4 (边界审计)
 
 ### Acceptance criteria
 
-- [ ] 现有 7 个 `poly_roots` 单测保持绿
-- [ ] `t⁴+t+1=0` 单测去 `#[ignore]`，运行 ≤10s
-- [ ] `poly_roots.rs` 内 `align_coeff` 收敛为 `session.align`（或删除私有副本）
-- [ ] [GIAC-poly-p3-6-quartic-roots-gaps](GIAC-poly-p3-6-quartic-roots-gaps.md) G5 满足
+- [x] `poly_roots` 单测扩展至 **24** 条且全绿（含四次 / resolvent / 维数门禁）
+- [x] `t⁴+t+1=0` 单测无 `#[ignore]`（`roots_quartic_t4_plus_t_plus_1` 等）
+- [x] 热路径无裸 `align_coeff`（G5 ✅；仅 `annotate_api_tiers.py` FN_TIERS 登记遗留名）
+- [x] [GIAC-poly-p3-6-quartic-roots-gaps](GIAC-poly-p3-6-quartic-roots-gaps.md) G0 / G5 满足
+
+**落点：** `giac-core/src/algebra/field_session.rs`；`poly_roots.rs` 入口 `infer_field → normalize_coeffs → monic_univariate → FieldSession::new(K) → dispatch`。
+
+**残余（归 1B）：** 无 `PolyInK` 类型封死未 normalize 输入；`giac-core-algebra-api-stability.md` 未建。
 
 ---
 
@@ -190,9 +199,10 @@ Phase 4 (边界审计)
 
 ### Acceptance criteria
 
-- [ ] 外部无法构造未 normalize 的 `PolyInK`
-- [ ] 文档 [algorithm-expr-api.md §6.3](../algorithm-expr-api.md#63-实例扩域求根-fieldsessionpolyc-over-k) 最小 API 草图与实现一致
-- [ ] `verify` 与算法共用同一 normalize + monic 路径
+- [x] 私有 `PolyInK`；仅 `prepare` / `prepare_with_session` 可构造
+- [x] `roots_dispatch` 仅接受 `&PolyInK`（normalize + monic 已内聚）
+- [x] `verify_root` 与算法共用 `PolyInK::prepare_with_session`
+- [x] [giac-core-algebra-api-stability.md](../giac-core-algebra-api-stability.md) §3 文档化入口管线
 
 ---
 
@@ -206,7 +216,7 @@ Phase 4 (边界审计)
 
 ### What to build
 
-Phase 3A 落地后删除 8 个 `drift_*`（`drift_fold_ln_atoms`、`drift_is_neg_ln_shape` 等）。`canonical_mrv_coeff` 单测保留「化简后漂移形态」覆盖，但只经规范入口识别，不经私有 drift 表。
+Phase 3A 落地后删除 **7** 个 `drift_*`（`drift_fold_ln_atoms`、`drift_is_neg_ln_shape` 等，见 `mrv_w.rs`）。`canonical_mrv_coeff` 单测保留「化简后漂移形态」覆盖，但只经规范入口识别，不经私有 drift 表。
 
 ### Acceptance criteria
 
@@ -313,7 +323,7 @@ Conformance 与单元测试覆盖 radical 往返 + 化简后形态。
 - [ ] `integrate.rs`：补 **A**（`eval(Integrate)`）或登记 gap；`contains` 语义清零或标 **C**
 - [ ] `cargo test-timeout -p giac-calculus` 全绿
 
-**进展（2026-06-20）：** `exp_diff.rs` / `preprocess.rs` 语义 `contains` 已清零；`integrate.rs` 仍为最大缺口（audit §5）。
+**进展（2026-06-23）：** `integrate.rs` + `diff.rs` / `eval_diff.rs` 已 A 化；语义 `contains` 在 `diff` 清零。残余：`series` / `risch` / `integrate_heuristics` 等待扫。
 
 ---
 
@@ -351,9 +361,10 @@ Conformance 与单元测试覆盖 radical 往返 + 化简后形态。
 
 ### Acceptance criteria
 
-- [ ] `alg_ext.rs` / `poly_roots.rs` 无字符串语义断言
-- [ ] 四次根单测（1A 启用后）含 `eq_mod` 两两对齐
-- [ ] `cargo test-timeout -p giac-core` algebra 相关全绿
+- [x] `alg_ext.rs` 无字符串语义断言
+- [x] `poly_roots.rs` 无 display 语义断言；`verify_root` / `eq_mod`
+- [x] 四次根单测含 `eq_mod`
+- [x] [GIAC-expr-api-test-audit.md](GIAC-expr-api-test-audit.md) §7 `poly_roots` 分类表
 
 ---
 
@@ -362,7 +373,7 @@ Conformance 与单元测试覆盖 radical 往返 + 化简后形态。
 **标题:** `expr_to_poly` 调用方审计  
 **Type:** AFK  
 **优先级:** P2  
-**Blocked by:** [0B](#giac-expr-api-0b)  
+**Blocked by:** [0B](#giac-expr-api-0b)（core-algebra stability doc 可并行起草）  
 **落点:** `giac-solve`、`giac-calculus`、`giac-simplify`；[expr-poly-conversion.md](../expr-poly-conversion.md)
 
 ### What to build
@@ -371,7 +382,7 @@ Conformance 与单元测试覆盖 radical 往返 + 化简后形态。
 
 ### Acceptance criteria
 
-- [ ] 审计表写入 `expr-poly-conversion.md` 或 `giac-solve-api-stability.md`
+- [ ] 审计表写入 `expr-poly-conversion.md` 或 `giac-solve-api-stability.md`（当前仅 §2 crate 级用途表，**~90+ 调用点未逐条登记**）
 - [ ] 无未文档化的 transcendental → poly 误用
 - [ ] grep 基线 + 回归检查纳入 PR 模板说明
 
@@ -389,11 +400,13 @@ Conformance 与单元测试覆盖 radical 往返 + 化简后形态。
 
 审查 `factor/univariate.rs` 等 `Ok(vec![g.clone()])` 路径：区分 **Stable (bounded)** 与应 `None` / `Err` 的路径。对齐 [algorithm-expr-api.md §7.2](../algorithm-expr-api.md#72-测试通过后提交--合入前复审)「静默失败」审查项——不可约时不得假成功因子列表。
 
+**现状（2026-06-23）：** `factor_square_free` 在 `d==0` / `d==1` 等处仍有 `Ok(vec![g.clone()])`；`giac-poly-api-stability.md` 有通用 fallback 说明，**未逐路径登记**。
+
 ### Acceptance criteria
 
-- [ ] 每条 fallback 在 `giac-poly-api-stability.md` 有边界说明
-- [ ] 无未文档化的 `Ok(vec![g])` 当不可约
-- [ ] 相关单测区分「bounded 成功」与「应失败」
+- [x] 每条 fallback 在 `giac-poly-api-stability.md` §2.3.1 有边界说明
+- [x] 源码 `ponytail:` 注释标出 singleton 路径
+- [x] `factor/univariate.rs` 单测：可约分裂 / 不可约单块 / 高次乘积还原或 `NotImplemented`
 
 ---
 

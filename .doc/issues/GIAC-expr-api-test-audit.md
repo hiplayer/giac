@@ -4,7 +4,7 @@
 **父 issue：** [GIAC-expr-api-tech-debt.md](GIAC-expr-api-tech-debt.md) §3A / §3B / §3D  
 **状态图例：** ✅ 符合 · ⚠️ 部分符合 / 待改进 · ❌ 不符合 · ➖ 未审
 
-**最后更新：** 2026-06-20（3A/3B 首批落点）
+**最后更新：** 2026-06-23（4B + 3B diff/integrate）
 
 ---
 
@@ -15,11 +15,14 @@
 | `giac-solve` | 16 | 10 | 0 | 4 | 1 | 2 |
 | `giac-calculus` / `exp_diff.rs` | 14 | 4 | 4 | 8 | 1 | 2 |
 | `giac-calculus` / `preprocess.rs` | 6 | 2 | 2 | 2 | 1 | 1 |
-| `giac-calculus` / `integrate.rs` | 24 | 0 | 0 | 8 | 10 | 14 |
+| `giac-calculus` / `integrate.rs` | 24 | 6 | 0 | 14 | 4 | 4 |
+| `giac-calculus` / `diff.rs` | 6 | 4 | 0 | 6 | 2 | 0 |
+| `giac-calculus` / `eval_diff.rs` | 5 | 3 | 0 | 2 | 0 | 0 |
 | `giac-core` / `alg_ext.rs` | 19 | 1 | 0 | 17 | 1 | 2 |
-| **合计** | **79** | **17** | **6** | **39** | **14** | **21** |
+| `giac-core` / `poly_roots.rs` | 24 | 0 | 0 | 24 | 0 | 0 |
+| **合计** | **114** | **30** | **6** | **81** | **11** | **11** |
 
-> **integrate.rs** 多数为直接调 `integrate()`（**B**），几乎无 `eval(Integrate)`（**A**）——与规范 §3.1 差距最大，见 §5 阻塞项。
+> **3B 下一批：** `series.rs` / `risch/` / `integrate_heuristics.rs` 仍含语义 `contains`。
 
 ---
 
@@ -90,23 +93,23 @@
 
 | 测试 | 层 | 被测契约 | 断言手段 | 状态 | 备注 |
 |------|-----|----------|----------|------|------|
-| `integrate_reciprocal` | B | `integrate` | `assert_equiv` vs `ln_abs` | ⚠️ | 语义 ✅；缺 **A** `eval(Integrate)` |
-| `integrate_one` / `integrate_x_*` / `integrate_const_*` | B + C | `integrate` | display golden | ⚠️ | 宜 `assert_equiv` 或标 C |
-| `integrate_constant_and_sum` | B + C | `integrate` | 常数 display + 和 display | ⚠️ | 和项 `ln(abs(x))+1*x` 为 C |
-| `integrate_one_over_one_plus_x_squared` 等 exact golden | B + C | `integrate` | display | ⚠️ | 已知形态；可保留 C |
-| `integrate_one_minus_x_fourth` 等 | C | `integrate` | `contains` | ❌ | 待 `assert_equiv` 或 A′ + gap |
-| `integrate_x_over_x_squared_plus_one` 等 | C | `integrate` | `contains` | ❌ | `diff` 回代未就绪 |
-| `integrate_unsupported_returns_not_implemented` | B | 错误路径 | `NotImplemented` | ✅ | |
-| `integrate_not_implemented_messages` | B | 错误消息 | 子串 | ⚠️ | 错误消息 C 可接受 |
-| `integrate_definite_bounds` | B | 定积分 | 结构/值 | ➖ | 待复审 |
-| `giac223_tanh_exp_frac` / `giac223_exp_over_linear` | B | 不 crash | `is_ok()` | ⚠️ | 冒烟；缺语义 |
-| **（缺）** | **A** | `eval(Integrate)` via plugin | — | ❌ | **全文件无 A**；见 `plugin::eval_integrate_via_plugin` 仅 1 条 |
+| `integrate_reciprocal` 等规则类 | **B** + **A** | `integrate` + `eval(Integrate)` | `assert_equiv` | ✅ | |
+| `integrate_one_minus_x_fourth` | **B** | partfrac smoke | `is_ok()` | ✅ | 不 pin 形态 |
+| `integrate_const_over_quadratic` 等 | **B** + **C** | display golden | `assert_eq` format | ✅ | |
+| `integrate_unsupported_*` | **B** | 错误路径 | `NotImplemented` | ✅ | |
+| `giac223_*` 冒烟 | **B** | 不 crash | `is_ok()` | ⚠️ | |
 
-**integrate 待办（3B 最大缺口）**
+---
 
-1. 每个规则类用例 duplicate：**A**（`eval(Integrate)` + `assert_equiv`）+ 保留 **B** 或直接 `integrate`  
-2. `contains` 用例 → `assert_integrate_matches` 或登记 [GIAC-expr-api-tech-debt](GIAC-expr-api-tech-debt.md) + `diff` gap  
-3. 冒烟测试改为最小 **A** 或移到 heuristics 模块
+## 5b. giac-calculus / `diff.rs` + `eval_diff.rs`
+
+| 测试 | 层 | 被测契约 | 断言手段 | 状态 | 备注 |
+|------|-----|----------|----------|------|------|
+| `diff_x_squared` / `diff_sin_x_squared` / `diff_constant_*` | **B** + **A** | `diff` + `eval(Diff)` | `assert_equiv` | ✅ | |
+| `diff_ln_times_x_squared` / `diff_frac_one_over_x` | **B** + **A** + **C** | `diff` + `eval` | display golden + `eval`≡`diff` | ✅ | quotient 形未 `assert_equiv` 化简 |
+| `diff_atan_x` | **B** | 通路 | `is_ok` | ✅ | |
+| `eval_diff_x_squared` / `eval_derive_multivariate` | **A** | `eval(Diff/Derive)` | `assert_equiv` | ✅ | |
+| `eval_diff_too_few_args` 等 | **B** | 错误路径 | `is_err` | ✅ | |
 
 ---
 
@@ -118,24 +121,39 @@
 | `algext_sqrt_of_neg_sqrt2_is_complex` | B | 分支 + `eq_mod` | `assert_equiv` 分支² | ✅ | 3D 已修 |
 | `algext_to_rootof_roundtrip_display` | B | `try_as_algext_data` | `eq_mod` | ✅ | |
 | `algext_frac_via_eval` | A | `eval` 含 AlgExt | 通路 | ✅ | |
-| 其余 `fold_algext_*` / `embed_*` | B | tower / fold API | 坐标 / 等价 | ✅ | Blocker：FieldSession（1A）未覆盖 `poly_roots` |
-
-`poly_roots.rs` 单测：**➖** 待 1A 后单独增表。
+| 其余 `fold_algext_*` / `embed_*` | B | tower / fold API | 坐标 / 等价 | ✅ | |
 
 ---
 
-## 7. 基础设施阻塞项（审计结论）
+## 7. giac-core / `algebra/poly_roots.rs`（3D）
+
+| 测试类 | 层 | 被测契约 | 断言手段 | 状态 | 备注 |
+|--------|-----|----------|----------|------|------|
+| 二次 / 三次（`roots_quadratic_*`、`roots_cubic_*`、`roots_x3_minus_x_plus_1_vanish`） | B | `poly_algext_roots` | `verify_root` / `roots_all_vanish` | ✅ | |
+| resolvent（`resolvent_*`、`f2_resolvent_split_*`） | B | resolvent 阶段 | `verify_root` + 个数 / `eq_mod` | ✅ | |
+| 四次 `t⁴+t+1`（`roots_quartic_t4_plus_t_plus_1`、`euler_*`、`depressed_*`） | B | quartic + FieldSession | `verify_root` / `eq_mod` / 维数 ≤24 | ✅ | 无 `#[ignore]` |
+| `adjoin_sqrt_*` / `field_session_dimension_bound_*` | B | `FieldSession` 契约 | `eq_mod` / `dim(L)` 断言 | ✅ | G4 门禁 |
+| 双二次 `roots_biquadratic_t4_minus_2` | B | deg-4 biquadratic | `verify_root` | ✅ | |
+
+**poly_roots 待办**
+
+1. 可选补 **A**：`eval` 经 `poly_alg_from_expr` → `poly_algext_roots_for_ctx` 端到端（当前全为库函数 **B**）
+2. 逐测行展开（上表为分类汇总；新增 `#[test]` 须拆行登记）
+
+---
+
+## 8. 基础设施阻塞项（审计结论）
 
 | ID | 问题 | 影响测试 | 建议 |
 |----|------|----------|------|
 | **T1** | `giac-solve::xcas_default()` 无 simplify plugin | A 层 `assert_equiv` 对 `2*1^-1` 失败 | 测试 Context helper 或 `linsolve` 输出规范化 |
 | **T2** | `match_exp_times_exp_minus_one` 仅认 `exp(L)*(exp(ε)-1)` | 误用于 `scale*(exp(ε)-1)` | 文档已澄清；用 `exp_minus_one_epsilon` |
 | **T3** | `diff(integrate(f))` 未覆盖 `ln(abs)` 等 | integrate 无法用 A 验收 | 登记 calculus gap；暂 C / `assert_equiv` |
-| **T4** | 缺统一 `test_verify`（calculus/core） | ad-hoc helper 扩散 | 按 solve 模式抽取 |
+| **T4** | 缺统一 `test_verify`（calculus/core） | ad-hoc helper 扩散 | 按 solve 模式抽取；`poly_roots` 已用 `verify_root` 内聚 |
 
 ---
 
-## 8. 维护
+## 9. 维护
 
 - 新增/修改 `#[test]`：**必须**更新本表对应行。  
 - 3C（conformance 层）单独审计，见 tech-debt **GIAC-expr-api-3C**。  

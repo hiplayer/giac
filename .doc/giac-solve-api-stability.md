@@ -108,10 +108,10 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 |----------|------|-------------|
 | `eval_froot` | **Stable (bounded)** | rational roots of univariate poly |
 | `parse_froot_args` | **Pipeline private** | `parse_froot_args` |
-| `rational_num_den` | **Pipeline private** | Expr leaf to (num,den) Poly |
 | `append_factor_roots` | **Pipeline private** | `append_factor_roots` |
-| `solve_factor_roots` | **Pipeline private** | `solve_factor_roots` |
+| `solve_factor_roots` | **Pipeline private** | S3: deg≤4 via S0 kernel; deg≥5 rootof branch |
 | `froots_flanex_line195` | **Pipeline private** | `froots_flanex_line195` |
+| `froot_quartic_t4_plus_t_plus_1` | **Pipeline private** | `froot_quartic_t4_plus_t_plus_1` |
 | `froot_linear_factor` | **Pipeline private** | `froot_linear_factor` |
 
 ### `fsolve.rs`
@@ -120,7 +120,6 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 |----------|------|-------------|
 | `eval_fsolve` | **Partial** | Newton numeric solve stub |
 | `equation_to_expr` | **Pipeline private** | `equation_to_expr` |
-| `ident_from_expr` | **Pipeline private** | `ident_from_expr` |
 | `eval_at` | **Pipeline private** | `eval_at` |
 | `expr_to_f64` | **Pipeline private** | `expr_to_f64` |
 | `newton` | **Pipeline private** | `newton` |
@@ -145,11 +144,20 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 
 | Function | Tier | Description |
 |----------|------|-------------|
-| `eval_realroot` | **Stable (bounded)** | real roots via Sturm isolation |
-| `algebraic_real_roots` | **Pipeline private** | `algebraic_real_roots` |
+| `eval_realroot` | **Stable (bounded)** | rational roots + filtered exact algebraic (deg≤4 via S0) |
+| `real_roots_with_multiplicity` | **Pipeline private** | merge rational + exact real algebraic roots |
 | `rational_real_roots` | **Pipeline private** | `rational_real_roots` |
+| `real_algebraic_roots` | **Pipeline private** | S6: exact roots filtered by Sturm count / casus cubic |
+| `monic_cubic_discriminant` | **Pipeline private** | `monic_cubic_discriminant` |
+| `merge_rational` | **Pipeline private** | `merge_rational` |
+| `merge_root` | **Pipeline private** | `merge_root` |
+| `roots_eq` | **Pipeline private** | `roots_eq` |
+| `format_root_key` | **Pipeline private** | `format_root_key` |
+| `expr_is_real` | **Pipeline private** | `expr_is_real` |
+| `expr_is_zero` | **Pipeline private** | `expr_is_zero` |
 | `realroot_x_squared_minus_two` | **Pipeline private** | `realroot_x_squared_minus_two` |
 | `realroot_x_fourth_minus_one` | **Pipeline private** | `realroot_x_fourth_minus_one` |
+| `realroot_x_cubed_minus_x_minus_1` | **Pipeline private** | `realroot_x_cubed_minus_x_minus_1` |
 
 ### `rootof.rs`
 
@@ -159,6 +167,7 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `biquadratic_rootof_roots` | **Partial** | biquadratic rootof; general quartic NotImplemented |
 | `rootof_expr` | **Pipeline private** | `rootof_expr` |
 | `x` | **Pipeline private** | `x` |
+| `t_sq_minus` | **Pipeline private** | `t_sq_minus` |
 | `quadratic_rootof_has_two_branches` | **Pipeline private** | `quadratic_rootof_has_two_branches` |
 | `solve_t_squared_minus_two_uses_rootof` | **Pipeline private** | `solve_t_squared_minus_two_uses_rootof` |
 | `solve_t_fourth_minus_two_uses_rootof` | **Pipeline private** | `solve_t_fourth_minus_two_uses_rootof` |
@@ -170,15 +179,33 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | Function | Tier | Description |
 |----------|------|-------------|
 | `eval_solve` | **Stable (bounded)** | solve via poly roots, rootof, or linsolve |
-| `poly_roots_as_exprs` | **Pipeline private** | ℚ roots or `poly_algext_roots_for_ctx` |
-| `try_algext_or_rootof_roots` | **Pipeline private** | AlgExt roots with `ctx.session()` cache |
 | `equation_to_poly` | **Pipeline private** | `equation_to_poly` |
-| `ident_from_expr` | **Pipeline private** | `ident_from_expr` |
 | `try_transcendental_solve` | **Pipeline private** | optional fallback `try_transcendental_solve` |
 | `is_zero` | **Stable** | Poly is zero |
-| `is_sin_of_var` | **Pipeline private** | `is_sin_of_var` |
+| `eval_const_expr` | **Pipeline private** | `eval_const_expr` |
 | `solve_quadratic_double_root` | **Pipeline private** | `solve_quadratic_double_root` |
 | `solve_linear_system_delegates_to_linsolve` | **Pipeline private** | `solve_linear_system_delegates_to_linsolve` |
+| `solve_biquadratic_t4_minus_2` | **Pipeline private** | `solve_biquadratic_t4_minus_2` |
+| `solve_quartic_t4_plus_t_plus_1` | **Pipeline private** | `solve_quartic_t4_plus_t_plus_1` |
+
+### `solve_poly.rs`
+
+| Function | Tier | Description |
+|----------|------|-------------|
+| `solve_univariate_over_q` | **Pipeline private** | sqff × factor → per-factor roots |
+| `solve_irreducible_factor` | **Pipeline private** | deg≤4 algext; deg≥5 single rootof branch |
+| `irreducible_rootof_branch` | **Pipeline private** | S0 deg≥5 rootof (not biquadratic fallback) |
+| `factor_poly_for_solve` | **Pipeline private** | sqff then factor_into; factor failure → irreducible piece |
+| `rootof_expr` | **Pipeline private** | rootof([num], minpoly) |
+| `dedup_expr_roots` | **Pipeline private** | collapse repeated roots (solve lists unique roots) |
+| `poly_x5_minus_x_plus_1` | **Pipeline private** | `poly_x5_minus_x_plus_1` |
+| `solve_irreducible_deg5_one_branch` | **Pipeline private** | `solve_irreducible_deg5_one_branch` |
+| `solve_x2_plus_1_has_two_roots` | **Pipeline private** | `solve_x2_plus_1_has_two_roots` |
+| `solve_x3_minus_x_plus_1_has_three_roots` | **Pipeline private** | `solve_x3_minus_x_plus_1_has_three_roots` |
+| `solve_reducible_deg5_product` | **Pipeline private** | `solve_reducible_deg5_product` |
+| `solve_reducible_deg5_product_zeros_poly` | **Pipeline private** | `solve_reducible_deg5_product_zeros_poly` |
+| `solve_x4_minus_1_factor_descent` | **Pipeline private** | `solve_x4_minus_1_factor_descent` |
+| `eval_solve_irreducible_deg5` | **Pipeline private** | `eval_solve_irreducible_deg5` |
 
 ### `sturm.rs`
 
@@ -187,8 +214,22 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `eval_sturm` | **Stable** | Sturm sequence for univariate poly |
 | `eval_sturmab` | **Stable** | root count in (a,b) via Sturm |
 | `poly_and_var` | **Pipeline private** | `poly_and_var` |
-| `ident_from_expr` | **Pipeline private** | `ident_from_expr` |
 | `eval_to_rational` | **Pipeline private** | `eval_to_rational` |
 | `sturm_x_cubed_plus_one_squared` | **Pipeline private** | `sturm_x_cubed_plus_one_squared` |
 | `sturm_x_cubed_plus_one` | **Pipeline private** | `sturm_x_cubed_plus_one` |
 | `sturmab_counts_root_in_interval` | **Pipeline private** | `sturmab_counts_root_in_interval` |
+
+### `test_verify.rs`
+
+| Function | Tier | Description |
+|----------|------|-------------|
+| `list_items` | **Pipeline private** | `list_items` |
+| `eval_at` | **Pipeline private** | `eval_at` |
+| `assert_roots_zero_poly` | **Pipeline private** | `assert_roots_zero_poly` |
+| `assert_is_algext_or_rootof` | **Pipeline private** | `assert_is_algext_or_rootof` |
+| `assert_equation_solutions` | **Pipeline private** | `assert_equation_solutions` |
+| `assert_list_has_equiv` | **Pipeline private** | `assert_list_has_equiv` |
+| `froot_pairs` | **Pipeline private** | `froot_pairs` |
+| `assert_froot_has_root` | **Pipeline private** | `assert_froot_has_root` |
+| `realroot_entries` | **Pipeline private** | `realroot_entries` |
+| `assert_realroot_has` | **Pipeline private** | `assert_realroot_has` |

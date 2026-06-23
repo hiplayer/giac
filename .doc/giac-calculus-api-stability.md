@@ -130,7 +130,6 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `diff_exp` | **Pipeline private** | chain rule for `exp`. |
 | `diff_atan` | **Pipeline private** | chain rule for `atan`. |
 | `diff_tan` | **Pipeline private** | chain rule for `tan`. |
-| `is_var` | **Pipeline private** | syntactic equality with `var`. |
 | `is_const_wrt` | **Pipeline private** | syntactic constness w.r.t. `var` (local copy). |
 | `x` | **Pipeline private** | `x` |
 | `diff_simplified` | **Pipeline private** | `diff_simplified` |
@@ -181,52 +180,15 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `integrate_frac` | **Stable** | integrate rational `num/den` w.r.t. `var`. |
 | `integrate_reciprocal` | **Pipeline private** | integrate reciprocal. |
 | `integrate_func` | **Pipeline private** | integrate func. |
-| `linear_coefficient` | **Pipeline private** | linear coefficient. |
-| `affine_var_coeff` | **Pipeline private** | affine var coeff. |
-| `is_tan_of_var` | **Pipeline private** | is tan of var. |
-| `try_integrate_tan_plus_tan_cubed` | **Partial** | heuristic `try_integrate_tan_plus_tan_cubed`; **退役：** Risch / partfrac. |
-| `try_integrate_exp_over_linear_exp` | **Partial** | heuristic `try_integrate_exp_over_linear_exp`; **退役：** Risch / partfrac. |
-| `try_integrate_exp_over_one_plus_exp2` | **Partial** | heuristic `try_integrate_exp_over_one_plus_exp2`; **退役：** Risch / partfrac. |
-| `is_exp_of_double_x` | **Pipeline private** | is exp of double x. |
-| `is_exp_x_squared` | **Pipeline private** | is exp x squared. |
-| `try_integrate_one_over_cos_squared` | **Partial** | ∫ 1/cos(x)² dx = tan(x). **退役：** Risch / partfrac. |
-| `try_integrate_sin_over_cos_sq_frac` | **Partial** | heuristic `try_integrate_sin_over_cos_sq_frac`; **退役：** Risch / partfrac. |
-| `const_plus_const_times_exp` | **Pipeline private** | const plus const times exp. |
-| `is_sin_double_angle` | **Pipeline private** | is sin double angle. |
-| `try_integrate_sin2x_cos` | **Partial** | heuristic `try_integrate_sin2x_cos`; **退役：** Risch / partfrac. |
-| `try_integrate_var_shifted_sqrt` | **Partial** | heuristic `try_integrate_var_shifted_sqrt`; **退役：** Risch / partfrac. |
-| `var_times_x_squared_plus_const` | **Pipeline private** | var times x squared plus const. |
-| `shifted_sqrt_base` | **Pipeline private** | shifted sqrt base. |
-| `try_integrate_sin_over_cos_squared` | **Partial** | heuristic `try_integrate_sin_over_cos_squared`; **退役：** Risch / partfrac. |
-| `try_integrate_tanh_exp_form` | **Partial** | heuristic `try_integrate_tanh_exp_form`; **退役：** Risch / partfrac. |
-| `is_exp_minus_exp_neg` | **Pipeline private** | is exp minus exp neg. |
-| `exp_term_sign` | **Pipeline private** | `Some(true)` for `+exp(x)`, `Some(false)` for `-exp(x)` / `exp(-x)` terms. |
-| `is_exp_neg_of_var` | **Pipeline private** | is exp neg of var. |
-| `is_exp_plus_exp_neg` | **Pipeline private** | is exp plus exp neg. |
 | `integrate_sin_squared` | **Pipeline private** | integrate sin squared. |
 | `integrate_cos_squared` | **Pipeline private** | integrate cos squared. |
 | `integrate_sin_cos_product` | **Pipeline private** | integrate sin cos product. |
 | `integrate_x_ln` | **Pipeline private** | integrate x ln. |
-| `try_integrate_exp_trig` | **Partial** | heuristic `try_integrate_exp_trig`; **退役：** Risch / partfrac. |
-| `integrate_exp_sin` | **Pipeline private** | integrate exp sin. |
-| `integrate_exp_cos` | **Pipeline private** | integrate exp cos. |
-| `is_exp_of_var` | **Stable** | detect `exp(var)` form. |
 | `integrate_mul` | **Pipeline private** | integrate mul. |
 | `count_var_factors` | **Pipeline private** | count var factors. |
 | `integrate_pow` | **Pipeline private** | integrate pow. |
-| `is_x_squared` | **Pipeline private** | is x squared. |
-| `is_x_squared_plus_const` | **Pipeline private** | is x squared plus const. |
-| `var_coefficient` | **Pipeline private** | var coefficient. |
-| `try_integrate_var_over_quadratic_squared` | **Partial** | heuristic `try_integrate_var_over_quadratic_squared`; **退役：** Risch / partfrac. |
 | `ln_abs` | **Pipeline private** | ln abs. |
-| `ln_abs_expr` | **Stable** | build `ln(abs(arg))` expression. |
-| `var_to_expr` | **Stable** | integration variable as `ExprArc`. |
-| `is_sin_of_var` | **Pipeline private** | is sin of var. |
-| `is_cos_of_var` | **Pipeline private** | is cos of var. |
-| `is_ln_of_var` | **Pipeline private** | is ln of var. |
-| `is_var` | **Stable** | symbol equals integration variable. |
-| `is_one` | **Pipeline private** | is one. |
-| `is_const_wrt` | **Stable** | expression constant w.r.t. variable. |
+| `assert_integrate_matches` | **Pipeline private** | `assert_integrate_matches` |
 | `giac223_tanh_exp_frac` | **Pipeline private** | `giac223_tanh_exp_frac` |
 | `giac223_exp_over_linear` | **Pipeline private** | `giac223_exp_over_linear` |
 | `integrate_reciprocal` | **Pipeline private** | `integrate_reciprocal` |
@@ -252,6 +214,19 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `integrate_not_implemented_messages` | **Pipeline private** | `integrate_not_implemented_messages` |
 | `integrate_cos_and_sin` | **Pipeline private** | `integrate_cos_and_sin` |
 | `integrate_x_cubed` | **Pipeline private** | `integrate_x_cubed` |
+
+### `integrate_helpers.rs`
+
+| Function | Tier | Description |
+|----------|------|-------------|
+| `linear_coefficient` | **Pipeline private** | linear coefficient. |
+| `affine_var_coeff` | **Pipeline private** | affine var coeff. |
+| `is_exp_of_var` | **Stable** | detect `exp(var)` form. |
+| `is_x_squared` | **Pipeline private** | is x squared. |
+| `is_x_squared_plus_const` | **Pipeline private** | is x squared plus const. |
+| `var_coefficient` | **Pipeline private** | var coefficient. |
+| `ln_abs_expr` | **Stable** | build `ln(abs(arg))` expression. |
+| `is_one` | **Pipeline private** | is one. |
 
 ### `integrate_heuristics.rs`
 
@@ -305,13 +280,41 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `integrate_x_times_sqrt_xsq_plus_one` | **Pipeline private** | `integrate_x_times_sqrt_xsq_plus_one` |
 | `integrate_x_over_sqrt_x_plus_one` | **Pipeline private** | `integrate_x_over_sqrt_x_plus_one` |
 
+### `integrate_try_rules.rs`
+
+| Function | Tier | Description |
+|----------|------|-------------|
+| `is_tan_of_var` | **Pipeline private** | is tan of var. |
+| `try_integrate_tan_plus_tan_cubed` | **Partial** | heuristic `try_integrate_tan_plus_tan_cubed`; **退役：** Risch / partfrac. |
+| `try_integrate_exp_over_linear_exp` | **Partial** | heuristic `try_integrate_exp_over_linear_exp`; **退役：** Risch / partfrac. |
+| `try_integrate_exp_over_one_plus_exp2` | **Partial** | heuristic `try_integrate_exp_over_one_plus_exp2`; **退役：** Risch / partfrac. |
+| `is_exp_of_double_x` | **Pipeline private** | is exp of double x. |
+| `is_exp_x_squared` | **Pipeline private** | is exp x squared. |
+| `try_integrate_one_over_cos_squared` | **Partial** | ∫ 1/cos(x)² dx = tan(x). **退役：** Risch / partfrac. |
+| `try_integrate_sin_over_cos_sq_frac` | **Partial** | heuristic `try_integrate_sin_over_cos_sq_frac`; **退役：** Risch / partfrac. |
+| `const_plus_const_times_exp` | **Pipeline private** | const plus const times exp. |
+| `is_sin_double_angle` | **Pipeline private** | is sin double angle. |
+| `try_integrate_sin2x_cos` | **Partial** | heuristic `try_integrate_sin2x_cos`; **退役：** Risch / partfrac. |
+| `try_integrate_var_shifted_sqrt` | **Partial** | heuristic `try_integrate_var_shifted_sqrt`; **退役：** Risch / partfrac. |
+| `var_times_x_squared_plus_const` | **Pipeline private** | var times x squared plus const. |
+| `shifted_sqrt_base` | **Pipeline private** | shifted sqrt base. |
+| `try_integrate_sin_over_cos_squared` | **Partial** | heuristic `try_integrate_sin_over_cos_squared`; **退役：** Risch / partfrac. |
+| `try_integrate_tanh_exp_form` | **Partial** | heuristic `try_integrate_tanh_exp_form`; **退役：** Risch / partfrac. |
+| `is_exp_minus_exp_neg` | **Pipeline private** | is exp minus exp neg. |
+| `exp_term_sign` | **Pipeline private** | `Some(true)` for `+exp(x)`, `Some(false)` for `-exp(x)` / `exp(-x)` terms. |
+| `is_exp_neg_of_var` | **Pipeline private** | is exp neg of var. |
+| `is_exp_plus_exp_neg` | **Pipeline private** | is exp plus exp neg. |
+| `try_integrate_exp_trig` | **Partial** | heuristic `try_integrate_exp_trig`; **退役：** Risch / partfrac. |
+| `integrate_exp_sin` | **Pipeline private** | integrate exp sin. |
+| `integrate_exp_cos` | **Pipeline private** | integrate exp cos. |
+| `try_integrate_var_over_quadratic_squared` | **Partial** | heuristic `try_integrate_var_over_quadratic_squared`; **退役：** Risch / partfrac. |
+
 ### `limit.rs`
 
 | Function | Tier | Description |
 |----------|------|-------------|
 | `eval_limit` | **Stable** | `limit(expr, var, point)` (GIAC-215). |
 | `classify_limit_point` | **Pipeline private** | classify limit point as finite / ±∞. |
-| `ident_from_expr` | **Pipeline private** | extract variable name from `Expr::Symbol`. |
 | `limit_expr` | **Pipeline private** | dispatch to known limits or `limit_engine` algebraic paths. |
 | `try_known_limit` | **Pipeline private** | table lookup for limits needing evaluated point. |
 | `try_known_limit_pointless` | **Pipeline private** | table lookup for point-independent classic limits. |
@@ -325,9 +328,6 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `is_var_or_inverse_squared` | **Pipeline private** | `x^2` or `x^{-2}`. |
 | `is_one_plus_one_over_x_power_x` | **Pipeline private** | detect `(1+1/x)^x` at +∞. |
 | `is_one_plus_reciprocal_var` | **Pipeline private** | detect `1 + 1/x` base. |
-| `is_var` | **Pipeline private** | syntactic equality with `var`. |
-| `is_sin_of_var` | **Pipeline private** | detect `sin(var)`. |
-| `is_ln_of_var` | **Pipeline private** | detect `ln(var)`. |
 | `is_x_squared` | **Pipeline private** | detect `var^2`. |
 | `is_zero` | **Pipeline private** | zero test. |
 | `is_one` | **Pipeline private** | one test. |
@@ -398,7 +398,6 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `series_ordre_escalation` | **Pipeline private** | series ordre escalation |
 | `asymptotic_series_at_infinity` | **Pipeline** | `+∞` 渐近级数 |
 | `limit_rational_leading_at_infinity` | **Pipeline private** | limit rational leading at infinity |
-| `is_var` | **Pipeline private** | is var |
 | `is_sqrt` | **Pipeline private** | is sqrt |
 | `sqrt_arg` | **Pipeline private** | sqrt arg |
 | `limit_rational_over_sqrt_quotient_at_infinity` | **Pipeline private** | limit rational over sqrt quotient at infinity |
@@ -422,7 +421,6 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `peel_u_inv_factor` | **Pipeline private** | peel u inv factor |
 | `is_u_inv` | **Pipeline private** | is u inv |
 | `is_u_var` | **Pipeline private** | is u var |
-| `is_half_exponent` | **Pipeline private** | is half exponent |
 | `is_one_plus_u_inv_sq` | **Pipeline private** | is one plus u inv sq |
 | `u_negative_power_degree` | **Pipeline private** | u negative power degree |
 | `simplify_reciprocal_sqrt` | **Pipeline private** | simplify reciprocal sqrt |
@@ -431,7 +429,6 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `contains_zero_negative_power` | **Pipeline private** | contains zero negative power |
 | `reciprocal_subst` | **Pipeline private** | reciprocal subst |
 | `subst_map` | **Pipeline private** | subst map |
-| `var_to_expr` | **Pipeline private** | var to expr |
 | `limit_from_rational_laurent` | **Pipeline private** | limit from rational laurent |
 | `valuation_at_zero` | **Pipeline private** | valuation at zero |
 | `limit_from_laurent_exponent` | **Pipeline private** | limit from laurent exponent |
@@ -471,7 +468,6 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `expr_contains_exp` | **Pipeline** | 子树含 exp |
 | `expr_contains_nested_exp` | **Pipeline** | 子树含嵌套 exp |
 | `walk` | **Pipeline private** | walk |
-| `is_var` | **Pipeline** | 谓词：表达式是否为给定变量符号 |
 | `expr_nodes_and_depth` | **Pipeline private** | `expr_nodes_and_depth` |
 | `mrv_eligibility_flags` | **Pipeline private** | `mrv_eligibility_flags` |
 | `nested_exp_detected` | **Pipeline private** | `nested_exp_detected` |
@@ -543,12 +539,15 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `vanishes_at_plus_infinity` | **Stable** | 谓词：`e→0` 当 `var→+∞` |
 | `epsilon_vanishes_at_plus_infinity` | **Stable** | 谓词：ε 级小量（Gruntz 预处理） |
 | `balance_epsilon_expr` | **Pipeline private** | balance epsilon expr |
-| `is_var` | **Pipeline private** | is var |
 | `exp_inner_vanishes_at_plus_infinity` | **Pipeline private** | exp inner vanishes at plus infinity |
 | `exp_of_neg_exp_growth` | **Pipeline private** | exp of neg exp growth |
 | `arg_grows` | **Pipeline private** | arg grows |
 | `is_negated_var_power_mul` | **Pipeline private** | is negated var power mul |
 | `is_neg_var_exp` | **Pipeline private** | is neg var exp |
+| `exp_inner_arg` | **Pipeline private** | `exp_inner_arg` |
+| `expr_mentions_symbol` | **Pipeline private** | `expr_mentions_symbol` |
+| `is_exp_var_times_x_inv` | **Pipeline private** | `is_exp_var_times_x_inv` |
+| `tree_contains_exp_of_sym` | **Pipeline private** | `tree_contains_exp_of_sym` |
 | `fold_mul_shifted_difference_gruntz` | **Pipeline private** | `fold_mul_shifted_difference_gruntz` |
 | `rewrite_exp_minus_w_inv_matches_remove_lnexp` | **Pipeline private** | `rewrite_exp_minus_w_inv_matches_remove_lnexp` |
 | `fold_add_exp_difference` | **Pipeline private** | `fold_add_exp_difference` |
@@ -578,7 +577,6 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `try_as_quotient_add_shared_power` | **Pipeline private** | try as quotient add shared power |
 | `limit_quotient_finite` | **Pipeline private** | limit quotient finite |
 | `limit_plus_infinity_algebraic` | **Pipeline** | `+∞` 代数极限 |
-| `is_var` | **Pipeline private** | is var |
 | `limit_minus_infinity_algebraic` | **Pipeline** | `-∞` 代数极限 |
 | `limit_rational_finite` | **Pipeline private** | limit rational finite |
 | `cancel_rational_pole` | **Pipeline private** | cancel rational pole |
@@ -591,7 +589,6 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `subst_eval` | **Pipeline private** | subst eval |
 | `expr_contains_exp` | **Pipeline private** | expr contains exp |
 | `subst_map` | **Pipeline private** | subst map |
-| `var_to_expr` | **Pipeline private** | var to expr |
 | `is_zero` | **Pipeline private** | is zero |
 | `is_one` | **Pipeline private** | is one |
 | `is_plus_infinity` | **Pipeline private** | is plus infinity |
@@ -639,8 +636,6 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `is_neg_scaled_linear` | **Pipeline private** | is neg scaled linear |
 | `linear_coeff` | **Pipeline private** | linear coeff |
 | `expr_size` | **Pipeline private** | expr size |
-| `is_var` | **Pipeline private** | is var |
-| `var_to_expr` | **Pipeline private** | var to expr |
 | `mrv_nested_exp_inner` | **Pipeline private** | `mrv_nested_exp_inner` |
 | `choose_mrv_seven_over_eight_pow_n` | **Pipeline private** | `choose_mrv_seven_over_eight_pow_n` |
 | `mrv_exp_neg_x` | **Pipeline private** | `mrv_exp_neg_x` |
@@ -684,7 +679,6 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `mrv_series_lead_loop_inner` | **Pipeline private** | mrv series lead loop inner |
 | `lead_coeff_ready` | **Pipeline private** | lead coeff ready |
 | `depends_on_w` | **Pipeline private** | depends on w |
-| `is_var` | **Pipeline private** | is var |
 | `sign_infinity` | **Pipeline private** | sign infinity |
 | `mrv_series_expansion_order_cap` | **Pipeline private** | `mrv_series_expansion_order_cap` |
 | `limit_seven_pow_n_over_eight` | **Pipeline private** | `limit_seven_pow_n_over_eight` |
@@ -717,7 +711,6 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `neg_ln_w_expr` | **Stable** | 规范原子 `-ln(w)` |
 | `neg_ln_w_inv_expr` | **Stable** | 规范原子 `(-ln(w))^-1` |
 | `is_expr_one` | **Stable** | 谓词：表达式为常数 1 |
-| `is_expr_zero` | **Stable** | 谓词：表达式为常数 0 |
 | `is_neg_w_inv` | **Stable** | 谓词：Laurent 因子 `w^-1`（≠ `(-ln w)^-1`） |
 | `is_negative_unit_exp` | **Pipeline private** | is negative unit exp |
 | `is_negative_one_like` | **Pipeline private** | is negative one like |
@@ -756,7 +749,6 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `limit_preprocess_plus_infinity` | **Pipeline** | `+∞` 预处理编排 |
 | `series_preprocess` | **Pipeline** | 级数路径预处理 |
 | `surd2pow` | **Pipeline** | `sqrt` → 有理指数 |
-| `is_half_exponent` | **Pipeline private** | is half exponent |
 | `sqrt_operand` | **Pipeline private** | sqrt operand |
 | `negated_inner` | **Pipeline private** | negated inner |
 | `try_sqrt_difference_frac` | **Pipeline private** | try sqrt difference frac |
@@ -854,11 +846,8 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `ratio_to_expr` | **Pipeline private** | ratio to expr |
 | `bigint_to_i64` | **Pipeline private** | bigint to i64 |
 | `factorial` | **Pipeline private** | factorial |
-| `var_to_expr` | **Pipeline private** | var to expr |
-| `is_expr_zero` | **Pipeline private** | is expr zero |
 | `is_series_var` | **Pipeline private** | is series var |
 | `arg_has_symbolic_ln_w` | **Pipeline private** | arg has symbolic ln w |
-| `is_half_exponent` | **Pipeline private** | is half exponent |
 | `is_mrv_symbolic_pow` | **Pipeline private** | is mrv symbolic pow |
 | `series_mrv_w_exp_minus_w_inv_cancel_reveals_sublead` | **Pipeline private** | `series_mrv_w_exp_minus_w_inv_cancel_reveals_sublead` |
 | `sparse_series_rational_at_zero` | **Pipeline private** | `sparse_series_rational_at_zero` |
@@ -869,6 +858,13 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `sparse_series_exp_at_zero` | **Pipeline private** | `sparse_series_exp_at_zero` |
 | `sparse_series_cos_at_zero` | **Pipeline private** | `sparse_series_cos_at_zero` |
 | `sparse_series_one_over_one_plus_x` | **Pipeline private** | `sparse_series_one_over_one_plus_x` |
+
+### `limit_engine/util.rs`
+
+| Function | Tier | Description |
+|----------|------|-------------|
+| `is_expr_zero` | **Pipeline private** | `is_expr_zero` |
+| `is_half_exponent` | **Pipeline private** | `is_half_exponent` |
 
 ### `partfrac_integrate.rs`
 
@@ -1004,7 +1000,6 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `collect_rlvarx` | **Pipeline private** | collect `exp`/`ln` extension atoms depending on `var`. |
 | `is_exp_or_ln` | **Pipeline private** | `exp` or `ln` top-level form. |
 | `contains_non_elementary_transcendental` | **Pipeline private** | detect non-elementary transcendentals (e.g. trig). |
-| `is_var` | **Pipeline private** | symbol equals integration variable. |
 | `push_unique` | **Pipeline private** | append extension atom if not already present. |
 | `extension_rank` | **Pipeline private** | nesting depth for tower ordering. |
 | `x` | **Pipeline private** | `x` |
@@ -1025,11 +1020,9 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `parse_series_location` | **Pipeline private** | parse `(var, center, order)` from 2- or 3-arg tails. |
 | `parse_var_center` | **Pipeline private** | `x=0` or `x` alone defaults center to 0. |
 | `series_order_arg` | **Pipeline private** | evaluate and coerce series order to `usize`. |
-| `ident_from_expr` | **Pipeline private** | extract variable name from `Expr::Symbol`. |
 | `taylor_series` | **Pipeline private** | Taylor at finite center (diff path then `series_at_center`). |
 | `taylor_series_diff` | **Pipeline private** | Taylor via repeated differentiation and substitution. |
 | `series_term` | **Pipeline private** | single Taylor term `(coeff/k!) * (x - center)^k`. |
-| `var_to_expr` | **Pipeline private** | wrap `Ident` as `Expr::Symbol`. |
 | `eval_at` | **Pipeline private** | substitute `var ↦ center` and fold elementary values. |
 | `is_zero_arg` | **Pipeline private** | zero-test for substitution argument. |
 | `fold_elementary` | **Pipeline private** | fold `sin(0)`, `cos(0)`, `exp(0)` at series coefficients. |

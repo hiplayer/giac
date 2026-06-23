@@ -22,7 +22,7 @@
 | **Q3** | 当 \(q\neq0\) 时 \(\sqrt\gamma = -q/(\sqrt\alpha\sqrt\beta)\)（在约定平方根分支下） | `euler_derived_sqrt_gamma` |
 | **Q4** | 四根 **集合** 等于原四次在分裂域中的根集（在可解 / 根式可表情形） | `quartic_roots` e2e |
 | **T1** | 若 \(u=\varepsilon^2\) 且 \(\varepsilon\in L\)，则 blind adjoin \(u^2-\alpha\) 次数严格冗余（存在同态意义下更小扩域） | F1 `sqrt_in_field` |
-| **T2** | Resolvent 三根可落在 \(L_3\) 的数学陈述（次数上界 \([L_3:\mathbb{Q}]\le 12\) 等） | F2 / F4 |
+| **T2** | Resolvent 三根可落在 \(L_3\) 的数学陈述（\(d_L\le 6\) resolvent；全流程 \(\le 24\) 硬顶；**12 仅 Gal≅A₄ 已证时**） | F2 / F4 |
 
 ### 1.2 不证什么（第一版）
 
@@ -194,7 +194,7 @@ theorem blind_adjoin_redundant ... :
 
 ```lean
 theorem quartic_resolvent_tower_finrank_le :
-  finrank ℚ L₃ ≤ 12   -- 或 F2 PR 敲定的 B；附证明草图
+  finrank ℚ L₃ ≤ 24   -- D_HARD；finrank ≤ 12 仅 Gal≅A₄ 已证时的推论
 ```
 
 **实现：** 用 `IntermediateField.adjoin` 塔、`FiniteDimensional.finrank_mul` 组合；**不** 建模 Rust `Arc<ExtensionField>`。
@@ -262,7 +262,8 @@ F5 ext_tower API          ────────►  可选：refactor 不改�
 | `Giac.Root.Euler.vanishes` | `euler_four_roots_from_triple` | `euler_four_roots_vanish` |
 | `Giac.Root.Euler.gamma_relation` | `euler_derived_sqrt_gamma` | `euler_gamma_relation_holds`（待加） |
 | `Giac.Tower.SqrtInField.exists` | `try_sqrt_in_field` | `adjoin_sqrt_squares_*` |
-| `Giac.Tower.DegreeBound.le12` | `FieldSession::working` | `field_session_dimension_bound_quartic` |
+| `Giac.Tower.DegreeBound.le24` | `FieldSession::working` | `field_session_dimension_bound_quartic` |
+| `Giac.Tower.DegreeBound.le12_a4` | （可选）Gal≅A₄ 分测 | 须附 Gal 证明，非 `t⁴+t+1` 默认 |
 | `Giac.Root.QuarticRoots.complete` | `quartic_roots` | `roots_quartic_t4_plus_t_plus_1` |
 
 ### 7.1 与 Rust 测试的对应关系（能，分三层）

@@ -67,7 +67,7 @@
 | [D1-3](#giac-dedup-d1-3) | 退役 `try_factor_quadratic_*` 重复逻辑 | P1 | 无 | D1-2, D3-2 | open |
 | [D2-1](#giac-dedup-d2-1) | 全部 `try_integrate_*` 迁入 `integrate_heuristics` | P1 | 无 | — | **done** (PR-5) |
 | [D2-2](#giac-dedup-d2-2) | `integrate.rs` 仅保留稳定规则 + 调度 | P2 | 无 | D2-1 | partial |
-| [D3-1](#giac-dedup-d3-1) | `eval_solve` 接 `poly_algext_roots` | P0 | 有（能力扩展） | [F1–F5](GIAC-poly-quartic-roots-F1-F5.md), P3-6 | **wired** (PR-6); `t⁴+t+1` 仍 `#[ignore]` |
+| [D3-1](#giac-dedup-d3-1) | `eval_solve` 接 `poly_algext_roots` | P0 | 有（能力扩展） | [F1–F5](GIAC-poly-quartic-roots-F1-F5.md), P3-6 | **wired** (PR-6); roots 层 `t⁴+t+1` 无 ignore |
 | [D3-2](#giac-dedup-d3-2) | `quadratic_rootof_roots` 与 factor 共享二次核 | P1 | 无 | D1-1 | open |
 | [D4-1](#giac-dedup-d4-1) | 按 tech-debt 2A/2B 删 drift / shim | P1 | 无 | 对应 follow-up issue | open |
 | [D4-2](#giac-dedup-d4-2) | `assert_equiv` 漂移收敛（tech-debt 2C） | P2 | 可能改 golden | — | open |

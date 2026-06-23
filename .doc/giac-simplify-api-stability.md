@@ -173,7 +173,6 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `factor_poly_form` | **Pipeline private** | normal→poly→factor_into chain |
 | `try_factor_quadratic_rootof` | **Temporary** | Partial internal: quadratic → rootof when discriminant non-square. |
 | `try_factor_quadratic_sqrt` | **Temporary** | Partial internal: `ctx.with_sqrt` quadratic sqrt factors. |
-| `rational_num_den` | **Pipeline private** | Expr leaf to (num,den) Poly |
 
 ### `ifactor.rs`
 
