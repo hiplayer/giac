@@ -182,89 +182,16 @@ pub fn roots(p: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
     }
 }
 
-/// Coefficients `(a, b, c)` of `a·var² + b·var + c`; `None` if not quadratic or `a = 0`.
-pub fn quadratic_abc(
-    p: &Poly,
-    var: &Var,
-) -> Option<(Ratio<BigInt>, Ratio<BigInt>, Ratio<BigInt>)> {
-    if univariate_degree(p, var) != 2 {
-        return None;
-    }
-    let mut a = Ratio::zero();
-    let mut b = Ratio::zero();
-    let mut c = Ratio::zero();
-    for (m, coeff) in &p.terms {
-        match m.exp_of(var) {
-            2 => a += coeff,
-            1 => b += coeff,
-            0 => c += coeff,
-            _ => return None,
-        }
-    }
-    if a.is_zero() {
-        return None;
-    }
-    Some((a, b, c))
-}
-
-// **Pipeline private** — `quadratic_coeffs`
-fn quadratic_coeffs(
-    p: &Poly,
-    var: &Var,
-) -> Result<(Ratio<BigInt>, Ratio<BigInt>, Ratio<BigInt>), EvalError> {
-    quadratic_abc(p, var).ok_or(EvalError::TypeError("not quadratic"))
-}
-
-// **Pipeline private** — `ratio_is_perfect_square`
-fn ratio_is_perfect_square(r: &Ratio<BigInt>) -> Option<Ratio<BigInt>> {
-    if !r.denom().is_one() {
-        return None;
-    }
-    let n = r.numer();
-    if n.is_negative() {
-        return None;
-    }
-    let root = int_isqrt(n)?;
-    if &root * &root == *n {
-        Some(Ratio::from_integer(root))
-    } else {
-        None
-    }
-}
-
-// **Pipeline private** — `int_isqrt`
-fn int_isqrt(n: &BigInt) -> Option<BigInt> {
-    if n.is_negative() {
-        return None;
-    }
-    if n.is_zero() {
-        return Some(BigInt::zero());
-    }
-    let s = n.to_string();
-    let f = s.parse::<f64>().ok()?;
-    let mut x = BigInt::from(f.sqrt() as i64);
-    loop {
-        let next = (x.clone() + n / &x) / BigInt::from(2);
-        if next >= x {
-            return Some(x);
-        }
-        x = next;
-    }
-}
+pub use crate::quadratic::quadratic_abc;
 
 // **Pipeline private** — `quadratic_roots`
 fn quadratic_roots(p: &Poly, var: &Var) -> PolyResult<Vec<Poly>> {
-    let (a, b, c) = quadratic_coeffs(p, var)?;
-    let disc = &b * &b - Ratio::from_integer(BigInt::from(4)) * &a * &c;
-    if disc.is_zero() {
-        let r = -&b / (Ratio::from_integer(BigInt::from(2)) * &a);
-        return Ok(vec![Poly::constant(r)]);
-    }
-    let sqrt_d = ratio_is_perfect_square(&disc).ok_or(EvalError::NotImplemented("roots"))?;
-    let two_a = Ratio::from_integer(BigInt::from(2)) * &a;
-    let r1 = (-&b + &sqrt_d) / &two_a;
-    let r2 = (-&b - &sqrt_d) / &two_a;
-    Ok(vec![Poly::constant(r1), Poly::constant(r2)])
+    let q = crate::quadratic::quadratic_coeffs(p, var)
+        .ok_or(EvalError::TypeError("not quadratic"))?;
+    Ok(crate::quadratic::quadratic_rational_roots(&q)?
+        .into_iter()
+        .map(Poly::constant)
+        .collect())
 }
 
 // **Pipeline private** — `is_xn_minus_one`

@@ -6,10 +6,10 @@ use std::sync::Arc;
 
 use giac_core::{
     format_expr, poly_algext_from_poly, poly_algext_roots_for_ctx, poly_to_expr,
-    univariate_poly_to_poly1_expr, AlgExtData, Context, EvalError, Expr, ExprArc,
+    rootof_from_minpoly, univariate_poly_to_poly1_expr, Context, EvalError, Expr, ExprArc,
 };
 use giac_poly::{
-    factor_into, roots, square_free_factorization, univariate_degree, Poly, Var,
+    factor_univariate_pairs, roots, univariate_degree, Poly, Var,
 };
 
 /// All roots of `poly` w.r.t. `var` over ℚ (with algebraic / rootof branches).
@@ -28,7 +28,10 @@ pub(crate) fn solve_univariate_over_q(
     }
 
     let mut roots = Vec::new();
-    for (factor, mult) in factor_poly_for_solve(poly, var)? {
+    for (factor, mult) in factor_univariate_pairs(poly, var)? {
+        if factor.is_zero() || univariate_degree(&factor, var) == 0 {
+            continue;
+        }
         let factor_roots = solve_irreducible_factor(&factor, var, ctx)?;
         for _ in 0..mult {
             roots.extend(factor_roots.iter().cloned());
@@ -77,43 +80,7 @@ pub(crate) fn irreducible_rootof_branch(poly: &Poly, var: &Var) -> Result<ExprAr
         return Err(EvalError::TypeError("expected factor of degree >= 5"));
     }
     let minpoly = univariate_poly_to_poly1_expr(poly, var);
-    Ok(rootof_expr(&[1, 0], &minpoly))
-}
-
-// **Pipeline private** — sqff then factor_into; factor failure → irreducible piece
-fn factor_poly_for_solve(poly: &Poly, var: &Var) -> Result<Vec<(Poly, usize)>, EvalError> {
-    let sqff = square_free_factorization(poly, var)?;
-    let mut out = Vec::new();
-    for (f, mult) in sqff {
-        if f.is_zero() || univariate_degree(&f, var) == 0 {
-            continue;
-        }
-        if let Some(factors) = factor_into(&f) {
-            if factors.is_empty() {
-                out.push((f, mult));
-            } else {
-                for g in factors {
-                    if !g.is_zero() && univariate_degree(&g, var) > 0 {
-                        out.push((g, mult));
-                    }
-                }
-            }
-        } else {
-            out.push((f, mult));
-        }
-    }
-    if out.is_empty() {
-        out.push((poly.clone(), 1));
-    }
-    Ok(out)
-}
-
-// **Pipeline private** — rootof([num], minpoly)
-fn rootof_expr(num: &[i64], minpoly: &ExprArc) -> ExprArc {
-    let num_seq = Arc::new(Expr::Seq(num.iter().map(|&n| Expr::int(n)).collect()));
-    AlgExtData::from_rootof(&num_seq, minpoly)
-        .expect("rootof branch")
-        .into_expr()
+    rootof_from_minpoly(&[1, 0], &minpoly)
 }
 
 // **Pipeline private** — collapse repeated roots (solve lists unique roots)

@@ -483,6 +483,25 @@ fn fold_algext_product_impl(
     }
 }
 
+/// **Stable** — `rootof([n₀, n₁, …], minpoly)` as an `Expr`.
+pub fn rootof_from_minpoly(num: &[i64], minpoly: &ExprArc) -> Result<ExprArc, EvalError> {
+    let num_seq = Arc::new(Expr::Seq(num.iter().map(|&n| Expr::int(n)).collect()));
+    AlgExtData::from_rootof(&num_seq, minpoly).map(|d| d.into_expr())
+}
+
+/// **Stable (bounded)** — two `rootof` branches `±α` for quadratic irrational roots.
+pub fn quadratic_rootof_branches(
+    poly: &giac_poly::Poly,
+    var: &giac_poly::Var,
+) -> Result<Vec<ExprArc>, EvalError> {
+    giac_poly::quadratic_abc(poly, var).ok_or(EvalError::TypeError("expected quadratic"))?;
+    let minpoly = super::poly::univariate_poly_to_poly1_expr(poly, var);
+    Ok(vec![
+        rootof_from_minpoly(&[1, 0], &minpoly)?,
+        rootof_from_minpoly(&[-1, 0], &minpoly)?,
+    ])
+}
+
 /// **Stable** — Func(RootOf) → AlgExt Expr
 pub fn try_rootof_to_algext(args: &[ExprArc]) -> Result<ExprArc, EvalError> {
     if args.len() != 2 {

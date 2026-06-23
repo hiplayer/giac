@@ -46,6 +46,7 @@ pub use eval::GoodEval;
 pub use power::{as_perfect_power, try_linear_power};
 pub use sqrt::quadratic_sqrt_factor_exprs;
 pub use univariate::factor_power_pairs;
+pub use univariate::{factor_univariate_flat, factor_univariate_pairs};
 pub(crate) use univariate::find_rational_root;
 
 use multivariate::factor_into_poly;
@@ -85,7 +86,7 @@ pub fn factor_poly(p: &Poly) -> Poly {
 
 /// **Stable (bounded)** — univariate via rational roots
 pub fn factor_into_by_rational_roots(p: &Poly, var: &crate::monomial::Var) -> crate::error::PolyResult<Vec<Poly>> {
-    univariate::factor_univariate_flat(p, var)
+    factor_univariate_flat(p, var)
 }
 
 /// **Stable** — factor mod p display
