@@ -22,6 +22,7 @@ use crate::nested::{
 use crate::poly::Poly;
 use crate::resultant::{coeff_at, univariate_degree};
 
+use super::util::integer_nth_root;
 use super::hensel::{normalize_univariate_factors, try_hensel_lift_bivariate};
 use super::poly_uni::{coeff_wrt_poly, primitive_part_wrt, substitute_poly, term_with_var};
 use super::univariate::factor_univariate_flat;
@@ -783,35 +784,9 @@ fn rational_sqrt(d: &Ratio<BigInt>) -> Option<Ratio<BigInt>> {
     if d.is_zero() {
         return Some(Ratio::zero());
     }
-    let sn = integer_sqrt_bigint(d.numer())?;
-    let sd = integer_sqrt_bigint(d.denom())?;
+    let sn = integer_nth_root(d.numer(), 2)?;
+    let sd = integer_nth_root(d.denom(), 2)?;
     Some(Ratio::new(sn, sd))
-}
-
-// **Pipeline private** — `integer_sqrt_bigint`
-fn integer_sqrt_bigint(n: &BigInt) -> Option<BigInt> {
-    if n.is_negative() {
-        return None;
-    }
-    if n.is_zero() {
-        return Some(BigInt::zero());
-    }
-    let mut lo = BigInt::zero();
-    let mut hi = n.clone() + BigInt::one();
-    while lo < hi {
-        let mid = (&lo + &hi) / BigInt::from(2);
-        let sq = &mid * &mid;
-        match sq.cmp(n) {
-            std::cmp::Ordering::Equal => return Some(mid),
-            std::cmp::Ordering::Less => lo = mid + 1,
-            std::cmp::Ordering::Greater => hi = mid,
-        }
-    }
-    if (&(&lo - 1) * &(&lo - 1)) == *n {
-        Some(&lo - 1)
-    } else {
-        None
-    }
 }
 
 // **Pipeline private** — upstream iterative linear extraction + bilinear finish

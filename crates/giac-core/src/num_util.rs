@@ -1,9 +1,36 @@
 use num_bigint::BigInt;
 use num_integer::gcd;
-use num_traits::Signed;
+use num_traits::{One, Signed, Zero};
 
 use crate::EvalError;
 use crate::limits::MAX_POLY_EXPONENT;
+
+/// Exact integer `k`-th root when `n = r^k` for some integer `r`; otherwise `None`.
+///
+/// Negative `n` is allowed only for odd `k`.
+pub fn integer_nth_root(n: &BigInt, exp: u64) -> Option<BigInt> {
+    if n.is_negative() && exp % 2 == 0 {
+        return None;
+    }
+    let exp_u32 = u32::try_from(exp).ok()?;
+    let mut lo = BigInt::zero();
+    let mut hi = n.abs() + BigInt::one();
+    while lo < hi {
+        let mid = (&lo + &hi) / BigInt::from(2);
+        let pow = mid.pow(exp_u32);
+        match pow.cmp(n) {
+            std::cmp::Ordering::Equal => return Some(if n.is_negative() { -mid } else { mid }),
+            std::cmp::Ordering::Less => lo = mid + 1,
+            std::cmp::Ordering::Greater => hi = mid,
+        }
+    }
+    None
+}
+
+/// Exact integer square root when `n` is a perfect square; otherwise `None`.
+pub fn integer_sqrt(n: &BigInt) -> Option<BigInt> {
+    integer_nth_root(n, 2)
+}
 
 /// Convert a non-negative `BigInt` to `u32`, for bounded exponents etc.
 pub fn bigint_to_nonneg_u32(n: &BigInt) -> Result<u32, EvalError> {
@@ -114,6 +141,20 @@ mod tests {
     use super::*;
     use crate::MAX_POLY_EXPONENT;
     use num_bigint::BigInt;
+
+    #[test]
+    fn integer_sqrt_perfect_and_non_perfect() {
+        assert_eq!(integer_sqrt(&BigInt::from(9)).unwrap(), BigInt::from(3));
+        assert_eq!(integer_sqrt(&BigInt::from(0)).unwrap(), BigInt::from(0));
+        assert!(integer_sqrt(&BigInt::from(2)).is_none());
+        assert!(integer_sqrt(&BigInt::from(-4)).is_none());
+    }
+
+    #[test]
+    fn integer_nth_root_cube() {
+        assert_eq!(integer_nth_root(&BigInt::from(27), 3).unwrap(), BigInt::from(3));
+        assert!(integer_nth_root(&BigInt::from(-8), 2).is_none());
+    }
 
     #[test]
     fn bigint_to_nonneg_u64_ok() {

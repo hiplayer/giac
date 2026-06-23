@@ -4,8 +4,8 @@
 use std::sync::Arc;
 
 use giac_core::{
-    eval, bigint_to_i64, is_sin_of_var, ratio_to_expr, Context, EvalError, Expr, ExprArc, FuncKind,
-    Ident, RelOp,
+    eval, bigint_to_i64, integer_sqrt, is_sin_of_var, ratio_to_expr, Context, EvalError, Expr,
+    ExprArc, FuncKind, Ident, RelOp,
 };
 use num_bigint::BigInt;
 use num_rational::Ratio;
@@ -399,28 +399,6 @@ fn ratio_sqrt(r: &Ratio<BigInt>) -> Result<Ratio<BigInt>, EvalError> {
     let sn = integer_sqrt(r.numer()).ok_or(EvalError::NotImplemented("desolve"))?;
     let sd = integer_sqrt(r.denom()).ok_or(EvalError::NotImplemented("desolve"))?;
     Ok(Ratio::new(sn, sd))
-}
-
-// **Pipeline private** — `integer_sqrt`
-fn integer_sqrt(n: &BigInt) -> Option<BigInt> {
-    if n.is_negative() {
-        return None;
-    }
-    if n.is_zero() {
-        return Some(BigInt::zero());
-    }
-    let mut lo = BigInt::zero();
-    let mut hi = n.clone() + BigInt::one();
-    while lo < hi {
-        let mid = (&lo + &hi) / BigInt::from(2);
-        let sq = &mid * &mid;
-        match sq.cmp(n) {
-            std::cmp::Ordering::Equal => return Some(mid),
-            std::cmp::Ordering::Less => lo = mid + 1,
-            std::cmp::Ordering::Greater => hi = mid,
-        }
-    }
-    None
 }
 
 // **Pipeline private** — `is_zero_expr`

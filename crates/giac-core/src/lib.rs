@@ -62,6 +62,7 @@ pub use algebra::poly_conv::{
 };
 pub use expr_rational::{expr_to_rational_polys, expr_to_rational_polys_eval};
 pub use num_util::{
-    bigint_to_i64, bigint_to_nonneg_u32, bigint_to_u32_abs, reduce_rational_pair,
+    bigint_to_i64, bigint_to_nonneg_u32, bigint_to_u32_abs, integer_nth_root, integer_sqrt,
+    reduce_rational_pair,
 };
 pub use simplify::simplify;

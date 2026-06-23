@@ -428,8 +428,8 @@ fn eval_abs(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {
         }
         if norm_sq.denom() == &BigInt::one() {
             let n = norm_sq.numer();
-            if is_perfect_square(n) {
-                return Ok(Expr::int(int_to_i64(&integer_sqrt(n))?));
+            if let Some(root) = crate::num_util::integer_sqrt(n) {
+                return Ok(Expr::int(int_to_i64(&root)?));
             }
             return Ok(Expr::func(FuncKind::Sqrt, vec![Expr::int(int_to_i64(n)?)]));
         }
@@ -491,8 +491,8 @@ fn eval_sqrt(args: &[ExprArc]) -> Result<ExprArc, EvalError> {
         if n.is_negative() {
             return Err(EvalError::TypeError("sqrt of negative integer"));
         }
-        if is_perfect_square(n) {
-            return Ok(Expr::int(int_to_i64(&integer_sqrt(n))?));
+        if let Some(root) = crate::num_util::integer_sqrt(n) {
+            return Ok(Expr::int(int_to_i64(&root)?));
         }
     }
     Ok(Expr::func(FuncKind::Sqrt, args.to_vec()))
@@ -665,18 +665,6 @@ fn int_to_i64(n: &BigInt) -> Result<i64, EvalError> {
     n.to_string()
         .parse()
         .map_err(|_| EvalError::TypeError("integer out of i64 range"))
-}
-
-fn is_perfect_square(n: &BigInt) -> bool {
-    if n.is_negative() {
-        return false;
-    }
-    let root = integer_sqrt(n);
-    &root * &root == *n
-}
-
-fn integer_sqrt(n: &BigInt) -> BigInt {
-    n.sqrt()
 }
 
 fn eval_arg(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError> {

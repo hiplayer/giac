@@ -14,8 +14,8 @@
 use std::sync::Arc;
 
 use giac_core::{
-    bigint_to_i64, expr_to_poly, poly_to_expr, ratio_to_expr, EvalError, Expr, ExprArc, FuncKind,
-    Ident,
+    bigint_to_i64, expr_to_poly, integer_sqrt, poly_to_expr, ratio_to_expr, EvalError, Expr, ExprArc,
+    FuncKind, Ident,
 };
 use giac_poly::{
     as_perfect_power, coeff_at, partfrac_rational_terms, substitute_univariate, try_linear_power,
@@ -485,28 +485,6 @@ fn ratio_sqrt(r: &Ratio<BigInt>) -> Result<Ratio<BigInt>, EvalError> {
     let sn = integer_sqrt(r.numer()).ok_or_else(|| EvalError::NotImplemented("integrate partfrac"))?;
     let sd = integer_sqrt(r.denom()).ok_or_else(|| EvalError::NotImplemented("integrate partfrac"))?;
     Ok(Ratio::new(sn, sd))
-}
-
-// **Pipeline private** — integer square root by binary search.
-fn integer_sqrt(n: &BigInt) -> Option<BigInt> {
-    if n.is_negative() {
-        return None;
-    }
-    if n.is_zero() {
-        return Some(BigInt::zero());
-    }
-    let mut lo = BigInt::zero();
-    let mut hi = n.clone() + BigInt::one();
-    while lo < hi {
-        let mid = (&lo + &hi) / BigInt::from(2);
-        let sq = &mid * &mid;
-        match sq.cmp(n) {
-            std::cmp::Ordering::Equal => return Some(mid),
-            std::cmp::Ordering::Less => lo = mid + 1,
-            std::cmp::Ordering::Greater => hi = mid,
-        }
-    }
-    None
 }
 
 // **Pipeline private** — build `sqrt(r)` as `Expr` (exact or nested `sqrt`).
