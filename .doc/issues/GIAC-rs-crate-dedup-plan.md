@@ -4,6 +4,7 @@
 **类型:** 执行计划 / AFK 竖切  
 **来源:** `giac-rs/crates` 模块审计（2026-06-22）  
 **父索引:** [GIAC-expr-api-tech-debt](GIAC-expr-api-tech-debt.md)（本计划补 **函数合并 + crate 内整理**；不重复 0A–4C 已跟踪项）  
+**架构确认:** [GIAC-rs-four-crates-dedup-architecture](GIAC-rs-four-crates-dedup-architecture.md)（core / poly / calculus / solve 分层 + C\* 子项）  
 **规范:** [algorithm-expr-api.md](../algorithm-expr-api.md)、[algorithm-before-patch.mdc](../../.cursor/rules/algorithm-before-patch.mdc)  
 **快照:** 2026-06-22
 
@@ -478,6 +479,7 @@ poly_algext_roots: FieldSession 完整代数求根（giac-core，已 export）
 ## 9. 参考
 
 - [GIAC-expr-api-tech-debt](GIAC-expr-api-tech-debt.md) — API 分层母索引
+- [GIAC-rs-four-crates-dedup-architecture](GIAC-rs-four-crates-dedup-architecture.md) — 四 crate 架构确认（C\* 子项、共享 API）
 - [GIAC-poly-p3-6-quartic-roots-gaps](GIAC-poly-p3-6-quartic-roots-gaps.md) — 四次求根验收
 - [GIAC-poly-quartic-roots-F1-F5](GIAC-poly-quartic-roots-F1-F5.md) — 塔修复竖切
 - [giac-simplify-api-stability.md](../giac-simplify-api-stability.md) §4 Temporary

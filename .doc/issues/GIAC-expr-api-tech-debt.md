@@ -54,6 +54,7 @@ giac-rs 算法 crate 在 [algorithm-expr-api.md](../algorithm-expr-api.md) 落�
 | 2B | [GIAC-algext-adoption](GIAC-algext-adoption.md) A-03 | 子任务 |
 | 4C | [GIAC-poly-nested-ring-types](GIAC-poly-nested-ring-types.md) | 子任务 |
 | — | [GIAC-rs-crate-dedup-plan](GIAC-rs-crate-dedup-plan.md) | **函数合并 + crate 内整理** 执行计划（D0–D5）；补本索引未拆的竖切 |
+| — | [GIAC-rs-four-crates-dedup-architecture](GIAC-rs-four-crates-dedup-architecture.md) | **四 crate 架构确认**（core/poly/calculus/solve 分层、C\* 子项、共享 API 签名） |
 
 ---
 
