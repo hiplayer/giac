@@ -1,7 +1,13 @@
-//! Univariate division in K[var] for generic coefficient ring [`PolyCoeff`].
+//! Univariate division in **K[var]** for generic coefficient ring [`PolyCoeff`].
+//!
+//! **Ring context:** flat univariate over a **field** K (coefficients are scalars in K, not
+//! nested polynomials). Requires exact Euclidean division: `deg r < deg b` or `r = 0`.
 //!
 //! **Upstream:** `_EXT` coefficient `quo`/`rem` in `gausspol.cc` (flat univariate over K).
-//! **Not** for nested ℚ[others][main] — use [`crate::subresultant::univariate_div_rem_wrt`] there.
+//!
+//! **Not** for nested ℚ[others][main] — use [`crate::subresultant::univariate_div_rem_wrt`]
+//! there (leading-term quotient; `deg(d)=0` usually **does not** divide).
+//! See `.doc/issues/GIAC-poly-flat-field-division-layering.md` §4.2.
 
 use crate::error::{EvalError, PolyResult};
 use crate::monomial::Var;
@@ -38,7 +44,43 @@ fn term_with_var<C: PolyCoeff>(coeff: &C, var: &Var, exp: u64) -> PolyResult<Pol
         .try_mul(&Poly::ring_constant(coeff.clone()))
 }
 
+// **Pipeline private** — debug-only Euclidean postcondition
+#[cfg(debug_assertions)]
+fn debug_assert_euclidean_post<C: PolyCoeff>(
+    divisor: &Poly<C>,
+    remainder: &Poly<C>,
+    var: &Var,
+    deg_b: u64,
+) {
+    if divisor.is_zero() || deg_b == 0 && !divisor.is_zero() {
+        return;
+    }
+    let lc_b = scalar_coeff_wrt(divisor, var, deg_b);
+    if lc_b.coeff_is_zero() {
+        return;
+    }
+    debug_assert!(
+        remainder.is_zero() || remainder.degree_wrt(var) < deg_b,
+        "Euclidean invariant violated: deg(r) >= deg(b)"
+    );
+}
+
 /// **Stable** — Euclidean `(q, r)` with `a = q*b + r` in K[var].
+///
+/// **Pre:** K is a field (`coeff_div` exact on nonzero divisors). Prefer [`crate::nested::FlatUni`]
+/// for typed flat context. Not for nested ℚ[others][var] — see [`crate::subresultant::univariate_div_rem_wrt`].
+///
+/// **Errors:** `TypeError` if `b = 0`, or `lc(b) = 0` with `deg(b) > 0`, or nonzero constant
+/// divisor with zero scalar coefficient.
+///
+/// **Post (`b` valid):** `a = q*b + r`; `r = 0` or `deg(r) < deg(b)`; if `deg(b)=0` and `b ≠ 0`
+/// then `r = 0`.
+///
+/// | Condition | flat (this fn) | nested [`subresultant::univariate_div_rem_wrt`] |
+/// |-----------|----------------|--------------------------------------------------|
+/// | `b = 0` | `Err` | caller must avoid |
+/// | `deg(b)=0`, b≠0 | `r=0`, exact `q=a/b` | usually `(0, a)` |
+/// | `lc(b)=0`, deg>0 | `Err` | pseudo / break |
 pub fn univariate_div_rem_wrt<C: PolyCoeff>(
     a: &Poly<C>,
     b: &Poly<C>,
@@ -49,7 +91,7 @@ pub fn univariate_div_rem_wrt<C: PolyCoeff>(
     let db = b.degree_wrt(var);
     if db == 0 {
         if b.is_zero() {
-            return Ok((quotient, remainder));
+            return Err(EvalError::TypeError("division by zero polynomial"));
         }
         if remainder.is_zero() {
             return Ok((quotient, Poly::ring_zero()));
@@ -57,7 +99,7 @@ pub fn univariate_div_rem_wrt<C: PolyCoeff>(
         // K is a field: nonzero constant divisor divides exactly.
         let bc = scalar_coeff_wrt(b, var, 0);
         if bc.coeff_is_zero() {
-            return Ok((quotient, remainder));
+            return Err(EvalError::TypeError("zero constant divisor"));
         }
         let inv = C::coeff_one().coeff_div(&bc)?;
         let deg = remainder.degree_wrt(var);
@@ -69,11 +111,13 @@ pub fn univariate_div_rem_wrt<C: PolyCoeff>(
             let scaled = c.coeff_mul(&inv)?;
             quotient = quotient.try_add(&term_with_var(&scaled, var, exp)?)?;
         }
-        return Ok((quotient, Poly::ring_zero()));
+        remainder = Poly::ring_zero();
+        debug_assert_euclidean_post(b, &remainder, var, db);
+        return Ok((quotient, remainder));
     }
     let lc_b = scalar_coeff_wrt(b, var, db);
     if lc_b.coeff_is_zero() {
-        return Ok((quotient, remainder));
+        return Err(EvalError::TypeError("leading coefficient zero"));
     }
 
     loop {
@@ -88,6 +132,7 @@ pub fn univariate_div_rem_wrt<C: PolyCoeff>(
         quotient = quotient.try_add(&q_term)?;
         remainder = remainder.try_sub(&q_term.try_mul(b)?)?;
     }
+    debug_assert_euclidean_post(b, &remainder, var, db);
     Ok((quotient, remainder))
 }
 
@@ -338,5 +383,35 @@ mod tests {
         let p2 = Poly::var(x()).try_pow(2).unwrap().try_sub(&Poly::one()).unwrap();
         let d2 = Poly::var(x()).try_sub(&Poly::one()).unwrap();
         assert_eq!(gcd_wrt(&p2, &d2, &x()).unwrap(), d2);
+    }
+
+    /// Constant-divisor Euclidean step (P1 regression): rem(x²−2, x+1) = −1, then gcd → 1.
+    #[test]
+    fn gcd_wrt_rational_x_squared_minus_2_and_x_plus_one() {
+        let two = Ratio::from_integer(2.into());
+        let p = Poly::var(x())
+            .try_pow(2)
+            .unwrap()
+            .try_sub(&Poly::constant(two))
+            .unwrap();
+        let d = Poly::var(x()).try_add(&Poly::one()).unwrap();
+        assert!(gcd_wrt(&p, &d, &x()).unwrap().is_one());
+    }
+
+    #[test]
+    fn div_rem_by_zero_is_error() {
+        let p = Poly::var(x()).try_pow(2).unwrap().try_sub(&Poly::one()).unwrap();
+        let zero = Poly::zero();
+        assert!(univariate_div_rem_wrt(&p, &zero, &x()).is_err());
+    }
+
+    #[test]
+    fn div_rem_constant_divisor_exact() {
+        let p = Poly::var(x()).try_add(&Poly::one()).unwrap();
+        let two = Poly::constant(Ratio::from_integer(2.into()));
+        let (q, r) = univariate_div_rem_wrt(&p, &two, &x()).unwrap();
+        assert!(r.is_zero());
+        let half = Ratio::from_integer(1.into()) / Ratio::from_integer(2.into());
+        assert_eq!(scalar_coeff_wrt(&q, &x(), 1), half);
     }
 }
