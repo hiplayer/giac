@@ -6,7 +6,7 @@
 **相关:** [GIAC-algext-adoption](GIAC-algext-adoption.md) §8.4、[GIAC-poly-p3-6-quartic-roots-gaps](GIAC-poly-p3-6-quartic-roots-gaps.md)（P3-6 ✅）、[expr-poly-conversion.md](../expr-poly-conversion.md)、[giac-poly-api-stability.md](../giac-poly-api-stability.md)  
 **上游基线:** `giac/giac-2.0.0` — `gausspol.cc`（`gcd`→`gcd_ext`、`ext_factor`/`ext_factor_nodegck`）、`threaded.cc`（`mod_gcd_ext`）、`sym2poly.cc`（partfrac + `_EXT`）  
 **Rust 落点:** `giac-poly::Poly<AlgExtCPolyCoeff>`、`giac-core::algebra::{field_session, poly, poly_alg_coeff}`  
-**快照:** 2026-06-23
+**快照:** 2026-06-23（**T0-1…T0-3 ✅**）
 
 ---
 
@@ -47,9 +47,9 @@
 
 | 优先级 | ID | 任务 | 上游对标 | 依赖 | 验收 |
 |:--:|:--:|---|---|---|---|
-| **P0** | **T0-1** | **系数域对齐契约**：`Poly<AlgExtC>` 运算前经 `FieldSession::align`；同塔顶 K | `common_EXT` + `ext_reduce`（`gausspol.cc` ~6086–6115） | P1 ✅ | `gcd(α·p, q)` 与 `gcd(p, q)` 一致 |
-| **P0** | **T0-2** | **一元 `div_rem_wrt` / `quo_exact_wrt` 泛型化**：`Poly<C>` + `FlatUni<C>`，`C=AlgExtCPolyCoeff` | `_EXT` 系数 `quo`/`rem` | T0-1 | `rem(x²−2, x−√2)=0`（K=ℚ(√2)） |
-| **P0** | **T0-3** | **首项归一化 `monic_wrt`**：leading coeff ∈ K 用 `inv` | `ext_factor_nodegck` ~6144–6148 | T0-2 | monic 后 lc = 1 ∈ K |
+| **P0** | **T0-1** | **系数域对齐契约**：`Poly<AlgExtC>` 运算前经 `FieldSession::align`；同塔顶 K | `common_EXT` + `ext_reduce`（`gausspol.cc` ~6086–6115） | P1 ✅ | ✅ `align_algext_polys` / `ensure_common_field_for_polys` |
+| **P0** | **T0-2** | **一元 `div_rem_wrt` / `quo_exact_wrt` 泛型化**：`Poly<C>` + `FlatUni<C>`，`C=AlgExtCPolyCoeff` | `_EXT` 系数 `quo`/`rem` | T0-1 | ✅ `rem(x²−2, x−√2)=0` |
+| **P0** | **T0-3** | **首项归一化 `monic_wrt`**：leading coeff ∈ K 用 `inv` | `ext_factor_nodegck` ~6144–6148 | T0-2 | ✅ `monic_wrt_algext` lc=1 |
 | **P1** | **T1-1** | **`egcd` / `gcd` over K**（一元优先） | `gcd_ext`（`threaded.cc` `mod_gcd_ext`） | T0-2 | `gcd(x²−2, x−√2)=x−√2`；`gcd(x²−2, x+√2)=1` |
 | **P1** | **T1-2** | **`content` / `primitive_part` / `square_free_part` over K** | `ext_factor` 前 sqff + `lcmdeno` + pp | T1-1 | sqff 链系数均在 K |
 | **P1** | **T1-3** | **二次分裂 `split_quadratic_factor`**（disc≤0 / disc>0 / 复根） | `ext_factor_nodegck` d=2 + `addtov` | T0-1, P3-6 deg2 ✅ | `factor(x²−2)→(x−√2)(x+√2)` |

@@ -2,7 +2,7 @@
 
 **状态:** open  
 **类型:** 索引 / AFK  
-**相关:** [GIAC-algext-adoption](GIAC-algext-adoption.md) §8、[GIAC-poly-p0-backlog](GIAC-poly-p0-backlog.md) §2 partfrac、[GIAC-poly-nested-ring-types](GIAC-poly-nested-ring-types.md)、[giac-poly-api-stability.md](../giac-poly-api-stability.md)  
+**相关:** [GIAC-algext-adoption](GIAC-algext-adoption.md) §8、[GIAC-poly-algext-gcd-factor-priority](GIAC-poly-algext-gcd-factor-priority.md)（**P3-1…P3-3 实施顺序**）、[GIAC-poly-p0-backlog](GIAC-poly-p0-backlog.md) §2 partfrac、[GIAC-poly-nested-ring-types](GIAC-poly-nested-ring-types.md)、[giac-poly-api-stability.md](../giac-poly-api-stability.md)  
 **上游参考:** `giac/giac-1.5.0/src/alg_ext.cc`、`gausspol.cc` `algext_convert`、`_EXT` 系数多项式  
 **Rust 落点:** `giac-core::algebra::{alg_ext, ext_tower, alg_ext_c}` → `giac-poly::Poly<AlgExtC>`  
 **快照:** 2026-06-19
@@ -101,6 +101,8 @@ giac-poly 表示层（PolyCoeff + Poly<C> + Expr 桥接）
 ---
 
 ## 6. Phase 3 — 核心多项式算法（B-02 终态）
+
+**实施顺序（T0→T3、上游 `gcd_ext`/`ext_factor` 对齐）：** [GIAC-poly-algext-gcd-factor-priority](GIAC-poly-algext-gcd-factor-priority.md)
 
 | ID | 事项 | 说明 | 验收 |
 |----|------|------|------|

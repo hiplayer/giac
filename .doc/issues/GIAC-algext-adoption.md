@@ -360,7 +360,7 @@ i 为符号                i 进塔 / K[i]           evalf；参数 A,B
 | **4** | 长期 | `AlgExtC::evalf` | 浮点近似 | ☐ |
 | **5** | 长期 | `Poly<AlgExtC>` gcd/factor/roots | 通用 solve/factor/sturm | **部分**：deg≤4 roots ✅；gcd/factor ☐ |
 
-**giac-poly 分任务清单：** [GIAC-poly-algext-backlog](GIAC-poly-algext-backlog.md)（Phase 0–4、P2-3 partfrac、里程碑 M1–M4）。
+**giac-poly 分任务清单：** [GIAC-poly-algext-backlog](GIAC-poly-algext-backlog.md)（Phase 0–4、P2-3 partfrac、里程碑 M1–M4）。**gcd/factor 实施顺序：** [GIAC-poly-algext-gcd-factor-priority](GIAC-poly-algext-gcd-factor-priority.md)（T0–T3）。
 
 **推荐 PR 顺序（自阶段 2 起）：**
 
