@@ -99,7 +99,7 @@
 |------|------|----------|
 | `coeff_wrt` | `subresultant.rs`、`nested.rs::coeff_wrt_impl`、`factor/poly_uni.rs::coeff_wrt_poly` | `subresultant::coeff_wrt` 唯一 |
 | `vars_in` | `factor/util.rs`、`subresultant.rs` | `factor/util::vars_in` 唯一 |
-| Yun sqff | `univariate.rs`、`factor/poly_uni.rs`、`factor/fpx.rs` | 泛型 `square_free_yun<R>` |
+| Yun sqff | `univariate.rs`、`factor/poly_uni.rs`、`factor/fpx.rs` | 泛型 `square_free_yun<R>` ✅ |
 | `integer_sqrt` | `factor/util.rs`、`factor/sparse.rs` | `integer_nth_root(n, 2)` |
 
 ### 3.5 求解编排（~50–60%）
@@ -264,7 +264,7 @@ pub fn quadratic_rootof_branches(poly: &Poly, var: &Var) -> Result<Vec<ExprArc>,
 | C0-2 | `integer_nth_root` / `integer_sqrt` 收拢 | P0 | `giac-core/num_util` | 扩 D0 | **done** (PR-B) |
 | C0-3 | `rootof_from_minpoly` + solve 删双份 | P1 | `giac-core/algebra/alg_ext.rs` | D3-2 | **done** (PR-D) |
 | C1-1 | `coeff_wrt` / `vars_in` giac-poly 唯一化 | P1 | `subresultant.rs`、`factor/util.rs` | — | **done** (PR-C) |
-| C1-2 | `square_free_yun<R: SquareFreeRing>` | P2 | `giac-poly/univariate.rs` | 邻 D5 | open |
+| C1-2 | `square_free_yun<R: SquareFreeRing>` | P2 | `giac-poly/univariate.rs` | 邻 D5 | **done** (PR-F) |
 | C2-1 | `QuadraticCoeffs` + `quadratic_rational_roots` | P1 | `giac-poly/quadratic.rs`（新建） | D1-1 | **done** (PR-D) |
 | C2-2 | `quadratic_algext_roots` 抽自 `poly_roots` | P2 | `giac-core/algebra/poly_roots.rs` | D1-3 | open |
 | C3-1 | `factor_poly_for_solve` → `factor_univariate_pairs` | P1 | `giac-solve/solve_poly.rs` | — | **done** (PR-D) |
@@ -285,7 +285,7 @@ pub fn quadratic_rootof_branches(poly: &Poly, var: &Var) -> Result<Vec<ExprArc>,
 | PR-C | C1-1 | 中 | 无 | **done** |
 | PR-D | C2-1 + C0-3 + C3-1 | 中 | 无 | **done** |
 | PR-E | C3-2 + C4-3 + C4-4 | 中 | 无（能力已由 D3-1 覆盖） | **done** |
-| PR-F | C1-2 | 大 | 无 |
+| PR-F | C1-2 | 大 | 无 | **done** |
 
 **门禁（每 PR）：**
 
