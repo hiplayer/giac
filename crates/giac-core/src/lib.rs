@@ -57,6 +57,10 @@ pub use algebra::poly::{
     PolyAlgExt,
 };
 pub use algebra::poly_alg_coeff::AlgExtCPolyCoeff;
+pub use algebra::poly_alg_ops::{
+    align_algext_polys, div_rem_wrt_algext, ensure_common_field_for_polys, infer_ambient_field,
+    monic_wrt_algext, normalize_algext_poly, quo_exact_wrt_algext,
+};
 pub use algebra::poly_roots::{poly_algext_roots, poly_algext_roots_for_ctx};
 pub use algebra::poly_conv::{
     ERR_ALG_EXT_COEFF, ERR_ALG_EXT_C_COEFF, ERR_POLY_ALG_NO_ALG_COEFF, ERR_ROOTOF_COEFF,

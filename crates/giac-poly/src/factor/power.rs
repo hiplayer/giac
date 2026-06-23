@@ -108,7 +108,7 @@ pub fn try_linear_power(p: &Poly, var: &Var) -> Option<(Poly, u64)> {
     for exp in (2..=deg).rev() {
         let lin_pow = lin.pow(exp);
         let lin_u = FlatUni::new(lin_pow, MainVar::new(var.clone()));
-        if flat.div_rem(&lin_u).1.is_zero() {
+        if flat.div_rem(&lin_u).map(|(_, r)| r.is_zero()).unwrap_or(false) {
             return Some((lin, exp));
         }
     }

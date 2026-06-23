@@ -52,7 +52,7 @@ pub fn cyclotomic_poly(n: u64, var: &Var) -> PolyResult<Poly> {
         }
         let sub = cyclotomic_poly(d, var)?;
         let sub_u = FlatUni::new(sub, MainVar::new(var.clone()));
-        let (_, r) = phi.div_rem(&sub_u);
+        let (_, r) = phi.div_rem(&sub_u).expect("cyclotomic div_rem");
         if !r.is_zero() {
             return Err(EvalError::NotImplemented("cyclotomic division"));
         }

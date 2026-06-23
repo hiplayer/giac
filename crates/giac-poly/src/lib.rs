@@ -7,6 +7,7 @@ mod subresultant;
 mod square_free;
 mod tresultant;
 mod univariate;
+mod univ_wrt;
 mod error;
 mod exp;
 mod monomial;
@@ -36,6 +37,9 @@ pub use poly_coeff::PolyCoeff;
 pub use modint::{ModInt, irem, smod};
 pub use modular::{PolyMod, modp};
 pub use resultant::{coeff_at, resultant, roots, univariate_coeffs_ascending, univariate_degree};
+pub use univ_wrt::{
+    is_univariate_in, monic_wrt, quo_exact_wrt, scalar_coeff_wrt, univariate_div_rem_wrt,
+};
 pub use quadratic::{quadratic_abc, quadratic_coeffs, quadratic_rational_roots, QuadraticCoeffs};
 pub use factor::{
     as_perfect_power, factor_into, factor_mod_irreducibles, factor_poly, factor_poly_mod,

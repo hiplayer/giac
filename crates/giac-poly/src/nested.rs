@@ -191,8 +191,7 @@ pub type UnivariatePolyQ = UnivariatePoly<Ratio<BigInt>>;
 
 /// ℚ[var] flat univariate polynomial — **only** factor subpath that may use classic `div_rem`.
 ///
-/// **P1-3:** `div_rem` / `divides` on [`FlatUni`] are **ℚ-only** (`impl FlatUni` without type param).
-/// Generic [`FlatUni<C>`] supports `new` / `as_poly` / `degree_wrt` for any [`PolyCoeff`].
+/// **P1-3 / T0-2:** [`FlatUni<C>`] supports `div_rem` / `monic` for any [`PolyCoeff`].
 #[derive(Clone, Debug, PartialEq)]
 pub struct FlatUni<C: PolyCoeff = Ratio<BigInt>> {
     poly: Poly<C>,
@@ -227,6 +226,42 @@ impl<C: PolyCoeff> FlatUni<C> {
     pub fn degree(&self) -> u64 {
         self.poly.degree_wrt(self.var.as_var())
     }
+
+    /// **Stable** — whether `poly` uses only powers of `var`.
+    pub fn is_flat(&self) -> bool {
+        crate::univ_wrt::is_univariate_in(&self.poly, self.var.as_var())
+    }
+
+    /// **Stable** — coefficient of `var^exp` as a scalar in K.
+    pub fn scalar_coeff(&self, exp: u64) -> C {
+        crate::univ_wrt::scalar_coeff_wrt(&self.poly, self.var.as_var(), exp)
+    }
+
+    /// **Stable** — Euclidean `(q, r)` in K[var].
+    pub fn div_rem(&self, divisor: &Self) -> PolyResult<(Poly<C>, Poly<C>)> {
+        crate::univ_wrt::univariate_div_rem_wrt(
+            &self.poly,
+            &divisor.poly,
+            self.var.as_var(),
+        )
+    }
+
+    /// **Stable** — whether `divisor` divides `self` in K[var].
+    pub fn divides(&self, divisor: &Self) -> bool {
+        self.div_rem(divisor)
+            .map(|(_, r)| r.is_zero())
+            .unwrap_or(false)
+    }
+
+    /// **Stable** — exact quotient when remainder is zero.
+    pub fn exact_quo(&self, divisor: &Self) -> PolyResult<Poly<C>> {
+        crate::univ_wrt::quo_exact_wrt(&self.poly, &divisor.poly, self.var.as_var())
+    }
+
+    /// **Stable** — monic normalize w.r.t. main variable.
+    pub fn monic(&self) -> PolyResult<Poly<C>> {
+        crate::univ_wrt::monic_wrt(&self.poly, self.var.as_var())
+    }
 }
 
 /// ℚ flat univariate (default alias).
@@ -239,30 +274,6 @@ impl FlatUni {
             return None;
         }
         Some(Self::new(poly, MainVar::new(var.clone())))
-    }
-
-    /// **Stable** — Euclidean `(q, r)` in ℚ[var] via [`univariate_div_rem_wrt`].
-    pub fn div_rem(&self, divisor: &Self) -> (Poly, Poly) {
-        univariate_div_rem_wrt(
-            &self.poly,
-            &divisor.poly,
-            self.var.as_var(),
-        )
-    }
-
-    /// **Stable** — whether `divisor` divides `self` in ℚ[var].
-    pub fn divides(&self, divisor: &Self) -> bool {
-        self.div_rem(divisor).1.is_zero()
-    }
-
-    /// **Stable** — exact quotient `self / divisor` when remainder is zero.
-    pub fn exact_quo(&self, divisor: &Self) -> Option<Poly> {
-        let (q, r) = self.div_rem(divisor);
-        if r.is_zero() {
-            Some(q)
-        } else {
-            None
-        }
     }
 }
 
@@ -764,7 +775,7 @@ mod tests {
         let lin = x.sub(&Poly::one());
         let flat = FlatUni::new(p.clone(), MainVar::new("x"));
         let div = FlatUni::new(lin.clone(), MainVar::new("x"));
-        let (_, r) = flat.div_rem(&div);
+        let (_, r) = flat.div_rem(&div).expect("flat div_rem");
         assert!(r.is_zero());
         let q = flat.exact_quo(&div).expect("quotient");
         assert_eq!(q.mul(&lin), p);

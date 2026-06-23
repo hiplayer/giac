@@ -196,7 +196,7 @@ fn factor_power_pairs_core(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>
         let mut mult = 0usize;
         loop {
             let flat = FlatUni::new(rest.clone(), MainVar::new(var.clone()));
-            let (_, r) = flat.div_rem(&lin_u);
+            let (_, r) = flat.div_rem(&lin_u).expect("flat div_rem");
             if !r.is_zero() {
                 break;
             }
@@ -243,7 +243,7 @@ pub(crate) fn find_rational_root(p: &Poly, var: &Var) -> Option<Ratio<BigInt>> {
                     let lin = linear_poly(var, &r);
                     let flat = FlatUni::new(p.clone(), MainVar::new(var.clone()));
                     let lin_u = FlatUni::new(lin, MainVar::new(var.clone()));
-                    if flat.div_rem(&lin_u).1.is_zero() {
+                    if flat.div_rem(&lin_u).map(|(_, r)| r.is_zero()).unwrap_or(false) {
                         return Some(r);
                     }
                 }
@@ -357,7 +357,7 @@ fn try_factor_two_cubics(p: &Poly, var: &Var) -> Option<Vec<Poly>> {
                 let f = monic_cubic_poly(var, a2, a1, a0);
                 let flat = FlatUni::new(p_m.clone(), MainVar::new(var.clone()));
                 let f_u = FlatUni::new(f.clone(), MainVar::new(var.clone()));
-                let (_, r) = flat.div_rem(&f_u);
+                let (_, r) = flat.div_rem(&f_u).expect("flat div_rem");
                 if !r.is_zero() {
                     continue;
                 }
