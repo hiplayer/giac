@@ -17,10 +17,10 @@ use num_rational::Ratio;
 use num_bigint::BigInt;
 use num_traits::Zero;
 
-use crate::error::PolyResult;
+use crate::error::{EvalError, PolyResult};
 use crate::monomial::Var;
 use crate::poly::Poly;
-use crate::poly_coeff::PolyCoeff;
+use crate::poly_coeff::{FieldCoeff, PolyCoeff};
 use crate::resultant::univariate_degree;
 use crate::subresultant::{
     div_exact_coeff, primitive_part_wrt_impl, quo_exact_wrt, univariate_div_rem_wrt,
@@ -191,20 +191,30 @@ pub type UnivariatePolyQ = UnivariatePoly<Ratio<BigInt>>;
 
 /// ℚ[var] flat univariate polynomial — **only** factor subpath that may use classic `div_rem`.
 ///
-/// **P1-3 / T0-2:** [`FlatUni<C>`] supports `div_rem` / `monic` for any [`PolyCoeff`].
+/// **P1-3 / T0-2:** [`FlatUni<C>`] flat K[var]; Euclidean `div_rem` / gcd require [`FieldCoeff`].
 #[derive(Clone, Debug, PartialEq)]
-pub struct FlatUni<C: PolyCoeff = Ratio<BigInt>> {
+pub struct FlatUni<C: FieldCoeff = Ratio<BigInt>> {
     poly: Poly<C>,
     var: MainVar,
 }
 
-impl<C: PolyCoeff> FlatUni<C> {
-    /// **Stable** — view `poly` as univariate in `var`.
+impl<C: FieldCoeff> FlatUni<C> {
+    /// **Stable** — view `poly` as univariate in `var` (does not validate).
+    #[deprecated(note = "use FlatUni::try_new")]
     pub fn new(poly: Poly<C>, var: impl Into<MainVar>) -> Self {
         Self {
             poly,
             var: var.into(),
         }
+    }
+
+    /// **Stable** — construct when `poly` is univariate in `var` over K.
+    pub fn try_new(poly: Poly<C>, var: impl Into<MainVar>) -> PolyResult<Self> {
+        let var = var.into();
+        if !crate::univ_wrt::is_univariate_in(&poly, var.as_var()) {
+            return Err(EvalError::TypeError("not univariate"));
+        }
+        Ok(Self { poly, var })
     }
 
     /// **Stable** — underlying polynomial.
@@ -262,20 +272,47 @@ impl<C: PolyCoeff> FlatUni<C> {
     pub fn monic(&self) -> PolyResult<Poly<C>> {
         crate::univ_wrt::monic_wrt(&self.poly, self.var.as_var())
     }
+
+    /// **Stable** — gcd in K[var] (monic).
+    pub fn gcd(&self, other: &Self) -> PolyResult<Poly<C>> {
+        crate::univ_wrt::gcd_wrt(&self.poly, &other.poly, self.var.as_var())
+    }
+
+    /// **Stable** — extended gcd in K[var]; monic `g`.
+    pub fn egcd(&self, other: &Self) -> PolyResult<(Poly<C>, Poly<C>, Poly<C>)> {
+        crate::univ_wrt::egcd_wrt(&self.poly, &other.poly, self.var.as_var())
+    }
+
+    /// **Stable** — scalar content in K.
+    pub fn content(&self) -> PolyResult<C> {
+        crate::univ_wrt::content_wrt(&self.poly, self.var.as_var())
+    }
+
+    /// **Stable** — primitive part in K[var].
+    pub fn primitive_part(&self) -> PolyResult<Self> {
+        let pp = crate::univ_wrt::primitive_part_wrt(&self.poly, self.var.as_var())?;
+        Self::try_new(pp, self.var.clone())
+    }
+
+    /// **Stable** — square-free part in K[var].
+    pub fn square_free_part(&self) -> PolyResult<Self> {
+        let sq = crate::univ_wrt::square_free_part_wrt(&self.poly, self.var.as_var())?;
+        Self::try_new(sq, self.var.clone())
+    }
+
+    /// **Stable** — Yun square-free factorization `p = ∏ g_k^k`.
+    pub fn square_free_factorization(&self) -> PolyResult<Vec<(Self, usize)>> {
+        let pairs =
+            crate::univ_wrt::square_free_factorization_wrt(&self.poly, self.var.as_var())?;
+        pairs
+            .into_iter()
+            .map(|(g, k)| Ok((Self::try_new(g, self.var.clone())?, k)))
+            .collect()
+    }
 }
 
 /// ℚ flat univariate (default alias).
 pub type FlatUniQ = FlatUni<Ratio<BigInt>>;
-
-impl FlatUni {
-    /// **Stable** — construct when `poly` is genuinely univariate in `var` over ℚ.
-    pub fn try_new(poly: Poly, var: &Var) -> Option<Self> {
-        if !is_flat_univariate_in(&poly, var) {
-            return None;
-        }
-        Some(Self::new(poly, MainVar::new(var.clone())))
-    }
-}
 
 /// Multivariate polynomial in the erased display ring — explicit home for leading-monomial `div_rem`.
 #[derive(Clone, Debug, PartialEq)]

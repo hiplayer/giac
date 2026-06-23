@@ -12,6 +12,7 @@ pub(crate) mod galois_automorphism;
 pub mod poly;
 pub mod poly_alg_coeff;
 pub mod poly_conv;
+pub mod poly_alg_factor;
 pub mod poly_alg_ops;
 pub mod poly_roots;
 

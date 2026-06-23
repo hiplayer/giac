@@ -6,7 +6,7 @@
 use crate::error::{EvalError, PolyResult};
 use crate::monomial::Var;
 use crate::poly::Poly;
-use crate::poly_coeff::PolyCoeff;
+use crate::poly_coeff::FieldCoeff;
 use crate::resultant::univariate_degree;
 use crate::univariate::{univariate_derivative, univariate_div_exact, univariate_gcd};
 
@@ -140,13 +140,13 @@ impl SquareFreeRing for UniVarRing<'_> {
     }
 }
 
-/// K[var] with scalar coefficients in ring `C` (P1 / T1-2).
-pub struct FlatCoeffVarRing<'a, C: PolyCoeff> {
+/// K[var] with scalar coefficients in field `C` (P1 / T1-2).
+pub struct FlatCoeffVarRing<'a, C: FieldCoeff> {
     pub var: &'a Var,
     _c: std::marker::PhantomData<C>,
 }
 
-impl<'a, C: PolyCoeff> FlatCoeffVarRing<'a, C> {
+impl<'a, C: FieldCoeff> FlatCoeffVarRing<'a, C> {
     /// **Stable (crate-internal)** — ring view for Yun sqff over `Poly<C>`.
     pub fn new(var: &'a Var) -> Self {
         Self {
@@ -156,7 +156,7 @@ impl<'a, C: PolyCoeff> FlatCoeffVarRing<'a, C> {
     }
 }
 
-impl<C: PolyCoeff> SquareFreeRing for FlatCoeffVarRing<'_, C> {
+impl<C: FieldCoeff> SquareFreeRing for FlatCoeffVarRing<'_, C> {
     type Poly = Poly<C>;
 
     fn is_zero(&self, p: &Self::Poly) -> bool {

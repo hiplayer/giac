@@ -2,11 +2,7 @@
 //!
 //! **Upstream:** `common_EXT` + `ext_reduce` before `_EXT` polynomial arithmetic.
 
-use std::sync::Arc;
-
-use giac_poly::{
-    scalar_coeff_wrt, univariate_div_rem_wrt, FlatUni, Poly, Var, monic_wrt, quo_exact_wrt,
-};
+use giac_poly::{FlatUni, MainVar, Var};
 
 use crate::error::EvalError;
 
@@ -16,10 +12,12 @@ use super::poly::PolyAlgExt;
 use super::poly_alg_coeff::AlgExtCPolyCoeff;
 
 /// **Stable** — infer ambient **K** from polynomial coefficients (max-dimension field).
-pub fn infer_ambient_field(p: &PolyAlgExt) -> Result<Arc<ExtensionField>, EvalError> {
-    let mut field: Option<Arc<ExtensionField>> = None;
+pub fn infer_ambient_field(
+    p: &PolyAlgExt,
+) -> Result<std::sync::Arc<ExtensionField>, EvalError> {
+    let mut field: Option<std::sync::Arc<ExtensionField>> = None;
     for c in p.terms.values() {
-        let f = Arc::clone(&c.as_inner().field);
+        let f = std::sync::Arc::clone(&c.as_inner().field);
         field = Some(match field {
             None => f,
             Some(prev) if f.dimension() > prev.dimension() => f,
@@ -82,8 +80,9 @@ pub fn div_rem_wrt_algext(
     b: &PolyAlgExt,
     var: &Var,
 ) -> Result<(PolyAlgExt, PolyAlgExt), EvalError> {
-    let (a, b) = align_algext_polys(session, a, b)?;
-    univariate_div_rem_wrt(&a, &b, var).map_err(Into::into)
+    let (fa, fb) = aligned_pair(session, a, b, var)?;
+    let (q, r) = fa.div_rem(&fb)?;
+    Ok((q, r))
 }
 
 /// **Stable** — exact quotient in K[var]; `Err` if remainder nonzero.
@@ -93,8 +92,8 @@ pub fn quo_exact_wrt_algext(
     den: &PolyAlgExt,
     var: &Var,
 ) -> Result<PolyAlgExt, EvalError> {
-    let (a, b) = align_algext_polys(session, num, den)?;
-    quo_exact_wrt(&a, &b, var).map_err(Into::into)
+    let (fa, fb) = aligned_pair(session, num, den, var)?;
+    fa.exact_quo(&fb).map_err(Into::into)
 }
 
 /// **Stable** — monic normalize w.r.t. `var` in K[var].
@@ -103,8 +102,7 @@ pub fn monic_wrt_algext(
     p: &PolyAlgExt,
     var: &Var,
 ) -> Result<PolyAlgExt, EvalError> {
-    let p = normalize_algext_poly(p, session)?;
-    monic_wrt(&p, var).map_err(Into::into)
+    flat_aligned(session, p, var)?.monic().map_err(Into::into)
 }
 
 /// **Stable** — gcd in K[var] after coefficient alignment (monic).
@@ -114,8 +112,8 @@ pub fn gcd_wrt_algext(
     b: &PolyAlgExt,
     var: &Var,
 ) -> Result<PolyAlgExt, EvalError> {
-    let (a, b) = align_algext_polys(session, a, b)?;
-    giac_poly::gcd_wrt(&a, &b, var).map_err(Into::into)
+    let (fa, fb) = aligned_pair(session, a, b, var)?;
+    fa.gcd(&fb).map_err(Into::into)
 }
 
 /// **Stable** — extended gcd in K[var]; `(g, s, t)` with monic `g`.
@@ -125,8 +123,8 @@ pub fn egcd_wrt_algext(
     b: &PolyAlgExt,
     var: &Var,
 ) -> Result<(PolyAlgExt, PolyAlgExt, PolyAlgExt), EvalError> {
-    let (a, b) = align_algext_polys(session, a, b)?;
-    giac_poly::egcd_wrt(&a, &b, var).map_err(Into::into)
+    let (fa, fb) = aligned_pair(session, a, b, var)?;
+    fa.egcd(&fb).map_err(Into::into)
 }
 
 /// **Stable** — scalar content in K.
@@ -135,8 +133,7 @@ pub fn content_wrt_algext(
     p: &PolyAlgExt,
     var: &Var,
 ) -> Result<AlgExtCPolyCoeff, EvalError> {
-    let p = normalize_algext_poly(p, session)?;
-    giac_poly::content_wrt(&p, var).map_err(Into::into)
+    flat_aligned(session, p, var)?.content().map_err(Into::into)
 }
 
 /// **Stable** — primitive part in K[var].
@@ -145,8 +142,7 @@ pub fn primitive_part_wrt_algext(
     p: &PolyAlgExt,
     var: &Var,
 ) -> Result<PolyAlgExt, EvalError> {
-    let p = normalize_algext_poly(p, session)?;
-    giac_poly::primitive_part_wrt(&p, var).map_err(Into::into)
+    Ok(flat_aligned(session, p, var)?.primitive_part()?.into_poly())
 }
 
 /// **Stable** — square-free part in K[var].
@@ -155,8 +151,7 @@ pub fn square_free_part_wrt_algext(
     p: &PolyAlgExt,
     var: &Var,
 ) -> Result<PolyAlgExt, EvalError> {
-    let p = normalize_algext_poly(p, session)?;
-    giac_poly::square_free_part_wrt(&p, var).map_err(Into::into)
+    Ok(flat_aligned(session, p, var)?.square_free_part()?.into_poly())
 }
 
 /// **Stable** — split monic quadratic into linear factors `(var − root)` over K.
@@ -181,6 +176,33 @@ pub fn split_quadratic_factor(
         .collect()
 }
 
+// **Pipeline private** — aligned [`FlatUni`] for one polynomial.
+fn flat_aligned(
+    session: &FieldSession,
+    p: &PolyAlgExt,
+    var: &Var,
+) -> Result<FlatUni<AlgExtCPolyCoeff>, EvalError> {
+    FlatUni::try_new(
+        normalize_algext_poly(p, session)?,
+        MainVar::new(var.clone()),
+    )
+    .map_err(Into::into)
+}
+
+// **Pipeline private** — aligned pair in K[var].
+fn aligned_pair(
+    session: &FieldSession,
+    a: &PolyAlgExt,
+    b: &PolyAlgExt,
+    var: &Var,
+) -> Result<(FlatUni<AlgExtCPolyCoeff>, FlatUni<AlgExtCPolyCoeff>), EvalError> {
+    let (a, b) = align_algext_polys(session, a, b)?;
+    Ok((
+        FlatUni::try_new(a, MainVar::new(var.clone()))?,
+        FlatUni::try_new(b, MainVar::new(var.clone()))?,
+    ))
+}
+
 // **Pipeline private** — `monomial_to_poly`
 fn monomial_to_poly(m: &giac_poly::Monomial) -> Result<PolyAlgExt, EvalError> {
     let mut out = PolyAlgExt::ring_one();
@@ -192,9 +214,7 @@ fn monomial_to_poly(m: &giac_poly::Monomial) -> Result<PolyAlgExt, EvalError> {
 
 #[cfg(test)]
 mod tests {
-    use giac_poly::MainVar;
-
-    use giac_poly::PolyCoeff;
+    use giac_poly::{scalar_coeff_wrt, PolyCoeff};
 
     use super::*;
     use crate::algebra::test_fixtures::{k1_adjoin_sqrt2, sqrt2_algext};
@@ -332,9 +352,8 @@ mod tests {
         let session = FieldSession::new(k);
         let p = x_squared_minus_2(&session);
         let d = x_minus_sqrt2(&session);
-        let (a, b) = align_algext_polys(&session, &p, &d).unwrap();
-        let flat_p = FlatUni::new(a, MainVar::new(x_var()));
-        let flat_d = FlatUni::new(b, MainVar::new(x_var()));
+        let flat_p = flat_aligned(&session, &p, &x_var()).unwrap();
+        let flat_d = flat_aligned(&session, &d, &x_var()).unwrap();
         let (q, r) = flat_p.div_rem(&flat_d).unwrap();
         assert!(r.is_zero());
         assert_eq!(q, flat_p.exact_quo(&flat_d).unwrap());

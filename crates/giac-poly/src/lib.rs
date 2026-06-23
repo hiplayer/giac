@@ -40,7 +40,7 @@ pub use resultant::{coeff_at, resultant, roots, univariate_coeffs_ascending, uni
 pub use univ_wrt::{
     content_scalars, content_wrt, derivative_wrt, egcd_wrt, gcd_wrt, is_univariate_in, monic_wrt,
     primitive_part_wrt, quadratic_coeffs_wrt, quo_exact_wrt, scalar_coeff_wrt,
-    square_free_part_wrt, univariate_div_rem_wrt,
+    square_free_factorization_wrt, square_free_part_wrt, univariate_div_rem_wrt,
 };
 pub use quadratic::{quadratic_abc, quadratic_coeffs, quadratic_rational_roots, QuadraticCoeffs};
 pub use factor::{

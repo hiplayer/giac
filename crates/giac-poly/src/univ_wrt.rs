@@ -12,7 +12,7 @@
 use crate::error::{EvalError, PolyResult};
 use crate::monomial::Var;
 use crate::poly::Poly;
-use crate::poly_coeff::PolyCoeff;
+use crate::poly_coeff::{FieldCoeff, PolyCoeff};
 
 /// **Stable** — whether `p` uses only powers of `var`.
 pub fn is_univariate_in<C: PolyCoeff>(p: &Poly<C>, var: &Var) -> bool {
@@ -255,8 +255,20 @@ pub fn primitive_part_wrt<C: PolyCoeff>(p: &Poly<C>, var: &Var) -> PolyResult<Po
     Ok(out)
 }
 
+/// **Stable** — square-free factorization `p = ∏ g_k^k` in K[var] (Yun).
+pub fn square_free_factorization_wrt<C: FieldCoeff>(
+    p: &Poly<C>,
+    var: &Var,
+) -> PolyResult<Vec<(Poly<C>, usize)>> {
+    if !is_univariate_in(p, var) {
+        return Err(EvalError::TypeError("not univariate"));
+    }
+    let ring = crate::square_free::FlatCoeffVarRing::new(var);
+    crate::square_free::square_free_yun(&ring, p)
+}
+
 /// **Stable** — square-free part w.r.t. `var` in K[var].
-pub fn square_free_part_wrt<C: PolyCoeff>(p: &Poly<C>, var: &Var) -> PolyResult<Poly<C>> {
+pub fn square_free_part_wrt<C: FieldCoeff>(p: &Poly<C>, var: &Var) -> PolyResult<Poly<C>> {
     let ring = crate::square_free::FlatCoeffVarRing::new(var);
     let mut prod = Poly::ring_one();
     for (g, _) in crate::square_free::square_free_yun(&ring, p)? {

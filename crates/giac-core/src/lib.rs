@@ -57,6 +57,9 @@ pub use algebra::poly::{
     PolyAlgExt,
 };
 pub use algebra::poly_alg_coeff::AlgExtCPolyCoeff;
+pub use algebra::poly_alg_factor::{
+    factor_univariate_flat_over_k, factor_univariate_over_k,
+};
 pub use algebra::poly_alg_ops::{
     align_algext_polys, content_wrt_algext, div_rem_wrt_algext, egcd_wrt_algext,
     ensure_common_field_for_polys, gcd_wrt_algext, infer_ambient_field, monic_wrt_algext,
