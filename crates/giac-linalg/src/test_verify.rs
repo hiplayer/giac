@@ -170,4 +170,24 @@ mod tests {
         ]);
         assert_charpoly_equiv(&m, &x, expected.as_ref(), &ctx);
     }
+
+    #[test]
+    #[ignore = "GIAC-expr-api T1/2C: normal rational sum not proved zero (linsolve residual)"]
+    fn assert_linsolve_satisfies_smoke() {
+        let ctx = crate::plugin::xcas_default();
+        let eqs = Arc::new(Expr::List(vec![Arc::new(Expr::Relation(
+            RelOp::Eq,
+            Expr::add(vec![
+                Expr::mul(vec![Expr::int(2), Expr::sym("x")]),
+                Expr::sym("y"),
+            ]),
+            Expr::int(3),
+        ))]));
+        let vars = Arc::new(Expr::List(vec![Expr::sym("x"), Expr::sym("y")]));
+        let sol = Arc::new(Expr::List(vec![
+            Expr::rat(4, 3),
+            Expr::rat(1, 3),
+        ]));
+        assert_linsolve_satisfies(&eqs, &vars, &sol, &ctx);
+    }
 }

@@ -9,7 +9,7 @@ use giac_linalg::{
     eval_rref, eval_svd, eval_trace, eval_tran, f64_to_expr_numeric, format_float,
     is_identity_matrix, real_eigenvalues, to_dmatrix, DefaultLinalgPlugin,
 };
-use giac_linalg::test_verify::{assert_charpoly_equiv, assert_matrix_equiv};
+use giac_linalg::test_verify::{assert_charpoly_equiv, assert_linsolve_satisfies, assert_matrix_equiv};
 
 fn mat2() -> ExprArc {
     Arc::new(Expr::Matrix(vec![
@@ -62,13 +62,7 @@ fn symbolic_rref_inv_ker_image() {
     assert!(!format_expr(image.as_ref()).is_empty());
 }
 
-#[test]
-fn symbolic_linsolve_charpoly_pcar_trace() {
-    let ctx = ctx();
-    let m = mat2();
-    let x = Ident::new("x");
-    let _y = Ident::new("y");
-
+fn linsolve_2x2_fixture() -> (ExprArc, ExprArc) {
     let eqs = Arc::new(Expr::List(vec![
         Arc::new(Expr::Relation(
             giac_core::RelOp::Eq,
@@ -85,11 +79,31 @@ fn symbolic_linsolve_charpoly_pcar_trace() {
         )),
     ]));
     let vars = Arc::new(Expr::List(vec![Expr::sym("x"), Expr::sym("y")]));
+    (eqs, vars)
+}
+
+#[test]
+#[ignore = "GIAC-expr-api T1/2C: normal(8/3+1/3-3) not proved zero for linsolve residual"]
+fn linsolve_2x2_satisfies_equations() {
+    let ctx = ctx();
+    let (eqs, vars) = linsolve_2x2_fixture();
     let sol = eval_linsolve(&eqs, &vars, &ctx).unwrap();
-    // ponytail: rat sum 8/3+1/3-3→0 not proved by normal yet (GIAC-expr-api T1/2C).
-    assert!(
-        format_expr(sol.as_ref()).contains('x') || format_expr(sol.as_ref()).contains('1')
-    );
+    assert_linsolve_satisfies(&eqs, &vars, &sol, &ctx);
+}
+
+#[test]
+fn symbolic_linsolve_charpoly_pcar_trace() {
+    let ctx = ctx();
+    let m = mat2();
+    let x = Ident::new("x");
+    let _y = Ident::new("y");
+
+    let (eqs, vars) = linsolve_2x2_fixture();
+    let sol = eval_linsolve(&eqs, &vars, &ctx).unwrap();
+    match sol.as_ref() {
+        Expr::List(items) => assert_eq!(items.len(), 2),
+        other => panic!("expected solution list, got {other:?}"),
+    }
 
     let cp_expected = Expr::add(vec![
         Expr::pow(Expr::sym("x"), Expr::int(2)),
