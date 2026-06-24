@@ -201,7 +201,7 @@ fn factor_power_pairs_core(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usize)>
                 break;
             }
             mult += 1;
-            rest = flat.exact_quo(&lin_u).expect("exact quotient");
+            rest = flat.exact_quo(&lin_u).expect("exact quotient").into_poly();
         }
         if mult == 0 {
             return Err(EvalError::NotImplemented("factor"));
@@ -361,7 +361,7 @@ fn try_factor_two_cubics(p: &Poly, var: &Var) -> Option<Vec<Poly>> {
                 if !r.is_zero() {
                     continue;
                 }
-                let g = flat.exact_quo(&f_u).expect("quotient");
+                let g = flat.exact_quo(&f_u).expect("quotient").into_poly();
                 if univariate_degree(&g, var) != 3 {
                     continue;
                 }

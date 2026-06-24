@@ -82,7 +82,7 @@ pub fn div_rem_wrt_algext(
 ) -> Result<(PolyAlgExt, PolyAlgExt), EvalError> {
     let (fa, fb) = aligned_pair(session, a, b, var)?;
     let (q, r) = fa.div_rem(&fb)?;
-    Ok((q, r))
+    Ok((q.into_poly(), r.into_poly()))
 }
 
 /// **Stable** — exact quotient in K[var]; `Err` if remainder nonzero.
@@ -93,7 +93,7 @@ pub fn quo_exact_wrt_algext(
     var: &Var,
 ) -> Result<PolyAlgExt, EvalError> {
     let (fa, fb) = aligned_pair(session, num, den, var)?;
-    fa.exact_quo(&fb).map_err(Into::into)
+    fa.exact_quo(&fb).map(|q| q.into_poly()).map_err(Into::into)
 }
 
 /// **Stable** — monic normalize w.r.t. `var` in K[var].
@@ -356,6 +356,6 @@ mod tests {
         let flat_d = flat_aligned(&session, &d, &x_var()).unwrap();
         let (q, r) = flat_p.div_rem(&flat_d).unwrap();
         assert!(r.is_zero());
-        assert_eq!(q, flat_p.exact_quo(&flat_d).unwrap());
+        assert_eq!(q.as_poly(), flat_p.exact_quo(&flat_d).unwrap().as_poly());
     }
 }

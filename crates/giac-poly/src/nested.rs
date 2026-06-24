@@ -199,15 +199,6 @@ pub struct FlatUni<C: FieldCoeff = Ratio<BigInt>> {
 }
 
 impl<C: FieldCoeff> FlatUni<C> {
-    /// **Stable** — view `poly` as univariate in `var` (does not validate).
-    #[deprecated(note = "use FlatUni::try_new")]
-    pub fn new(poly: Poly<C>, var: impl Into<MainVar>) -> Self {
-        Self {
-            poly,
-            var: var.into(),
-        }
-    }
-
     /// **Stable** — construct when `poly` is univariate in `var` over K.
     pub fn try_new(poly: Poly<C>, var: impl Into<MainVar>) -> PolyResult<Self> {
         let var = var.into();
@@ -247,13 +238,22 @@ impl<C: FieldCoeff> FlatUni<C> {
         crate::univ_wrt::scalar_coeff_wrt(&self.poly, self.var.as_var(), exp)
     }
 
-    /// **Stable** — Euclidean `(q, r)` in K[var].
-    pub fn div_rem(&self, divisor: &Self) -> PolyResult<(Poly<C>, Poly<C>)> {
-        crate::univ_wrt::univariate_div_rem_wrt(
+    /// **Stable** — Euclidean `(q, r)` in K[var]; quotient and remainder keep `MainVar` context.
+    pub fn div_rem(&self, divisor: &Self) -> PolyResult<(Self, Self)> {
+        let (q, r) = crate::univ_wrt::univariate_div_rem_wrt(
             &self.poly,
             &divisor.poly,
             self.var.as_var(),
-        )
+        )?;
+        Ok((
+            Self::try_new(q, self.var.clone())?,
+            Self::try_new(r, self.var.clone())?,
+        ))
+    }
+
+    /// **Stable** — whether the underlying polynomial is zero.
+    pub fn is_zero(&self) -> bool {
+        self.poly.is_zero()
     }
 
     /// **Stable** — whether `divisor` divides `self` in K[var].
@@ -264,8 +264,9 @@ impl<C: FieldCoeff> FlatUni<C> {
     }
 
     /// **Stable** — exact quotient when remainder is zero.
-    pub fn exact_quo(&self, divisor: &Self) -> PolyResult<Poly<C>> {
-        crate::univ_wrt::quo_exact_wrt(&self.poly, &divisor.poly, self.var.as_var())
+    pub fn exact_quo(&self, divisor: &Self) -> PolyResult<Self> {
+        let q = crate::univ_wrt::quo_exact_wrt(&self.poly, &divisor.poly, self.var.as_var())?;
+        Self::try_new(q, self.var.clone())
     }
 
     /// **Stable** — monic normalize w.r.t. main variable.
@@ -815,7 +816,7 @@ mod tests {
         let (_, r) = flat.div_rem(&div).expect("flat div_rem");
         assert!(r.is_zero());
         let q = flat.exact_quo(&div).expect("quotient");
-        assert_eq!(q.mul(&lin), p);
+        assert_eq!(q.as_poly().mul(&lin), p);
     }
 
     #[test]

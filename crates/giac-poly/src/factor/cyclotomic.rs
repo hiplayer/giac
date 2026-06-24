@@ -56,7 +56,7 @@ pub fn cyclotomic_poly(n: u64, var: &Var) -> PolyResult<Poly> {
         if !r.is_zero() {
             return Err(EvalError::NotImplemented("cyclotomic division"));
         }
-        phi = FlatUni::try_new(phi.exact_quo(&sub_u)?, MainVar::new(var.clone()))?;
+        phi = phi.exact_quo(&sub_u)?;
     }
     Ok(phi.into_poly())
 }
