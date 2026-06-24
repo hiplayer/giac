@@ -6,7 +6,7 @@
 **相关:** [GIAC-algext-adoption](GIAC-algext-adoption.md) §8.4、[GIAC-poly-p3-6-quartic-roots-gaps](GIAC-poly-p3-6-quartic-roots-gaps.md)（P3-6 ✅）、[expr-poly-conversion.md](../expr-poly-conversion.md)、[giac-poly-api-stability.md](../giac-poly-api-stability.md)  
 **上游基线:** `giac/giac-2.0.0` — `gausspol.cc`（`gcd`→`gcd_ext`、`ext_factor`/`ext_factor_nodegck`）、`threaded.cc`（`mod_gcd_ext`）、`sym2poly.cc`（partfrac + `_EXT`）  
 **Rust 落点:** `giac-poly::Poly<AlgExtCPolyCoeff>`、`giac-core::algebra::{field_session, poly, poly_alg_coeff}`  
-**快照:** 2026-06-23（**T0-1…T0-3 ✅**、**T1-1…T1-3 ✅**、**T2-1 ✅**）
+**快照:** 2026-06-23（**T0-1…T0-3 ✅**、**T1-1…T1-3 ✅**、**T2-1 ✅**、**T2-2 ✅**）
 
 ---
 
@@ -54,7 +54,7 @@
 | **P1** | **T1-2** | **`content` / `primitive_part` / `square_free_part` over K** | `ext_factor` 前 sqff + `lcmdeno` + pp | T1-1 | ✅ sqff 链系数均在 K |
 | **P1** | **T1-3** | **二次分裂 `split_quadratic_factor`**（disc≤0 / disc>0 / 复根） | `ext_factor_nodegck` d=2 + `addtov` | T0-1, P3-6 deg2 ✅ | ✅ `factor(x²−2)→(x−√2)(x+√2)` |
 | **P2** | **T2-1** | **`factor_univariate_over_k` 主路径**：sqff → 一次 → 二次分裂 → K 内有理根 → 不可约 `[g]` | `ext_factor` + 次数校验（~6345–6351） | T1-1…T1-3 | ✅ `factor(x²−2)`；`factor(x⁴−4)=(x²−2)(x²+2)` |
-| **P2** | **T2-2** | **`factor_into` / `eval_factor` 接线** | `usual.cc` factor + `algext_convert` | T2-1 | `eval(factor(x²−2))` 展开 = 原式 |
+| **P2** | **T2-2** | **`factor_into` / `eval_factor` 接线** | `usual.cc` factor + `algext_convert` | T2-1 | ✅ `factor(x²−2)` splits; K-product = 原式 |
 | **P2** | **T2-3** | **solve 降次共用**（backlog P3-7 / P4-6） | `solve.cc` + `ext_factor` 递归 | T2-1, P3-6 ✅ | `(x²+1)(x³−x+1)` 五根；删 solve 形状特判 |
 | **P2** | **T2-4** | **partfrac 消费 K 上 factor**（backlog P2-3/P2-4） | `sym2poly.cc` partfrac | T1-3, T2-1 | `partfrac(1/(x²−2),x)` 两项一次 |
 | **P3** | **T3-1** | **多元 gcd（低维）**：子结果式 PRS 系数环 `PolyCoeff` 泛型 | `gcdheu` / `gcd_ext` 多元 | T1-1 稳定 | `gcd(x²−2·y, x−√2·y)` 类 |
