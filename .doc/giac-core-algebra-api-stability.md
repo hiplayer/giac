@@ -42,6 +42,16 @@
 
 **入口管线（1B）：** `infer_field → normalize_coeffs → monic_univariate → FieldSession`；仅经私有 `PolyInK::prepare` 进入 `roots_dispatch`。
 
+### `poly_alg_sturm.rs` — Sturm over K (P3-4 / B-04)
+
+| 函数 | 层级 | 说明 |
+|------|------|------|
+| `sturm_sequence_wrt_algext` | **Stable** | sqff(p), P₁=p′, 链式 `div_rem_wrt_algext` |
+| `sturm_sign_variations_at_algext` | **Stable** | V(a) at rational a ∈ ℚ ⊂ K |
+| `sturmab_count_wrt_algext` | **Stable** | root count in (a, b] |
+
+**边界：** 求值点限于 ℚ 嵌入；`resultant` / 代数点 Sturm / `realroot` 全 Sturm 隔离仍待接。
+
 ### `field_session.rs` — 显式 K / L
 
 | 函数 | 层级 | 说明 |
