@@ -22,7 +22,7 @@
 | `giac-core` / `poly_roots.rs` | 24 | 0 | 0 | 24 | 0 | 0 |
 | **合计** | **114** | **30** | **6** | **81** | **11** | **11** |
 
-> **3B 下一批：** `series.rs` / `risch/` / `integrate_heuristics.rs` 仍含语义 `contains`。
+> **3B 下一批：** 见 [GIAC-expr-api-test-contains-cleanup.md](GIAC-expr-api-test-contains-cleanup.md)（P0 helper → P1 simplify/limit → P2 series/Risch/linalg）。
 
 ---
 

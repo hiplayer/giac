@@ -38,7 +38,7 @@ giac-rs 算法 crate 在 [algorithm-expr-api.md](../algorithm-expr-api.md) 落�
 | [2B](#giac-expr-api-2b) | 退役 `ratnormal_algext` shim | AFK | P2 | [GIAC-algext-adoption](GIAC-algext-adoption.md) A-03 | open |
 | [2C](#giac-expr-api-2c) | `assert_equiv` 漂移收敛 | HITL | P2 | — | open |
 | [3A](#giac-expr-api-3a) | `giac-solve` 测试去字符串语义 | AFK | P1 | 0B | **done** |
-| [3B](#giac-expr-api-3b) | `giac-calculus` 积分 / limit 单测契约 | AFK | P1 | — | **partial** |
+| [3B](#giac-expr-api-3b) | `giac-calculus` 积分 / limit 单测契约 | AFK | P1 | — | **partial** → [GIAC-expr-api-test-contains-cleanup](GIAC-expr-api-test-contains-cleanup.md) |
 | [3D](#giac-expr-api-3d) | `giac-core/algebra` 扩域单测 | AFK | P1 | 1A ✅ | **done** |
 | [4A](#giac-expr-api-4a) | `expr_to_poly` 调用方审计 | AFK | P2 | 0B | open |
 | [4B](#giac-expr-api-4b) | factor 静默 fallback 显式化 | AFK | P2 | — | **done** |
