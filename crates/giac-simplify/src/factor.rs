@@ -8,13 +8,15 @@ use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::{One, Signed, Zero};
 
-use giac_core::{Context, EvalError, Expr, ExprArc, FuncKind};
-use giac_poly::{factor_into, factor_poly, quadratic_abc, ratio_perfect_sqrt, vars_in};
-use giac_poly::Poly;
+use giac_core::{
+    algext_poly_to_expr, expr_contains_alg_coeff, expr_to_poly, expr_to_rational_polys,
+    factor_into_algext, factor_into_via_algext, poly_alg_from_expr, poly_to_expr, ratio_to_expr,
+    univariate_poly_to_poly1_expr, AlgExtData, Context, EvalError, Expr, ExprArc, FuncKind,
+};
+use giac_poly::{factor_into, factor_poly, quadratic_abc, ratio_perfect_sqrt, vars_in, Poly};
 
-use crate::ifactor::ifactor;
 use crate::expand::normal;
-use giac_core::{expr_to_poly, expr_to_rational_polys, poly_to_expr, univariate_poly_to_poly1_expr, ratio_to_expr};
+use crate::ifactor::ifactor;
 
 /// **Stable (bounded)** — structural (`Mul`/`Pow`/`Frac`) then polynomial factorization.
 ///
@@ -88,6 +90,9 @@ fn factor_poly_form(e: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
         }
     }
     let n = normal(e, ctx)?;
+    if expr_contains_alg_coeff(n.as_ref()) {
+        return factor_algext_form(n.as_ref());
+    }
     let p = expr_to_poly(n.as_ref())?;
     if let Some(factors) = factor_into(&p) {
         if factors.len() > 1 {
@@ -95,6 +100,9 @@ fn factor_poly_form(e: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
                 factors.into_iter().map(|f| poly_to_expr(&f)).collect(),
             ));
         }
+    }
+    if let Some(factors) = try_factor_via_algext(&p)? {
+        return Ok(Expr::mul(factors));
     }
     if let Some(factors) = try_factor_quadratic_rootof(&p) {
         return Ok(Expr::mul(factors));
@@ -110,6 +118,37 @@ fn factor_poly_form(e: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
         }
     }
     Ok(poly_to_expr(&factor_poly(&p)))
+}
+
+// **Pipeline private** — path B: factor in K[var] when expr has algebraic coefficients.
+fn factor_algext_form(e: &Expr) -> Result<ExprArc, EvalError> {
+    let p = poly_alg_from_expr(e)?;
+    if let Some(factors) = factor_into_algext(&p)? {
+        if factors.len() > 1 {
+            return Ok(Expr::mul(
+                factors
+                    .iter()
+                    .map(algext_poly_to_expr)
+                    .collect::<Result<Vec<_>, _>>()?,
+            ));
+        }
+    }
+    algext_poly_to_expr(&p)
+}
+
+// **Pipeline private** — lift ℚ[x] to K[x] and factor when split exists (T2-2).
+fn try_factor_via_algext(p: &Poly) -> Result<Option<Vec<ExprArc>>, EvalError> {
+    let Some(factors) = factor_into_via_algext(p)? else {
+        return Ok(None);
+    };
+    if factors.len() <= 1 {
+        return Ok(None);
+    }
+    factors
+        .iter()
+        .map(algext_poly_to_expr)
+        .collect::<Result<Vec<_>, _>>()
+        .map(Some)
 }
 
 // **Temporary** — Partial internal: quadratic → rootof when discriminant non-square.

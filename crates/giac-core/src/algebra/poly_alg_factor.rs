@@ -2,7 +2,7 @@
 //!
 //! **Upstream:** `ext_factor` / `ext_factor_nodegck` — sqff → linear / quadratic split / roots / witness.
 
-use giac_poly::{FlatUni, MainVar, PolyCoeff, Var};
+use giac_poly::{FlatUni, MainVar, Poly, PolyCoeff, Var};
 
 use crate::error::EvalError;
 
@@ -10,9 +10,68 @@ use super::field_session::FieldSession;
 use super::poly::PolyAlgExt;
 use super::poly_alg_coeff::AlgExtCPolyCoeff;
 use super::poly_alg_ops::{
-    div_rem_wrt_algext, normalize_algext_poly, split_quadratic_factor,
+    div_rem_wrt_algext, infer_ambient_field, normalize_algext_poly, split_quadratic_factor,
 };
 use super::poly_roots::poly_algext_roots;
+
+/// **Stable (bounded)** — irreducible factors over K for univariate `p`; `None` if not split.
+pub fn factor_into_algext(p: &PolyAlgExt) -> Result<Option<Vec<PolyAlgExt>>, EvalError> {
+    let Some(var) = univariate_main_var(p) else {
+        return Ok(None);
+    };
+    let field = infer_ambient_field(p)?;
+    let session = FieldSession::new(field);
+    let flat = FlatUni::try_new(
+        normalize_algext_poly(p, &session)?,
+        MainVar::new(var.clone()),
+    )
+    .map_err(Into::into)?;
+    let pairs = factor_univariate_over_k(&session, &flat)?;
+    let factors = expand_factor_pairs(pairs);
+    if factors.len() <= 1 {
+        return Ok(None);
+    }
+    Ok(Some(factors))
+}
+
+// **Pipeline private** — single main variable when `p` is univariate in it.
+fn univariate_main_var(p: &PolyAlgExt) -> Option<Var> {
+    use std::collections::BTreeSet;
+
+    let mut vars = BTreeSet::new();
+    for m in p.terms.keys() {
+        for (v, _) in m.iter() {
+            vars.insert(v.clone());
+        }
+    }
+    match vars.len() {
+        0 => None,
+        1 => vars.into_iter().next(),
+        _ => {
+            let v = vars.iter().next()?.clone();
+            if giac_poly::is_univariate_in(p, &v) {
+                Some(v)
+            } else {
+                None
+            }
+        }
+    }
+}
+
+fn expand_factor_pairs(pairs: Vec<(PolyAlgExt, usize)>) -> Vec<PolyAlgExt> {
+    let mut out = Vec::new();
+    for (f, k) in pairs {
+        for _ in 0..k {
+            out.push(f.clone());
+        }
+    }
+    out
+}
+
+/// **Stable** — factor `Poly` over ℚ via K[var] pipeline when univariate split exists.
+pub fn factor_into_via_algext(p: &Poly) -> Result<Option<Vec<PolyAlgExt>>, EvalError> {
+    factor_into_algext(&super::poly::poly_algext_from_poly(p)?)
+}
 
 /// **Stable** — factor `flat` in K[var] as `(factor, multiplicity)` pairs.
 pub fn factor_univariate_over_k(
@@ -225,6 +284,9 @@ fn push_factor(out: &mut Vec<(PolyAlgExt, usize)>, f: PolyAlgExt, k: usize) {
 mod tests {
     use giac_poly::PolyCoeff;
 
+    use num_rational::Ratio;
+    use num_bigint::BigInt;
+
     use super::*;
     use crate::algebra::ext_tower::ExtensionField;
     use crate::algebra::test_fixtures::k1_adjoin_sqrt2;
@@ -247,6 +309,30 @@ mod tests {
         let x2 = PolyAlgExt::ring_var(x_var()).try_pow(2).unwrap();
         let four = session.int(4).unwrap();
         x2.try_mul(&x2).unwrap().try_sub(&PolyAlgExt::ring_constant(four)).unwrap()
+    }
+
+    #[test]
+    fn factor_into_algext_x_squared_minus_2() {
+        let session = FieldSession::new(ExtensionField::rational());
+        let p = x_squared_minus_2(&session);
+        let factors = factor_into_algext(&p).unwrap().expect("split");
+        assert_eq!(factors.len(), 2);
+        let prod = factors
+            .iter()
+            .try_fold(PolyAlgExt::ring_one(), |acc, f| acc.try_mul(f))
+            .unwrap();
+        let (_, r) = div_rem_wrt_algext(&session, &p, &prod, &x_var()).unwrap();
+        assert!(r.is_zero());
+    }
+
+    #[test]
+    fn factor_into_via_algext_from_rational_poly() {
+        use giac_poly::Poly;
+
+        let x = Poly::var("x");
+        let p = x.pow(2).sub(&Poly::constant(Ratio::from_integer(2.into())));
+        let factors = factor_into_via_algext(&p).unwrap().expect("split");
+        assert_eq!(factors.len(), 2);
     }
 
     #[test]

@@ -129,6 +129,23 @@ mod tests {
         );
         let r = eval(e.as_ref(), &ctx).unwrap();
         let s = format_expr(r.as_ref());
-        assert!(s.contains("rootof"), "got {s}");
+        assert!(s.contains("rootof") || s.contains("AlgExt"), "got {s}");
+    }
+
+    #[test]
+    fn eval_factor_x_squared_minus_two_splits() {
+        let ctx = xcas_default();
+        let e = Expr::func(
+            FuncKind::Factor,
+            vec![Expr::add(vec![
+                Expr::pow(Expr::sym("x"), Expr::int(2)),
+                Expr::int(-2),
+            ])],
+        );
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        match r.as_ref() {
+            Expr::Mul(fs) => assert!(fs.len() >= 2, "got {}", format_expr(r.as_ref())),
+            other => panic!("expected product of factors, got {}", format_expr(other)),
+        }
     }
 }
