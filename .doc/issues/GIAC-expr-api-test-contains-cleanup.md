@@ -292,7 +292,24 @@ P3  长尾
 
 ---
 
-## 8. 维护
+## 8. 已知阻塞（`#[ignore]` 登记）
+
+解除阻塞后：**删 ignore、跑绿、更新本表**。
+
+| ID | 阻塞 | `#[ignore]` 测试 | Crate / 文件 |
+|----|------|------------------|--------------|
+| **B-T3** | `diff(F)` 未覆盖 ln/atan 代数原函数（审计 T3） | `rothstein_deriv_equals_integrand` | `risch/rothstein_trager.rs` |
+| **B-T3** | 同上 | `algebraic_rt_one_over_x4_plus_one_deriv` | `risch/algebraic_rt.rs` |
+| **B-T3** | 同上 | `algebraic_rt_one_over_x4_plus_four_via_res_deriv` | `risch/algebraic_rt.rs` |
+| **B-T3** | 同上 | `algebraic_rt_one_over_x4_plus_x2_plus_one_via_res_deriv` | `risch/algebraic_rt.rs` |
+| **B-LIN** | `normal` 未证明有理和 `8/3+1/3-3→0`（T1/2C） | `linsolve_2x2_satisfies_equations` | `linalg/tests/phase3_coverage.rs` |
+| **B-LIN** | 同上（helper 自检） | `assert_linsolve_satisfies_smoke` | `linalg/test_verify.rs` |
+
+**解除路径：** B-T3 → `diff` 补 ln/atan 链；B-LIN → `normal`/`assert_equiv` 有理和归零或 `linsolve` 输出规范 `Rat`。
+
+---
+
+## 9. 维护
 
 - 新增 `contains` 语义断言：**禁止**；PR 须链本 issue 或审计表说明
 - 完成子项后更新本文 §2 状态列 + [GIAC-expr-api-test-audit.md](GIAC-expr-api-test-audit.md) §1 汇总
