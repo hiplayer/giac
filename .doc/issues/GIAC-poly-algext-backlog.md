@@ -66,7 +66,7 @@ giac-poly 表示层（PolyCoeff + Poly<C> + Expr 桥接）
 | **P2** | **F5** | 结构开方 API（`ext_tower` 通用开方收尾） | P3-6 ✅ | [F1-F5](GIAC-poly-quartic-roots-F1-F5.md) §F5 S0–S6 | ✅ S0–S6；F5.5 api-stability 薄化 ⬜ |
 | **P2** | **F4′** | Galois σ(κ)：避免四次多余 adjoin | F5 语义稳定 | 维数/塔审计；**不**绑未证 `d_L=12` | 1–2w |
 | **P3** | **D3** | 稠密 `poly1` 抽象（`field_arith` 收敛） | — | [dense-poly1](GIAC-dense-poly1-refactor.md) D3 门禁 | ✅ |
-| **P4** | **P3-4** | `resultant` / `sturm` over `Poly<AlgExt>`；`realroot` 区间 | P3-1 ✅ | `realroot(x²−2)`；扩 S6 全 Sturm 隔离 | 🟡 sturm K API ✅；resultant/区间 ☐ |
+| **P4** | **P3-4** | `resultant` / `sturm` over `Poly<AlgExt>`；`realroot` 区间 | P3-1 ✅ | `realroot(x²−2)`；扩 S6 全 Sturm 隔离 | 🟡 resultant + sturm K + realroot 计数 ✅；全 Sturm 隔离 ☐ |
 | **P5** | **S7** | `fsolve` 数值互补 | P4-6 ✅ | solve 管线；不替代 `rootof` | 按需 |
 | **长期** | **P3-5** | 嵌套环 `Poly<AlgExtC>[main]` | P1-3、FAC | [nested-ring-types](GIAC-poly-nested-ring-types.md) | M4 |
 
@@ -151,7 +151,7 @@ P3-4    sturm/realroot over K（M4）
 | **P3-1** | **`gcd` / `quo` / `rem` over `Poly<AlgExtC>`** | 子结果式或模 gcd；同扩域 | `gcd(x²−2, x−√2)` | ✅ T1-1 |
 | **P3-2** | **`square_free` / `content` / `primitive_part`** | 一元 sqff 先于 factor | partfrac sqff 链在 K 上 | ✅ T1-2 |
 | **P3-3** | **`factor` 一元 over K** | 一次/二次分裂/有理根/不可约 witness | `factor(x⁴−4)` | ✅ T2-1（Zassenhaus 子集 **不做**） |
-| **P3-4** | **`resultant` / `sturm` over `Poly<AlgExt>`** | 实代数 Sturm（B-04） | `realroot(x²−2)` 区间形式 | 🟡 `sturm_*_wrt_algext` ✅；resultant / 全 Sturm 隔离 ☐ |
+| **P3-4** | **`resultant` / `sturm` over `Poly<AlgExt>`** | 实代数 Sturm（B-04） | `realroot(x²−2)` 区间形式 | 🟡 `resultant_wrt_algext` + `sturm_*` + `realroot` K 计数 ✅；全 Sturm 隔离 ☐ |
 | **P3-5** | **嵌套环 `Poly<AlgExtC>[main]`** | `UnivariateIn<C>` 泛化；FAC 管线最后接 | 参系数 + 代数系数塔 | ☐ 长期 |
 | **P3-6** | **`Poly<AlgExtC>::roots` 通用四次** | resolvent cubic + K 上二次 split | `solve(t⁴+t+1=0,t)` 四根 `eq_mod` | ✅ DoD；**F4′/F5** 优化见 §2.1 P2 |
 | **P3-7** | **`factor` + 有理根降次（deg≥5 前置）** | `factor_into` / sqff 与 solve 共用 | `(x²+1)(x³−x+1)` 五根 | ✅ T2-3 |
@@ -233,7 +233,7 @@ solve(P)   P ∈ Poly<ℚ>, 变元 t, deg n
 | **M1** | P0-A/C + P1-1…5 | `Poly<AlgExtC>` 骨架 + Expr 桥接 | ✅ |
 | **M2** | P2-1/4/3 + P4-2/3 | `partfrac(1/(x²−2))`；`x/(x²−2)`；∫ K 回落 | ✅ |
 | **M3** | P3-1/2/3/6 + P4-1/2/6 | factor/gcd；solve 统一；通用四次 | ✅ |
-| **M4** | P3-5 + P3-4 + S7 | 嵌套环；sturm/realroot；fsolve | 🟡 P3-4 sturm K API |
+| **M4** | P3-5 + P3-4 + S7 | 嵌套环；sturm/realroot；fsolve | 🟡 P3-4 resultant + realroot K-Sturm |
 
 ```text
 M1  Poly<AlgExtC> 骨架                          ✅

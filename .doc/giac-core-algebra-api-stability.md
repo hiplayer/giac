@@ -49,8 +49,15 @@
 | `sturm_sequence_wrt_algext` | **Stable** | sqff(p), P₁=p′, 链式 `div_rem_wrt_algext` |
 | `sturm_sign_variations_at_algext` | **Stable** | V(a) at rational a ∈ ℚ ⊂ K |
 | `sturmab_count_wrt_algext` | **Stable** | root count in (a, b] |
+| `sturmab_count_rational_poly` | **Stable** | ℚ[var] lift → ambient K Sturm count |
 
-**边界：** 求值点限于 ℚ 嵌入；`resultant` / 代数点 Sturm / `realroot` 全 Sturm 隔离仍待接。
+**边界：** 求值点限于 ℚ 嵌入；`realroot` 全 Sturm 区间隔离仍待接。
+
+### `poly_alg_resultant.rs` — Resultant over K (P3-4 / B-04)
+
+| 函数 | 层级 | 说明 |
+|------|------|------|
+| `resultant_wrt_algext` | **Stable** | 一元 Sylvester  resultant；标量 ∈ K |
 
 ### `field_session.rs` — 显式 K / L
 
