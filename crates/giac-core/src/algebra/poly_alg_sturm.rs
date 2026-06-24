@@ -4,7 +4,7 @@
 
 use std::sync::Arc;
 
-use giac_poly::{derivative_wrt, scalar_coeff_wrt, PolyCoeff, Var};
+use giac_poly::{derivative_wrt, scalar_coeff_wrt, Poly, PolyCoeff, Var};
 use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::Zero;
@@ -17,9 +17,10 @@ use super::field_arith::coords_to_expr;
 use super::field_session::{is_negative_rational, FieldSession};
 use super::poly::PolyAlgExt;
 use super::poly_alg_coeff::AlgExtCPolyCoeff;
+use super::poly::poly_algext_from_poly;
 use super::poly_alg_ops::{
-    div_rem_wrt_algext, ensure_common_field_for_polys, normalize_algext_poly,
-    square_free_part_wrt_algext,
+    div_rem_wrt_algext, ensure_common_field_for_polys, infer_ambient_field,
+    normalize_algext_poly, square_free_part_wrt_algext,
 };
 
 /// **Stable** — classical Sturm chain in K[var]: P₀ = sqff(p), P₁ = P₀′, Pᵢ₊₁ = −rem(Pᵢ₋₁, Pᵢ).
@@ -82,6 +83,19 @@ pub fn sturmab_count_wrt_algext(
     };
     let vb = sturm_sign_variations_at_algext(session, &seq, var, &b_eval)?;
     Ok(va.saturating_sub(vb))
+}
+
+/// **Stable** — `sturmab_count_wrt_algext` for ℚ[var] via `poly_algext_from_poly` lift.
+pub fn sturmab_count_rational_poly(
+    p: &Poly,
+    var: &Var,
+    a: &Ratio<BigInt>,
+    b: &Ratio<BigInt>,
+) -> Result<usize, EvalError> {
+    let p = poly_algext_from_poly(p)?;
+    let field = infer_ambient_field(&p)?;
+    let session = FieldSession::new(field);
+    sturmab_count_wrt_algext(&session, &p, var, a, b)
 }
 
 // **Pipeline private** — Horner evaluation at x ∈ ℚ ⊂ L.

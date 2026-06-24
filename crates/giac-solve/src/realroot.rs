@@ -4,11 +4,11 @@
 use std::sync::Arc;
 
 use giac_core::{
-    canonicalize_to_algext_c, eval, expr_to_poly, ident_from_expr, poly_to_expr, Context,
-    EvalError, Expr, ExprArc,
+    canonicalize_to_algext_c, eval, expr_to_poly, ident_from_expr, poly_to_expr,
+    sturmab_count_rational_poly, Context, EvalError, Expr, ExprArc,
 };
 use giac_poly::{
-    coeff_at, factor_into, square_free_factorization, sturmab_count, univariate_degree, Poly, Var,
+    coeff_at, factor_into, square_free_factorization, univariate_degree, Poly, Var,
 };
 use num_bigint::BigInt;
 use num_rational::Ratio;
@@ -115,7 +115,7 @@ fn real_algebraic_roots(
     let rs = solve_irreducible_factor(factor, var, ctx)?;
     let bound = Ratio::from_integer(BigInt::from(1_000_000));
     let neg_bound = -bound.clone();
-    let real_count = sturmab_count(factor, var, &neg_bound, &bound)?;
+    let real_count = sturmab_count_rational_poly(factor, var, &neg_bound, &bound)?;
     if real_count == 0 {
         return Ok(vec![]);
     }

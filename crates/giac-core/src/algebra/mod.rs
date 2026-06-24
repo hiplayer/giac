@@ -17,6 +17,7 @@ pub mod poly_conv;
 pub mod poly_alg_factor;
 pub mod poly_alg_partfrac;
 pub mod poly_alg_ops;
+pub mod poly_alg_resultant;
 pub mod poly_alg_sturm;
 pub mod poly_roots;
 
