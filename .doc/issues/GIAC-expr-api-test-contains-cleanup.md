@@ -317,7 +317,7 @@ P3  长尾
 | **B-EXPAND-BINOM** | `expand` 未展开 `(sin(x)+1)²` | `expand_binomial_fallback_semantic` | `expand_binomial_fallback_for_non_poly` | `giac-simplify/expand.rs` |
 | **B-RATNORM** | `ratnormal` 未约分 `2/4→1/2` | `ratnormal_reduces_common_factor_semantic` | `ratnormal_reduces_common_factor` | `giac-simplify/ratnormal.rs` |
 | **B-TEQUIV** | `texpand` 输出与恒等式 `assert_equiv` 未接通 | `texpand_cos_sum_semantic` | `texpand_cos_sum` | `giac-simplify/trig.rs` |
-| **B-FACTOR-ALGEXT** | `expand(factor(x²-2))` 未 `assert_equiv` 原式 | `eval_factor_x_squared_minus_two_factorization` | `eval_factor_x_squared_minus_two_rootof` | `giac-simplify/plugin.rs` |
+| **B-FACTOR-ALGEXT** | `expand(factor(x²-2))` 经 `assert_equiv` 重组（solve/扩域路径，非通用 factor 形态） | `eval_factor_x_squared_minus_two_factorization` | —（`factor(x²-2)` 保持 `x²-2` 已由 `eval_factor_x_squared_minus_two_irreducible` 验收） | `giac-simplify/plugin.rs` |
 | **B-PARTFRAC** | 分项乘回分母未化简为 `1` | `eval_partfrac_direct_recomposes`, `eval_partfrac_mixed_recomposes` | `eval_partfrac_direct`, `eval_partfrac_mixed_linear_quadratic` | `giac-core/eval_poly_tests.rs` |
 | **B-EGCD** | `a*u+b*v≠g`（Bézout 系数缩放） | `eval_egcd_bezout_identity` | `eval_egcd_abcuv` 内 egcd golden+divides 块 | `giac-core/eval_poly_tests.rs` |
 | **B-MUL-FMT** | `(1+i)*x` 与 `x+x*i` 未 `assert_equiv` | `eval_mul_mixed_complex_symbolic_equiv` | `eval_mul_mixed_complex_symbolic` | `giac-core/eval.rs` |
@@ -325,6 +325,18 @@ P3  长尾
 | **B-MRV** | `exp(-x)` 换元含 `ln(exp(-x))` 而非 `ln(w)` | `mrv_exp_neg_x_substitutes_ln_w` | `mrv_exp_neg_x` | `calculus/limit_engine/mrv.rs` |
 
 **解除路径：** B-T3 → `diff` 补 ln/atan 链；B-LIN → `normal`/`assert_equiv` 有理和归零；B-ODE → `diff` 识别积分常数 + `normal` 残差；B-ODE-NORM/B-MUL-FMT/B-ARG/B-TEQUIV → `assert_equiv`/`normal` 规范形；B-PARTFRAC/B-FACTOR-ALGEXT → 重组或 expand 化简；B-EGCD → egcd 返回规范 Bézout；B-MRV → MRV 换元消除外层 `ln(exp(·))`；B-RATNORM/B-EXPAND-BINOM → 对应化简路径。
+
+### 8.1 L1 conformance 阻塞（`L1-*`）
+
+**与 §8 `B-*` 区分：** `B-*` 管 crate 内 A/B 语义测；`L1-*` 管 `giac_check_*` / SymPy 属性门禁（见 [conformance-testing.md §3.6](../conformance-testing.md#36-l1-失败处理须人工确认)）。
+
+**解除：** 去 `#[ignore]` → L1 绿 → **删** 配对 `smoke-until` → 删本表行。**禁止** 为绿而改 `sympy_verify.py` 属性逻辑（除非契约文档已修订且人工确认）。
+
+| ID | 阻塞 | `#[ignore]` L1 测 | smoke-until（修复后删） | 契约章节 |
+|----|------|-------------------|-------------------------|----------|
+| *(暂无活跃项 — 2026-06 factor L1 全绿)* | | | | [giac-simplify §5.1](../giac-simplify-api-stability.md#51-factorexpr--io-契约normative) |
+
+**新增 L1 阻塞时：** 填 ID（`L1-<命令>-<简述>`）、原因、ignore 测名、smoke 测名、`delete when` 目标、契约章节链接。
 
 ---
 

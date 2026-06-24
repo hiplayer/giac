@@ -42,3 +42,7 @@ cargo test -p giac-calculus foo       # 调试子集可用裸 cargo test
 1. `cargo test-timeout` 全绿  
 2. `cargo ci-clippy` 全绿  
 3. golden 全绿 **或** 偏离已登记并验证
+
+## L1 失败（须人工确认）
+
+Conformance SymPy 属性测（`giac_check_*`）失败时：**不得**为绿 CI 改 `sympy_verify.py` 或删用例。先查因 → 能修则改实现（PR 引用 [契约表](.doc/conformance-testing.md#35-命令-io-契约l1-normative)）→ 暂不能修则 `#[ignore = "L1-*"]` + `smoke-until` + [§8.1 登记](.doc/issues/GIAC-expr-api-test-contains-cleanup.md#81-l1-conformance-阻塞l1-)。详见 [conformance-testing.md §3.6](.doc/conformance-testing.md#36-l1-失败处理须人工确认)。

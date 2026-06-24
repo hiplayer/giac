@@ -105,7 +105,68 @@ pub fn assert_equiv(a: &Expr, b: &Expr, ctx: &Context) -> Result<bool, EvalError
 | `factor` | 展开乘积等于原式 |
 | `normal` / 化简 | 默认 `assert_equiv` |
 
-### 3.5 Conformance 集成
+### 3.5 命令 I/O 契约（L1 normative）
+
+L1 的**数学属性**见 §3.4；**输入/输出形态**写在各 crate 的 `*-api-stability.md`（[algorithm-expr-api.md §4](algorithm-expr-api.md#4-各-crate-规范入口索引) 索引）。
+
+| 命令族 | 契约章节 | Conformance 门禁 | L1 属性（不可改脚本弱化） |
+|--------|----------|------------------|---------------------------|
+| `factor` | [giac-simplify-api-stability.md §5.1](giac-simplify-api-stability.md#51-factorexpr--io-契约normative) | `giac_check_factor` | `expand(factor(p)) ≡ expand(p)`；因子 ∈ ℚ[…] |
+| `integrate` / `int` | `giac-calculus-api-stability.md` | `giac_check_integrate` | 微分还原 / `assert_equiv` |
+| `limit` | `limit-engine-expr-api.md` | `giac_check_limit` | 极限值属性 |
+| `solve` / `roots` | `giac-solve-api-stability.md` | `test_solve` 等 | 解代入原方程 |
+| `normal` / `expand` | `giac-simplify-api-stability.md` | `giac_check_cas` 等 | `assert_equiv` |
+
+**动到某命令的实现时，PR 描述须引用上表对应契约章节**（或新建的 `*-expr-api.md`）。
+
+**禁止为让 L1 绿而修改：**
+
+- `tests/conformance/scripts/sympy_verify.py` 中该命令的 `verify_property` / 属性判定
+- 把 L1 改成弱断言（子串 `contains`、非空输出、删 failing 用例）
+
+改 L1 定义本身：先改契约文档 → 人工确认与 giac 语义一致 → 再改脚本/测试。
+
+### 3.6 L1 失败处理（须人工确认）
+
+Conformance L1（SymPy 属性 / `giac_check_*` 逐行测）失败时，**不得**为求 CI 绿而直接改功能实现或弱化门禁。流程：
+
+```text
+1. 查因 — 对照 §3.5 契约章节 + 上游 golden（check/*.out）+ 必要时 giac C++（module-division.md）
+2. 能修且符合契约 — 改实现；PR 引用契约章节；跑对应 giac_check_* 全量
+3. 短期不能修 — 双轨（见 [test-writing-spec.md §8](test-writing-spec.md#8-l1-conformance-失败须人工确认)），须登记
+4. 改 L1 规格 — 仅人工确认后：先改契约文档，再改 sympy_verify / 测试
+```
+
+**双轨（L1 专用）：**
+
+| 轨道 | 做法 | CI |
+|------|------|-----|
+| **目标 L1** | 原 `factor_sympy_line_XX` 等加 `#[ignore = "L1-*: 原因"]` | 默认跳过 |
+| **smoke-until** | 保留或新增弱测（非空、结构、crate 内 A 层）；注释 `smoke-until L1-*: delete when …` | 默认须绿 |
+| **登记** | [GIAC-expr-api-test-contains-cleanup.md §8 L1 表](issues/GIAC-expr-api-test-contains-cleanup.md#81-l1-conformance-阻塞l1-) | 必做 |
+
+示例（conformance 单条 L1）：
+
+```rust
+// smoke-until L1-FACTOR-15: delete when `factor_sympy_line_15` green
+#[test]
+fn factor_smoke_line_15_non_empty() {
+    let out = giac_conformance::run_line("factor((x^2-3*x+1)*(x^2+x+1))").unwrap();
+    assert!(!out.is_empty());
+}
+
+#[test]
+#[ignore = "L1-FACTOR-15: stack overflow in factor_poly_form / FieldSession Δ<0"]
+fn factor_sympy_line_15() -> Result<(), String> {
+    giac_conformance::assert_factor_line_sympy(15)
+}
+```
+
+解除：`#[ignore]` 去掉 → L1 绿 → **删除** smoke-until → 删 §8 L1 行。
+
+本地验 L1：`cargo nextest run --release -p giac-conformance --test giac_check_factor factor_sympy_line_15`；验 ignore 目标：`cargo test -p giac-conformance --test giac_check_factor -- --ignored factor_sympy_line_15`。
+
+### 3.7 Conformance 集成
 
 ```rust
 enum CheckOutcome {

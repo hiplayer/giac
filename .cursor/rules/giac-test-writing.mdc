@@ -39,7 +39,7 @@ fn desolve_harmonic_satisfies_ode() {
 ```
 
 1. smoke 标 `smoke-until B-*: delete when \`semantic_fn\` green`
-2. 另起 `#[ignore = "B-*: …"]` 测，函数体写**最终想要的** A/B 断言
+2. 另起 `#[ignore = "B-*|L1-*: …"]` 测，函数体写**最终想要的** A/B 或 L1 断言
 3. 在 cleanup issue **§8** 增一行；本地验：`cargo test -- --ignored semantic_fn`
 4. 解除阻塞：去 `ignore` → 语义测绿 → **删** smoke-until → 删 §8 行
 
@@ -50,6 +50,22 @@ fn desolve_harmonic_satisfies_ode() {
 | smoke 长期当验收 | smoke 待删；PR 不以 smoke 绿当语义通过 |
 
 **不算语义 contains：** `Vec::contains`、lexer token、`expr_contains_*` 谓词、C 层完整 golden。
+
+## L1 conformance（`giac_check_*`）
+
+**完整流程：** [conformance-testing.md §3.6](../../.doc/conformance-testing.md#36-l1-失败处理须人工确认)、[test-writing-spec §8](../../.doc/test-writing-spec.md#8-l1-conformance-失败须人工确认)
+
+| 步骤 | 要求 |
+|------|------|
+| 查因 | 对照契约章节 + 上游 `check/*.out`；**禁止**先改功能「碰运气」 |
+| 能修 | 改实现；PR 引用契约；跑全量 `giac_check_*` |
+| 暂不能修 | `#[ignore = "L1-*: 原因"]` + `smoke-until L1-*` + [§8.1 L1 表](../../.doc/issues/GIAC-expr-api-test-contains-cleanup.md#81-l1-conformance-阻塞l1-) |
+| 改 L1 规格 | **仅人工确认**后：先改 `*-api-stability.md`，再改 `sympy_verify.py` |
+
+| ❌ | ✅ |
+|----|-----|
+| 弱化 `sympy_verify` 让 CI 绿 | ignore + smoke-until + 登记 |
+| smoke 当 L1 验收 | `cargo nextest run --release -p giac-conformance --test giac_check_*` |
 
 ## PR 自检
 

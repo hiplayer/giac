@@ -72,8 +72,9 @@
 | `ratnormal_algext` | `ratnormal.rs` | **shim** | [GIAC-algext-adoption](issues/GIAC-algext-adoption.md) A-03：`ext_reduce` 有理化 |
 | `canonical_radical` | `equiv.rs` | **drift_*** | 迁入 crate 级 `canonical_radical` 或 `normal` 吸收 `1/sqrt(n)↔sqrt(n)/n` |
 | `inv_sqrt_to_mul` | `equiv.rs` | **drift_*** | 同上 |
-| `try_factor_quadratic_rootof` | `factor.rs` | **Partial 内部** | 二次无理 → `rootof`；非通用 factor |
 | `try_factor_quadratic_sqrt` | `factor.rs` | **Partial 内部** | `ctx.with_sqrt` 下二次 sqrt 分解 |
+
+**已退役（2026-06）：** `try_factor_via_algext` / `try_factor_quadratic_rootof` 不得再接回 `factor()` 主路径；扩域线性分解见 `solve` / `factor_into_algext`（非通用 `factor` 展示）。
 
 **禁止:** 在 `giac-calculus` / `limit_engine` 复制上述 drift 逻辑；应调用 `assert_equiv` 或扩展 owning 模块稳定 API。
 
@@ -85,8 +86,24 @@
 |--------|-------------------|------|
 | `giac-calculus::limit_engine` | `ratnormal`, `normal`, `expand`（间接） | limit 前勿 `expand(Full)` 破坏 exp 差分形 |
 | `giac-calculus::integrate` | `expand` | |
-| `giac-conformance` | `assert_equiv` | |
-| `giac-simplify::factor` | `giac-poly::factor_into` | poly 失败 → 二次/ rootof 临时路径 |
+| `giac-conformance` | `assert_equiv` | L1 属性见 [conformance-testing.md §3.5](conformance-testing.md#35-命令-io-契约l1-normative) |
+| `giac-simplify::factor` | `giac-poly::factor_into` | ℚ 上不可约因子保持多项式形；见 §5.1 |
+
+### 5.1 `factor(expr)` — I/O 契约（normative）
+
+| 字段 | 内容 |
+|------|------|
+| **Context** | `xcas_default()`（含 simplify plugin） |
+| **输入** | 有理系数多项式 `Expr`；允许未展开 `Mul`/`Pow`；无 `AlgExt` 系数（有则 `factor_algext_form`） |
+| **输出（数学）** | `expand(out) ≡ expand(in)`（与 [sympy_verify `factor`](../../giac-rs/tests/conformance/scripts/sympy_verify.py) 一致） |
+| **输出（形态）** | 因子为 **ℚ[x₁,…,xₙ]** 中多项式；ℚ 上不可约则 **保留不可约因子** |
+| **禁止** | 通用 `factor` 默认路径输出 `rootof` 线性因子；栈溢出 / UB |
+| **L1 门禁** | `cargo nextest run --release -p giac-conformance --test giac_check_factor`（**不可**为绿而弱化 `sympy_verify.py`） |
+| **L2 参考** | `giac-2.0.0/check/testfactor` + `factor.out`（字面参考；与 L1 冲突时 L1 + [known-divergences.md](known-divergences.md)） |
+| **上游 C++** | `ezgcd.cc` / `gausspol.cc`（ℚ 分解；非 `ext_factor` 展示路径） |
+| **边界** | `rootof` / 扩域分裂 → `solve`、`roots`、`factor_into_algext`（单独契约） |
+
+**动 `factor` 实现：** PR 须引用本节；L1 失败见 [conformance-testing.md §3.6](conformance-testing.md#36-l1-失败处理须人工确认)。
 
 ---
 
@@ -171,7 +188,7 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `factor_expr` | **Pipeline private** | recursive factor on Mul/Pow/Frac |
 | `flatten_mul` | **Pipeline private** | flatten Mul to factor vec |
 | `factor_poly_form` | **Pipeline private** | normal→poly→factor_into chain |
-| `try_factor_quadratic_rootof` | **Temporary** | Partial internal: quadratic → rootof when discriminant non-square. |
+| `factor_algext_form` | **Pipeline private** | 含 AlgExt 系数时的 factor 路径 |
 | `try_factor_quadratic_sqrt` | **Temporary** | Partial internal: `ctx.with_sqrt` quadratic sqrt factors. |
 
 ### `ifactor.rs`
@@ -203,7 +220,7 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `eval_normal_via_plugin` | **Pipeline private** | `eval_normal_via_plugin` |
 | `eval_expand_binomial_via_plugin` | **Pipeline private** | `eval_expand_binomial_via_plugin` |
 | `eval_factor_via_plugin` | **Pipeline private** | `eval_factor_via_plugin` |
-| `eval_factor_x_squared_minus_two_rootof` | **Pipeline private** | `eval_factor_x_squared_minus_two_rootof` |
+| `eval_factor_x_squared_minus_two_irreducible` | **Pipeline private** | `factor(x²-2)` stays irreducible over ℚ |
 
 ### `ratnormal.rs`
 

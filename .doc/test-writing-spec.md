@@ -192,7 +192,7 @@ fn desolve_harmonic_satisfies_ode() {
 
 约定：
 
-- `ignore` 字符串 **必须以 `B-` 或审计 ID（如 `T3`）开头**，附一句缺口说明。
+- `ignore` 字符串 **必须以 `B-`、`L1-` 或审计 ID（如 `T3`）开头**，附一句缺口说明。
 - 函数体写 **最终想要的** A/B 断言，不要用当前偶然输出。
 - 默认 `cargo test` **不跑**；解除阻塞后：去 `ignore` → 全绿 → 删对应 smoke-until → 更新 §8 表。
 
@@ -232,10 +232,47 @@ fn desolve_harmonic_satisfies_ode() {
 - [ ] 若语义断言暂不可绿：**smoke-until** + **`#[ignore]` 语义测** + [§8 阻塞表](issues/GIAC-expr-api-test-contains-cleanup.md#8-已知阻塞ignore-登记) 已登记（§6）
 - [ ] 无新增 `format_expr` / `assert!` 的 **语义** `contains`
 - [ ] `cargo test-timeout -p <crate>` 全绿（`#[ignore]` 除外）
+- [ ] 动 eval 命令时已引用 [conformance-testing.md §3.5](conformance-testing.md#35-命令-io-契约l1-normative) 契约节；L1 双轨见 [§8](#8-l1-conformance-失败须人工确认)
 
 ---
 
-## 8. 参考
+## 8. L1 conformance 失败（须人工确认）
+
+与 [conformance-testing.md §3.5–§3.6](conformance-testing.md#35-命令-io-契约l1-normative) 配套：crate 内 A/B 双轨（§6）管 **单元测**；本节管 **`giac_check_*` / SymPy 属性门禁**。
+
+### 8.1 原则
+
+| 允许 | 禁止 |
+|------|------|
+| 对照契约章节查因、修实现 | 为绿 CI 弱化 `sympy_verify.py` 属性判定 |
+| `#[ignore = "L1-*: …"]` 挂起 **整条 L1** | 删除 failing 的 `factor_sympy_line_*` 等 |
+| `smoke-until L1-*` 弱测维持默认 CI | 用 smoke 冒充 L1 已验收 |
+| 人工确认后修订契约文档再改 L1 定义 | 未确认就改功能「迁就」测试 |
+
+**动实现前：** PR 须引用该命令在 `*-api-stability.md`（或 `*-expr-api.md`）的 I/O 契约节。
+
+### 8.2 双轨（L1）
+
+```text
+目标 L1     →  #[ignore = "L1-FACTOR-15: …"]  原 assert_factor_line_sympy / sympy 行测
+临时 smoke  →  smoke-until L1-FACTOR-15: delete when `factor_sympy_line_15` green
+登记        →  GIAC-expr-api-test-contains-cleanup.md §8.1
+```
+
+- **L1 ID 格式：** `L1-<命令>-<简述>` 或 `L1-<CHECK>-<行号>`（如 `L1-FACTOR-15`）。
+- smoke 仅记录「当前不崩 / 有输出 / 结构」；**不得**替代 `expand(factor(p))=expand(p)` 等属性。
+- 解除：去 `ignore` → L1 绿 → **删** smoke-until → 删 §8.1 行。
+
+### 8.3 PR 自检（动到 eval 命令时）
+
+- [ ] 已引用契约章节（conformance-testing §3.5 表）
+- [ ] 若 L1 暂红：`#[ignore]` + `smoke-until` + §8.1 已登记
+- [ ] 未改 `sympy_verify.py` 属性逻辑（除非契约文档已先改且人工确认）
+- [ ] `cargo nextest run --release -p giac-conformance --test giac_check_<域>` 对应该域全跑
+
+---
+
+## 9. 参考
 
 - [conformance-testing.md](conformance-testing.md) §3 `assert_equiv`、check golden
 - [algorithm-expr-api.md](algorithm-expr-api.md) §3 稳定 API 契约模板
