@@ -239,6 +239,32 @@ Rust 实现与 giac C++ golden **字面不一致**但可能数学等价，或 **
 
 ---
 
+### DIV-084: partfrac disc>0 经 K 分裂（`rootof` 分母 vs giac 有理式）
+
+- **状态:** accepted
+- **输入:** `partfrac(1/(x^2-2),x)`；`partfrac(x/(x^2-2),x)`；`integrate(1/(x^2-2),x)` / `integrate(x/(x^2-2),x)`
+- **giac 输出:** 一次分母项，系数/分母可能为 `rootof` 或 `sqrt(2)` 形
+- **Rust 输出:** `partfrac_rational_terms_over_k` → 两项线性分母 `AlgExt`；`expand(partfrac(f,x)) ≡ f`（`assert_equiv`）
+- **归类:** 等价不同形
+- **理由:** ℚ `partfrac` 对 disc>0 不可约二次返回 `NotImplemented` 或单项式二次残留；K 上 `factor_univariate_over_k` 分裂后求留数
+- **验证:** `partfrac_k_route` + `poly_alg_partfrac` B 测；integrate 结构测（`diff` 对 `ln(rootof)` 链待 B-T3）
+- **测试处理:** 无字面 golden；`assert_equiv` 重组；见 [GIAC-poly-algext-backlog](issues/GIAC-poly-algext-backlog.md) P4-2/P4-3
+
+---
+
+### DIV-085: `factor(x^2-2)` 在 ℚ 上保持不可约（eval 路径）
+
+- **状态:** accepted
+- **输入:** `factor(x^2-2)`；`eval(factor(x^2-2))`
+- **giac 输出:** 可能分裂为 `(x-sqrt(2))*(x+sqrt(2))` 或 `rootof` 线性因子
+- **Rust 输出:** `eval_factor` 在 **ℚ** 上返回 `x^2-2`；K 分裂经 `factor_into_algext` / solve / partfrac 路径
+- **归类:** 真语义分歧（有意）
+- **理由:** 不在 `Poly<ℚ>` eval 上隐式扩域；与 [GIAC-expr-api-test-contains-cleanup](issues/GIAC-expr-api-test-contains-cleanup.md) **B-FACTOR-ALGEXT** 一致
+- **验证:** `eval_factor_x_squared_minus_two_irreducible`；solve `factor_into_algext` 乘积还原
+- **测试处理:** `B-FACTOR-ALGEXT` ignored 语义测；不追 eval factor 字面分裂
+
+---
+
 ## 维护规则
 
 1. conformance 失败时先归类，再决定修 Rust / 更新 golden / 记本条。

@@ -2,16 +2,16 @@
 
 **状态:** open  
 **类型:** 索引 / AFK  
-**相关:** [GIAC-algext-adoption](GIAC-algext-adoption.md) §8、[GIAC-poly-algext-gcd-factor-priority](GIAC-poly-algext-gcd-factor-priority.md)（**P3-1…P3-3 实施顺序**）、[GIAC-poly-p0-backlog](GIAC-poly-p0-backlog.md) §2 partfrac、[GIAC-poly-nested-ring-types](GIAC-poly-nested-ring-types.md)、[giac-poly-api-stability.md](../giac-poly-api-stability.md)  
+**相关:** [GIAC-algext-adoption](GIAC-algext-adoption.md) §8、[GIAC-poly-algext-gcd-factor-priority](../issues_resolved/GIAC-poly-algext-gcd-factor-priority.md)（T0–T3 ✅）、[GIAC-poly-p3-6-quartic-roots-gaps](GIAC-poly-p3-6-quartic-roots-gaps.md)、[GIAC-poly-p0-backlog](GIAC-poly-p0-backlog.md) §2 partfrac、[GIAC-poly-nested-ring-types](GIAC-poly-nested-ring-types.md)、[giac-poly-api-stability.md](../giac-poly-api-stability.md)  
 **上游参考:** `giac/giac-1.5.0/src/alg_ext.cc`、`gausspol.cc` `algext_convert`、`_EXT` 系数多项式  
 **Rust 落点:** `giac-core::algebra::{alg_ext, ext_tower, alg_ext_c}` → `giac-poly::Poly<AlgExtC>`  
-**快照:** 2026-06-19
+**快照:** 2026-06-24（**复审** 2026-06-24：T0–T3、P3-6 DoD、solve S0 已落地）
 
 ---
 
 ## 1. 问题陈述
 
-`giac-poly` 当前系数环固定为 **ℚ**（`Poly { terms: BTreeMap<Monomial, Ratio<BigInt>> }`），**零** `AlgExt` / `AlgExtC` 引用。下列能力无法在 ℚ 上完成：
+`giac-poly` 主路径仍为 **`Poly<ℚ>`**（`type PolyQ = Poly<Ratio<BigInt>>`）；**`Poly<AlgExtC>`** 表示层与 K 上 gcd/factor/roots 已接入（P1 + T0–T3）。下列能力仍无法在纯 ℚ 上完成，须扩域闭环：
 
 | 缺口 | 例 | 为何需要扩域 |
 |------|-----|--------------|
@@ -44,23 +44,65 @@ giac-poly 表示层（PolyCoeff + Poly<C> + Expr 桥接）
 | 组件 | 状态 |
 |------|------|
 | `AlgExtData` + 同域 `+−×` | ✅ giac-core Phase A |
-| `AlgExtC` / `ExtensionTower::common` | ✅ giac-core P0-A/B（塔 T4a 默认） |
-| `Poly<AlgExtC>` | ✅ P1-1/2/4 骨架 + Expr 桥 |
-| partfrac deg≤3 不可约（ℚ） | ✅ `partfrac_cubic_irreducible_denominator` |
-| partfrac disc>0 二次分裂 | ❌ `NotImplemented("partfrac real quadratic split")` |
-| solve 二次/双二次 `rootof` 特判 | ✅ 过渡态（giac-solve，待迁入 poly） |
-| `field_arith` ↔ `giac-poly` 稠密 poly1 重复 | ☐ 见 [GIAC-dense-poly1-refactor](GIAC-dense-poly1-refactor.md)（D1–D4，T3+ 前建议 D3） |
+| `AlgExtC` / `ExtensionTower::common` | ✅ P0-A/B（塔 T4a 默认） |
+| `Poly<AlgExtC>` 表示 + Expr 桥 | ✅ P1-1…P1-5 |
+| K 上 gcd / factor / sqff | ✅ P3-1…P3-3（[gcd-factor-priority](../issues_resolved/GIAC-poly-algext-gcd-factor-priority.md) T0–T3） |
+| `poly_algext_roots` deg≤4 | ✅ P2-1/2/6、**P3-6 DoD**（[p3-6 gaps](GIAC-poly-p3-6-quartic-roots-gaps.md)） |
+| solve / froot 统一管线 | ✅ P4-1/4/6/7（S0；`rootof.rs` 仅测试/参考） |
+| partfrac deg≤3 不可约（ℚ） | ✅ |
+| partfrac disc>0 二次分裂 | **算法 ✅** + **接线 ✅**（常数/非常数分子）；DIV-084 |
+| `∫` 有理 partfrac K 回落 | **✅** P4-3（结构测；`diff(ln rootof)` → B-T3） |
+| `field_arith` ↔ `giac-poly` 稠密 poly1 重复 | ☐ [GIAC-dense-poly1-refactor](GIAC-dense-poly1-refactor.md) D1–D4 |
+
+### 2.1 任务优先级（AFK）
+
+**已完成（本 issue 主体）：** P0-A…D、P1-1…5、P2-1…6、P3-1…3、P3-6（DoD）、P3-7、P4-1/4/6/7。详见各 Phase 表 ✅ 列。
+
+| 优先级 | ID | 任务 | 依赖 | 验收 | 估时 |
+|:--:|:---:|------|------|------|:--:|
+| **P0** | **P4-2** | `eval_partfrac` K 路由：**非常数分子**（如 `x/(x²−2)`） | P2-3/4 ✅ | `expand(partfrac(f,x))≡f`；`partfrac_k_route` 扩例 | ✅ |
+| **P0** | **P4-3** | `integrate` 消费上项 partfrac 项 | P4-2 | `∫x/(x²−2)dx` 结构绿；C-02 / `diff` 链待 B-T3 | ✅ |
+| **P1** | **P4-5** | `known-divergences` + 同步 [p0-backlog](GIAC-poly-p0-backlog.md) / 本 issue | — | DIV-084/085；partfrac disc>0 追踪 | ✅ |
+| **P2** | **F5** | 结构开方 API（`ext_tower` 通用开方收尾） | P3-6 ✅ | [F1-F5](GIAC-poly-quartic-roots-F1-F5.md) §F5 S0–S6 | ✅ S0–S6；F5.5 api-stability 薄化 ⬜ |
+| **P2** | **F4′** | Galois σ(κ)：避免四次多余 adjoin | F5 语义稳定 | 维数/塔审计；**不**绑未证 `d_L=12` | 1–2w |
+| **P3** | **D3** | 稠密 `poly1` 抽象（`field_arith` 收敛） | — | [dense-poly1](GIAC-dense-poly1-refactor.md) D3 门禁 | 1–2w |
+| **P4** | **P3-4** | `resultant` / `sturm` over `Poly<AlgExt>`；`realroot` 区间 | P3-1 ✅ | `realroot(x²−2)`；扩 S6 全 Sturm 隔离 | 2–3w |
+| **P5** | **S7** | `fsolve` 数值互补 | P4-6 ✅ | solve 管线；不替代 `rootof` | 按需 |
+| **长期** | **P3-5** | 嵌套环 `Poly<AlgExtC>[main]` | P1-3、FAC | [nested-ring-types](GIAC-poly-nested-ring-types.md) | M4 |
+
+**明确不做（保持登记，勿重开）：**
+
+| 项 | 理由 |
+|----|------|
+| `Poly<AlgExtC>` 上 Hensel / sparse_bi / unitaryfactor | 上游 `_EXT` 亦不走（§6） |
+| 通用五次及以上根式闭式 | Abel–Ruffini；deg≥5 不可约 → `rootof(α)` 一支 |
+| `eval(factor(x²−2))` 在 ℚ 上分裂 | 有意偏离 `B-FACTOR-ALGEXT`；K 分裂经 `factor_into_algext` / solve |
+| 删 `rootof.rs` 文件 | 非阻塞；生产已走 S0，保留测试/参考 |
+
+**推荐抓取顺序：** P4-2 → P4-3 → P4-5 → F5 → F4′ → D3 → P3-4。
+
+```text
+P4-2/3  partfrac 收尾（M2 关门）
+    ↓
+P4-5    文档同步
+    ↓
+F5→F4′  四次塔优化（非阻塞主路径）
+    ↓
+D3      稠密 poly1（T3+ 前）
+    ↓
+P3-4    sturm/realroot over K（M4）
+```
 
 ---
 
 ## 3. Phase 0 — 前置（giac-core，阻塞 giac-poly）
 
-| ID | 事项 | 说明 | 验收 | 阻塞 |
+| ID | 事项 | 说明 | 验收 | 状态 |
 |----|------|------|------|------|
-| **P0-A** | `AlgExtC` + `canonicalize`（B-06） | 复代数数一等类型；`Complex(0,AlgExt)` / `AlgExt` 统一 | `(i·√2)² = −2`；`canonicalize` 往返 | 一切 `Poly<AlgExtC>` |
-| **P0-B** | `ExtensionTower::common` 重构（B-05） | `AlgExtData.field` + 塔式/子域 common + cache | `(√2)+(∛2)` 同 compositum | ✅ [GIAC-lazy-common-tower-plan](GIAC-lazy-common-tower-plan.md) T4a/T4b |
-| **P0-C** | `expr_to_poly` / `poly_to_expr` 边界（B-01） | 含 `AlgExt`：**拒绝**；提升走 **`poly_alg_from_expr`**（stub，P1-4） | ✅ 契约见 [expr-poly-conversion.md](../expr-poly-conversion.md) |
-| **P0-D** | `AlgExt` 同域 `inv` / 跨域 `common`（A-01/A-02 收尾） | partfrac 线性方程组要求域内除法 | `1/rootof(√2)` 不 panic | partfrac / gcd |
+| **P0-A** | `AlgExtC` + `canonicalize`（B-06） | 复代数数一等类型；`Complex(0,AlgExt)` / `AlgExt` 统一 | `(i·√2)² = −2`；`canonicalize` 往返 | ✅ |
+| **P0-B** | `ExtensionTower::common` 重构（B-05） | `AlgExtData.field` + 塔式/子域 common + cache | `(√2)+(∛2)` 同 compositum | ✅ [T4a/T4b](GIAC-lazy-common-tower-plan.md) |
+| **P0-C** | `expr_to_poly` / `poly_to_expr` 边界（B-01） | 含 `AlgExt`：**拒绝**；提升走 **`poly_alg_from_expr`** | 契约见 [expr-poly-conversion.md](../expr-poly-conversion.md) | ✅ |
+| **P0-D** | `AlgExt` 同域 `inv` / 跨域 `common`（A-01/A-02 收尾） | partfrac 线性方程组要求域内除法 | `1/rootof(√2)` 不 panic | ✅ T0-1 |
 
 ---
 
@@ -78,41 +120,41 @@ giac-poly 表示层（PolyCoeff + Poly<C> + Expr 桥接）
 
 ## 5. Phase 2 — 最小算法切片（先解锁 conformance）
 
-| ID | 事项 | 上游对标 | 验收 | 解锁 |
-|----|------|----------|------|------|
-| **P2-1** | **`Poly<AlgExtC>::roots` 二次** | `gausspol` + `alg_ext` | `roots(x²−2,x)` → `[±√2]` 为 `AlgExtC` | giac-solve 去 `quadratic_rootof` 特判 |
-| **P2-2** | **`Poly<AlgExtC>::roots` 双二次** | 同上 | `t⁴−2=0` 四根 | 替代 `biquadratic_rootof_roots` |
-| **P2-3** | **partfrac：disc>0 实二次分裂** | `sym2poly` partfrac + `_EXT` | `partfrac(1/(x²−2),x)` → 两项一次分母 | **C-02** `∫1/(x²−2)dx` |
-| **P2-4** | **partfrac 线性方程组 over K** | 域内 `solve_linear_system` | 系数、右端 ∈ `AlgExtC`；同 `min_poly` 域内求解 | P2-3 |
-| **P2-5** | **`factor` 二次无理（ℚ 上不可约）** | `gausspol` `algext_convert` | `factor(x²−2)` → `(x−α)(x+α)` | 迁入 giac-simplify 临时钩子 |
-| **P2-6** | **`Poly<AlgExtC>::roots` 三次** | resolvent / `gausspol` | 一般三次 + `t³−2` 等；输出 `AlgExt(C)` | 四次 resolvent 子问题 |
+| ID | 事项 | 说明 | 验收 | 状态 |
+|----|------|------|------|------|
+| **P2-1** | **`Poly<AlgExtC>::roots` 二次** | `gausspol` + `alg_ext` | `roots(x²−2,x)` → `[±√2]` | ✅ `poly_algext_roots` |
+| **P2-2** | **`Poly<AlgExtC>::roots` 双二次** | 同上 | `t⁴−2=0` 四根 | ✅ |
+| **P2-3** | **partfrac：disc>0 实二次分裂** | `sym2poly` partfrac + `_EXT` | `partfrac(1/(x²−2),x)` 两项一次分母 | ✅ 算法；**接线** P4-2 Partial |
+| **P2-4** | **partfrac 线性方程组 over K** | 域内 `solve_linear_system` | 系数、右端 ∈ `AlgExtC` | ✅ T2-4 |
+| **P2-5** | **`factor` 二次无理（ℚ 上不可约）** | `gausspol` `algext_convert` | `factor(x²−2)` → `(x−α)(x+α)` | ✅ T1-3；删 `try_factor_quadratic_sqrt` |
+| **P2-6** | **`Poly<AlgExtC>::roots` 三次** | resolvent / `gausspol` | 一般三次 + `t³−2` 等 | ✅ |
 
-**推荐实施顺序：** P2-1 → P2-4 → P2-3 → P2-6 → P2-2 → P2-5。
+**原推荐顺序（已走完）：** P2-1 → P2-4 → P2-3 → P2-6 → P2-2 → P2-5。剩余见 §2.1 **P4-2/3**。
 
 ### partfrac 与 ℚ 路径的关系
 
 | 情形 | 需要 AlgExt？ | 状态 |
 |------|---------------|------|
 | `x/(x³+2)` 三次不可约 | 否 | ✅ deg≤3 sqff |
-| `1/(x²−2)` disc>0 | **是** | ❌ → **P2-3** |
+| `1/(x²−2)` disc>0 | **是** | ✅ 常数分子；**`x/(x²−2)`** → P4-2 |
 | 线性 / 重根 / disc≤0 二次 | 否 | ✅ |
-| sqff 因子 deg>3 不可约 | 否（单项式）/ 是（若需分裂） | 单项式 ✅；分裂待 P2 |
+| sqff 因子 deg>3 不可约 | 否（单项式）/ 是（若需分裂） | 单项式 ✅；高次分裂走 K factor（P3-3 ✅） |
 
 ---
 
 ## 6. Phase 3 — 核心多项式算法（B-02 终态）
 
-**实施顺序（T0→T3、上游 `gcd_ext`/`ext_factor` 对齐）：** [GIAC-poly-algext-gcd-factor-priority](GIAC-poly-algext-gcd-factor-priority.md)
+**实施顺序（T0→T3、上游 `gcd_ext`/`ext_factor` 对齐）：** [GIAC-poly-algext-gcd-factor-priority](../issues_resolved/GIAC-poly-algext-gcd-factor-priority.md) ✅
 
-| ID | 事项 | 说明 | 验收 |
-|----|------|------|------|
-| **P3-1** | **`gcd` / `quo` / `rem` over `Poly<AlgExtC>`** | 子结果式或模 gcd；同扩域 | `gcd(x²−2, x−√2)` |
-| **P3-2** | **`square_free` / `content` / `primitive_part`** | 一元 sqff 先于 factor | partfrac sqff 链在 K 上 |
-| **P3-3** | **`factor` 一元 over K** | 先二次/有理根子集，再 Zassenhaus 泛化 | `factor(x⁴−4)` |
-| **P3-4** | **`resultant` / `sturm` over `Poly<AlgExt>`** | 实代数 Sturm（B-04） | `realroot(x²−2)` 区间形式 |
-| **P3-5** | **嵌套环 `Poly<AlgExtC>[main]`** | `UnivariateIn<C>` 泛化；FAC 管线最后接 | 参系数 + 代数系数塔 — **长期** |
-| **P3-6** | **`Poly<AlgExtC>::roots` 通用四次** | resolvent cubic + K 上二次 split | `solve(t⁴+t+1=0,t)` 四根 `eq_mod` | **P2-6** + **P3-3** + 塔 **T3+**（\(u^2-\alpha\) adjoin）；实施顺序 **F1→F5** → [GIAC-poly-quartic-roots-F1-F5](GIAC-poly-quartic-roots-F1-F5.md) |
-| **P3-7** | **`factor` + 有理根降次（deg≥5 前置）** | `factor_into` / sqff 与 solve 共用 | `(x²+1)(x³−x+1)` 分解后递归 | 不实现通用五次根式 |
+| ID | 事项 | 说明 | 验收 | 状态 |
+|----|------|------|------|------|
+| **P3-1** | **`gcd` / `quo` / `rem` over `Poly<AlgExtC>`** | 子结果式或模 gcd；同扩域 | `gcd(x²−2, x−√2)` | ✅ T1-1 |
+| **P3-2** | **`square_free` / `content` / `primitive_part`** | 一元 sqff 先于 factor | partfrac sqff 链在 K 上 | ✅ T1-2 |
+| **P3-3** | **`factor` 一元 over K** | 一次/二次分裂/有理根/不可约 witness | `factor(x⁴−4)` | ✅ T2-1（Zassenhaus 子集 **不做**） |
+| **P3-4** | **`resultant` / `sturm` over `Poly<AlgExt>`** | 实代数 Sturm（B-04） | `realroot(x²−2)` 区间形式 | ☐ §2.1 P4 |
+| **P3-5** | **嵌套环 `Poly<AlgExtC>[main]`** | `UnivariateIn<C>` 泛化；FAC 管线最后接 | 参系数 + 代数系数塔 | ☐ 长期 |
+| **P3-6** | **`Poly<AlgExtC>::roots` 通用四次** | resolvent cubic + K 上二次 split | `solve(t⁴+t+1=0,t)` 四根 `eq_mod` | ✅ DoD；**F4′/F5** 优化见 §2.1 P2 |
+| **P3-7** | **`factor` + 有理根降次（deg≥5 前置）** | `factor_into` / sqff 与 solve 共用 | `(x²+1)(x³−x+1)` 五根 | ✅ T2-3 |
 
 **过渡期明确不做：** `Poly<AlgExtC>` 上的 Hensel / sparse_bi / unitaryfactor — 上游 `gausspol` 对 `_EXT` 系数也极受限。  
 **明确不做（数学）：** Abel–Ruffini — **无**「通用五次根式闭式」；deg≥5 走 §5.1 兜底策略。
@@ -121,21 +163,21 @@ giac-poly 表示层（PolyCoeff + Poly<C> + Expr 桥接）
 
 ## 7. Phase 4 — 跨 crate 接线
 
-| ID | 事项 | crate | 验收 |
-|----|------|-------|------|
-| **P4-1** | `giac-solve::roots` 改调 `Poly<AlgExtC>::roots` | giac-solve | 删 `rootof.rs` 二次/双二次特判 |
-| **P4-2** | `giac-core::eval_partfrac` 含 `AlgExt` 分支 | giac-core + giac-poly | `partfrac(1/(x²−2),x)` eval 绿 |
-| **P4-3** | `giac-calculus::integrate` 消费 AlgExt partfrac 项 | giac-calculus | C-02 全绿 |
-| **P4-4** | `giac-simplify::factor` 二次 `rootof` 迁入 `giac-poly` | giac-simplify | 删 `try_factor_quadratic_rootof` |
-| **P4-5** | 登记 `known-divergences`；更新本 issue 与 p0-backlog | 文档 | partfrac disc>0 有追踪 ID |
-| **P4-6** | **`solve` 统一管线：factor 降次 + 递归 `roots`** | giac-solve | `solve` 删 `rootof.rs` 形状表；deg≤4 → `Poly<AlgExtC>::roots`；deg≥5 不可约 → `rootof(α)` 一支 | **P4-1** + **P3-7** |
-| **P4-7** | **`froot` / `froots` 与 solve 共用因子根** | giac-solve | 与 P4-6 同 `roots` 内核；deg≤4 不再 `NotImplemented` | P4-6 |
+| ID | 事项 | crate | 验收 | 状态 |
+|----|------|-------|------|------|
+| **P4-1** | `giac-solve::roots` 改调 `Poly<AlgExtC>::roots` | giac-solve | 生产走 `poly_algext_roots_for_ctx` | ✅ S0 |
+| **P4-2** | `giac-core::eval_partfrac` 含 `AlgExt` 分支 | giac-core + giac-poly | `partfrac(1/(x²−2),x)`；`x/(x²−2)` eval 绿 | ✅ |
+| **P4-3** | `giac-calculus::integrate` 消费 AlgExt partfrac 项 | giac-calculus | `∫1/(x²−2)dx`；`∫x/(x²−2)dx` 结构绿 | ✅ |
+| **P4-4** | `giac-simplify::factor` 二次 `rootof` 迁入 `giac-poly` | giac-simplify | 删 `try_factor_quadratic_*` | ✅ |
+| **P4-5** | 登记 `known-divergences`；更新本 issue 与 p0-backlog | 文档 | DIV-084/085 | ✅ |
+| **P4-6** | **`solve` 统一管线：factor 降次 + 递归 `roots`** | giac-solve | deg≤4 → `poly_algext_roots`；deg≥5 → `rootof(α)` | ✅ S0 |
+| **P4-7** | **`froot` / `froots` 与 solve 共用因子根** | giac-solve | deg≤4 接 `solve_irreducible_factor` | ✅ S3 |
 
 ---
 
 ## 5.1 Solve 管线：四次与 deg≥5（normative）
 
-**原则：** 根的类型统一为 **`AlgExt` / `AlgExtC`**（经 `Poly<AlgExtC>::roots`），禁止 `giac_poly::roots` 返回 `Poly::constant(ℚ)` 与 `rootof.rs` 旁路长期并存。
+**原则：** 根的类型统一为 **`AlgExt` / `AlgExtC`**（经 `poly_algext_roots`）；生产 solve 已走 S0，**禁止**再增 `rootof.rs` 形状表或 `giac_poly::roots` 旁路。
 
 ### 分层策略
 
@@ -155,12 +197,12 @@ solve(P)   P ∈ Poly<ℚ>, 变元 t, deg n
 
 ### 四次（必做）
 
-| 子情形 | 依赖 | 说明 |
-|--------|------|------|
-| 二次、双二次 | P2-1、P2-2 | 替代 `quadratic_rootof_roots` / `biquadratic_rootof_roots` |
-| 三次 | P2-6 | 四次 resolvent 的内层；顺带交付 `solve(t³−2=0)` |
-| 一般四次（含奇次项） | P3-6 + **T3+** | 在 K 上 resolvent + split；**非** `rootof.rs` 新特判 |
-| factor 先降次 | P3-7、P4-6 | `(t²+1)(t²+2)` 等不应撞「未实现」 |
+| 子情形 | 依赖 | 说明 | 状态 |
+|--------|------|------|------|
+| 二次、双二次 | P2-1、P2-2 | 替代 `quadratic_rootof_roots` / `biquadratic_rootof_roots` | ✅ |
+| 三次 | P2-6 | 四次 resolvent 内层；`solve(t³−2=0)` | ✅ |
+| 一般四次（含奇次项） | P3-6 + **T3+** | K 上 resolvent + split | ✅ DoD；F4′ 优化 open |
+| factor 先降次 | P3-7、P4-6 | `(t²+1)(t²+2)` 等 | ✅ |
 
 ### 五次及更高（策略，非根式公式）
 
@@ -173,31 +215,31 @@ solve(P)   P ∈ Poly<ℚ>, 变元 t, deg n
 
 ### 与塔计划（[GIAC-lazy-common-tower-plan](GIAC-lazy-common-tower-plan.md) §11）的阻塞
 
-- **T1–T2：** solve 会话内子域嵌入；多根少 flatten common。
-- **T3：** 已登记塔顶 parent 系数 `element_*`（T1b 等）。
-- **T3+：** 四次一般式在 K 上 **register** \(u^2-\alpha\) adjoin；无 T3+ 则 P3-6 只能 flatten 特判或延期。
-- **S0：** 多根列表 `align` / `eq_mod` 不依赖 `embed_a` 调用顺序。
+- **T1–T2：** solve 会话内子域嵌入；多根少 flatten common。✅
+- **T3：** 塔顶 parent 系数 `element_*`（T1b 等）。✅
+- **T3+：** 四次一般式 register \(u^2-\alpha\) adjoin。✅ 主路径；**F4′** 减少多余 adjoin 仍 open。
+- **S0：** 多根列表 `align` / `eq_mod` 不依赖 `embed_a` 调用顺序。✅
 
 ### 四次基建完成后的自然增量
 
-统一 `roots` + P4-6 后，**同竖切**可接：partfrac 分裂（P2-3）、`factor` over K（P3-3）、`froot`（P4-7）、`egv` 特征多项式（charpoly deg≤4）、`sturm`/`realroot`（P3-4）。**不**另开 `giac-solve` 补丁线。
+统一 `roots` + P4-6 已落地；**待接竖切**见 §2.1：**P4-2/3**（partfrac）、**P3-4**（sturm/realroot）、**S7**（fsolve）。**不**另开 `giac-solve` 补丁线。
 
 ---
 
 ## 8. 里程碑
 
-| 里程碑 | 范围 | 交付 |
-|--------|------|------|
-| **M1**（2–3 周） | P0-A/C + P1-1…5 | `Poly<AlgExtC>` 骨架 + Expr 桥接 + 表示层文档 ✅ |
-| **M2**（1–2 周） | P2-1/4/3 | `partfrac(1/(x²−2))`；∫ 对接准备 |
-| **M3**（3–4 周） | P3-1/2/3/6 + P4-1/2/6 | factor/gcd；solve 去特判；**通用四次**（依赖 **T3+**） |
-| **M4**（长期） | P3-5/7 + P3-4 + P4-7 | 嵌套环；deg≥5 factor+rootof；sturm/realroot |
+| 里程碑 | 范围 | 交付 | 状态 |
+|--------|------|------|------|
+| **M1** | P0-A/C + P1-1…5 | `Poly<AlgExtC>` 骨架 + Expr 桥接 | ✅ |
+| **M2** | P2-1/4/3 + P4-2/3 | `partfrac(1/(x²−2))`；`x/(x²−2)`；∫ K 回落 | ✅ |
+| **M3** | P3-1/2/3/6 + P4-1/2/6 | factor/gcd；solve 统一；通用四次 | ✅ |
+| **M4** | P3-5 + P3-4 + S7 | 嵌套环；sturm/realroot；fsolve | ☐ |
 
 ```text
-M1  Poly<AlgExtC> 骨架
-M2  partfrac disc>0 + roots 二次/三次
-M3  factor/gcd + solve 统一管线 + 四次
-M4  嵌套环 + sturm + deg≥5 兜底
+M1  Poly<AlgExtC> 骨架                          ✅
+M2  partfrac disc>0 + ∫ 对接                    ✅
+M3  factor/gcd + solve 统一 + 四次               ✅
+M4  嵌套环 + sturm + fsolve                     open
 ```
 
 ---
@@ -216,10 +258,11 @@ M4  嵌套环 + sturm + deg≥5 兜底
 
 | 现有项 | AlgExt 接入后 |
 |--------|---------------|
-| [GIAC-poly-p0-backlog](GIAC-poly-p0-backlog.md) partfrac disc>0 | → **P2-3 / P2-4**（非 Phase 5+ 纯文档项） |
-| partfrac deg>3 不可约（ℚ 单项式） | 仍可在 ℚ 完成 ✅；**分裂**仍要 P2 |
-| [GIAC-poly-unitaryfactor-gaps](GIAC-poly-unitaryfactor-gaps.md) U5 / sparse_bi | 与 AlgExt **正交**；可并行，不阻塞 M1/M2 |
-| e2r / r2e | 未实现；AlgExt 边界见 **P0-C** |
+| [GIAC-poly-p0-backlog](GIAC-poly-p0-backlog.md) partfrac disc>0 | P2-3 ✅；**收尾** P4-2/3、P4-5 |
+| partfrac deg>3 不可约（ℚ 单项式） | ✅ ℚ 单项式；高次分裂走 K factor（P3-3 ✅） |
+| [GIAC-poly-unitaryfactor-gaps](GIAC-poly-unitaryfactor-gaps.md) U5 / sparse_bi | 与 AlgExt **正交**；可并行 |
+| e2r / r2e | 未实现；AlgExt 边界见 **P0-C** ✅ |
+| [GIAC-poly-p3-6-quartic-roots-gaps](GIAC-poly-p3-6-quartic-roots-gaps.md) | P3-6 DoD ✅；F4′/F5/S7 跟踪 |
 
 ---
 
@@ -228,31 +271,48 @@ M4  嵌套环 + sturm + deg≥5 兜底
 ```bash
 cd giac-rs
 
-# Phase 0（giac-core）
+# Phase 0–1（giac-core / giac-poly 表示）
 cargo test -p giac-core alg_ext
-cargo test -p giac-core alg_ext_c   # P0-A 落地后
-
-# Phase 1–2（giac-poly）
+cargo test -p giac-core alg_ext_c
 cargo test -p giac-poly --lib poly_coeff
-cargo test -p giac-poly --lib partfrac_algext   # P2-3 落地后
 
-# Phase 4（跨 crate）
-cargo test -p giac-solve rootof
+# K 上 gcd / factor / roots（T0–T3 + P3-6）
+cargo test -p giac-core poly_alg_ops
+cargo test -p giac-core poly_alg_factor
+cargo test -p giac-core poly_roots::tests --release
+
+# partfrac K 路由（P4-2 门禁）
+cargo test -p giac-core --test partfrac_k_route
+cargo test -p giac-core partfrac
+
+# 跨 crate（P4-*）
+cargo test -p giac-solve --release
+cargo test -p giac-calculus partfrac_integrate
 cargo test -p giac-conformance --test giac_check_integrate  # C-02
 ```
 
-**门禁：** 各 Phase 合入前 `cargo test -p giac-poly --lib` 全绿；M2 起增加 `partfrac(1/(x²-2))` golden。
+**门禁：** `cargo test-timeout` 全绿；M2 关门增 `x/(x²−2)` partfrac + integrate `assert_equiv`。
 
 ---
 
 ## 12. 任务 ID 速查
 
-| Phase | IDs |
-|-------|-----|
-| 0 前置 | P0-A … P0-D |
-| 1 表示 | P1-1 … P1-5 |
-| 2 最小切片 | P2-1 … P2-6 |
-| 3 核心算法 | P3-1 … P3-7 |
-| 4 接线 | P4-1 … P4-7 |
+| Phase | IDs | 未完成 |
+|-------|-----|--------|
+| 0 前置 | P0-A … P0-D | — |
+| 1 表示 | P1-1 … P1-5 | — |
+| 2 最小切片 | P2-1 … P2-6 | — |
+| 3 核心算法 | P3-1 … P3-7 | **P3-4**、**P3-5**；P3-6 **F4′** |
+| 4 接线 | P4-1 … P4-7 | — |
+
+**AFK 抓取顺序：** 见 §2.1。
 
 与 [GIAC-algext-adoption](GIAC-algext-adoption.md) 任务表对应：B-01→P0-C，B-02→P3-*，B-03→P2-*/P4-1，B-04→P3-4，B-05→P0-B，B-06→P0-A，C-02→P2-3/P4-3。
+
+---
+
+## 13. 变更日志
+
+| 日期 | 变更 |
+|------|------|
+| 2026-06-24 | P4-2/3/5：非常数分子 K partfrac、`expr_to_rational_polys`；DIV-084/085；M2 ✅ |
