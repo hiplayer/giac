@@ -6,12 +6,12 @@ use std::sync::Arc;
 
 use num_bigint::BigInt;
 use num_rational::Ratio;
-use num_traits::{One, Signed, Zero};
+use num_traits::{Signed, Zero};
 
 use giac_core::{
     algext_poly_to_expr, expr_contains_alg_coeff, expr_to_poly, expr_to_rational_polys,
-    factor_into_algext, factor_into_via_algext, poly_alg_from_expr, poly_to_expr, ratio_to_expr,
-    univariate_poly_to_poly1_expr, AlgExtData, Context, EvalError, Expr, ExprArc, FuncKind,
+    factor_into_algext, poly_alg_from_expr, poly_to_expr, ratio_to_expr,
+    Context, EvalError, Expr, ExprArc, FuncKind,
 };
 use giac_poly::{factor_into, factor_poly, quadratic_abc, ratio_perfect_sqrt, vars_in, Poly};
 
@@ -101,12 +101,6 @@ fn factor_poly_form(e: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
             ));
         }
     }
-    if let Some(factors) = try_factor_via_algext(&p)? {
-        return Ok(Expr::mul(factors));
-    }
-    if let Some(factors) = try_factor_quadratic_rootof(&p) {
-        return Ok(Expr::mul(factors));
-    }
     if let Some(factors) = factor_into(&p) {
         if factors.len() == 1 {
             return Ok(poly_to_expr(&factors[0]));
@@ -134,57 +128,6 @@ fn factor_algext_form(e: &Expr) -> Result<ExprArc, EvalError> {
         }
     }
     algext_poly_to_expr(&p)
-}
-
-// **Pipeline private** — lift ℚ[x] to K[x] and factor when split exists (T2-2).
-fn try_factor_via_algext(p: &Poly) -> Result<Option<Vec<ExprArc>>, EvalError> {
-    let Some(factors) = factor_into_via_algext(p)? else {
-        return Ok(None);
-    };
-    if factors.len() <= 1 {
-        return Ok(None);
-    }
-    factors
-        .iter()
-        .map(algext_poly_to_expr)
-        .collect::<Result<Vec<_>, _>>()
-        .map(Some)
-}
-
-// **Temporary** — Partial internal: quadratic → rootof when discriminant non-square.
-fn try_factor_quadratic_rootof(p: &Poly) -> Option<Vec<ExprArc>> {
-    let vars = vars_in(p);
-    if vars.len() != 1 {
-        return None;
-    }
-    let var = &vars[0];
-    let (a, b, c) = quadratic_abc(p, var)?;
-    let disc = &b * &b - Ratio::from_integer(BigInt::from(4)) * &a * &c;
-    if disc.is_zero() || ratio_perfect_sqrt(&disc).is_some() {
-        return None;
-    }
-    let minpoly = univariate_poly_to_poly1_expr(p, var);
-    let pos = giac_core::AlgExtData::from_rootof(
-        &Arc::new(Expr::Seq(vec![Expr::int(1), Expr::int(0)])),
-        &minpoly,
-    )
-    .ok()?
-    .into_expr();
-    let neg = giac_core::AlgExtData::from_rootof(
-        &Arc::new(Expr::Seq(vec![Expr::int(-1), Expr::int(0)])),
-        &minpoly,
-    )
-    .ok()?
-    .into_expr();
-    let x = poly_to_expr(&Poly::var(var.clone()));
-    let mut factors = vec![
-        Expr::add(vec![x.clone(), Expr::mul(vec![Expr::int(-1), pos])]),
-        Expr::add(vec![x, Expr::mul(vec![Expr::int(-1), neg])]),
-    ];
-    if !a.is_one() {
-        factors.insert(0, poly_to_expr(&Poly::constant(a)));
-    }
-    Some(factors)
 }
 
 // **Temporary** — Partial internal: `ctx.with_sqrt` quadratic sqrt factors.

@@ -153,8 +153,7 @@ mod tests {
         let ctx = Context::default();
         let e = Expr::pow(Expr::add(vec![Expr::sym("x"), Expr::int(2)]), Expr::int(-1));
         let r = ratnormal(e.as_ref(), &ctx).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("x") && (s.contains('/') || s.contains("Pow")));
+        assert_eq!(format_expr(r.as_ref()), "(1)/(x+2)");
     }
 
     #[test]
@@ -165,8 +164,7 @@ mod tests {
             Expr::pow(Expr::sym("x"), Expr::int(-1)),
         ]);
         let r = ratnormal(e.as_ref(), &ctx).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("1/2") || s.contains('/'));
+        assert_eq!(format_expr(r.as_ref()), "(1/2)/(x)");
     }
 
     #[test]
@@ -188,8 +186,7 @@ mod tests {
             Expr::rat(1, 2),
         ]);
         let r = ratnormal(e.as_ref(), &ctx).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("x") && s.contains("2"));
+        assert_eq!(format_expr(r.as_ref()), "(1/2*x+1)/(x)");
     }
 
     #[test]
@@ -233,6 +230,7 @@ mod tests {
     }
 
     #[test]
+    // smoke-until B-RATNORM: delete when `ratnormal_reduces_common_factor_semantic` green
     fn ratnormal_reduces_common_factor() {
         let ctx = Context::default();
         let e = Arc::new(Expr::Frac(
@@ -240,8 +238,23 @@ mod tests {
             Expr::add(vec![Expr::mul(vec![Expr::int(4), Expr::sym("x")]), Expr::int(4)]),
         ));
         let r = ratnormal(e.as_ref(), &ctx).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("2") && s.contains("4"));
+        assert_eq!(format_expr(r.as_ref()), "2/4");
+    }
+
+    #[test]
+    #[ignore = "B-RATNORM: ratnormal 应将 2/4 约分为 1/2"]
+    fn ratnormal_reduces_common_factor_semantic() {
+        let ctx = Context::default();
+        let e = Arc::new(Expr::Frac(
+            Expr::add(vec![Expr::mul(vec![Expr::int(2), Expr::sym("x")]), Expr::int(2)]),
+            Expr::add(vec![Expr::mul(vec![Expr::int(4), Expr::sym("x")]), Expr::int(4)]),
+        ));
+        let r = ratnormal(e.as_ref(), &ctx).unwrap();
+        assert!(
+            crate::assert_equiv(r.as_ref(), &Expr::rat(1, 2), &ctx).unwrap(),
+            "got {}",
+            format_expr(r.as_ref())
+        );
     }
 
     #[test]

@@ -468,9 +468,10 @@ fn drift_is_ln_w_symbol(e: &ExprArc) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use giac_core::{format_expr, Expr};
+    use giac_core::{Context, Expr};
 
     use super::*;
+    use giac_simplify::assert_equiv;
 
     #[test]
     fn decompose_mrv_coeff_neg_ln_inv_cancels_in_ratio() {
@@ -480,8 +481,8 @@ mod tests {
         let pd = decompose_mrv_coeff(&den);
         assert_eq!(pn.neg_ln_pow, -1);
         assert_eq!(pd.neg_ln_pow, -1);
-        assert!(format_expr(pn.rest.as_ref()).contains("c"));
-        assert!(format_expr(pd.rest.as_ref()).contains("d"));
+        assert!(assert_equiv(pn.rest.as_ref(), &Expr::sym("c"), &Context::default()).unwrap());
+        assert!(assert_equiv(pd.rest.as_ref(), &Expr::sym("d"), &Context::default()).unwrap());
     }
 
     #[test]

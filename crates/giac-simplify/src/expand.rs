@@ -280,10 +280,11 @@ mod tests {
         );
         let r = giac_core::eval(e.as_ref(), &ctx).unwrap();
         let s = format_expr(r.as_ref());
-        assert!(s.contains("% 13"), "got {s}");
         assert!(!s.contains(" mod 13*"), "nested mod display: {s}");
-        assert!(s.contains("x^5"));
-        assert!(s.contains("(6 % 13)*x^5") || s.contains("x^5"));
+        assert_eq!(
+            s,
+            "(6 % 13)*x^5+(2 % 13)*x^4+(2 % 13)*x^3+(1 % 13)*x^2+(10 % 13)*x+(1 % 13)"
+        );
     }
 
     #[test]
@@ -291,9 +292,10 @@ mod tests {
         let ctx = Context::default();
         let e = Expr::pow(Expr::add(vec![Expr::sym("x"), Expr::int(3)]), Expr::int(4));
         let r = normal(e.as_ref(), &ctx).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("x^4"));
-        assert!(s.contains("108"));
+        assert_eq!(
+            format_expr(r.as_ref()),
+            "x^4+12*x^3+54*x^2+108*x+81"
+        );
     }
 
     #[test]
@@ -416,6 +418,7 @@ mod tests {
     }
 
     #[test]
+    // smoke-until B-EXPAND-BINOM: delete when `expand_binomial_fallback_semantic` green
     fn expand_binomial_fallback_for_non_poly() {
         let ctx = Context::default();
         let e = Expr::pow(
@@ -423,7 +426,28 @@ mod tests {
             Expr::int(2),
         );
         let r = expand(e.as_ref(), &ctx).unwrap();
-        assert!(format_expr(r.as_ref()).contains("sin(x)"));
+        assert_eq!(format_expr(r.as_ref()), "(sin(x)+1)^2");
+    }
+
+    #[test]
+    #[ignore = "B-EXPAND-BINOM: expand 应收敛 (sin(x)+1)^2 → sin(x)^2+2*sin(x)+1"]
+    fn expand_binomial_fallback_semantic() {
+        let ctx = Context::default();
+        let e = Expr::pow(
+            Expr::add(vec![Expr::func(giac_core::FuncKind::Sin, vec![Expr::sym("x")]), Expr::int(1)]),
+            Expr::int(2),
+        );
+        let r = expand(e.as_ref(), &ctx).unwrap();
+        let expected = Expr::add(vec![
+            Expr::pow(Expr::func(giac_core::FuncKind::Sin, vec![Expr::sym("x")]), Expr::int(2)),
+            Expr::mul(vec![Expr::int(2), Expr::func(giac_core::FuncKind::Sin, vec![Expr::sym("x")])]),
+            Expr::int(1),
+        ]);
+        assert!(
+            crate::assert_equiv(r.as_ref(), &expected, &ctx).unwrap(),
+            "got {}",
+            format_expr(r.as_ref())
+        );
     }
 
     #[test]
@@ -437,7 +461,6 @@ mod tests {
             Expr::sym("z"),
         );
         let r = expand(&e, &ctx).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("x*y") && s.contains("z"));
+        assert_eq!(format_expr(r.as_ref()), "(x*y+1*y)/(z)");
     }
 }

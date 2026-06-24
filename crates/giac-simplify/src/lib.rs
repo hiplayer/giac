@@ -30,6 +30,8 @@ mod ratnormal;
 mod trig;
 mod plugin;
 
+pub mod test_verify;
+
 pub use expand::{expand, expand_polynomial, expand_with_policy, normal, ExpandPolicy};
 pub use equiv::{assert_equiv, is_zero, sub};
 pub use factor::factor;

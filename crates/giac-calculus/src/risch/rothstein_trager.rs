@@ -126,6 +126,7 @@ mod tests {
     }
 
     #[test]
+    // smoke-until B-T3: delete when `rothstein_deriv_equals_integrand` green
     fn rothstein_one_over_x_fourth_plus_one_smoke() {
         let var = x_var();
         let den = Poly::var("x").pow(4).add(&Poly::one());

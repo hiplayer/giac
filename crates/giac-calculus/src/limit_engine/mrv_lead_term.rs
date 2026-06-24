@@ -972,9 +972,12 @@ mod tests {
         let (omega, _) = choose_mrv_w(&set, &var, &ctx).expect("omega");
         let w = Ident::new(MRV_W);
         let swapped = rewrite_in_mrv_w(&normed, &var, &omega, &w, &ctx);
-        let s = format_expr(swapped.as_ref());
-        assert!(s.contains("_mrv_w") && s.contains("ln(_mrv_w)"), "got {s}");
-        assert!(!depends_on_var(&swapped, &var), "x should be eliminated, got {s}");
+        assert!(
+            super::super::mrv_w::expr_contains_ln_w(&swapped),
+            "got {}",
+            format_expr(swapped.as_ref())
+        );
+        assert!(!depends_on_var(&swapped, &var), "x should be eliminated");
     }
 
     #[test]

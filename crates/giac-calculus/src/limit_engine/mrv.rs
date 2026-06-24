@@ -698,6 +698,7 @@ mod tests {
     }
 
     #[test]
+    // smoke-until B-MRV: delete when `mrv_exp_neg_x_substitutes_ln_w` green
     fn mrv_exp_neg_x() {
         let var = Ident::new("x");
         let e = Expr::func(FuncKind::Exp, vec![Expr::mul(vec![Expr::int(-1), Expr::sym("x")])]);
@@ -706,6 +707,25 @@ mod tests {
         assert!(!set.faster.is_empty());
         let (w, x_sub) = choose_mrv_w(&set, &var, &ctx).expect("w");
         assert!(matches!(w.as_ref(), Expr::Func(FuncKind::Exp, _)));
-        assert!(format_expr(x_sub.as_ref()).contains("ln"));
+        assert!(
+            super::super::remove_lnexp::expr_contains_exp_or_ln(&x_sub),
+            "substituted expr should contain ln, got {}",
+            format_expr(x_sub.as_ref())
+        );
+    }
+
+    #[test]
+    #[ignore = "B-MRV: exp(-x) 换元后 x_sub 应含 ln(w) 而非 ln(exp(-x))"]
+    fn mrv_exp_neg_x_substitutes_ln_w() {
+        let var = Ident::new("x");
+        let e = Expr::func(FuncKind::Exp, vec![Expr::mul(vec![Expr::int(-1), Expr::sym("x")])]);
+        let ctx = xcas_default();
+        let set = mrv_at_plus_infinity(&e, &var, &ctx);
+        let (_, x_sub) = choose_mrv_w(&set, &var, &ctx).expect("w");
+        assert!(
+            super::super::mrv_w::expr_contains_ln_w(&x_sub),
+            "got {}",
+            format_expr(x_sub.as_ref())
+        );
     }
 }

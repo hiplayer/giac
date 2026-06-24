@@ -99,6 +99,7 @@ fn symbolic_linsolve_charpoly_pcar_trace() {
     let _y = Ident::new("y");
 
     let (eqs, vars) = linsolve_2x2_fixture();
+    // smoke-until B-LIN: delete this linsolve len block when `linsolve_2x2_satisfies_equations` green
     let sol = eval_linsolve(&eqs, &vars, &ctx).unwrap();
     match sol.as_ref() {
         Expr::List(items) => assert_eq!(items.len(), 2),

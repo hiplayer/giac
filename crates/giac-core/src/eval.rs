@@ -1844,6 +1844,7 @@ mod tests {
     }
 
     #[test]
+    // smoke-until B-MUL-FMT: delete when `eval_mul_mixed_complex_symbolic_equiv` green
     fn eval_mul_mixed_complex_symbolic() {
         let ctx = ctx();
         let i = Expr::sym("i");
@@ -1856,7 +1857,7 @@ mod tests {
             &ctx,
         )
         .unwrap();
-        assert!(format_expr(r.as_ref()).contains('x'));
+        assert_eq!(format_expr(r.as_ref()), "(1+i)*x");
     }
 
     #[test]
@@ -1966,6 +1967,7 @@ mod tests {
     }
 
     #[test]
+    // smoke-until B-ARG: delete arg golden when `eval_arg_second_quadrant_canonical` green (keep sign(-4) assert)
     fn eval_sign_negative_and_arg_second_quadrant() {
         let ctx = ctx();
         let i = Expr::sym("i");
@@ -1982,8 +1984,7 @@ mod tests {
             &ctx,
         )
         .unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("atan") && s.contains("pi"));
+        assert_eq!(format_expr(r.as_ref()), "-atan(1)+2*pi/2");
     }
 
     #[test]

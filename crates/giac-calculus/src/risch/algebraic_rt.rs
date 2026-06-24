@@ -415,6 +415,7 @@ mod tests {
     }
 
     #[test]
+    // smoke-until B-T3: delete when `algebraic_rt_one_over_x4_plus_one_deriv` green
     fn algebraic_rt_one_over_x4_plus_one_smoke() {
         let x = Ident::new("x");
         let r = integrate_monic_x4_plus_one(&Ratio::one(), &x);
@@ -435,6 +436,7 @@ mod tests {
     }
 
     #[test]
+    // smoke-until B-T3: delete when `algebraic_rt_one_over_x4_plus_four_via_res_deriv` green
     fn algebraic_rt_one_over_x4_plus_four_via_res_smoke() {
         let x = Ident::new("x");
         let var = Var::from("x");
@@ -465,6 +467,7 @@ mod tests {
     }
 
     #[test]
+    // smoke-until B-T3: delete when `algebraic_rt_one_over_x4_plus_x2_plus_one_via_res_deriv` green
     fn algebraic_rt_one_over_x4_plus_x2_plus_one_via_res_smoke() {
         let x = Ident::new("x");
         let var = Var::from("x");

@@ -408,12 +408,14 @@ fn is_zero_expr(e: &ExprArc) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use giac_core::{eval, format_expr, Expr, FuncKind, RelOp};
+    use giac_core::{eval, format_expr, expr_mentions_ident, Expr, FuncKind, Ident, RelOp};
 
     use super::*;
     use crate::plugin::xcas_default;
+    use crate::test_verify::subst_constants;
 
     #[test]
+    // smoke-until B-ODE,B-ODE-NORM: delete when `desolve_harmonic_satisfies_ode` + `desolve_harmonic_subst_canonical` green
     fn desolve_harmonic() {
         let ctx = xcas_default();
         let eq = Arc::new(Expr::Relation(
@@ -432,7 +434,105 @@ mod tests {
             ],
         );
         let r = eval(e.as_ref(), &ctx).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("c0") || s.contains("c1"), "got {s}");
+        let sol = match r.as_ref() {
+            Expr::Relation(RelOp::Eq, _, rhs) => rhs,
+            other => panic!("expected relation, got {}", format_expr(other)),
+        };
+        assert!(expr_mentions_ident(sol, &Ident::new("c0")));
+        assert!(expr_mentions_ident(sol, &Ident::new("c1")));
+        assert_eq!(
+            format_expr(subst_constants(sol, &[("c0", 1), ("c1", 0)]).as_ref()),
+            "1*(1*cos(1*x)+0*sin(1*x))"
+        );
+        assert_eq!(
+            format_expr(subst_constants(sol, &[("c0", 0), ("c1", 1)]).as_ref()),
+            "1*(0*cos(1*x)+1*sin(1*x))"
+        );
+    }
+
+    #[test]
+    #[ignore = "B-ODE: diff/normal 未将 c0,c1 当常数，ODE 残差无法 assert_equiv 归零"]
+    fn desolve_harmonic_satisfies_ode() {
+        let ctx = xcas_default();
+        let eq = Arc::new(Expr::Relation(
+            RelOp::Eq,
+            Expr::add(vec![
+                Expr::func(FuncKind::Prime, vec![Expr::sym("y"), Expr::int(2)]),
+                Expr::sym("y"),
+            ]),
+            Expr::int(0),
+        ));
+        let e = Expr::func(
+            FuncKind::Desolve,
+            vec![
+                eq,
+                Expr::func(FuncKind::Apply, vec![Expr::sym("y"), Expr::sym("x")]),
+            ],
+        );
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        use crate::test_verify::assert_desolve_lin_ode;
+        assert_desolve_lin_ode(
+            &Expr::int(1),
+            &Expr::int(0),
+            &Expr::int(1),
+            &Expr::int(0),
+            &r,
+            &Ident::new("x"),
+            &[("c0", 1), ("c1", 0)],
+            &ctx,
+        );
+        assert_desolve_lin_ode(
+            &Expr::int(1),
+            &Expr::int(0),
+            &Expr::int(1),
+            &Expr::int(0),
+            &r,
+            &Ident::new("x"),
+            &[("c0", 0), ("c1", 1)],
+            &ctx,
+        );
+    }
+
+    #[test]
+    #[ignore = "B-ODE-NORM: subst 后 normal 应收敛为 cos(x)/sin(x)"]
+    fn desolve_harmonic_subst_canonical() {
+        let ctx = xcas_default();
+        let eq = Arc::new(Expr::Relation(
+            RelOp::Eq,
+            Expr::add(vec![
+                Expr::func(FuncKind::Prime, vec![Expr::sym("y"), Expr::int(2)]),
+                Expr::sym("y"),
+            ]),
+            Expr::int(0),
+        ));
+        let e = Expr::func(
+            FuncKind::Desolve,
+            vec![
+                eq,
+                Expr::func(FuncKind::Apply, vec![Expr::sym("y"), Expr::sym("x")]),
+            ],
+        );
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        let sol = match r.as_ref() {
+            Expr::Relation(RelOp::Eq, _, rhs) => rhs,
+            other => panic!("expected relation, got {}", format_expr(other)),
+        };
+        use giac_simplify::assert_equiv;
+        assert!(
+            assert_equiv(
+                subst_constants(sol, &[("c0", 1), ("c1", 0)]).as_ref(),
+                &Expr::func(FuncKind::Cos, vec![Expr::sym("x")]),
+                &ctx,
+            )
+            .unwrap()
+        );
+        assert!(
+            assert_equiv(
+                subst_constants(sol, &[("c0", 0), ("c1", 1)]).as_ref(),
+                &Expr::func(FuncKind::Sin, vec![Expr::sym("x")]),
+                &ctx,
+            )
+            .unwrap()
+        );
     }
 }

@@ -941,6 +941,7 @@ mod tests {
 
     use super::*;
     use crate::plugin::xcas_default;
+    use giac_simplify::assert_equiv;
 
     #[test]
     fn series_mrv_w_exp_minus_w_inv_cancel_reveals_sublead() {
@@ -966,10 +967,10 @@ mod tests {
                 .collect::<Vec<_>>()
         );
         let (_, lead_c) = s.lead().unwrap();
-        let lead_s = format_expr(lead_c.as_ref());
+        assert_eq!(s.lead().unwrap().0, 0);
         assert!(
-            lead_s.contains("exp") && s.lead().unwrap().0 == 0,
-            "expected w^0 sublead after w^-1 cancel, got {:?}",
+            super::super::remove_lnexp::expr_contains_exp_or_ln(&lead_c),
+            "expected w^0 sublead with exp/ln, got {:?}",
             terms
                 .iter()
                 .map(|(e, c)| format!("w^{e} * {}", format_expr(c.as_ref())))
@@ -995,8 +996,18 @@ mod tests {
         let e = Expr::func(FuncKind::Sin, vec![var_to_expr(&var)]);
         let s = series_at_zero(&e, &var, 5, &ctx).unwrap();
         let out = s.to_expr(&var);
-        let text = format_expr(out.as_ref());
-        assert!(text.contains("x") && !text.contains("x^5"), "got {text}");
+        let expected = Expr::add(vec![
+            Expr::sym("x"),
+            Expr::mul(vec![
+                Expr::rat(-1, 6),
+                Expr::pow(Expr::sym("x"), Expr::int(3)),
+            ]),
+        ]);
+        assert!(
+            assert_equiv(out.as_ref(), expected.as_ref(), &ctx).unwrap(),
+            "got {}",
+            format_expr(out.as_ref())
+        );
     }
 
     #[test]
@@ -1005,8 +1016,16 @@ mod tests {
         let var = Ident::new("x");
         let e = Expr::pow(Expr::add(vec![Expr::sym("x"), Expr::int(1)]), Expr::int(2));
         let r = series_at_center(&e, &var, &Expr::int(0), 3, &ctx).unwrap();
-        let text = format_expr(r.as_ref());
-        assert!(text.contains("x^2") || text.contains("2*x"), "got {text}");
+        let expected = Expr::add(vec![
+            Expr::int(1),
+            Expr::mul(vec![Expr::int(2), Expr::sym("x")]),
+            Expr::pow(Expr::sym("x"), Expr::int(2)),
+        ]);
+        assert!(
+            assert_equiv(r.as_ref(), expected.as_ref(), &ctx).unwrap(),
+            "got {}",
+            format_expr(r.as_ref())
+        );
     }
 
     #[test]
@@ -1041,8 +1060,17 @@ mod tests {
         let e = Expr::func(FuncKind::Exp, vec![var_to_expr(&var)]);
         let s = series_at_zero(&e, &var, 4, &ctx).unwrap();
         let out = s.to_expr(&var);
-        let text = format_expr(out.as_ref());
-        assert!(text.contains("1") && text.contains("x"), "got {text}");
+        let expected = Expr::add(vec![
+            Expr::int(1),
+            Expr::sym("x"),
+            Expr::mul(vec![Expr::rat(1, 2), Expr::pow(Expr::sym("x"), Expr::int(2))]),
+            Expr::mul(vec![Expr::rat(1, 6), Expr::pow(Expr::sym("x"), Expr::int(3))]),
+        ]);
+        assert!(
+            assert_equiv(out.as_ref(), expected.as_ref(), &ctx).unwrap(),
+            "got {}",
+            format_expr(out.as_ref())
+        );
     }
 
     #[test]
@@ -1052,8 +1080,15 @@ mod tests {
         let e = Expr::func(FuncKind::Cos, vec![var_to_expr(&var)]);
         let s = series_at_zero(&e, &var, 4, &ctx).unwrap();
         let out = s.to_expr(&var);
-        let text = format_expr(out.as_ref());
-        assert!(text.contains("1") || text.contains("x"), "got {text}");
+        let expected = Expr::add(vec![
+            Expr::int(1),
+            Expr::mul(vec![Expr::rat(-1, 2), Expr::pow(Expr::sym("x"), Expr::int(2))]),
+        ]);
+        assert!(
+            assert_equiv(out.as_ref(), expected.as_ref(), &ctx).unwrap(),
+            "got {}",
+            format_expr(out.as_ref())
+        );
     }
 
     #[test]

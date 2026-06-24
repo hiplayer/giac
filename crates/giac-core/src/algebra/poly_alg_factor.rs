@@ -73,6 +73,22 @@ pub fn factor_into_via_algext(p: &Poly) -> Result<Option<Vec<PolyAlgExt>>, EvalE
     factor_into_algext(&super::poly::poly_algext_from_poly(p)?)
 }
 
+/// **Stable (bounded)** — sqff factor pairs over K for univariate `Poly` over ℚ (T2-3).
+pub fn factor_univariate_pairs_over_k(
+    p: &Poly,
+    var: &Var,
+) -> Result<Vec<(PolyAlgExt, usize)>, EvalError> {
+    let p_alg = super::poly::poly_algext_from_poly(p)?;
+    let field = infer_ambient_field(&p_alg)?;
+    let session = FieldSession::new(field);
+    let flat = FlatUni::try_new(
+        normalize_algext_poly(&p_alg, &session)?,
+        MainVar::new(var.clone()),
+    )
+    .map_err(Into::into)?;
+    factor_univariate_over_k(&session, &flat)
+}
+
 /// **Stable** — factor `flat` in K[var] as `(factor, multiplicity)` pairs.
 pub fn factor_univariate_over_k(
     session: &FieldSession,

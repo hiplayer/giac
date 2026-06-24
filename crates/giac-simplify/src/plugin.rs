@@ -72,6 +72,8 @@ pub fn xcas_default() -> Context {
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use giac_core::{eval, format_expr, Expr, FuncKind};
 
     use super::xcas_default;
@@ -112,13 +114,16 @@ mod tests {
             ])],
         );
         let r = eval(e.as_ref(), &ctx).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("(x-1)") && s.contains("(x+1)"));
-        assert_eq!(s, "(x-1)*(x+1)*(x^2+1)");
+        assert_eq!(format_expr(r.as_ref()), "(x-1)*(x+1)*(x^2+1)");
+        let orig = Arc::new(Expr::add(vec![
+            Expr::pow(Expr::sym("x"), Expr::int(4)),
+            Expr::int(-1),
+        ]));
+        crate::test_verify::assert_factorization_eval(&orig, &r, &ctx);
     }
 
     #[test]
-    fn eval_factor_x_squared_minus_two_rootof() {
+    fn eval_factor_x_squared_minus_two_irreducible() {
         let ctx = xcas_default();
         let e = Expr::func(
             FuncKind::Factor,
@@ -128,12 +133,12 @@ mod tests {
             ])],
         );
         let r = eval(e.as_ref(), &ctx).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("rootof") || s.contains("AlgExt"), "got {s}");
+        assert_eq!(format_expr(r.as_ref()), "x^2-2");
     }
 
     #[test]
-    fn eval_factor_x_squared_minus_two_splits() {
+    #[ignore = "B-FACTOR-ALGEXT: expand(factor(x^2-2)) 应 assert_equiv 原式"]
+    fn eval_factor_x_squared_minus_two_factorization() {
         let ctx = xcas_default();
         let e = Expr::func(
             FuncKind::Factor,
@@ -143,9 +148,24 @@ mod tests {
             ])],
         );
         let r = eval(e.as_ref(), &ctx).unwrap();
-        match r.as_ref() {
-            Expr::Mul(fs) => assert!(fs.len() >= 2, "got {}", format_expr(r.as_ref())),
-            other => panic!("expected product of factors, got {}", format_expr(other)),
-        }
+        let orig = Arc::new(Expr::add(vec![
+            Expr::pow(Expr::sym("x"), Expr::int(2)),
+            Expr::int(-2),
+        ]));
+        crate::test_verify::assert_factorization_eval(&orig, &r, &ctx);
+    }
+
+    #[test]
+    fn eval_factor_x_squared_minus_two_stays_irreducible() {
+        let ctx = xcas_default();
+        let e = Expr::func(
+            FuncKind::Factor,
+            vec![Expr::add(vec![
+                Expr::pow(Expr::sym("x"), Expr::int(2)),
+                Expr::int(-2),
+            ])],
+        );
+        let r = eval(e.as_ref(), &ctx).unwrap();
+        assert_eq!(format_expr(r.as_ref()), "x^2-2");
     }
 }

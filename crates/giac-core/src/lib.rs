@@ -13,6 +13,8 @@ mod eval_poly;
 mod expr_rational;
 #[cfg(test)]
 mod eval_poly_tests;
+#[cfg(test)]
+pub mod test_verify;
 mod expr;
 pub mod float_format;
 mod calculus_plugin;

@@ -65,6 +65,16 @@ fn debug_assert_euclidean_post<C: PolyCoeff>(
     );
 }
 
+#[cfg(not(debug_assertions))]
+#[inline(always)]
+fn debug_assert_euclidean_post<C: PolyCoeff>(
+    _divisor: &Poly<C>,
+    _remainder: &Poly<C>,
+    _var: &Var,
+    _deg_b: u64,
+) {
+}
+
 /// **Stable** — Euclidean `(q, r)` with `a = q*b + r` in K[var].
 ///
 /// **Pre:** K is a field (`coeff_div` exact on nonzero divisors). Prefer [`crate::nested::FlatUni`]

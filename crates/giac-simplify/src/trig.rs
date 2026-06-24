@@ -448,12 +448,37 @@ mod tests {
     }
 
     #[test]
+    // smoke-until B-TEQUIV: delete when `texpand_cos_sum_semantic` green
     fn texpand_cos_sum() {
         let e = Expr::func(FuncKind::Cos, vec![Expr::add(vec![Expr::sym("x"), Expr::sym("y")])]);
         let r = texpand(e.as_ref(), &ctx()).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("cos(x)"));
-        assert!(s.contains("sin(x)"));
+        assert_eq!(
+            format_expr(r.as_ref()),
+            "cos(x)*cos(y)+(-sin(x))*sin(y)"
+        );
+    }
+
+    #[test]
+    #[ignore = "B-TEQUIV: texpand(cos(x+y)) 应 assert_equiv 于 cos(x)*cos(y)-sin(x)*sin(y)"]
+    fn texpand_cos_sum_semantic() {
+        let e = Expr::func(FuncKind::Cos, vec![Expr::add(vec![Expr::sym("x"), Expr::sym("y")])]);
+        let r = texpand(e.as_ref(), &ctx()).unwrap();
+        let expected = Expr::add(vec![
+            Expr::mul(vec![
+                Expr::func(FuncKind::Cos, vec![Expr::sym("x")]),
+                Expr::func(FuncKind::Cos, vec![Expr::sym("y")]),
+            ]),
+            Expr::mul(vec![
+                Expr::int(-1),
+                Expr::func(FuncKind::Sin, vec![Expr::sym("x")]),
+                Expr::func(FuncKind::Sin, vec![Expr::sym("y")]),
+            ]),
+        ]);
+        assert!(
+            crate::assert_equiv(r.as_ref(), &expected, &ctx()).unwrap(),
+            "got {}",
+            format_expr(r.as_ref())
+        );
     }
 
     #[test]
@@ -463,9 +488,10 @@ mod tests {
             vec![Expr::mul(vec![Expr::int(3), Expr::sym("x")])],
         );
         let r = texpand(e.as_ref(), &ctx()).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("4*cos(x)^3") || s.contains("4*((cos(x))^3)"));
-        assert!(s.contains("-3*cos(x)"));
+        assert_eq!(
+            format_expr(r.as_ref()),
+            "4*cos(x)^3-3*cos(x)"
+        );
     }
 
     #[test]

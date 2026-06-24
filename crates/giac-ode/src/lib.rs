@@ -9,5 +9,7 @@ mod desolve;
 mod plugin;
 mod stubs;
 
+pub mod test_verify;
+
 pub use desolve::eval_desolve;
 pub use plugin::{install_ode, xcas_default, DefaultOdePlugin};

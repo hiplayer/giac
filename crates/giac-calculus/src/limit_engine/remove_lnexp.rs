@@ -491,20 +491,26 @@ mod tests {
 
     use super::*;
     use crate::plugin::xcas_default;
+    use giac_simplify::assert_equiv;
 
     #[test]
     fn remove_lnexp_exp_ln_w() {
         let ctx = xcas_default();
+        let w = super::super::mrv_w::mrv_w_expr();
         let inner = Expr::add(vec![
             Expr::mul(vec![Expr::int(-1), super::super::mrv_w::mrv_ln_w_expr()]),
             Expr::sym("a"),
         ]);
         let e = Expr::func(FuncKind::Exp, vec![inner]);
         let r = remove_lnexp(&e, &ctx);
-        let s = format_expr(r.as_ref());
+        let expected = Expr::mul(vec![
+            Expr::func(FuncKind::Exp, vec![Expr::sym("a")]),
+            Expr::pow(w, Expr::int(-1)),
+        ]);
         assert!(
-            s.contains("_mrv_w") && s.contains("exp(a)"),
-            "expected w^-1*exp(a), got {s}"
+            assert_equiv(r.as_ref(), expected.as_ref(), &ctx).unwrap(),
+            "expected w^-1*exp(a), got {}",
+            format_expr(r.as_ref())
         );
     }
 
@@ -518,13 +524,20 @@ mod tests {
         ]);
         let e = Expr::add(vec![
             Expr::func(FuncKind::Exp, vec![inner]),
-            Expr::mul(vec![Expr::int(-1), Expr::pow(w, Expr::int(-1))]),
+            Expr::mul(vec![Expr::int(-1), Expr::pow(w.clone(), Expr::int(-1))]),
         ]);
         let r = remove_lnexp(&e, &ctx);
-        let s = format_expr(r.as_ref());
+        let expected = Expr::add(vec![
+            Expr::mul(vec![
+                Expr::func(FuncKind::Exp, vec![Expr::sym("eps")]),
+                Expr::pow(w.clone(), Expr::int(-1)),
+            ]),
+            Expr::mul(vec![Expr::int(-1), Expr::pow(w, Expr::int(-1))]),
+        ]);
         assert!(
-            s.contains("exp(eps)") && s.contains("_mrv_w"),
-            "expected w^-1*(exp(eps)-1) style, got {s}"
+            assert_equiv(r.as_ref(), expected.as_ref(), &ctx).unwrap(),
+            "expected w^-1*(exp(eps)-1), got {}",
+            format_expr(r.as_ref())
         );
     }
 
@@ -535,24 +548,25 @@ mod tests {
         let num = Expr::mul(vec![neg_ln_inv.clone(), Expr::sym("c")]);
         let den = Expr::mul(vec![neg_ln_inv, Expr::sym("d")]);
         let r = divide_lead_coeffs(&num, &den, &ctx);
-        let s = format_expr(r.as_ref());
         assert!(
-            s.contains("c") && s.contains("d"),
-            "expected c/d after (-ln(w))^-1 cancel, got {s}"
+            assert_equiv(r.as_ref(), &Expr::Frac(Expr::sym("c"), Expr::sym("d")), &ctx).unwrap(),
+            "got {}",
+            format_expr(r.as_ref())
         );
     }
 
     #[test]
     fn divide_lead_coeffs_ln_w_cancels() {
         let ctx = xcas_default();
-        let w = super::super::mrv_w::mrv_w_expr();
         let ln_w = super::super::mrv_w::mrv_ln_w_expr();
         let num = Expr::mul(vec![ln_w.clone(), Expr::sym("a")]);
         let den = ln_w;
         let r = divide_lead_coeffs(&num, &den, &ctx);
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("a"), "got {s}");
-        let _ = w;
+        assert!(
+            assert_equiv(r.as_ref(), &Expr::sym("a"), &ctx).unwrap(),
+            "got {}",
+            format_expr(r.as_ref())
+        );
     }
 
     #[test]

@@ -148,6 +148,7 @@ version = "0.1.0"
 dependencies = [
  "giac-calculus",
  "giac-core",
+ "giac-simplify",
  "num-bigint",
  "num-rational",
  "num-traits",
