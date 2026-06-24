@@ -1,12 +1,12 @@
 # GIAC-poly — 扩域系数 gcd/factor 任务优先级（上游对齐）
 
-**状态:** open  
+**状态:** closed  
 **类型:** 实施计划 / AFK  
 **父项:** [GIAC-poly-algext-backlog](GIAC-poly-algext-backlog.md) §6 **P3-1…P3-3**、§7 **P4-***  
 **相关:** [GIAC-algext-adoption](GIAC-algext-adoption.md) §8.4、[GIAC-poly-p3-6-quartic-roots-gaps](GIAC-poly-p3-6-quartic-roots-gaps.md)（P3-6 ✅）、[expr-poly-conversion.md](../expr-poly-conversion.md)、[giac-poly-api-stability.md](../giac-poly-api-stability.md)  
 **上游基线:** `giac/giac-2.0.0` — `gausspol.cc`（`gcd`→`gcd_ext`、`ext_factor`/`ext_factor_nodegck`）、`threaded.cc`（`mod_gcd_ext`）、`sym2poly.cc`（partfrac + `_EXT`）  
 **Rust 落点:** `giac-poly::Poly<AlgExtCPolyCoeff>`、`giac-core::algebra::{field_session, poly, poly_alg_coeff}`  
-**快照:** 2026-06-23（**T0-1…T0-3 ✅**、**T1-1…T1-3 ✅**、**T2-1 ✅**、**T2-2 ✅**）
+**快照:** 2026-06-24（**T0-1…T0-3 ✅**、**T1-1…T1-3 ✅**、**T2-1…T2-4 ✅**、**T3-1 ✅**、**T3-2 ✅** witness、**T3-3 ✅** 删 `try_factor_quadratic_sqrt`）
 
 ---
 
@@ -57,9 +57,9 @@
 | **P2** | **T2-2** | **`factor_into` / `eval_factor` 接线** | `usual.cc` factor + `algext_convert` | T2-1 | ✅ `factor(x²−2)` splits; K-product = 原式 |
 | **P2** | **T2-3** | **solve 降次共用**（backlog P3-7 / P4-6） | `solve.cc` + `ext_factor` 递归 | T2-1, P3-6 ✅ | ✅ `(x²+1)(x³−x+1)` 五根；二次 K-split |
 | **P2** | **T2-4** | **partfrac 消费 K 上 factor**（backlog P2-3/P2-4） | `sym2poly.cc` partfrac | T1-3, T2-1 | ✅ `partfrac(1/(x²−2),x)` 两项一次 |
-| **P3** | **T3-1** | **多元 gcd（低维）**：子结果式 PRS 系数环 `PolyCoeff` 泛型 | `gcdheu` / `gcd_ext` 多元 | T1-1 稳定 | `gcd(x²−2·y, x−√2·y)` 类 |
-| **P3** | **T3-2** | **高次不可约 witness**：sqff 后不可约 → `[g]`（或 K 上 Zassenhaus 子集） | `ext_factor` 高次（无 EXT-Hensel） | T2-1 | 与 upstream「不 silent 错分」一致 |
-| **P3** | **T3-3** | **跨 crate 清理** | — | T2-2/T2-3 | 删 `try_factor_quadratic_rootof`、`biquadratic_rootof` 等；见 [GIAC-rs-four-crates-dedup-architecture](GIAC-rs-four-crates-dedup-architecture.md) C3-2 |
+| **P3** | **T3-1** | **多元 gcd（低维）**：子结果式 PRS 系数环 `PolyCoeff` 泛型 | `gcdheu` / `gcd_ext` 多元 | T1-1 稳定 | ✅ `gcd(x²−2y², x−√2·y)` 类 |
+| **P3** | **T3-2** | **高次不可约 witness**：sqff 后不可约 → `[g]`（或 K 上 Zassenhaus 子集） | `ext_factor` 高次（无 EXT-Hensel） | T2-1 | ✅ deg≥5 witness；Zassenhaus 子集 **不做** |
+| **P3** | **T3-3** | **跨 crate 清理** | — | T2-2/T2-3 | ✅ 删 `try_factor_quadratic_sqrt`；`biquadratic_rootof` 已退役 |
 
 **与 backlog ID 映射：**
 
