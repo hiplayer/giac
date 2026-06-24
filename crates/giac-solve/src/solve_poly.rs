@@ -5,12 +5,11 @@
 use std::sync::Arc;
 
 use giac_core::{
-    format_expr, poly_algext_from_poly, poly_algext_roots_for_ctx, poly_to_expr,
+    factor_into_algext, format_expr, poly_algext_from_poly, poly_algext_roots_for_ctx, poly_to_expr,
     rootof_from_minpoly, univariate_poly_to_poly1_expr, Context, EvalError, Expr, ExprArc,
+    PolyAlgExt,
 };
-use giac_poly::{
-    factor_univariate_pairs, roots, univariate_degree, Poly, Var,
-};
+use giac_poly::{factor_univariate_pairs, roots, univariate_degree, Poly, Var};
 
 /// All roots of `poly` w.r.t. `var` over ℚ (with algebraic / rootof branches).
 // **Pipeline private** — sqff × factor → per-factor roots
@@ -32,12 +31,53 @@ pub(crate) fn solve_univariate_over_q(
         if factor.is_zero() || univariate_degree(&factor, var) == 0 {
             continue;
         }
-        let factor_roots = solve_irreducible_factor(&factor, var, ctx)?;
+        let factor_roots = solve_factor_with_k_split(&factor, var, ctx)?;
         for _ in 0..mult {
             roots.extend(factor_roots.iter().cloned());
         }
     }
     Ok(dedup_expr_roots(roots))
+}
+
+// **Pipeline private** — optional K factor split then roots (T2-3).
+fn solve_factor_with_k_split(
+    factor: &Poly,
+    var: &Var,
+    ctx: &Context,
+) -> Result<Vec<ExprArc>, EvalError> {
+    // Only split quadratics irreducible over ℚ (e.g. x²+1). Cubics+ via
+    // try_factor_by_roots yield K-linear factors whose roots fail eval substitution.
+    if univariate_degree(factor, var) == 2 {
+        let p_alg = poly_algext_from_poly(factor)?;
+        if let Some(splits) = factor_into_algext(&p_alg)? {
+            let mut out = Vec::new();
+            for f in splits {
+                out.extend(solve_irreducible_factor_algext(&f, var, ctx)?);
+            }
+            return Ok(out);
+        }
+    }
+    solve_irreducible_factor(factor, var, ctx)
+}
+
+// **Pipeline private** — roots of one K[var] factor after split
+fn solve_irreducible_factor_algext(
+    factor: &PolyAlgExt,
+    var: &Var,
+    ctx: &Context,
+) -> Result<Vec<ExprArc>, EvalError> {
+    let d = factor.degree_wrt(var);
+    match d {
+        0 => Ok(vec![]),
+        n if n >= 5 => Ok(vec![irreducible_rootof_branch_algext(factor, var)?]),
+        _ => {
+            let rs = poly_algext_roots_for_ctx(factor, var, ctx)?;
+            Ok(rs
+                .into_iter()
+                .map(|r| Arc::new(r.as_inner().to_expr()))
+                .collect())
+        }
+    }
 }
 
 /// Roots of one irreducible (or low-degree) factor.
@@ -71,6 +111,15 @@ pub(crate) fn solve_irreducible_factor(
         }
         _ => Ok(vec![irreducible_rootof_branch(factor, var)?]),
     }
+}
+
+// **Pipeline private** — S0 deg≥5 rootof branch in K[var]
+fn irreducible_rootof_branch_algext(factor: &PolyAlgExt, var: &Var) -> Result<ExprArc, EvalError> {
+    if factor.degree_wrt(var) < 5 {
+        return Err(EvalError::TypeError("expected factor of degree >= 5"));
+    }
+    let minpoly = giac_core::algext_poly_to_expr(factor)?;
+    rootof_from_minpoly(&[1, 0], &minpoly)
 }
 
 /// One `rootof([1,0], minpoly)` branch for degree ≥ 5 irreducible factors.
