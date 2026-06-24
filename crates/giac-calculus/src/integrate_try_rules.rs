@@ -4,7 +4,7 @@ use std::sync::Arc;
 use num_bigint::BigInt;
 use num_rational::Ratio;
 
-use giac_core::{EvalError, Expr, ExprArc, FuncKind, Ident};
+use giac_core::{Expr, ExprArc, FuncKind, Ident};
 
 use crate::expr_util::{is_const_wrt, is_cos_of_var, is_sin_of_var};
 use crate::integrate_helpers::{
@@ -365,15 +365,11 @@ fn exp_term_sign(e: &ExprArc, var: &Ident) -> Option<bool> {
     }
     if let Expr::Mul(fs) = e.as_ref() {
         if fs.len() == 2 {
-            if matches!(fs[0].as_ref(), Expr::Int(n) if n == &-BigInt::from(1)) {
-                if is_exp_of_var(&fs[1], var) || is_exp_neg_of_var(&fs[1], var) {
-                    return Some(false);
-                }
+            if matches!(fs[0].as_ref(), Expr::Int(n) if n == &-BigInt::from(1)) && (is_exp_of_var(&fs[1], var) || is_exp_neg_of_var(&fs[1], var)) {
+                return Some(false);
             }
-            if matches!(fs[1].as_ref(), Expr::Int(n) if n == &-BigInt::from(1)) {
-                if is_exp_of_var(&fs[0], var) || is_exp_neg_of_var(&fs[0], var) {
-                    return Some(false);
-                }
+            if matches!(fs[1].as_ref(), Expr::Int(n) if n == &-BigInt::from(1)) && (is_exp_of_var(&fs[0], var) || is_exp_neg_of_var(&fs[0], var)) {
+                return Some(false);
             }
         }
     }

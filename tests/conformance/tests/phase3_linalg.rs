@@ -35,58 +35,55 @@ fn test_linalg_core() -> Result<(), String> {
 #[test]
 fn test_linalg_rref_linsolve_charpoly() -> Result<(), String> {
     let rref = run_line("rref([[1,2,3],[4,5,6]])")?;
-    assert!(rref.contains("1,0") && rref.contains("0,1"), "rref got {rref}");
+    assert_eq!(rref, "[[1,0,-1],[0,1,2]]");
 
     let ls = run_line("linsolve([2*x+y=3,x-y=1],[x,y])")?;
-    assert!(ls.contains("4/3") || ls.contains("1/3"), "linsolve got {ls}");
+    assert_eq!(ls, "[1^-1*4/3,1^-1*1/3]");
 
     let cp = run_line("charpoly([[1,2],[3,4]],x)")?;
-    assert!(
-        cp.contains("x^2") && cp.contains("-5") && cp.contains("-2"),
-        "charpoly got {cp}"
-    );
+    assert_eq!(cp, "x^2-5*x-2");
     Ok(())
 }
 
 #[test]
 fn test_linalg_ext_partial() -> Result<(), String> {
     let ker = run_line("ker([[1,2],[3,6]])")?;
-    assert!(ker.contains("2") && ker.contains("1"), "ker got {ker}");
+    assert_eq!(ker, "[[-1*2,1]]");
 
     let j = run_line("jordan([[1,1],[0,1]])")?;
-    assert!(j.contains("[[1,0],[0,1]]"), "jordan got {j}");
+    assert_eq!(j, "[[1,1],[0,1]],matrix[[1,0],[0,1]]");
 
     let egv = run_line("egv([[4,1,-2],[1,2,-1],[2,1,0]])")?;
-    assert!(
-        egv.contains("Not diagonalizable"),
-        "egv got {egv}"
-    );
+    assert_eq!(egv, "\"Not diagonalizable at eigenvalue 2\"");
     Ok(())
 }
 
 #[test]
 fn test_linalg_decomp_numeric() -> Result<(), String> {
     let lu = run_line("lu([[3,5],[4,5]])")?;
-    assert!(
-        lu.contains("matrix[[") && lu.matches(',').count() > 3,
-        "lu got {lu}"
+    assert_eq!(
+        lu,
+        "[1,0],matrix[[1,0],[3/4,1]],matrix[[4,5],[0,5/4]]"
     );
 
     let qr = run_line("qr([[3,5],[4,5]])")?;
-    assert!(qr.contains("matrix[["), "qr got {qr}");
+    assert_eq!(
+        qr,
+        "matrix[[3/5,4/5],[4/5,-3/5]],matrix[[5,7],[0,1]]"
+    );
 
     let svd = run_line("svd([[1,2],[3,4]])")?;
-    assert!(svd.contains("matrix[[") && svd.contains(','), "svd got {svd}");
+    assert_eq!(
+        svd,
+        "matrix[[0.4045535848,-0.9145142957],[0.9145142957,0.4045535848]],[5.464985704,0.3659661906],matrix[[0.5760484368,0.8174155605],[0.8174155605,-0.5760484368]]"
+    );
     Ok(())
 }
 
 #[test]
 fn test_linalg_gramschmidt() -> Result<(), String> {
     let s = run_line("gramschmidt([1,1+x],(p,q)->integrate(p*q,x,-1,1))")?;
-    assert!(
-        s.contains("sqrt"),
-        "gramschmidt should be orthonormal with sqrt, got {s}"
-    );
+    assert_eq!(s, "[sqrt(2)^-1,x*sqrt(2/3)^-1]");
     verify_sympy(
         "gramschmidt([1,1+x],(p,q)->integrate(p*q,x,-1,1))",
         &s,

@@ -44,12 +44,12 @@ use crate::expr::{Expr, ExprArc, FuncKind};
 
 use super::alg_ext::AlgExtData;
 use super::field_arith::{
-    apply_linear_map, char_poly_matrix, coords_all_zero, embed_in_square_extension,
+    char_poly_matrix, coords_all_zero,
     generator_coords, kron_left, mat_mul, mult_matrix_of_adjoin_generator,
     mult_matrix_of_element, pad_to_len, poly_add, poly_degree, poly_inv_mod, poly_mul, poly_neg,
     poly_reduce, poly_sub, poly_add_with_coeffs_in_field, poly_inv_mod_with_coeffs_in_field,
     poly_mul_with_coeffs_in_field, poly_neg_with_coeffs_in_field,
-    poly_reduce_with_coeffs_in_field, ParentCoeffRing, rationalize_poly1, trim_leading_zero,
+    poly_reduce_with_coeffs_in_field, ParentCoeffRing,
     coords_to_expr, CoordsQ,
 };
 
@@ -62,7 +62,7 @@ fn next_field_id() -> u64 {
 
 // **Pipeline private** — one layer-minpoly coefficient (parent-field element) as `Expr`
 fn layer_minpoly_block_to_expr(block: &CoordsQ) -> Result<ExprArc, EvalError> {
-    use super::field_arith::{canonical_poly1_expr, coords_to_expr};
+    use super::field_arith::canonical_poly1_expr;
     let coeffs = canonical_poly1_expr(&coords_to_expr(block)?);
     Ok(match coeffs.as_slice() {
         [c] => Arc::clone(c),
@@ -572,9 +572,7 @@ impl ExtensionDesc {
                 .iter()
                 .map(|r| parent.embed_rational(r))
                 .collect()),
-            ExtensionTower::Base => {
-                return Err(EvalError::TypeError("expected extension field"));
-            }
+            ExtensionTower::Base => Err(EvalError::TypeError("expected extension field")),
         }
     }
 
@@ -1187,7 +1185,7 @@ pub(crate) fn gauss_elim_rref(aug: &mut [Vec<Ratio<BigInt>>]) -> (Vec<usize>, bo
         pivot_row += 1;
     }
     let inconsistent = (pivot_row..rows).any(|r| {
-        aug[r][cols].is_zero() == false && (0..cols).all(|c| aug[r][c].is_zero())
+        !aug[r][cols].is_zero() && (0..cols).all(|c| aug[r][c].is_zero())
     });
     (pivot_cols, inconsistent)
 }
@@ -2370,7 +2368,7 @@ mod tests {
 
     #[test]
     fn rational_embedding_into_tower_uses_constant_block() {
-        let (k1, k2) = crate::algebra::test_fixtures::t3a_k2_adjoin_u2_minus_sqrt2_over_k1();
+        let (_k1, k2) = crate::algebra::test_fixtures::t3a_k2_adjoin_u2_minus_sqrt2_over_k1();
         let q = ExtensionField::rational();
         let emb = ExtensionField::try_subfield_embedding(&q, &k2)
             .unwrap()
@@ -2619,7 +2617,7 @@ mod tests {
     fn r1_duplicate_field_arc_common_cache_semantic_key() {
         use super::super::field_session::FieldSession;
 
-        let mut session = FieldSession::new(ExtensionField::rational());
+        let session = FieldSession::new(ExtensionField::rational());
         let sqrt2 = k1_adjoin_sqrt2();
         let dup_sqrt2 = duplicate_field_arc_for_test(&sqrt2);
         let cbrt2 = k1_adjoin_cbrt2();
@@ -2752,7 +2750,7 @@ mod tests {
 
         let k1 = k1_adjoin_sqrt2();
         let k2 = ExtensionField::adjoin_irreducible(&k1, minpoly_u2_minus(-3)).unwrap();
-        let mut session = FieldSession::new(Arc::clone(&k1));
+        let session = FieldSession::new(Arc::clone(&k1));
         let before = session.common_cache_len();
         let alpha = k1.generator_coords();
         let alpha_in_k2 = ExtensionField::try_subfield_embedding(&k1, &k2)

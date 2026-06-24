@@ -26,8 +26,7 @@ use super::alg_ext_c::AlgExtCData;
 use super::ext_tower::{self, ExtensionField};
 use super::field_arith::{coords_to_expr, pad_to_len, rationalize_poly1, CoordsQ};
 use super::field_session::{
-    coeff_from_coords, coords_in_field, is_negative_rational, FieldSession, POLY_ROOTS_DIM_HARD,
-    POLY_ROOTS_DIM_QUARTIC_OUT, POLY_ROOTS_DIM_RESOLVENT,
+    coeff_from_coords, coords_in_field, is_negative_rational, FieldSession, POLY_ROOTS_DIM_HARD, POLY_ROOTS_DIM_RESOLVENT,
 };
 use super::galois_automorphism;
 use super::poly::PolyAlgExt;
@@ -111,10 +110,10 @@ fn roots_dispatch(
                 Err(EvalError::TypeError("constant has no roots"))
             }
         }
-        1 => linear_root(session, &monic, var),
-        2 => quadratic_roots_formula(session, &monic, var),
-        3 => cubic_roots(session, &monic, var),
-        4 => quartic_roots(session, &monic, var),
+        1 => linear_root(session, monic, var),
+        2 => quadratic_roots_formula(session, monic, var),
+        3 => cubic_roots(session, monic, var),
+        4 => quartic_roots(session, monic, var),
         _ => Err(EvalError::NotImplemented("PolyAlgExt::roots")),
     }
 }
@@ -181,7 +180,7 @@ fn monic_univariate(
     if lc.coeff_is_zero() {
         return Err(EvalError::TypeError("leading coefficient zero"));
     }
-    for (m, _) in &p.terms {
+    for m in p.terms.keys() {
         if !m.iter().all(|(v, _)| v == var) {
             return Err(EvalError::TypeError("not univariate"));
         }
@@ -730,10 +729,10 @@ fn build_resolvent_cubic(
     let qq = session.mul(q, q)?;
     let neg_qq = session.neg(&qq)?;
     let const_term = session.add(&rqp4, &neg_qq)?;
-    Ok(z.try_pow(3)?
+    z.try_pow(3)?
         .try_sub(&PolyAlgExt::ring_constant(p.clone()).try_mul(&z.try_pow(2)?)?)?
         .try_sub(&PolyAlgExt::ring_constant(r4).try_mul(&z)?)?
-        .try_add(&PolyAlgExt::ring_constant(const_term))?)
+        .try_add(&PolyAlgExt::ring_constant(const_term))
 }
 
 // **Pipeline private** — F4′: pick β among conjugates with √(β/α) ∈ L(√α); else Galois σ; else blind adjoin.
@@ -802,8 +801,8 @@ fn try_galois_sqrt_second_coeff(
 // **Pipeline private** — F4′: one Euler branch with α = sorted[alpha_idx].
 fn try_euler_one_alpha(
     session: &FieldSession,
-    dep: &PolyAlgExt,
-    var: &Var,
+    _dep: &PolyAlgExt,
+    _var: &Var,
     sorted: &[AlgExtCPolyCoeff],
     alpha_idx: usize,
     q: &AlgExtCPolyCoeff,
@@ -904,7 +903,7 @@ fn root_vanishes(p: &PolyAlgExt, var: &Var, root: &AlgExtCPolyCoeff) -> bool {
         Ok(f) => f,
         Err(_) => return false,
     };
-    let mut session = FieldSession::new(ambient);
+    let session = FieldSession::new(ambient);
     let p = match normalize_coeffs(p, &session) {
         Ok(p) => p,
         Err(_) => return false,
@@ -1022,7 +1021,7 @@ impl CoeffInv for AlgExtCPolyCoeff {
 
 // **Pipeline private** — verify root vanishes mod minpoly (same prepare path as roots)
 fn verify_root(p: &PolyAlgExt, var: &Var, root: &AlgExtCPolyCoeff) {
-    let (input, mut session) = PolyInK::prepare_with_session(p, var).expect("prepare");
+    let (input, session) = PolyInK::prepare_with_session(p, var).expect("prepare");
     session.bump_to(&root.as_inner().field);
     let mut val = session.zero();
     for (m, c) in &input.poly.terms {
@@ -1054,6 +1053,7 @@ mod tests {
     use giac_poly::{PolyCoeff, Var};
     use num_rational::Ratio;
 
+    use crate::algebra::field_session::POLY_ROOTS_DIM_QUARTIC_OUT;
     use crate::algebra::test_fixtures::sqrt2_algext;
     use crate::expr::Expr;
 
@@ -1072,7 +1072,7 @@ mod tests {
     // **B** — one Cardano root vanishes on t³−2.
     #[test]
     fn cubic_one_root_vanishes() {
-        let mut session = q_session();
+        let session = q_session();
         let t = PolyAlgExt::ring_var("t");
         let p = t
             .try_pow(3)
@@ -1090,7 +1090,7 @@ mod tests {
                 .as_inner()
                 .field,
         );
-        let mut session = FieldSession::new(k1);
+        let session = FieldSession::new(k1);
         let sqrt2 = AlgExtCPolyCoeff::from(AlgExtCData::from_alg_ext(&sqrt2_algext()).unwrap());
         let four = session.int(4).unwrap();
         let disc = session.mul(&sqrt2, &four).unwrap();
@@ -1122,13 +1122,12 @@ mod tests {
 
     #[test]
     fn quadratic_x2_minus_sqrt2_roots_vanish() {
-        let mut session = q_session();
         let e = Expr::add(vec![
             Expr::pow(Expr::sym("x"), Expr::int(2)),
             Expr::mul(vec![Expr::int(-1), sqrt2_algext().into_expr()]),
         ]);
         let p = poly_alg_from_expr(&e).unwrap();
-        session = FieldSession::new(infer_field(&p).unwrap());
+        let session = FieldSession::new(infer_field(&p).unwrap());
         let rs = quadratic_roots_formula(&session, &p, &Var::from("x")).unwrap();
         assert_eq!(rs.len(), 2);
         for r in &rs {
@@ -1139,7 +1138,7 @@ mod tests {
     #[test]
     fn roots_quadratic_x2_minus_2() {
         let x = PolyAlgExt::ring_var("x");
-        let mut session = q_session();
+        let session = q_session();
         let p = x
             .try_pow(2)
             .unwrap()
@@ -1154,7 +1153,6 @@ mod tests {
 
     #[test]
     fn roots_quadratic_x2_minus_sqrt2_over_k() {
-        let mut session = q_session();
         let e = Expr::add(vec![
             Expr::pow(Expr::sym("x"), Expr::int(2)),
             Expr::mul(vec![Expr::int(-1), sqrt2_algext().into_expr()]),
@@ -1165,7 +1163,7 @@ mod tests {
         let sqrt2 = AlgExtCPolyCoeff::from(AlgExtCData::from_alg_ext(&sqrt2_algext()).unwrap());
         for r in &rs {
             let sq = r.coeff_mul(r).unwrap();
-            session = FieldSession::new(infer_field(&p).unwrap());
+            let session = FieldSession::new(infer_field(&p).unwrap());
             let (sq, s2) = session.align(&sq, &sqrt2).unwrap();
             assert!(
                 sq.coeff_sub(&s2).unwrap().coeff_is_zero(),
@@ -1178,7 +1176,7 @@ mod tests {
     // **B** — roots_cubic_t3_minus_2: three roots β, ωβ, ω²β (PR-C′).
     #[test]
     fn roots_cubic_t3_minus_2() {
-        let mut session = q_session();
+        let session = q_session();
         let t = PolyAlgExt::ring_var("t");
         let p = t
             .try_pow(3)
@@ -1196,7 +1194,7 @@ mod tests {
     // FIX-Z3M4Z1
     #[test]
     fn resolvent_cubic_all_roots_vanish() {
-        let mut session = q_session();
+        let session = q_session();
         let p2 = session.zero();
         let p1 = session.int(1).unwrap();
         let p0 = session.int(1).unwrap();
@@ -1216,7 +1214,7 @@ mod tests {
     // FIX-Z3M4Z1
     #[test]
     fn resolvent_one_cubic_root_z3_minus_4z_minus_1() {
-        let mut session = q_session();
+        let session = q_session();
         let p2 = session.zero();
         let p1 = session.int(1).unwrap();
         let p0 = session.int(1).unwrap();
@@ -1229,7 +1227,7 @@ mod tests {
     // FIX-T4P1 · Lean: Giac.Examples.T4PlusTPlus1.t4_plus_t_plus_1_resolvent
     #[test]
     fn resolvent_golden_t4_plus_t_plus_1() {
-        let mut session = q_session();
+        let session = q_session();
         let p2 = session.zero();
         let p1 = session.int(1).unwrap();
         let p0 = session.int(1).unwrap();
@@ -1252,7 +1250,7 @@ mod tests {
     // FIX-T4P1 · Lean: Giac.Examples.T4PlusTPlus1.t4_plus_t_plus_1_depressed_coeffs
     #[test]
     fn depressed_t4_plus_t_plus_1_coeffs() {
-        let mut session = q_session();
+        let session = q_session();
         let t = PolyAlgExt::ring_var("t");
         let p = t
             .try_pow(4)
@@ -1274,7 +1272,7 @@ mod tests {
     // FIX-SQRT-RESOLVENT · Lean: Giac.Tower.SqrtInField (future)
     #[test]
     fn adjoin_sqrt_squares_one_resolvent_root() {
-        let mut session = q_session();
+        let session = q_session();
         let p2 = session.zero();
         let p1 = session.int(1).unwrap();
         let p0 = session.int(1).unwrap();
@@ -1294,7 +1292,7 @@ mod tests {
     // FIX-SQRT-RESOLVENT
     #[test]
     fn adjoin_sqrt_after_resolvent_deflate_only() {
-        let mut session = q_session();
+        let session = q_session();
         let p2 = session.zero();
         let p1 = session.int(1).unwrap();
         let p0 = session.int(1).unwrap();
@@ -1316,7 +1314,7 @@ mod tests {
     // FIX-SQRT-RESOLVENT
     #[test]
     fn adjoin_sqrt_after_quadratic_roots_formula() {
-        let mut session = q_session();
+        let session = q_session();
         let p2 = session.zero();
         let p1 = session.int(1).unwrap();
         let p0 = session.int(1).unwrap();
@@ -1341,7 +1339,7 @@ mod tests {
     // FIX-SQRT-RESOLVENT
     #[test]
     fn adjoin_sqrt_after_sqrt_disc_on_resolvent() {
-        let mut session = q_session();
+        let session = q_session();
         let p2 = session.zero();
         let p1 = session.int(1).unwrap();
         let p0 = session.int(1).unwrap();
@@ -1371,7 +1369,7 @@ mod tests {
     // **B** — F2/M2: t⁴+t+1 resolvent stage dim ≤ 6.
     #[test]
     fn resolvent_dim_bound_t4_plus_t_plus_1() {
-        let mut session = q_session();
+        let session = q_session();
         let p2 = session.zero();
         let p1 = session.int(1).unwrap();
         let p0 = session.int(1).unwrap();
@@ -1386,7 +1384,7 @@ mod tests {
     // **B** — F3: eval at adjoined root of t⁴+t+1 (dim-4 smoke).
     #[test]
     fn eval_vanishes_direct_root_dim4() {
-        let mut session = q_session();
+        let session = q_session();
         let t = PolyAlgExt::ring_var("t");
         let p = t
             .try_pow(4)
@@ -1417,7 +1415,7 @@ mod tests {
     // **B** — F3: γ relation √α√β√γ + q = 0 on t⁴+t+1 resolvent.
     #[test]
     fn euler_gamma_relation_holds() {
-        let mut session = q_session();
+        let session = q_session();
         let p2 = session.zero();
         let p1 = session.int(1).unwrap();
         let p0 = session.int(1).unwrap();
@@ -1463,7 +1461,7 @@ mod tests {
     // FIX-T4P1 · Lean: Giac.Examples.T4PlusTPlus1.t4_plus_t_plus_1_euler_vanishes (partial)
     #[test]
     fn euler_four_roots_vanish() {
-        let mut session = q_session();
+        let session = q_session();
         let t = PolyAlgExt::ring_var("t");
         let p = t
             .try_pow(4)
@@ -1538,7 +1536,7 @@ mod tests {
     // FIX-T4P1 · Lean: Giac.Examples.T4PlusTPlus1.t4_plus_t_plus_1_four_roots (partial)
     #[test]
     fn roots_quartic_t4_plus_t_plus_1() {
-        let mut session = q_session();
+        let session = q_session();
         let t = PolyAlgExt::ring_var("t");
         let p = t
             .try_pow(4)
@@ -1557,7 +1555,7 @@ mod tests {
     // **B** — P3-6-C1: general cubic x³−x+1 (S0 solve 暴露).
     #[test]
     fn roots_x3_minus_x_plus_1_vanish() {
-        let mut session = q_session();
+        let session = q_session();
         let t = PolyAlgExt::ring_var("x");
         let p = t
             .try_pow(3)
@@ -1597,7 +1595,7 @@ mod tests {
     // **B** — F2: resolvent stage dim ≤ 6 for t⁴+t+1 (d_K=1).
     #[test]
     fn f2_resolvent_split_no_cardano_stack() {
-        let mut session = q_session();
+        let session = q_session();
         let p2 = session.zero();
         let p1 = session.int(1).unwrap();
         let p0 = session.int(1).unwrap();
@@ -1615,7 +1613,7 @@ mod tests {
 
     #[test]
     fn roots_biquadratic_t4_minus_2() {
-        let mut session = q_session();
+        let session = q_session();
         let t = PolyAlgExt::ring_var("t");
         let p = t
             .try_pow(4)

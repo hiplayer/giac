@@ -16,9 +16,9 @@
 use std::sync::Arc;
 
 use giac_core::{Context, EvalError, Expr, ExprArc, FuncKind, Ident};
-use num_bigint::BigInt;
-use num_rational::Ratio;
-use num_traits::{One, Signed};
+
+
+use num_traits::{Signed};
 
 use giac_simplify::{normal, ratnormal};
 
@@ -81,7 +81,7 @@ pub(crate) fn series_preprocess(
     var: &Ident,
     ctx: &Context,
 ) -> Result<ExprArc, EvalError> {
-    let folded = canonical_exp_diff(&expr);
+    let folded = canonical_exp_diff(expr);
     let normalized = fold_exp_zero_linear(
         &merge_exp_quotients(&pow2expln(
             &normalize_sqrt_conjugates(&surd2pow(&folded)),

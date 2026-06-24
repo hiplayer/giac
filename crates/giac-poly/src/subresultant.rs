@@ -304,7 +304,7 @@ pub fn subresultant_gcd(a: &Poly, b: &Poly) -> Poly {
 
     let ca = a.content();
     let cb = b.content();
-    let mut g_const = if ca.is_zero() {
+    let g_const = if ca.is_zero() {
         cb.clone()
     } else if cb.is_zero() {
         ca.clone()
@@ -312,8 +312,8 @@ pub fn subresultant_gcd(a: &Poly, b: &Poly) -> Poly {
         crate::poly::integer_content_gcd(&ca, &cb)
     };
 
-    let mut a = rational_primitive(a);
-    let mut b = rational_primitive(b);
+    let a = rational_primitive(a);
+    let b = rational_primitive(b);
 
     let vars = vars_union(&a, &b);
     if vars.len() == 1 {
@@ -349,7 +349,6 @@ fn scale_gcd_by_content(mut g: Poly, c: &Ratio<num_bigint::BigInt>) -> Poly {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use num_bigint::BigInt;
     use num_rational::Ratio;
 
     #[test]

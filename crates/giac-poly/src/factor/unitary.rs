@@ -348,7 +348,7 @@ fn factor_sort_key(f: &Poly, main: &Var) -> (u64, Ratio<BigInt>) {
 
 // **Pipeline private** — stable sort eval factor slots
 fn sort_eval_factors(fz: &mut [Poly], main: &Var) {
-    fz.sort_by(|a, b| factor_sort_key(a, main).cmp(&factor_sort_key(b, main)));
+    fz.sort_by_key(|a| factor_sort_key(a, main));
 }
 
 /// Lagrange interpolation: points `(x_i, v_i)` → `Poly` in `eval_var`.
@@ -727,13 +727,13 @@ fn factor_constant_tail_into(
         return verified_product(factors, orig);
     }
     let eval_var = &vars_rev[0];
-    let tmp = trunc1_drop_var(unitaryp, eval_var);
+    let truncated = trunc1_drop_var(unitaryp, eval_var);
     let child_rev = &vars_rev[1..];
     if child_rev.is_empty() {
         factors.push(unitaryp.clone());
         return verified_product(factors, orig);
     }
-    if let Some(tail) = unitary_factor_rev(&tmp, child_rev) {
+    if let Some(tail) = unitary_factor_rev(&truncated, child_rev) {
         for f in tail {
             factors.push(untrunc1_insert_var(&f, eval_var, 0));
         }
@@ -752,9 +752,9 @@ fn factor_constant_tail(p: &Poly, vars_rev: &[Var]) -> Option<Vec<Poly>> {
         return Some(vec![p.clone()]);
     }
     let eval_var = &vars_rev[0];
-    let tmp = trunc1_drop_var(p, eval_var);
+    let truncated = trunc1_drop_var(p, eval_var);
     let child_rev = &vars_rev[1..];
-    let mut out = unitary_factor_rev(&tmp, child_rev)?;
+    let mut out = unitary_factor_rev(&truncated, child_rev)?;
     for f in &mut out {
         *f = untrunc1_insert_var(f, eval_var, 0);
     }
@@ -835,7 +835,7 @@ fn linfnorm(p: &Poly) -> Ratio<BigInt> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::nested::{MainVar, UnivariateIn};
+    use crate::nested::MainVar;
     use num_traits::One;
 
     fn l22_y3_product() -> Poly {
@@ -908,7 +908,7 @@ mod tests {
         let bases = EvalBaseStream::upstream_bases(&p, 4);
         assert_eq!(bases.len(), 4);
         assert_eq!(bases[0], initial);
-        assert!(&bases[0] >= &BigInt::from(2));
+        assert!(bases[0] >= BigInt::from(2));
         // No small-integer scan: first base is norm-derived, not 2.
         assert!(bases[0] > BigInt::from(31));
         let advanced = &initial * BigInt::from(73794) / BigInt::from(27011) + BigInt::one();

@@ -62,14 +62,17 @@ fn batch3_giac206_sturm_odd_multiplicity() -> Result<(), String> {
 #[test]
 fn batch3_giac207_realroot() -> Result<(), String> {
     let got = run_line("realroot(x^4-1)")?;
-    assert!(got.contains("-1"), "expected -1 in {got}");
-    assert!(got.contains("1"), "expected 1 in {got}");
+    assert_eq!(
+        got,
+        "[[rootof([-1],poly1[1,0,poly1[-1/2,0]]),1],[rootof([1],poly1[1,0,poly1[-1/2,0]]),1],[-1,1],[1,1]]"
+    );
     Ok(())
 }
 
 #[test]
 fn batch3_giac208_solve_sin() -> Result<(), String> {
     let got = run_line("solve(sin(x)=0,x)")?;
-    assert!(got.contains("0"), "expected 0 in {got}");
+    assert_eq!(got, "[0]");
+    verify_sympy("solve(sin(x)=0,x)", &got)?;
     Ok(())
 }

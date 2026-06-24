@@ -89,7 +89,7 @@ fn limit_preprocessed_at_plus_infinity(
             }
             limit_unidirectional_plus_infinity(expr, var, ctx)
                 .ok()
-                .filter(|r| is_usable_limit(r))
+                .filter(is_usable_limit)
         })
 }
 
@@ -486,7 +486,7 @@ fn limit_term_at_plus_infinity(
         }
         limit_unidirectional_plus_infinity(expr, var, ctx)
             .ok()
-            .filter(|r| is_usable_limit(r))
+            .filter(is_usable_limit)
     })
 }
 
@@ -648,18 +648,16 @@ pub(crate) fn asymptotic_series_at_infinity(
     let inv = Expr::pow(var_to_expr(var), Expr::int(-1));
     let mut out = Vec::new();
     for (exp, coeff) in series.iter_terms() {
-        let scaled = if exp == 0 {
-            Arc::clone(coeff)
-        } else if exp > 0 {
-            Expr::mul(vec![
+        let scaled = match exp.cmp(&0) {
+            std::cmp::Ordering::Equal => Arc::clone(coeff),
+            std::cmp::Ordering::Greater => Expr::mul(vec![
                 Arc::clone(coeff),
                 Expr::pow(Arc::clone(&inv), Expr::int(i64::from(exp))),
-            ])
-        } else {
-            Expr::mul(vec![
+            ]),
+            std::cmp::Ordering::Less => Expr::mul(vec![
                 Arc::clone(coeff),
                 Expr::pow(var_to_expr(&u), Expr::int(i64::from(-exp))),
-            ])
+            ]),
         };
         out.push(scaled);
     }
@@ -1207,10 +1205,8 @@ fn contains_asym_var(e: &ExprArc) -> bool {
 fn contains_zero_negative_power(expr: &ExprArc) -> bool {
     match expr.as_ref() {
         Expr::Pow(base, exp) => {
-            if matches!(base.as_ref(), Expr::Int(n) if n.is_zero()) {
-                if matches!(exp.as_ref(), Expr::Int(n) if n.is_negative()) {
-                    return true;
-                }
+            if matches!(base.as_ref(), Expr::Int(n) if n.is_zero()) && matches!(exp.as_ref(), Expr::Int(n) if n.is_negative()) {
+                return true;
             }
             contains_zero_negative_power(base) || contains_zero_negative_power(exp)
         }

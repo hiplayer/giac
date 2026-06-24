@@ -1,5 +1,6 @@
 //! Semantic verification for giac-ode tests (`.doc/conformance-testing.md` §3).
 //! See `.doc/issues/GIAC-expr-api-test-contains-cleanup.md` H3.
+#![allow(clippy::expect_used)] // test helper: expect carries assert context
 
 use std::collections::HashMap;
 use std::sync::Arc;

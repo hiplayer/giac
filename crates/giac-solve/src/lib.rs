@@ -1,4 +1,6 @@
 #![deny(unsafe_code)]
+// ponytail: rootof helper WIP until solve pipeline fully wires quadratic rootof
+#![allow(dead_code)]
 //! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
 //! full module index in `.doc/giac-solve-api-stability.md`.
 //!

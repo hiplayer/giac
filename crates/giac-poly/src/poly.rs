@@ -439,7 +439,6 @@ pub fn abcuv(a: &Poly, b: &Poly, c: &Poly) -> PolyResult<(Poly, Poly)> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::poly_coeff::PolyCoeff;
 
     fn x() -> Poly {
         Poly::var("x")

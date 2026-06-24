@@ -32,7 +32,7 @@ struct InventoryRow {
 #[ignore = "inventory helper: eval only, no SymPy"]
 fn giac_check_integrate_enabled_eval_only() -> Result<(), String> {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/check_integrate_table.json");
-    let text = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let text = fs::read_to_string(path).map_err(|e| e.to_string())?;
     let table: Table = serde_json::from_str(&text).map_err(|e| e.to_string())?;
     let mut ok = 0usize;
     for e in table.entries.iter().filter(|e| e.enabled) {
@@ -56,7 +56,7 @@ fn giac_check_integrate_enabled_eval_only() -> Result<(), String> {
 #[ignore = "inventory helper: eval only, no SymPy"]
 fn giac_check_integrate_disabled_eval_only() -> Result<(), String> {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/check_integrate_table.json");
-    let text = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let text = fs::read_to_string(path).map_err(|e| e.to_string())?;
     let table: Table = serde_json::from_str(&text).map_err(|e| e.to_string())?;
     let mut ok = 0usize;
     for e in table.entries.iter().filter(|e| !e.enabled) {
@@ -76,7 +76,7 @@ fn giac_check_integrate_disabled_eval_only() -> Result<(), String> {
 #[ignore = "inventory helper; run manually to find rows to enable"]
 fn giac_check_integrate_disabled_sympy_green() -> Result<(), String> {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/check_integrate_table.json");
-    let text = fs::read_to_string(&path).map_err(|e| e.to_string())?;
+    let text = fs::read_to_string(path).map_err(|e| e.to_string())?;
     let table: Table = serde_json::from_str(&text).map_err(|e| e.to_string())?;
     let out_path = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/ck_int_inventory.jsonl");
     let mut out = fs::File::create(&out_path).map_err(|e| e.to_string())?;

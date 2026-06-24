@@ -11,7 +11,6 @@ pub use super::ctx::GoodEval;
 
 use num_bigint::BigInt;
 use num_rational::Ratio;
-use num_traits::Zero;
 
 use crate::monomial::Var;
 use crate::poly::Poly;
@@ -21,7 +20,7 @@ use super::poly_uni::substitute_poly;
 use super::univariate::factor_univariate_flat;
 
 /// **Pipeline private** — substitute auxiliary vars with scalars; keep `main` univariate.
-pub fn peval_at_main(p: &Poly, main: &Var, auxes: &[&Var], values: &[Ratio<BigInt>]) -> Poly {
+pub fn peval_at_main(p: &Poly, _main: &Var, auxes: &[&Var], values: &[Ratio<BigInt>]) -> Poly {
     debug_assert_eq!(auxes.len(), values.len());
     let mut out = p.clone();
     for (v, c) in auxes.iter().zip(values.iter()) {
@@ -118,7 +117,7 @@ pub fn looks_irreducible_by_good_eval(p: &Poly, main: &Var, auxes: &[&Var]) -> b
 #[cfg(test)]
 mod tests {
     use super::*;
-    use num_traits::One;
+    use num_traits::Zero;
 
     #[test]
     fn find_good_eval_preserves_degree() {

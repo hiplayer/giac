@@ -263,7 +263,6 @@ pub(crate) type SqffFactorRecFn =
 #[cfg(test)]
 mod tests {
     use super::*;
-    use num_traits::One;
 
     #[test]
     fn factor_set_product_equals() {

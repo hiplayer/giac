@@ -11,6 +11,7 @@
 //! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
 //! full module index in `.doc/giac-calculus-api-stability.md`.
 //!
+#![allow(clippy::unwrap_used)] // ponytail: limit pipeline internals; tighten per-path as MRV lands
 use std::collections::HashMap;
 use std::sync::Arc;
 
@@ -556,10 +557,8 @@ fn is_infinity(e: &ExprArc) -> bool {
 fn contains_zero_negative_power(expr: &ExprArc) -> bool {
     match expr.as_ref() {
         Expr::Pow(base, exp) => {
-            if matches!(base.as_ref(), Expr::Int(n) if n.is_zero()) {
-                if matches!(exp.as_ref(), Expr::Int(n) if n.is_negative()) {
-                    return true;
-                }
+            if matches!(base.as_ref(), Expr::Int(n) if n.is_zero()) && matches!(exp.as_ref(), Expr::Int(n) if n.is_negative()) {
+                return true;
             }
             contains_zero_negative_power(base) || contains_zero_negative_power(exp)
         }

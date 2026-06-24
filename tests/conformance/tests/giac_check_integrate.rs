@@ -147,7 +147,7 @@ struct IntegrateEntry {
 
 fn enabled_table_lines(n: usize) -> Result<Vec<String>, String> {
     let path = Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures/phase4_integrate_table.json");
-    let text = fs::read_to_string(&path).map_err(|e| format!("read table: {e}"))?;
+    let text = fs::read_to_string(path).map_err(|e| format!("read table: {e}"))?;
     let table: IntegrateTable = serde_json::from_str(&text).map_err(|e| format!("json: {e}"))?;
     Ok(table
         .entries

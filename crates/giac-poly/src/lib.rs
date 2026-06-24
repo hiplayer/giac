@@ -1,4 +1,6 @@
 #![deny(unsafe_code)]
+// ponytail: factor tower / nested embed WIP — dead_code until hensel+zassenhaus paths fully wired
+#![allow(dead_code)]
 //! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
 //! full module index in `.doc/giac-poly-api-stability.md`.
 //!

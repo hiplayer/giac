@@ -119,16 +119,17 @@ fn real_algebraic_roots(
     if real_count == 0 {
         return Ok(vec![]);
     }
-    if univariate_degree(factor, var) == 3 && real_count == 1 && rs.len() == 3 {
-        if monic_cubic_discriminant(factor, var)
+    if univariate_degree(factor, var) == 3
+        && real_count == 1
+        && rs.len() == 3
+        && monic_cubic_discriminant(factor, var)
             .map(|d| d < Ratio::zero())
             .unwrap_or(false)
-        {
-            // ponytail: casus cubic — real root is adjoin-first in poly_roots sort
-            return Ok(vec![rs[0].clone()]);
-        }
+    {
+        // ponytail: casus cubic — real root is adjoin-first in poly_roots sort
+        return Ok(vec![rs[0].clone()]);
     }
-    let filtered: Vec<_> = rs.into_iter().filter(|r| expr_is_real(r)).collect();
+    let filtered: Vec<_> = rs.into_iter().filter(expr_is_real).collect();
     if filtered.len() >= real_count {
         return Ok(filtered.into_iter().take(real_count).collect());
     }
@@ -179,7 +180,7 @@ fn expr_is_real(e: &ExprArc) -> bool {
     match e.as_ref() {
         Expr::Int(_) | Expr::Rat(_) => true,
         _ => canonicalize_to_algext_c(e.as_ref())
-            .map(|z| z.im.iter().all(|c| expr_is_zero(c)))
+            .map(|z| z.im.iter().all(expr_is_zero))
             .unwrap_or(false),
     }
 }
@@ -193,11 +194,10 @@ fn expr_is_zero(e: &ExprArc) -> bool {
 mod tests {
     //! Test tiers — `.doc/test-writing-spec.md` · audit §2
 
-    use giac_core::{eval, Expr, FuncKind, Ident};
+    use giac_core::{eval, Expr, FuncKind};
 
-    use super::*;
     use crate::plugin::xcas_default;
-    use crate::test_verify::test_verify::{assert_is_algext_or_rootof, assert_realroot_has, list_items};
+    use crate::test_verify::{assert_is_algext_or_rootof, assert_realroot_has, list_items};
 
     // **A** — eval(Realroot); AlgExt/rootof pairs.
     #[test]

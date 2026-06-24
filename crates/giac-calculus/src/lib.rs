@@ -1,4 +1,6 @@
 #![deny(unsafe_code)]
+#![allow(dead_code)] // ponytail: limit/risch WIP scaffolding; trim when pipelines land
+#![cfg_attr(test, allow(clippy::unwrap_used))]
 //! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
 //! full module index in `.doc/giac-calculus-api-stability.md`.
 //!

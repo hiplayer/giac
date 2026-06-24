@@ -70,7 +70,6 @@ pub fn hermite_reduce(
 #[cfg(test)]
 mod tests {
     use giac_poly::coeff_at;
-    use num_traits::Zero;
 
     use super::*;
 
@@ -112,7 +111,7 @@ mod tests {
         assert_eq!(mult, 1);
         assert_eq!(terms.len(), 1);
         assert_eq!(univariate_degree(&terms[0].numer, &var), 1);
-        assert!(univariate_degree(&rem, &var) <= 0);
+        assert_eq!(univariate_degree(&rem, &var), 0);
     }
 
     #[test]

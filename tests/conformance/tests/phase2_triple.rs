@@ -119,7 +119,7 @@ fn gcd_mod_13_triple() -> Result<(), String> {
     verify_sympy(line, &rs)?;
     let giac = run_giac(line)?;
     verify_sympy(line, &giac)?;
-    assert!(rs.contains('x'), "giac-rs gcd mod 13 should be linear, got {rs}");
+    assert_eq!(rs, "7*x+1 mod 13");
     Ok(())
 }
 

@@ -4,7 +4,7 @@
 //!
 use num_bigint::BigInt;
 use num_rational::Ratio;
-use num_traits::{One, Signed, Zero};
+use num_traits::{One, Zero};
 
 use crate::error::{EvalError, PolyResult};
 use crate::exp::bigint_pow;

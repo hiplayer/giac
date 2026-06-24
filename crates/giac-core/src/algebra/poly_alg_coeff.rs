@@ -16,8 +16,8 @@ pub struct AlgExtCPolyCoeff(pub AlgExtCData);
 
 impl AlgExtCPolyCoeff {
     /// **Stable** — `new`
-    pub fn new(data: AlgExtCData) -> Self {
-        Self(data)
+    pub fn new(inner: AlgExtCData) -> Self {
+        Self(inner)
     }
 
     /// **Stable** — `Poly::as_inner`
@@ -40,8 +40,8 @@ impl Debug for AlgExtCPolyCoeff {
 
 impl From<AlgExtCData> for AlgExtCPolyCoeff {
     // **Stable** — `Poly::from`
-    fn from(data: AlgExtCData) -> Self {
-        Self(data)
+    fn from(inner: AlgExtCData) -> Self {
+        Self(inner)
     }
 }
 
@@ -107,7 +107,7 @@ impl PolyCoeff for AlgExtCPolyCoeff {
 
 #[cfg(test)]
 mod tests {
-    use std::sync::Arc;
+    
 
     use giac_poly::PolyCoeff;
 

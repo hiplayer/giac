@@ -11,9 +11,9 @@
 //! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
 //! full module index in `.doc/giac-calculus-api-stability.md`.
 //!
-use giac_core::{Expr, ExprArc, FuncKind, Ident};
+use giac_core::{Expr, ExprArc, FuncKind};
 
-pub(crate) use crate::expr_util::is_var;
+
 
 pub(crate) const MAX_SERIES_ORDER: usize = 10;
 /// Upper bound for MRV `mrv_lead_term` ordre escalation (`series.cc` `max_series_expansion_order`).
@@ -107,9 +107,10 @@ pub(crate) fn expr_contains_nested_exp(e: &ExprArc) -> bool {
 
 #[cfg(test)]
 mod tests {
-    use giac_core::{Expr, ExprArc, FuncKind};
+    use giac_core::{Expr, ExprArc, FuncKind, Ident};
 
     use super::*;
+    use crate::expr_util::is_var;
 
     #[test]
     fn expr_nodes_and_depth() {

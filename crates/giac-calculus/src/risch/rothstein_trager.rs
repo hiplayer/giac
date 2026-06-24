@@ -11,16 +11,14 @@
 //! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
 //! full module index in `.doc/giac-calculus-api-stability.md`.
 //!
-use std::sync::Arc;
 
-use giac_core::{bigint_to_i64, poly_to_expr, ratio_to_expr, EvalError, Expr, ExprArc, Ident};
+
+use giac_core::{poly_to_expr, ratio_to_expr, EvalError, Expr, ExprArc, Ident};
 use giac_poly::{
     eval_param_poly, num_minus_t_derivative, rational_roots_in_t, tresultant_eliminate_x,
     univariate_degree, Poly, Var,
 };
-use num_bigint::BigInt;
-use num_rational::Ratio;
-use num_traits::{One, Zero};
+
 
 use crate::integrate::ln_abs_expr;
 
@@ -100,7 +98,7 @@ pub fn rothstein_trager_integrate(
 mod tests {
     use std::sync::Arc;
 
-    use giac_core::{format_expr, Expr, FuncKind};
+    use giac_core::{format_expr, Expr};
 
     use crate::plugin::xcas_default;
     use crate::test_verify::assert_deriv_equals_integrand;

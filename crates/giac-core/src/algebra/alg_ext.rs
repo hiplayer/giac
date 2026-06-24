@@ -19,8 +19,7 @@ use crate::expr::{Expr, ExprArc, FuncKind};
 
 use super::ext_tower::ExtensionField;
 use super::field_arith::{
-    canonical_poly1_expr, coords_to_expr, embed_in_cube_extension, embed_in_square_extension,
-    generator_coords, min_poly_exprs_to_q, minpoly_at_cube, minpoly_at_square,
+    canonical_poly1_expr, coords_to_expr, min_poly_exprs_to_q,
     mult_matrix_of_element, pad_to_len, poly1_coeffs,
     poly_degree, rationalize_poly1, ratio_to_expr_arc, CoordsQ,
 };
@@ -572,7 +571,7 @@ pub fn algext_square_roots(u: &AlgExtData) -> Result<Vec<AlgExtData>, EvalError>
             sqrt_field.generator_coords(),
             None,
         )?;
-        return Ok(vec![beta.clone(), beta.neg()?]);
+        Ok(vec![beta.clone(), beta.neg()?])
     }
 }
 
@@ -602,11 +601,11 @@ pub fn algext_cube_root(u: &AlgExtData) -> Result<AlgExtData, EvalError> {
             &field,
             vec![one, zero.clone(), zero, neg],
         )?;
-        return AlgExtData::from_coords_q(
+        AlgExtData::from_coords_q(
             Arc::clone(&cbrt_field),
             cbrt_field.generator_coords(),
             None,
-        );
+        )
     }
 }
 

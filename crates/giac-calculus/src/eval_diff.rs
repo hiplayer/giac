@@ -48,7 +48,7 @@ mod tests {
 
     use crate::plugin::xcas_default;
 
-    use super::*;
+    
 
     // **A** — eval(Diff) on x².
     #[test]

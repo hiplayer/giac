@@ -12,7 +12,7 @@ use std::collections::HashMap;
 
 use num_bigint::BigInt;
 use num_rational::Ratio;
-use num_traits::{One, Signed, Zero};
+use num_traits::{One, Zero};
 
 use crate::monomial::Var;
 use crate::nested::{
@@ -146,7 +146,7 @@ impl<'a> SparseAtZero<'a> {
         let templates = build_factor_templates(&self.facs, main);
         let n_vars = self.n_la * (self.dy + 1);
         let target = scale_by_lcp_power(self.p, &self.lcp, self.s - 1);
-        let mut eqs = build_sparse_equations(
+        let eqs = build_sparse_equations(
             &templates,
             &self.lcp,
             &target,
@@ -447,7 +447,7 @@ fn poly_to_sparse_map(p: &Poly, main: &Var, other: &Var) -> SparseMap {
     for (m, c) in &p.terms {
         let xe = m.exp_of(main);
         let ye = m.exp_of(other);
-        let entry = out.entry((xe, ye)).or_insert_with(SparseCoeff::zero);
+        let entry = out.entry((xe, ye)).or_default();
         entry.known += c.clone();
     }
     out
@@ -466,13 +466,13 @@ fn template_to_sparse_map(
             None => {
                 for (m, c) in &lcp.terms {
                     let ye = m.exp_of(other);
-                    let entry = out.entry((*xe, ye)).or_insert_with(SparseCoeff::zero);
+                    let entry = out.entry((*xe, ye)).or_default();
                     entry.known += c.clone();
                 }
             }
             Some(i) => {
                 for k in 0..=dy {
-                    let entry = out.entry((*xe, k as u64)).or_insert_with(SparseCoeff::zero);
+                    let entry = out.entry((*xe, k as u64)).or_default();
                     let var = i * (dy + 1) + k;
                     merge_linear(&mut entry.linear, var, Ratio::one());
                 }
@@ -491,11 +491,11 @@ fn sparse_map_mul(left: &SparseMap, right: &SparseMap) -> (SparseMap, BilinearMa
             let (c, bil) = a.mul(b);
             let key = (x1 + x2, y1 + y2);
             if !c.is_zero() {
-                let entry = out.entry(key).or_insert_with(SparseCoeff::zero);
+                let entry = out.entry(key).or_default();
                 *entry = entry.add(&c);
             }
             if !bil.is_empty() {
-                let entry = bil_map.entry(key).or_insert_with(Vec::new);
+                let entry = bil_map.entry(key).or_default();
                 for t in bil {
                     merge_bilinear(entry, t);
                 }
@@ -509,7 +509,7 @@ fn sparse_map_mul(left: &SparseMap, right: &SparseMap) -> (SparseMap, BilinearMa
 fn sparse_map_sub(left: &SparseMap, right: &SparseMap) -> SparseMap {
     let mut out = left.clone();
     for (k, b) in right {
-        let entry = out.entry(*k).or_insert_with(SparseCoeff::zero);
+        let entry = out.entry(*k).or_default();
         *entry = entry.add(&SparseCoeff {
             known: -b.known.clone(),
             linear: b
@@ -539,7 +539,7 @@ fn build_sparse_equations(
         let (p, b) = sparse_map_mul(&prod, &right);
         prod = p;
         for (k, v) in b {
-            let entry = bil_map.entry(k).or_insert_with(Vec::new);
+            let entry = bil_map.entry(k).or_default();
             for t in v {
                 merge_bilinear(entry, t);
             }
@@ -888,7 +888,7 @@ fn solve_bilinear_remaining(
         }
         if eq.bilinear.len() == 1 && eq.linear.len() == 1 {
             let t = eq.bilinear[0].clone();
-            let (li, lc) = eq.linear[0].clone();
+            let (li, _lc) = eq.linear[0].clone();
             // lc * v_li + t.coeff * v_i * v_j + known = 0
             if li == t.i && sol[t.j].is_zero() {
                 // lc * v_li + t.coeff * v_li * v_j = -known
@@ -1210,7 +1210,7 @@ fn select_bivariate_factor(
         if lc.is_zero() {
             continue;
         }
-        let multby = CoeffRingPoly::new(&lcpt)
+        let multby = CoeffRingPoly::new(lcpt)
             .exact_quo(&CoeffRingPoly::new(&lc))?;
         let score = multby.terms.len();
         if best.as_ref().map(|(_, _, s)| score < *s).unwrap_or(true) {
@@ -1532,7 +1532,6 @@ pub fn try_heuristic_factor_bivariate(p: &Poly, main: &Var, other: &Var) -> Opti
 #[cfg(test)]
 mod tests {
     use super::*;
-    use num_traits::One;
 
     fn l22_poly() -> Poly {
         let x = Poly::var("x");

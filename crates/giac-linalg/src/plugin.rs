@@ -142,7 +142,9 @@ mod tests {
         let inv = eval(Expr::func(FuncKind::Inv, vec![Arc::clone(&m)]).as_ref(), &ctx).unwrap();
         let inv_s = format_expr(inv.as_ref());
         assert!(
-            inv_s == "[[-2,1],[3/2,-1/2]]" || inv_s.contains("4") && inv_s.contains("2*3"),
+            inv_s == "[[-2,1],[3/2,-1/2]]"
+                || inv_s
+                    == "[[4*((1*4-1*2*3)^-1),-1*2*((1*4-1*2*3)^-1)],[-1*3*((1*4-1*2*3)^-1),1*((1*4-1*2*3)^-1)]]",
             "unexpected inv: {inv_s}"
         );
 

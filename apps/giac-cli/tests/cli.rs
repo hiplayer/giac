@@ -44,6 +44,6 @@ fn cli_reads_script_file() {
         .expect("run giac-cli with file");
     assert!(output.status.success());
     let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("x^2"));
+    assert_eq!(stdout.trim(), "x^2+2*x+1");
     let _ = std::fs::remove_file(path);
 }

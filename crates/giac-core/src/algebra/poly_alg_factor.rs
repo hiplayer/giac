@@ -94,7 +94,7 @@ pub fn factor_univariate_over_k(
     session: &FieldSession,
     flat: &FlatUni<AlgExtCPolyCoeff>,
 ) -> Result<Vec<(PolyAlgExt, usize)>, EvalError> {
-    let var = flat.var().as_var().clone();
+    let _var = flat.var().as_var().clone();
     let flat = aligned_flat(session, flat)?;
     let mut out = Vec::new();
     let c = flat.content()?;
@@ -298,10 +298,10 @@ fn push_factor(out: &mut Vec<(PolyAlgExt, usize)>, f: PolyAlgExt, k: usize) {
 
 #[cfg(test)]
 mod tests {
-    use giac_poly::PolyCoeff;
+    
 
     use num_rational::Ratio;
-    use num_bigint::BigInt;
+    
 
     use super::*;
     use crate::algebra::ext_tower::ExtensionField;
@@ -311,7 +311,7 @@ mod tests {
         Var::from("x")
     }
 
-    fn flat(session: &FieldSession, p: PolyAlgExt) -> FlatUni<AlgExtCPolyCoeff> {
+    fn flat(_session: &FieldSession, p: PolyAlgExt) -> FlatUni<AlgExtCPolyCoeff> {
         FlatUni::try_new(p, MainVar::new(x_var())).unwrap()
     }
 

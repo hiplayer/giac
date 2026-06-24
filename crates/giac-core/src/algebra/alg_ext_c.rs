@@ -9,9 +9,8 @@
 //!
 use std::sync::Arc;
 
-use num_bigint::BigInt;
+
 use num_rational::Ratio;
-use num_traits::{One, Zero};
 
 use crate::error::EvalError;
 use crate::expr::{Expr, ExprArc, FuncKind};
@@ -19,8 +18,7 @@ use crate::expr::{Expr, ExprArc, FuncKind};
 use super::alg_ext::AlgExtData;
 use super::ext_tower::ExtensionField;
 use super::field_arith::{
-    coords_to_expr, min_poly_exprs_to_q, pad_to_len, poly1_coeffs, rationalize_poly1,
-    ratio_to_expr_arc, CoordsQ,
+    coords_to_expr, pad_to_len, rationalize_poly1, CoordsQ,
 };
 
 /// z ∈ K[i]/(i²+1) where K is the tower-top [`ExtensionField`].
@@ -399,6 +397,7 @@ fn expr_to_field_element(e: &ExprArc) -> Result<(Arc<ExtensionField>, CoordsQ), 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::algebra::field_arith::ratio_to_expr_arc;
     use crate::algebra::test_fixtures::sqrt2_algext;
 
     #[test]
@@ -412,7 +411,7 @@ mod tests {
     #[test]
     fn i_times_sqrt2_squared_is_minus_two() {
         let a = sqrt2_algext();
-        let sqrt2 = AlgExtCData::from_alg_ext(&a).unwrap();
+        let _sqrt2 = AlgExtCData::from_alg_ext(&a).unwrap();
         let i_sqrt2 = AlgExtCData::from_complex_parts(&Expr::int(0), &a.into_expr()).unwrap();
         let sq = i_sqrt2.mul(&i_sqrt2).unwrap();
         let minus_two = AlgExtCData::from_complex_parts(

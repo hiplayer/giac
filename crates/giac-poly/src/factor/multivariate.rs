@@ -93,7 +93,6 @@ fn factor_multivariate_rec_sqff(ctx: SqffRingCtx<'_>) -> PolyResult<Vec<Poly>> {
 mod tests {
     use super::*;
     use num_rational::Ratio;
-    use num_traits::One;
     use crate::poly::Poly;
 
     #[test]

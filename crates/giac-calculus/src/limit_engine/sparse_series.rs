@@ -370,7 +370,7 @@ fn series_at_zero_depth(
         if let Some((num, den)) = try_as_rational(expr, var) {
             return SparseSeries::from_rational_laurent(&num, &den, var, order);
         }
-        if let Some(normalized) = ratnormal(expr.as_ref(), ctx).ok() {
+        if let Ok(normalized) = ratnormal(expr.as_ref(), ctx) {
             if let Some((num, den)) = try_as_rational(&normalized, var) {
                 return SparseSeries::from_rational_laurent(&num, &den, var, order);
             }
@@ -568,7 +568,7 @@ fn series_sqrt(
         let scaled = term.map_coeffs(|c| Expr::mul(vec![Arc::clone(c), Arc::clone(&scale)]));
         acc = acc.add(&scaled, ctx)?;
         term = term.mul_with_cap(&delta, order, order_cap, ctx)?;
-        binom = binom * Ratio::new(BigInt::from(3 - 2 * (k as i64)), BigInt::from(2 * (k as i64)));
+        binom *= Ratio::new(BigInt::from(3 - 2 * (k as i64)), BigInt::from(2 * (k as i64)));
     }
     Ok(acc)
 }
@@ -656,12 +656,12 @@ fn series_exp_mrv_positive(
     let mut const_term = Expr::int(0);
     let mut hi_terms = Vec::new();
     for (e, c) in &arg.terms {
-        if *e == 0 {
-            const_term = Expr::add(vec![const_term, Arc::clone(c)]);
-        } else if *e < 0 {
-            return Err(EvalError::NotImplemented("series"));
-        } else {
-            hi_terms.push((*e, Arc::clone(c)));
+        match e.cmp(&0) {
+            std::cmp::Ordering::Equal => {
+                const_term = Expr::add(vec![const_term, Arc::clone(c)]);
+            }
+            std::cmp::Ordering::Less => return Err(EvalError::NotImplemented("series")),
+            std::cmp::Ordering::Greater => hi_terms.push((*e, Arc::clone(c))),
         }
     }
     let (k, a_rest) = decompose_ln_w_coeff(&const_term);
@@ -683,9 +683,9 @@ fn series_exp_mrv_positive(
     } else {
         series_exp(&hi, order, order_cap, ctx)?
     };
-    Ok(w_part
+    w_part
         .mul_with_cap(&exp_a, order, order_cap, ctx)?
-        .mul_with_cap(&taylor, order, order_cap, ctx)?)
+        .mul_with_cap(&taylor, order, order_cap, ctx)
 }
 
 // **Pipeline private** — series ln mrv
@@ -701,7 +701,7 @@ fn series_ln_mrv(arg: &SparseSeries, order: usize, ctx: &Context) -> Result<Spar
             .lead()
             .map(|(_, c)| decompose_ln_w_coeff(&c))
             .unwrap_or((0, Expr::int(1)));
-        let total_k = i32::try_from(min_e).unwrap_or(i32::MAX).saturating_add(k2);
+        let total_k = min_e.saturating_add(k2);
         let mut parts = Vec::new();
         if total_k != 0 {
             parts.push(Expr::mul(vec![Expr::int(i64::from(total_k)), mrv_ln_w_expr()]));

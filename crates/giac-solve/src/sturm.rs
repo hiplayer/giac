@@ -4,7 +4,7 @@
 use std::sync::Arc;
 
 use giac_core::{
-    eval, expr_to_poly, poly_to_expr, ident_from_expr, Context, EvalError, Expr, ExprArc, Ident,
+    eval, expr_to_poly, poly_to_expr, ident_from_expr, Context, EvalError, Expr, ExprArc,
 };
 use giac_poly::{
     sturm_sequence, sturmab_count, univariate_degree, Var,
@@ -80,7 +80,6 @@ mod tests {
 
     use giac_core::{eval, format_expr, Expr, FuncKind};
 
-    use super::*;
     use crate::plugin::xcas_default;
 
     // **A** — eval(Sturm); list length only (TODO: semantic Sturm sequence).

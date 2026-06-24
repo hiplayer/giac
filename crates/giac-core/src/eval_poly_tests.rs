@@ -94,7 +94,7 @@ fn eval_mod_gcd_direct() {
     ));
     let e = Expr::func(FuncKind::Gcd, vec![a, b]);
     let r = eval(e.as_ref(), &ctx).unwrap();
-    assert!(format_expr(r.as_ref()).contains('x'));
+    assert_eq!(format_expr(r.as_ref()), "7*x+1 mod 13");
 }
 
 #[test]
@@ -143,8 +143,10 @@ fn eval_partfrac_direct() {
         ],
     );
     let r = eval(e.as_ref(), &ctx).unwrap();
-    let s = format_expr(r.as_ref());
-    assert!(s.contains("x-1") && s.contains("x+1"));
+    assert_eq!(
+        format_expr(r.as_ref()),
+        "1/2*((x-1)^-1)-1/2*((x+1)^-1)"
+    );
 }
 
 #[test]
@@ -284,8 +286,7 @@ fn eval_partfrac_mixed_linear_quadratic() {
         vec![Expr::pow(den, Expr::int(-1)), Expr::sym("x")],
     );
     let r = eval(e.as_ref(), &ctx).unwrap();
-    let s = format_expr(r.as_ref());
-    assert!(s.contains("x^2+1") || s.contains("1+x^2"));
+    assert_eq!(format_expr(r.as_ref()), "1*x^-1+(-1*x)*((x^2+1)^-1)");
 }
 
 #[test]
@@ -347,8 +348,7 @@ fn eval_lcm_polynomial() {
         ],
     );
     let r = eval(e.as_ref(), &ctx).unwrap();
-    let s = format_expr(r.as_ref());
-    assert!(s.contains("x"), "got {s}");
+    assert_eq!(format_expr(r.as_ref()), "x^3+x^2-1*x-1");
 }
 
 #[test]
@@ -357,15 +357,19 @@ fn eval_egcd_abcuv() {
     let a = Expr::pow(Expr::add(vec![Expr::sym("x"), Expr::int(1)]), Expr::int(2));
     let b = Expr::add(vec![Expr::pow(Expr::sym("x"), Expr::int(2)), Expr::int(-1)]);
     let egcd = Expr::func(FuncKind::Egcd, vec![a.clone(), b.clone()]);
-    let got = format_expr(eval(egcd.as_ref(), &ctx).unwrap().as_ref());
-    assert!(got.contains('x') && got.contains(','), "got {got}");
+    assert_eq!(
+        format_expr(eval(egcd.as_ref(), &ctx).unwrap().as_ref()),
+        "x+1,1,-1"
+    );
 
     let abc = Expr::func(
         FuncKind::Abcuv,
         vec![a, b, Expr::add(vec![Expr::sym("x"), Expr::int(1)])],
     );
-    let got = format_expr(eval(abc.as_ref(), &ctx).unwrap().as_ref());
-    assert!(got.contains(','), "got {got}");
+    assert_eq!(
+        format_expr(eval(abc.as_ref(), &ctx).unwrap().as_ref()),
+        "1,-1"
+    );
 }
 
 #[test]

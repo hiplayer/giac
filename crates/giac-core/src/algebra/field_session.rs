@@ -628,11 +628,11 @@ pub(crate) fn coeff_from_coords(
     field: &Arc<ExtensionField>,
     coords: &CoordsQ,
 ) -> Result<AlgExtCPolyCoeff, EvalError> {
-    let data = AlgExtData::from_field_coords(
+    let ext = AlgExtData::from_field_coords(
         Arc::clone(field),
         coords_to_expr(&pad_to_len(coords, field.dimension()))?,
     )?;
-    Ok(AlgExtCPolyCoeff::from(AlgExtCData::from_alg_ext(&data)?))
+    Ok(AlgExtCPolyCoeff::from(AlgExtCData::from_alg_ext(&ext)?))
 }
 
 #[cfg(test)]
@@ -645,7 +645,7 @@ mod tests {
 
     #[test]
     fn r2_session_common_cache_hit_on_second_common() {
-        let mut session = FieldSession::new(ExtensionField::rational());
+        let session = FieldSession::new(ExtensionField::rational());
         let sqrt2 = k1_adjoin_sqrt2();
         let sqrt3 = k1_adjoin_sqrt3();
         let _ = session.common_over_q(&sqrt2, &sqrt3).unwrap();
@@ -673,7 +673,7 @@ mod tests {
     #[test]
     fn int_and_one_on_rational() {
         let k = ExtensionField::rational();
-        let mut session = FieldSession::new(k);
+        let session = FieldSession::new(k);
         let two = session.int(2).unwrap();
         let one = session.one();
         assert!(!two.coeff_is_zero());
@@ -684,7 +684,7 @@ mod tests {
     #[test]
     fn lift_and_align_bump_working_on_k1() {
         let k1 = k1_adjoin_sqrt2();
-        let mut session = FieldSession::new(Arc::clone(&k1));
+        let session = FieldSession::new(Arc::clone(&k1));
         let sqrt2 = AlgExtCPolyCoeff::from(
             AlgExtCData::from_alg_ext(&sqrt2_algext()).unwrap(),
         );
@@ -704,7 +704,7 @@ mod tests {
     #[test]
     fn adjoin_sqrt_matches_sqrt_layer() {
         let k1 = k1_adjoin_sqrt2();
-        let mut session = FieldSession::new(Arc::clone(&k1));
+        let session = FieldSession::new(Arc::clone(&k1));
         let sqrt2 = AlgExtCPolyCoeff::from(
             AlgExtCData::from_alg_ext(&sqrt2_algext()).unwrap(),
         );

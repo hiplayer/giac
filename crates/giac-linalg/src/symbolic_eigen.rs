@@ -426,8 +426,7 @@ mod tests {
         ]));
         let r = eval_jordan(&m, &ctx).unwrap();
         let s = format_expr(r.as_ref());
-        assert!(s.contains("[[1,1,0]"), "got {s}");
-        assert!(s.contains("[[1,0,0]"), "got {s}");
+        assert_eq!(s, "[[1,1,0],[0,1,0],[0,0,2]],matrix[[1,0,0],[0,1,0],[0,0,1]]");
     }
 
     #[test]

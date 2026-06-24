@@ -776,11 +776,17 @@ mod tests {
             ("gcd(12,18);", "Func"),
         ] {
             let stmts = parse_program(src, &ctx).unwrap();
-            let s = format!("{:?}", match &stmts[0] {
+            let e = match &stmts[0] {
                 Stmt::ExprStmt(e) => e.as_ref(),
                 other => panic!("{other:?}"),
-            });
-            assert!(s.contains(check), "{src} -> {s}");
+            };
+            match (check, e) {
+                ("Pow", Expr::Pow(_, _)) => {}
+                ("Mul", Expr::Mul(_)) => {}
+                ("Add", Expr::Add(_)) => {}
+                ("Func", Expr::Func { .. }) => {}
+                _ => panic!("{src} -> {e:?}"),
+            }
         }
     }
 

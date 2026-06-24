@@ -931,7 +931,6 @@ pub fn try_hensel_lift_bivariate(p: &Poly, x: &Var, y: &Var) -> Option<Vec<Poly>
 #[cfg(test)]
 mod tests {
     use super::*;
-    use num_traits::One;
 
     #[test]
     fn hensel_three_linear_shifted() {
@@ -1030,7 +1029,6 @@ mod tests {
 
     #[test]
     fn hensel_two_simple_non_monic() {
-        let x = Poly::var("x");
         let y = Poly::var("y");
         let f = Poly::var("x")
             .mul_scalar(&Ratio::from_integer(3.into()))

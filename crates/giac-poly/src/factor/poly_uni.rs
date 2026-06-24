@@ -11,7 +11,6 @@
 //!
 use num_bigint::BigInt;
 use num_rational::Ratio;
-use num_traits::{One, Zero};
 
 use crate::error::{EvalError, PolyResult};
 use crate::monomial::Var;
@@ -255,7 +254,6 @@ impl PolyConstant for Poly {
 mod tests {
     use super::*;
     use num_rational::Ratio;
-    use num_traits::One;
 
     use super::super::multivariate::factor_multivariate_rec;
     use super::super::ctx::SqffRingCtx;

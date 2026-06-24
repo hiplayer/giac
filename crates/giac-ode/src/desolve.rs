@@ -192,7 +192,7 @@ fn strip_derivative_factor(
             if parts.is_empty() {
                 Ok(Expr::int(1))
             } else if parts.len() == 1 {
-                Ok(parts.into_iter().next().unwrap())
+                Ok(Arc::clone(&parts[0]))
             } else {
                 Ok(Expr::mul(parts))
             }
@@ -219,16 +219,14 @@ fn solve_linear_ode(ode: &LinOde, dep: &Ident, indep: &Ident) -> Result<ExprArc,
 // **Pipeline private** — `solve_first_order`
 fn solve_first_order(ode: &LinOde, indep: &Ident) -> Result<ExprArc, EvalError> {
     let x = Expr::sym(indep.as_str());
-    if is_one_expr(&ode.a1) && is_zero_expr(&ode.forcing) {
-        if is_neg_var(&ode.a0, indep) {
-            return Ok(Expr::mul(vec![
-                const_sym(0),
-                Expr::func(
-                    FuncKind::Exp,
-                    vec![Expr::mul(vec![Expr::rat(1, 2), Expr::pow(x.clone(), Expr::int(2))])],
-                ),
-            ]));
-        }
+    if is_one_expr(&ode.a1) && is_zero_expr(&ode.forcing) && is_neg_var(&ode.a0, indep) {
+        return Ok(Expr::mul(vec![
+            const_sym(0),
+            Expr::func(
+                FuncKind::Exp,
+                vec![Expr::mul(vec![Expr::rat(1, 2), Expr::pow(x.clone(), Expr::int(2))])],
+            ),
+        ]));
     }
     let p = if is_one_expr(&ode.a1) {
         Arc::clone(&ode.a0)

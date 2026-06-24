@@ -10,9 +10,8 @@ use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::{One, Zero};
 
-use crate::monomial::Var;
 use crate::poly::Poly;
-use crate::resultant::{quadratic_abc, univariate_degree};
+use crate::resultant::{quadratic_abc};
 
 use super::util::{ratio_perfect_sqrt, vars_in};
 
@@ -65,7 +64,7 @@ fn format_sqrt_ratio(r: &Ratio<BigInt>) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use num_traits::One;
+    use crate::monomial::Var;
 
     #[test]
     fn sqrt_factor_x2_minus_2() {
@@ -74,6 +73,6 @@ mod tests {
         p = p.sub(&Poly::constant(Ratio::from_integer(BigInt::from(2))));
         let facs = quadratic_sqrt_factor_exprs(&p, "x").expect("sqrt factors");
         assert_eq!(facs.len(), 2);
-        assert!(facs[0].0.contains("sqrt(8)"));
+        assert_eq!(facs[0].0, "x - ((0 + sqrt(8))/(2))");
     }
 }

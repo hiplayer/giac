@@ -231,8 +231,7 @@ mod tests {
         let inner = parse_inner_product(&integrate_inner_lambda()).unwrap();
         let r = gramschmidt_vectors(&vectors, &inner, &ctx).unwrap();
         let s = format_expr(r.as_ref());
-        assert!(s.contains("sqrt"), "got {s}");
-        assert!(s.contains("x"), "got {s}");
+        assert_eq!(s, "[sqrt(2)^-1,x*sqrt(2/3)^-1]");
     }
 
     #[test]

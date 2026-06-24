@@ -71,13 +71,11 @@ mod tests {
 
     #[test]
     fn eval_integrate_x() {
-        let out = eval_to_string("integrate(x,x)").unwrap();
-        assert!(out.contains("1/2") && out.contains("x^2"), "got {out}");
+        assert_eq!(eval_to_string("integrate(x,x)").unwrap(), "x^2*1/2");
     }
 
     #[test]
     fn eval_diff_x_squared() {
-        let out = eval_to_string("diff(x^2,x)").unwrap();
-        assert!(out.contains("2") && out.contains("x"), "got {out}");
+        assert_eq!(eval_to_string("diff(x^2,x)").unwrap(), "2*x");
     }
 }

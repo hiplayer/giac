@@ -2,7 +2,9 @@
 //!
 //! **Upstream:** `sym2poly.cc` partfrac after `ext_factor`.
 
-use giac_poly::{FlatUni, MainVar, Poly, FieldCoeff, PolyCoeff, Var};
+use giac_poly::{
+    factor_into, partfrac_rational_terms, FlatUni, MainVar, Poly, FieldCoeff, PolyCoeff, Var,
+};
 
 use crate::error::EvalError;
 
@@ -11,6 +13,34 @@ use super::poly::{poly_algext_from_poly, PolyAlgExt};
 use super::poly_alg_coeff::AlgExtCPolyCoeff;
 use super::poly_alg_factor::factor_univariate_over_k;
 use super::poly_alg_ops::{infer_ambient_field, normalize_algext_poly};
+
+/// **Stable** — ℚ partfrac leaves a single irreducible quadratic → split in K[var].
+pub fn partfrac_needs_k_split(num: &Poly, den: &Poly, var: &Var) -> bool {
+    if giac_poly::univariate_degree(num, var) != 0 {
+        return false;
+    }
+    if giac_poly::univariate_degree(den, var) != 2 {
+        return false;
+    }
+    partfrac_rational_terms(num, den, var)
+        .ok()
+        .is_some_and(|(_, terms)| {
+            terms.len() == 1 && giac_poly::univariate_degree(&terms[0].1, var) == 2
+        })
+}
+
+/// **Stable** — sqff quadratic factor irreducible in ℚ but splits in K (disc > 0).
+pub fn partfrac_sqff_factor_needs_k(factor: &Poly, var: &Var) -> bool {
+    if giac_poly::univariate_degree(factor, var) != 2 {
+        return false;
+    }
+    if factor_into(factor).is_some_and(|fs| fs.len() > 1) {
+        return false;
+    }
+    partfrac_rational_terms(&Poly::one(), factor, var)
+        .err()
+        .is_some_and(|e| matches!(e, EvalError::NotImplemented(msg) if msg == "partfrac real quadratic split"))
+}
 
 /// **Stable (bounded)** — `(poly_part, terms)` with denominators factored in K[var].
 pub fn partfrac_rational_terms_over_k(
@@ -60,7 +90,7 @@ pub fn partfrac_rational_terms_over_k(
     let factors: Vec<_> = pairs.into_iter().map(|(f, _)| f).collect();
     let mut terms = Vec::with_capacity(factors.len());
     for f in &factors {
-        let root = linear_root_coeff(&f, var)?;
+        let root = linear_root_coeff(f, var)?;
         let mut prod = AlgExtCPolyCoeff::coeff_one();
         for g in &factors {
             if g != f {
@@ -104,7 +134,7 @@ fn eval_wrt(p: &PolyAlgExt, var: &Var, x: &AlgExtCPolyCoeff) -> Result<AlgExtCPo
 
 #[cfg(test)]
 mod tests {
-    use giac_poly::PolyCoeff;
+    
 
     use super::*;
 
@@ -117,12 +147,21 @@ mod tests {
 
     #[test]
     fn partfrac_one_over_x_squared_minus_two() {
+        // Algorithm slice (no Expr): 1/(x²−2) → two sqff linear factors in K[x].
         let num = Poly::one();
         let den = Poly::var("x")
             .pow(2)
             .sub(&Poly::constant(Ratio::from_integer(BigInt::from(2))));
+        assert!(partfrac_needs_k_split(&num, &den, &x()));
         let (_, terms) = partfrac_rational_terms_over_k(&num, &den, &x()).unwrap();
         assert_eq!(terms.len(), 2);
         assert!(terms.iter().all(|(_, d)| d.degree_wrt(&x()) == 1));
+    }
+
+    #[test]
+    fn partfrac_needs_k_split_false_for_x_squared_minus_one() {
+        let num = Poly::one();
+        let den = Poly::var("x").pow(2).sub(&Poly::one());
+        assert!(!partfrac_needs_k_split(&num, &den, &x()));
     }
 }

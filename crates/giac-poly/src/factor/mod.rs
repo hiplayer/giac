@@ -46,11 +46,13 @@ pub use eval::GoodEval;
 pub use power::{as_perfect_power, try_linear_power};
 pub use sqrt::quadratic_sqrt_factor_exprs;
 pub use univariate::factor_power_pairs;
-pub use univariate::{factor_univariate_flat, factor_univariate_pairs};
+#[allow(unused_imports)] // re-export for partfrac tests
 pub(crate) use univariate::find_rational_root;
+pub use univariate::{factor_univariate_flat, factor_univariate_pairs};
+
 
 use multivariate::factor_into_poly;
-use patterns::{factor_xn_minus_one_display, try_factor_patterns};
+use patterns::{factor_xn_minus_one_display};
 use power::as_perfect_power as perfect_power;
 
 /// **Stable (bounded)** — Factor into irreducible polynomial factors over ℚ when possible.
@@ -103,9 +105,6 @@ pub fn factor_mod_irreducibles(p: &Poly, modulus: i64) -> crate::error::PolyResu
 #[cfg(test)]
 mod tests {
     use super::*;
-    use num_bigint::BigInt;
-    use num_rational::Ratio;
-    use num_traits::One;
     use crate::monomial::Var;
     use crate::poly::Poly;
 

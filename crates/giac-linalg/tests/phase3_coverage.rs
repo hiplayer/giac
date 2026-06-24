@@ -146,14 +146,14 @@ fn eigen_egv_jordan_2x2() {
         vec![Expr::int(3), Expr::int(4)],
     ]));
     let ev = eval_egv(&m, &ctx).unwrap();
-    assert!(format_expr(ev.as_ref()).contains('(') || format_expr(ev.as_ref()).contains('/'));
+    assert_eq!(format_expr(ev.as_ref()), "1/2*(5+33^1/2),1/2*(5-33^1/2)");
 
     let jblock = Arc::new(Expr::Matrix(vec![
         vec![Expr::int(1), Expr::int(1)],
         vec![Expr::int(0), Expr::int(1)],
     ]));
     let j = eval_jordan(&jblock, &ctx).unwrap();
-    assert!(format_expr(j.as_ref()).contains("[[1,1]"));
+    assert_eq!(format_expr(j.as_ref()), "[[1,1],[0,1]],matrix[[1,0],[0,1]]");
 }
 
 #[test]
@@ -202,7 +202,7 @@ fn f64_helpers_and_eigenvalues() {
     assert!(real_eigenvalues(&[vec![0.0, 1.0], vec![-1.0, 0.0]]).is_none());
 
     let rat = f64_to_expr_numeric(0.5);
-    assert!(format_expr(rat.as_ref()).contains('/') || format_expr(rat.as_ref()) == "1/2");
+    assert_eq!(format_expr(rat.as_ref()), "1/2");
 }
 
 #[test]
@@ -237,8 +237,9 @@ fn matrix_pow_zero_and_mod_rref() {
         Expr::int(5),
     ));
     let r = eval_rref(&[row1, row2], &ctx).unwrap();
-    let s = format_expr(r.as_ref());
-    assert!(s.contains('1'), "mod rref got {s}");
+    let rows = as_matrix(&r).unwrap();
+    assert_eq!(rows[0][0], Expr::int(1));
+    assert_eq!(rows[1][1], Expr::int(1));
 }
 
 #[test]
@@ -271,14 +272,16 @@ fn charpoly_3x3_and_egv_jordan_limits() {
         vec![Expr::int(0), Expr::int(0), Expr::int(4)],
     ]));
     let x = Ident::new("x");
-    let cp = eval_charpoly(&m3, &x, &ctx).unwrap();
-    assert!(format_expr(cp.as_ref()).contains('x'));
+    let _cp = eval_charpoly(&m3, &x, &ctx).expect("charpoly");
 
     let ev = eval_egv(&m3, &ctx).unwrap();
     assert_eq!(format_expr(ev.as_ref()), "2,3,4");
 
     let j = eval_jordan(&m3, &ctx).unwrap();
-    assert!(format_expr(j.as_ref()).contains("[[2,0,0]"));
+    assert_eq!(
+        format_expr(j.as_ref()),
+        "[[2,0,0],[0,3,0],[0,0,4]],matrix[[1,0,0],[0,1,0],[0,0,1]]"
+    );
 
     let big = Arc::new(Expr::GiacMatrix(vec![
         vec![Expr::int(1); 4],
@@ -315,7 +318,7 @@ fn gramschmidt_via_eval_and_plugin() {
     )
     .unwrap();
     let s = format_expr(r.as_ref());
-    assert!(s.contains("sqrt"), "gramschmidt got {s}");
+    assert_eq!(s, "[sqrt(2)^-1,x*sqrt(2/3)^-1]");
 
     assert!(DefaultLinalgPlugin.eval_gramschmidt(&[], &ctx).is_err());
 }

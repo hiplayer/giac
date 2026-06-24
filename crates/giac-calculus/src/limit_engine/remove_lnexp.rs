@@ -115,7 +115,7 @@ fn try_collapse_w_inv_exp_shift(expr: &ExprArc) -> Option<ExprArc> {
                 }
                 if let Expr::Mul(mfs) = pos.as_ref() {
                     if mfs.len() == 2
-                        && mfs.iter().any(|x| is_mrv_w_var_symbol(x))
+                        && mfs.iter().any(is_mrv_w_var_symbol)
                         && mfs.iter().any(|x| matches!(x.as_ref(), Expr::Func(FuncKind::Exp, _)))
                     {
                         let exp_f = mfs
@@ -149,7 +149,7 @@ fn try_rewrite_w_inv_times_exp_minus_one(expr: &ExprArc, ctx: &Context) -> Optio
     let Expr::Mul(fs) = target else {
         return None;
     };
-    if !fs.iter().any(|f| is_neg_w_inv(f)) {
+    if !fs.iter().any(is_neg_w_inv) {
         return None;
     }
     let em1 = fs.iter().find(|f| is_exp_minus_one_factor(f))?;
@@ -328,11 +328,6 @@ fn ln_expand0(e: &ExprArc) -> ExprArc {
             Expr::func(FuncKind::Ln, vec![Arc::clone(e)])
         }
         Expr::Frac(n, d) if is_expr_one(n) => Expr::mul(vec![Expr::int(-1), ln_expand0(d)]),
-        Expr::Pow(b, exp)
-            if matches!(exp.as_ref(), Expr::Int(n) if n == &-BigInt::from(1)) =>
-        {
-            Expr::mul(vec![Expr::int(-1), ln_expand0(b)])
-        }
         _ => Expr::func(FuncKind::Ln, vec![Arc::clone(e)]),
     }
 }
@@ -419,7 +414,6 @@ fn collect_ln(e: &ExprArc, found: &mut Option<(ExprArc, ExprArc)>) {
             }
             collect_ln(exp, found);
             if found.is_none() {
-                return;
             }
         }
         Expr::Frac(n, d) => {
@@ -429,7 +423,6 @@ fn collect_ln(e: &ExprArc, found: &mut Option<(ExprArc, ExprArc)>) {
             }
             collect_ln(d, found);
             if found.is_none() {
-                return;
             }
         }
         Expr::Func(_, args) => {

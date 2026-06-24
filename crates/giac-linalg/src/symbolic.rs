@@ -935,8 +935,9 @@ pub fn f64_to_expr_numeric(v: f64) -> ExprArc {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use giac_core::format_expr;
     use giac_core::Context;
+
+    use crate::test_verify::assert_charpoly_equiv;
 
     #[test]
     fn det_2x2_numeric() {
@@ -959,13 +960,14 @@ mod tests {
             vec![Expr::int(0), Expr::int(0), Expr::int(0), Expr::int(1)],
         ]));
         let x = Ident::new("x");
-        let cp = eval_charpoly(&m, &x, &ctx).unwrap();
-        let s = format_expr(cp.as_ref());
-        // det(λI - I) = (λ-1)^4 => expanded: x^4-4*x^3+6*x^2-4*x+1
-        assert!(
-            s.contains("x^4") && s.contains("-4"),
-            "charpoly 4x4 identity got: {s}"
-        );
+        let expected = Expr::add(vec![
+            Expr::pow(Expr::sym("x"), Expr::int(4)),
+            Expr::mul(vec![Expr::int(-4), Expr::pow(Expr::sym("x"), Expr::int(3))]),
+            Expr::mul(vec![Expr::int(6), Expr::pow(Expr::sym("x"), Expr::int(2))]),
+            Expr::mul(vec![Expr::int(-4), Expr::sym("x")]),
+            Expr::int(1),
+        ]);
+        assert_charpoly_equiv(&m, &x, expected.as_ref(), &ctx);
     }
 
     #[test]
@@ -978,14 +980,14 @@ mod tests {
             vec![Expr::int(0), Expr::int(0), Expr::int(0), Expr::int(4)],
         ]));
         let x = Ident::new("x");
-        let cp = eval_charpoly(&m, &x, &ctx).unwrap();
-        let s = format_expr(cp.as_ref());
-        // det(λI - diag(1,2,3,4)) = (x-1)(x-2)(x-3)(x-4)
-        // = x^4 - 10x^3 + 35x^2 - 50x + 24
-        assert!(
-            s.contains("x^4") && s.contains("-10"),
-            "charpoly 4x4 diagonal got: {s}"
-        );
+        let expected = Expr::add(vec![
+            Expr::pow(Expr::sym("x"), Expr::int(4)),
+            Expr::mul(vec![Expr::int(-10), Expr::pow(Expr::sym("x"), Expr::int(3))]),
+            Expr::mul(vec![Expr::int(35), Expr::pow(Expr::sym("x"), Expr::int(2))]),
+            Expr::mul(vec![Expr::int(-50), Expr::sym("x")]),
+            Expr::int(24),
+        ]);
+        assert_charpoly_equiv(&m, &x, expected.as_ref(), &ctx);
     }
 
     #[test]

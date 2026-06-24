@@ -14,12 +14,13 @@
 use std::sync::Arc;
 
 use giac_core::{
-    bigint_to_i64, expr_to_poly, integer_sqrt, poly_to_expr, ratio_to_expr, EvalError, Expr, ExprArc,
-    FuncKind, Ident,
+    algext_poly_to_expr, bigint_to_i64, expr_to_poly, integer_sqrt, partfrac_needs_k_split,
+    partfrac_rational_terms_over_k, poly_to_expr, ratio_to_expr, EvalError, Expr, ExprArc,
+    FuncKind, Ident, PolyAlgExt,
 };
 use giac_poly::{
     as_perfect_power, coeff_at, partfrac_rational_terms, substitute_univariate, try_linear_power,
-    univariate_degree, Poly, Var,
+    univariate_degree, FieldCoeff, Poly, PolyCoeff, Var,
 };
 
 use crate::risch::{
@@ -65,14 +66,29 @@ pub fn integrate_one_over_quadratic(den: &ExprArc, var: &Ident) -> Result<ExprAr
     }
 }
 
-// **Pipeline private** — integrate rational via partial fractions.
+// **Pipeline private** — integrate rational via partial fractions (ℚ, then K fallback).
 fn integrate_rational_partfrac(
     num: &Poly,
     den: &Poly,
     var: &Ident,
 ) -> Result<ExprArc, EvalError> {
     let v = Var::from(var.as_str());
-    let (poly_part, terms) = partfrac_rational_terms(num, den, &v)?;
+    if partfrac_needs_k_split(num, den, &v) {
+        return integrate_k_partfrac(num, den, var, &v);
+    }
+    match partfrac_rational_terms(num, den, &v) {
+        Ok((poly_part, terms)) => integrate_q_partfrac_terms(poly_part, terms, var, &v),
+        Err(_) => integrate_k_partfrac(num, den, var, &v),
+    }
+}
+
+// **Pipeline private** — integrate ℚ partfrac terms.
+fn integrate_q_partfrac_terms(
+    poly_part: Option<Poly>,
+    terms: Vec<(Poly, Poly)>,
+    var: &Ident,
+    v: &Var,
+) -> Result<ExprArc, EvalError> {
     let mut parts = Vec::new();
     if let Some(q) = poly_part {
         parts.push(integrate(&poly_to_expr(&q), var)?);
@@ -81,12 +97,66 @@ fn integrate_rational_partfrac(
         if numer.is_zero() {
             continue;
         }
-        parts.push(integrate_rational_term(&numer, &factor, &v, var)?);
+        parts.push(integrate_rational_term(&numer, &factor, v, var)?);
     }
     if parts.is_empty() {
         return Err(EvalError::NotImplemented("integrate partfrac"));
     }
     Ok(Expr::add(parts))
+}
+
+// **Pipeline private** — integrate K partfrac terms (`partfrac_rational_terms_over_k`).
+fn integrate_k_partfrac(
+    num: &Poly,
+    den: &Poly,
+    var: &Ident,
+    v: &Var,
+) -> Result<ExprArc, EvalError> {
+    let (poly_part, terms) = partfrac_rational_terms_over_k(num, den, v)?;
+    let mut parts = Vec::new();
+    if let Some(q) = poly_part {
+        parts.push(integrate(&poly_to_expr(&q), var)?);
+    }
+    for (numer, factor) in terms {
+        if numer.is_zero() {
+            continue;
+        }
+        parts.push(integrate_algext_linear_term(&numer, &factor, v, var)?);
+    }
+    if parts.is_empty() {
+        return Err(EvalError::NotImplemented("integrate partfrac over K"));
+    }
+    Ok(Expr::add(parts))
+}
+
+// **Pipeline private** — ∫ c/(a·x+b) dx with c, a, b ∈ K (AlgExtC).
+fn integrate_algext_linear_term(
+    numer: &PolyAlgExt,
+    factor: &PolyAlgExt,
+    var: &Var,
+    _x: &Ident,
+) -> Result<ExprArc, EvalError> {
+    if numer.degree_wrt(var) != 0 {
+        return Err(EvalError::NotImplemented(
+            "integrate partfrac over K: nonlinear numerator",
+        ));
+    }
+    if factor.degree_wrt(var) != 1 {
+        return Err(EvalError::NotImplemented(
+            "integrate partfrac over K: nonlinear factor",
+        ));
+    }
+    let c = giac_poly::scalar_coeff_wrt(numer, var, 0);
+    let a = giac_poly::scalar_coeff_wrt(factor, var, 1);
+    if a.coeff_is_zero() {
+        return Err(EvalError::TypeError("degenerate linear factor"));
+    }
+    let scaled = c.field_div(&a)?;
+    let coeff_expr = scaled.as_inner().to_expr().into();
+    Ok(Expr::mul(vec![
+        coeff_expr,
+        ln_abs_expr(algext_poly_to_expr(factor)?),
+    ]))
 }
 
 /// **Stable** — ∫ num/den dx for rational expressions (Hermite, Rothstein–Trager, partfrac).
@@ -339,15 +409,19 @@ fn integrate_polynomial_over_linear_power(
         }
         let coeff = c / denom_scale.clone();
         let exp = j as i64 - power as i64;
-        if exp == -1 {
-            parts.push(Expr::mul(vec![ratio_to_expr(&coeff), ln_abs_expr(u.clone())]));
-        } else if exp < -1 {
-            let new_exp = exp + 1;
-            let scaled = coeff / Ratio::from_integer(BigInt::from(new_exp));
-            parts.push(Expr::mul(vec![
-                ratio_to_expr(&scaled),
-                Expr::pow(u.clone(), Expr::int(new_exp)),
-            ]));
+        match exp.cmp(&-1) {
+            std::cmp::Ordering::Equal => {
+                parts.push(Expr::mul(vec![ratio_to_expr(&coeff), ln_abs_expr(u.clone())]));
+            }
+            std::cmp::Ordering::Less => {
+                let new_exp = exp + 1;
+                let scaled = coeff / Ratio::from_integer(BigInt::from(new_exp));
+                parts.push(Expr::mul(vec![
+                    ratio_to_expr(&scaled),
+                    Expr::pow(u.clone(), Expr::int(new_exp)),
+                ]));
+            }
+            std::cmp::Ordering::Greater => {}
         }
     }
     if parts.is_empty() {
@@ -482,8 +556,8 @@ fn integrate_over_quadratic_real_roots(
 
 // **Pipeline private** — exact square root of a perfect-square rational.
 fn ratio_sqrt(r: &Ratio<BigInt>) -> Result<Ratio<BigInt>, EvalError> {
-    let sn = integer_sqrt(r.numer()).ok_or_else(|| EvalError::NotImplemented("integrate partfrac"))?;
-    let sd = integer_sqrt(r.denom()).ok_or_else(|| EvalError::NotImplemented("integrate partfrac"))?;
+    let sn = integer_sqrt(r.numer()).ok_or(EvalError::NotImplemented("integrate partfrac"))?;
+    let sd = integer_sqrt(r.denom()).ok_or(EvalError::NotImplemented("integrate partfrac"))?;
     Ok(Ratio::new(sn, sd))
 }
 
@@ -644,7 +718,6 @@ mod tests {
     }
 
     #[test]
-    #[test]
     fn integrate_one_over_quadratic_one_minus_x_squared() {
         let x = Ident::new("x");
         let den = Expr::add(vec![
@@ -653,6 +726,17 @@ mod tests {
         ]);
         let r = integrate_one_over_quadratic(&den, &x);
         assert!(r.is_ok(), "{:?}", r);
+    }
+
+    #[test]
+    fn integrate_one_over_x_squared_minus_two_via_k_partfrac() {
+        // K-route antiderivative exists; semantic expand/diff check → giac-core/tests/partfrac_k_route.rs.
+        let x = Ident::new("x");
+        let den = Expr::add(vec![
+            Expr::pow(Expr::sym("x"), Expr::int(2)),
+            Expr::int(-2),
+        ]);
+        integrate_one_over_quadratic(&den, &x).expect("K partfrac integrate");
     }
 
     #[test]

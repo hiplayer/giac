@@ -27,7 +27,7 @@ pub enum RischTowerError {
 pub fn rlvarx(expr: &ExprArc, var: &Ident) -> Vec<ExprArc> {
     let mut out = Vec::new();
     collect_rlvarx(expr, var, &mut out);
-    out.sort_by(|a, b| extension_rank(a).cmp(&extension_rank(b)));
+    out.sort_by_key(extension_rank);
     out.dedup_by(|a, b| a == b);
     out
 }

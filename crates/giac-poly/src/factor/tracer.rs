@@ -6,7 +6,6 @@
 //! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
 //! full module index in `.doc/giac-poly-api-stability.md`.
 //!
-use crate::monomial::Var;
 use crate::poly::Poly;
 
 use super::multivariate::factor_multivariate;
@@ -52,7 +51,6 @@ fn assert_factors(p: &Poly, min_count: usize) {
 mod tests {
     use super::*;
     use num_rational::Ratio;
-    use num_traits::One;
 
     /// testfactor line 16: `(x-y+1)*(x-y)*(x-y-1)`
     #[test]

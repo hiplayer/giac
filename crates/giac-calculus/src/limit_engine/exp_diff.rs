@@ -1292,7 +1292,7 @@ mod tests {
         ]);
         let r = first_order_exp_vanishing_epsilon(&e, &var);
         assert!(
-            !match_exp_times_exp_minus_one(&r).is_some(),
+            match_exp_times_exp_minus_one(&r).is_none(),
             "should not keep exp()-1: {}",
             format_expr(r.as_ref())
         );

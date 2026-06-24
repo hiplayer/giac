@@ -172,7 +172,7 @@ pub fn derivative_wrt<C: PolyCoeff>(p: &Poly<C>, var: &Var) -> PolyResult<Poly<C
         if c.coeff_is_zero() {
             continue;
         }
-        let coeff = c.coeff_mul(&scalar_coeff_from_u64(exp as u64)?)?;
+        let coeff = c.coeff_mul(&scalar_coeff_from_u64(exp)?)?;
         out = out.try_add(&term_with_var(&coeff, var, exp - 1)?)?;
     }
     Ok(out)
@@ -364,7 +364,6 @@ pub(crate) fn monic_wrt<C: PolyCoeff>(p: &Poly<C>, var: &Var) -> PolyResult<Poly
 #[cfg(test)]
 mod tests {
     use num_rational::Ratio;
-    use num_traits::One;
 
     use super::*;
     use crate::monomial::Var;

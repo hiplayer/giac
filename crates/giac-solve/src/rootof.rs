@@ -14,13 +14,13 @@ mod tests {
 
     use std::sync::Arc;
 
-    use giac_core::{eval, contains_algext, Ident, Context, FuncKind, RelOp, Expr};
+    use giac_core::{contains_algext, eval, Expr, FuncKind, Ident, RelOp};
     use giac_poly::{roots, Poly, Var};
 
     use super::*;
     use crate::plugin::xcas_default;
     use crate::solve_poly::solve_univariate_over_q;
-    use crate::test_verify::test_verify::{
+    use crate::test_verify::{
         assert_equation_solutions, assert_is_algext_or_rootof, assert_roots_zero_poly,
         list_items,
     };

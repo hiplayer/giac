@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use giac_core::{
     factor_into_algext, format_expr, poly_algext_from_poly, poly_algext_roots_for_ctx, poly_to_expr,
-    rootof_from_minpoly, univariate_poly_to_poly1_expr, Context, EvalError, Expr, ExprArc,
+    rootof_from_minpoly, univariate_poly_to_poly1_expr, Context, EvalError, ExprArc,
     PolyAlgExt,
 };
 use giac_poly::{factor_univariate_pairs, roots, univariate_degree, Poly, Var};
@@ -149,12 +149,12 @@ fn dedup_expr_roots(roots: Vec<ExprArc>) -> Vec<ExprArc> {
 
 #[cfg(test)]
 mod tests {
-    use giac_core::{contains_algext, FuncKind, RelOp};
+    use giac_core::{contains_algext, Expr, FuncKind, RelOp};
     use giac_poly::Poly;
 
     use super::*;
     use crate::plugin::xcas_default;
-    use crate::test_verify::test_verify::{
+    use crate::test_verify::{
         assert_equation_solutions, assert_is_algext_or_rootof, list_items,
     };
 
@@ -177,7 +177,7 @@ mod tests {
 
     #[test]
     fn solve_x2_plus_1_has_two_roots() {
-        use crate::test_verify::test_verify::assert_roots_zero_poly;
+        use crate::test_verify::assert_roots_zero_poly;
         let ctx = xcas_default();
         let x = Poly::var("x");
         let quad = x.pow(2).add(&Poly::one());
@@ -192,7 +192,7 @@ mod tests {
 
     #[test]
     fn solve_x3_minus_x_plus_1_has_three_roots() {
-        use crate::test_verify::test_verify::assert_roots_zero_poly;
+        use crate::test_verify::assert_roots_zero_poly;
         let ctx = xcas_default();
         let x = Poly::var("x");
         let cubic = x.pow(3).sub(&x).add(&Poly::one());
@@ -221,7 +221,7 @@ mod tests {
 
     #[test]
     fn solve_reducible_deg5_product_zeros_poly() {
-        use crate::test_verify::test_verify::assert_roots_zero_poly;
+        use crate::test_verify::assert_roots_zero_poly;
         let ctx = xcas_default();
         let x = Poly::var("x");
         let p = x

@@ -13,10 +13,12 @@ use num_traits::One;
 
 use crate::error::EvalError;
 use crate::expr::{Expr, ExprArc};
-use crate::ident::{ident_from_expr, Ident};
+use crate::ident::{ident_from_expr};
 
 use crate::algebra::poly::{algext_poly_to_expr, expr_to_poly, poly_to_expr, ratio_to_expr, vars_from_expr, PolyAlgExt};
-use crate::algebra::poly_alg_partfrac::partfrac_rational_terms_over_k;
+use crate::algebra::poly_alg_partfrac::{
+    partfrac_needs_k_split, partfrac_rational_terms_over_k,
+};
 use crate::expr_rational::expr_to_rational_polys;
 
 pub fn eval_quo(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc, EvalError> {
@@ -199,29 +201,18 @@ pub fn eval_partfrac(args: &[ExprArc], _ctx: &crate::Context) -> Result<ExprArc,
     let var_poly = Var::from(var.as_str());
     let (num, den) = expr_to_rational_polys(args[0].as_ref())?;
 
-    let use_k = partfrac_needs_k_split(&num, &den, &var_poly);
-    if use_k {
+    if partfrac_needs_k_split(&num, &den, &var_poly) {
         let (poly_part, terms) = partfrac_rational_terms_over_k(&num, &den, &var_poly)?;
-        return Ok(partfrac_terms_to_expr(poly_part, terms)?);
+        return partfrac_terms_to_expr(poly_part, terms);
     }
 
-    let (poly_part, terms) = partfrac_rational_terms(&num, &den, &var_poly)?;
-    partfrac_q_terms_to_expr(poly_part, terms)
-}
-
-// **Pipeline private** — ℚ path: single irreducible quadratic with constant numerator → try K split.
-fn partfrac_needs_k_split(num: &Poly, den: &Poly, var: &Var) -> bool {
-    if giac_poly::univariate_degree(num, var) != 0 {
-        return false;
+    match partfrac_rational_terms(&num, &den, &var_poly) {
+        Ok((poly_part, terms)) => partfrac_q_terms_to_expr(poly_part, terms),
+        Err(_) => {
+            let (poly_part, terms) = partfrac_rational_terms_over_k(&num, &den, &var_poly)?;
+            partfrac_terms_to_expr(poly_part, terms)
+        }
     }
-    if giac_poly::univariate_degree(den, var) != 2 {
-        return false;
-    }
-    partfrac_rational_terms(num, den, var)
-        .ok()
-        .is_some_and(|(_, terms)| {
-            terms.len() == 1 && giac_poly::univariate_degree(&terms[0].1, var) == 2
-        })
 }
 
 fn partfrac_q_terms_to_expr(

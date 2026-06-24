@@ -33,6 +33,7 @@ struct QuadraticFactor {
 }
 
 /// **Partial** — integrate `k/(x^4+1)` via RT conjugate pairing. **退役：** `try_algebraic_rt_log_part` general path.
+#[allow(clippy::expect_used)] // ponytail: x^4+1 factorization is a fixed fixture
 pub fn integrate_monic_x4_plus_one(k: &Ratio<BigInt>, x: &Ident) -> ExprArc {
     let q = Poly::var("x").pow(4).add(&Poly::one());
     let var = Var::from("x");
@@ -402,7 +403,7 @@ fn integer_perfect_sqrt(n: &BigInt) -> Option<BigInt> {
 mod tests {
     use std::sync::Arc;
 
-    use giac_core::{format_expr, Expr, FuncKind};
+    use giac_core::{format_expr, Expr};
     use giac_poly::{num_minus_t_derivative, tresultant_eliminate_x, Poly, Var};
 
     use crate::plugin::xcas_default;

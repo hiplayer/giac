@@ -794,7 +794,12 @@ mod timeout_tests {
         cmd.arg("5");
         let err = command_with_timeout(cmd, Duration::from_millis(200), "sleep")
             .unwrap_err();
-        assert!(err.contains("timeout"), "{err}");
+        assert!(
+            err.as_bytes()
+                .windows(7)
+                .any(|w| w.eq_ignore_ascii_case(b"timeout")),
+            "{err}"
+        );
     }
 
     #[test]

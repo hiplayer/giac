@@ -82,7 +82,7 @@ impl<'a> CoeffRingPoly<'a> {
 }
 
 /// Alias for [`UnivariateIn`] (nested ring K[others][main]; **ℚ algorithms** on default `C`).
-pub type UnivariateOver<'a, C: PolyCoeff = Ratio<BigInt>> = UnivariateIn<'a, C>;
+pub type UnivariateOver<'a, C = Ratio<BigInt>> = UnivariateIn<'a, C>;
 
 /// Borrowed view: `p` ∈ K[others][main] with coefficients in ring `C`.
 ///
@@ -402,13 +402,13 @@ impl DilationMap {
 
     // **Stable** — `Poly::apply`
     pub(crate) fn apply(&self, p: &Poly) -> Poly {
-        let mut out = dilate_one(p, &self.aux_a, self.da);
+        let out = dilate_one(p, &self.aux_a, self.da);
         dilate_one(&out, &self.aux_b, self.db)
     }
 
     // **Stable** — `undo`
     pub(crate) fn undo(&self, p: &Poly) -> Poly {
-        let mut out = undilate_one(p, &self.aux_b, self.db);
+        let out = undilate_one(p, &self.aux_b, self.db);
         undilate_one(&out, &self.aux_a, self.da)
     }
 }
@@ -804,7 +804,6 @@ fn eval_tn_impl(
 mod tests {
     use super::*;
     use crate::monomial::Var;
-    use num_traits::One;
 
     #[test]
     fn flat_uni_div_rem_vs_multivariate_div_rem() {

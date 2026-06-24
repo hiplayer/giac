@@ -6,13 +6,13 @@
 //! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
 //! full module index in `.doc/giac-poly-api-stability.md`.
 //!
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap};
 
 use num_bigint::BigInt;
 use num_rational::Ratio;
 use num_traits::{One, Signed, Zero};
 
-use crate::monomial::{Monomial, Var};
+use crate::monomial::{Var};
 use crate::nested::MultivariatePoly;
 use crate::poly::Poly;
 use crate::resultant::{coeff_at, univariate_degree};
@@ -179,7 +179,7 @@ pub fn rational_factor_pairs(a0: &Ratio<BigInt>) -> Vec<(Ratio<BigInt>, Ratio<Bi
 
 /// **Stable** — Coefficient of `var^exp` (quotient by `var^exp` on matching terms).
 /// **Stable** — sorted variables in `p`.
-pub use crate::subresultant::{coeff_wrt, vars_in};
+pub use crate::subresultant::{vars_in};
 /// **Stable** — `is_monic_univariate`
 pub fn is_monic_univariate(p: &Poly, var: &Var) -> bool {
     let d = univariate_degree(p, var);

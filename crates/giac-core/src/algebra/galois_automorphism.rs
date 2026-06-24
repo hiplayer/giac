@@ -57,6 +57,7 @@ fn embed_parent_coords(
     }
     let mut out = field.zero_coords();
     let a = pad_to_len(a, pd);
+    #[allow(clippy::manual_memcpy)] // Ratio<BigInt> is not Copy
     for i in 0..pd.min(cd) {
         out[i] = a[i].clone();
     }

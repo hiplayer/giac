@@ -76,7 +76,7 @@ mod tests {
 
     use super::*;
     use crate::plugin::xcas_default;
-    use crate::test_verify::test_verify::list_items;
+    use crate::test_verify::list_items;
 
     fn eval_const_expr(e: &Expr) -> Option<i64> {
         match e {

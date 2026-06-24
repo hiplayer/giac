@@ -1,5 +1,6 @@
 //! Semantic verification for giac-simplify tests (`.doc/conformance-testing.md` §3).
 //! See `.doc/issues/GIAC-expr-api-test-contains-cleanup.md` H4.
+#![allow(clippy::expect_used)] // test helper: expect carries assert context
 
 use std::sync::Arc;
 

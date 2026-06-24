@@ -64,12 +64,14 @@ fn test_modular_core() -> Result<(), String> {
         verify_sympy(line, &got)?;
     }
     let chin = run_line("chinrem([x+2,x^2+1],[x+1,x^2+x+1])")?;
-    assert!(chin.starts_with('[') && chin.contains("x"));
     verify_sympy("chinrem([x+2,x^2+1],[x+1,x^2+x+1])", &chin)?;
 
     let line = "normal(((2*x+1) % 13)^5)";
     let got = run_line(line)?;
-    assert!(got.contains("% 13"), "got {got}");
+    assert_eq!(
+        got,
+        "(6 % 13)*x^5+(2 % 13)*x^4+(2 % 13)*x^3+(1 % 13)*x^2+(10 % 13)*x+(1 % 13)"
+    );
     verify_sympy(line, &got)?;
     Ok(())
 }
@@ -113,7 +115,7 @@ fn test_groebner_runs() -> Result<(), String> {
 fn gcd_mod_13_linear() -> Result<(), String> {
     let line = "gcd((2*x^2+5) % 13,(5*x^2+2*x-3) % 13)";
     let got = run_line(line)?;
-    assert!(got.contains('x') || got.contains('1'), "got {got}");
+    assert_eq!(got, "7*x+1 mod 13");
     verify_sympy(line, &got)?;
     Ok(())
 }

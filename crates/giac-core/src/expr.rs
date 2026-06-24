@@ -197,12 +197,12 @@ impl Expr {
             || matches!(self, Expr::AlgExtC(z) if z.is_one().unwrap_or(false))
     }
 
-    pub fn alg_ext(data: AlgExtData) -> ExprArc {
-        Arc::new(Expr::AlgExt(Arc::new(data)))
+    pub fn alg_ext(ext: AlgExtData) -> ExprArc {
+        Arc::new(Expr::AlgExt(Arc::new(ext)))
     }
 
-    pub fn alg_ext_c(data: AlgExtCData) -> ExprArc {
-        Arc::new(Expr::AlgExtC(Arc::new(data)))
+    pub fn alg_ext_c(ext: AlgExtCData) -> ExprArc {
+        Arc::new(Expr::AlgExtC(Arc::new(ext)))
     }
 }
 

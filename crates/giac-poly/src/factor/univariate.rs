@@ -53,7 +53,7 @@ pub fn factor_univariate_pairs(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usi
     if !content.is_one() && !content.is_zero() {
         out.push((Poly::constant(content), 1));
     }
-    let mut pp = p.primitive_part();
+    let pp = p.primitive_part();
     if pp.is_one() {
         return Ok(out);
     }
@@ -63,7 +63,7 @@ pub fn factor_univariate_pairs(p: &Poly, var: &Var) -> PolyResult<Vec<(Poly, usi
     }
     let sqff = square_free_factorization(&pp, var)?;
     for (g, k) in sqff {
-        let mut factors = factor_square_free(&g, var)?;
+        let factors = factor_square_free(&g, var)?;
         for f in factors {
             if let Some((last, m)) = out.last_mut() {
                 if last == &f {
@@ -390,7 +390,6 @@ mod tests {
 
     use num_bigint::BigInt;
     use num_rational::Ratio;
-    use num_traits::One;
 
     use super::*;
 

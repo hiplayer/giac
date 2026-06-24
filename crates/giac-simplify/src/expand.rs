@@ -200,7 +200,7 @@ fn expand_pow(
             ) {
                 return Ok(Expr::pow(base_e, Arc::clone(exp)));
             }
-            return Ok(repeated_mul(base_e, e, ctx, policy)?);
+            return repeated_mul(base_e, e, ctx, policy);
         }
     }
     Ok(Expr::pow(base_e, Arc::clone(exp)))
@@ -280,7 +280,6 @@ mod tests {
         );
         let r = giac_core::eval(e.as_ref(), &ctx).unwrap();
         let s = format_expr(r.as_ref());
-        assert!(!s.contains(" mod 13*"), "nested mod display: {s}");
         assert_eq!(
             s,
             "(6 % 13)*x^5+(2 % 13)*x^4+(2 % 13)*x^3+(1 % 13)*x^2+(10 % 13)*x+(1 % 13)"

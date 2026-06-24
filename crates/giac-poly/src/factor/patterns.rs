@@ -19,7 +19,7 @@ use super::cyclotomic::{
 };
 use super::util::vars_in;
 
-pub use super::cyclotomic::{factor_xn_minus_one, is_xn_minus_one_poly};
+pub use super::cyclotomic::{is_xn_minus_one_poly};
 
 /// **Partial** — cyclotomic/binomial pattern table
 pub fn try_factor_patterns(p: &Poly) -> Option<Vec<Poly>> {

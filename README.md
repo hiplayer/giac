@@ -101,7 +101,7 @@ More detail: [conformance-testing.md ¬ß5.1](../.doc/conformance-testing.md#51-Âç
 ```bash
 cd giac-rs
 cargo test-timeout
-cargo ci-clippy
+./scripts/ci-clippy.sh    # clippy -D warnings + lint-substring-golden
 echo 'sqrt(5)' | cargo run -q --bin giac-cli
 ```
 

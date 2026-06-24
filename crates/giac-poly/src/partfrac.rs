@@ -4,13 +4,12 @@
 //!
 use num_bigint::BigInt;
 use num_rational::Ratio;
-use num_traits::Signed;
+
 use num_traits::{One, Zero};
 
 use crate::error::{EvalError, PolyResult};
 use crate::factor::{
-    as_perfect_power, factor_into, factor_into_by_rational_roots, factor_power_pairs,
-    find_rational_root,
+    factor_into, factor_power_pairs,
 };
 use crate::monomial::Var;
 use crate::poly::Poly;
@@ -374,7 +373,7 @@ fn solve_linear_system(
                 continue;
             }
             let factor = a[row][col].clone();
-            let pivot_vals: Vec<_> = a[pivot_row].iter().map(|v| v.clone()).collect();
+            let pivot_vals: Vec<_> = a[pivot_row].to_vec();
             let pivot_b = b[pivot_row].clone();
             for j in col..n {
                 a[row][j] -= &factor * &pivot_vals[j];
@@ -409,6 +408,7 @@ fn linear_root(f: &Poly, var: &Var) -> PolyResult<Ratio<BigInt>> {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::factor::{factor_into_by_rational_roots, find_rational_root};
 
     fn x() -> Poly {
         Poly::var("x")

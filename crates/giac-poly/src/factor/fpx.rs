@@ -316,7 +316,7 @@ fn cantor_zassenhaus_block(block: &PolyMod, i: u64, rng: &mut Lcg) -> PolyResult
 
         if p_i64 == 2 {
             let mut somme = pp.clone();
-            let m = (prime.bits() as u64).saturating_mul(i).max(1);
+            let m = prime.bits().saturating_mul(i).max(1);
             for _ in 1..m {
                 pp_acc = mod_poly(&pp_acc.mul(&pp_acc)?, block)?;
                 somme = somme.add(&pp_acc)?;

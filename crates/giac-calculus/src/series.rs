@@ -224,11 +224,11 @@ fn factorial(n: usize) -> Result<i64, EvalError> {
 
 #[cfg(test)]
 mod tests {
-    use giac_core::{eval, format_expr, Expr, FuncKind};
+    use giac_core::{eval, format_expr, Expr, FuncKind, Ident};
 
     use super::*;
     use crate::plugin::xcas_default;
-    use crate::test_verify::assert_series_equiv_at;
+    use crate::test_verify::{assert_series_equiv_at, assert_taylor_equiv_at};
 
     #[test]
     fn series_preprocess_pow2expln() {
@@ -239,8 +239,7 @@ mod tests {
             Expr::int(2),
         );
         let r = crate::limit_engine::preprocess::series_preprocess(&e, &var, &ctx).unwrap();
-        let text = format_expr(r.as_ref());
-        assert!(text.contains("exp"), "got {text}");
+        assert_eq!(format_expr(r.as_ref()), "exp(x)^2");
     }
 
     #[test]
@@ -260,21 +259,20 @@ mod tests {
     #[test]
     fn taylor_sin_x_equals_zero() {
         let ctx = xcas_default();
-        let e = Expr::func(
-            FuncKind::Taylor,
-            vec![
-                Expr::func(FuncKind::Sin, vec![Expr::sym("x")]),
-                Arc::new(Expr::Relation(
-                    RelOp::Eq,
-                    Expr::sym("x"),
-                    Expr::int(0),
-                )),
-                Expr::int(5),
-            ],
+        let var = Ident::new("x");
+        let f = Arc::new(Expr::func(FuncKind::Sin, vec![Expr::sym("x")]));
+        let expected = Expr::add(vec![
+            Expr::sym("x"),
+            Expr::mul(vec![Expr::rat(-1, 6), Expr::pow(Expr::sym("x"), Expr::int(3))]),
+        ]);
+        assert_taylor_equiv_at(
+            &f,
+            &var,
+            &Expr::int(0),
+            5,
+            expected.as_ref(),
+            &ctx,
         );
-        let r = eval(e.as_ref(), &ctx).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("x"), "got {s}");
     }
 
     #[test]
@@ -307,8 +305,7 @@ mod tests {
             ],
         );
         let r = eval(e.as_ref(), &ctx).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("x"), "got {s}");
+        assert_eq!(format_expr(r.as_ref()), "x^2");
     }
 
     #[test]
@@ -342,8 +339,7 @@ mod tests {
             vec![Expr::sym("x"), Expr::sym("x"), Expr::int(2)],
         );
         let r = eval(e.as_ref(), &ctx).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("x"), "got {s}");
+        assert_eq!(format_expr(r.as_ref()), "x");
     }
 
     #[test]
@@ -365,8 +361,10 @@ mod tests {
             ],
         );
         let r = eval(e.as_ref(), &ctx).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("x"), "got {s}");
+        assert_eq!(
+            format_expr(r.as_ref()),
+            "ln(1)+x+(x*x)*-1/2+((x*x)*x)*1/3"
+        );
     }
 
     #[test]
@@ -379,7 +377,10 @@ mod tests {
                     Expr::func(FuncKind::Cos, vec![Expr::sym("x")]),
                     Expr::func(
                         FuncKind::Exp,
-                        vec![Expr::add(vec![Expr::mul(vec![Expr::int(2), Expr::sym("x")]), Expr::int(1)])],
+                        vec![Expr::add(vec![
+                            Expr::mul(vec![Expr::int(2), Expr::sym("x")]),
+                            Expr::int(1),
+                        ])],
                     ),
                 ]),
                 Expr::sym("x"),
@@ -388,10 +389,9 @@ mod tests {
             ],
         );
         let r = eval(e.as_ref(), &ctx).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(
-            s.contains("exp(1)"),
-            "expected exp(1) in Taylor series, got {s}"
+        assert_eq!(
+            format_expr(r.as_ref()),
+            "exp(1)+(2*exp(1))*x+((-exp(1))*(x*x))*1/2+((4*exp(1))*(x*x))*1/2+((-2*exp(1))*((x*x)*x))*1/6+((-2*exp(1))*((x*x)*x))*1/6+((8*exp(1))*((x*x)*x))*1/6+((-2*exp(1))*((x*x)*x))*1/6"
         );
     }
 
@@ -408,8 +408,7 @@ mod tests {
             ],
         );
         let r = eval(e.as_ref(), &ctx).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("1") || s.contains("x"), "got {s}");
+        assert_eq!(format_expr(r.as_ref()), "-1/2*x^2+1");
     }
 
     #[test]
@@ -425,8 +424,7 @@ mod tests {
             ],
         );
         let r = eval(e.as_ref(), &ctx).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("x"), "got {s}");
+        assert_eq!(format_expr(r.as_ref()), "x^2");
     }
 
     #[test]

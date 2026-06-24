@@ -41,6 +41,12 @@ disallowed-macros = [
     { path = "std::unimplemented", reason = "return EvalError::NotImplemented" },
 ]
 
+# str/String::contains — Clippy disallowed-methods def_path is rustc-version-sensitive and
+# does not match reliably on MSRV 1.75. Substring golden asserts are banned by:
+#   scripts/lint-substring-golden.sh (via cargo ci-clippy)
+# Production parsers (assume/purge line split, complex display): keep using .contains on
+# non-assert code paths.
+
 # Must not abort or invoke UB on bad user input.
 disallowed-methods = [
     { path = "std::process::abort", reason = "CAS errors must be Result, not abort" },

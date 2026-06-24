@@ -946,7 +946,10 @@ mod tests {
             ],
         );
         let r = eval(e.as_ref(), &ctx).unwrap();
-        assert!(format_expr(r.as_ref()).contains("sin"));
+        assert_eq!(
+            format_expr(r.as_ref()),
+            "3*x+(1/2*x-1/4*sin(2*x))*-4"
+        );
     }
 
     #[test]
@@ -980,14 +983,13 @@ mod tests {
             ),
         ));
         let r = super::try_integrate_heuristic(&e, &x).unwrap().unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("sqrt"), "got {s}");
+        assert_eq!(format_expr(r.as_ref()), "1*sqrt(x^2+1)");
     }
 
     #[test]
     fn integrate_x_times_sqrt_xsq_plus_one() {
         let x = Ident::new("x");
-        let e = Expr::mul(vec![
+        let e = Arc::new(Expr::mul(vec![
             Expr::sym("x"),
             Expr::func(
                 FuncKind::Sqrt,
@@ -996,10 +998,12 @@ mod tests {
                     Expr::int(1),
                 ])],
             ),
-        ]);
+        ]));
         let r = super::try_integrate_heuristic(&e, &x).unwrap().unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("sqrt") || s.contains("x^2"), "got {s}");
+        assert_eq!(
+            format_expr(r.as_ref()),
+            "1/3*x^2*sqrt(x^2+1)+1/3*sqrt(x^2+1)"
+        );
     }
 
     #[test]
@@ -1013,7 +1017,9 @@ mod tests {
             ),
         ));
         let r = super::try_integrate_heuristic(&e, &x).unwrap().unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("sqrt"), "got {s}");
+        assert_eq!(
+            format_expr(r.as_ref()),
+            "2/3*x*sqrt(x+1)-4/3*sqrt(x+1)"
+        );
     }
 }

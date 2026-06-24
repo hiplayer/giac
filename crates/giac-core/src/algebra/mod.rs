@@ -1,4 +1,6 @@
 #![deny(unsafe_code)]
+// ponytail: ext tower / field_session WIP — trim allows when API stabilizes
+#![allow(dead_code, clippy::unwrap_used, clippy::expect_used)]
 //! **API inventory:** inline `/// **Tier**` / `// **Tier**` on every function;
 //! full module index in `.doc/giac-core-algebra-api-stability.md`.
 //!

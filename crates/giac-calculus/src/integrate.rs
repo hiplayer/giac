@@ -15,7 +15,7 @@
 use std::sync::Arc;
 
 use num_bigint::BigInt;
-use num_rational::Ratio;
+
 
 use giac_core::{
     bigint_to_i64, Context, EvalError, Expr, ExprArc, FuncKind, Ident,

@@ -82,7 +82,7 @@ pub fn ifactor(n: &BigInt) -> ExprArc {
     if parts.is_empty() {
         Expr::int(1)
     } else if parts.len() == 1 {
-        parts.pop().unwrap()
+        parts.remove(0)
     } else {
         Expr::mul(parts)
     }

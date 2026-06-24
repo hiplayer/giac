@@ -592,7 +592,7 @@ fn peel_neg_ln_w_inv(expr: &ExprArc, _w: &Ident) -> Option<(ExprArc, ExprArc)> {
     }
     if let Expr::Mul(fs) = e.as_ref() {
         if let Some(i) = fs.iter().position(|f| f == &inv) {
-            let mut rest: Vec<_> = fs.iter().cloned().collect();
+            let mut rest: Vec<_> = fs.to_vec();
             rest.remove(i);
             let core = if rest.is_empty() {
                 Expr::int(1)
@@ -733,6 +733,7 @@ fn mrv_series_lead_loop(
 }
 
 // **Pipeline private** — lead from peeled core
+#[allow(clippy::too_many_arguments)] // ponytail: mirrors upstream peel/lead arity
 fn lead_from_peeled_core(
     core: &ExprArc,
     ln_inv: &ExprArc,
@@ -823,8 +824,8 @@ fn mrv_series_lead_loop_inner(
             let needs_inv = is_series_coeff_undef(&coeff) || !lead_coeff_ready(&coeff, var, w);
             if needs_inv {
                 let substituted = subst_ln_w_expr(&coeff, &g_subst);
-                let tmp = ratnormal(substituted.as_ref(), ctx).unwrap_or(substituted);
-                if is_series_coeff_undef(&tmp) || !lead_coeff_ready(&tmp, var, w) {
+                let normalized = ratnormal(substituted.as_ref(), ctx).unwrap_or(substituted);
+                if is_series_coeff_undef(&normalized) || !lead_coeff_ready(&normalized, var, w) {
                     inv = true;
                     p = series_spdiv_one(&p, try_ord, order_cap, ctx)?;
                     p = pnormal_series(&p, ctx);
@@ -901,6 +902,7 @@ mod tests {
     use crate::plugin::xcas_default;
 
     #[test]
+    #[allow(clippy::assertions_on_constants)]
     fn mrv_series_expansion_order_cap() {
         assert_eq!(MAX_SERIES_ORDER, 10);
         assert!(

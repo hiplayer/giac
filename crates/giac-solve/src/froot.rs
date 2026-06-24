@@ -24,7 +24,7 @@ pub fn eval_froot(args: &[ExprArc], ctx: &Context) -> Result<ExprArc, EvalError>
 }
 
 // **Pipeline private** — `parse_froot_args`
-fn parse_froot_args(args: &[ExprArc], ctx: &Context) -> Result<(ExprArc, Ident), EvalError> {
+fn parse_froot_args(args: &[ExprArc], _ctx: &Context) -> Result<(ExprArc, Ident), EvalError> {
     match args.len() {
         1 => Ok((Arc::clone(&args[0]), Ident::new("x"))),
         2 => {
@@ -74,9 +74,8 @@ mod tests {
 
     use giac_core::{eval, Expr, FuncKind};
 
-    use super::*;
     use crate::plugin::xcas_default;
-    use crate::test_verify::test_verify::{assert_froot_has_root, list_items};
+    use crate::test_verify::{assert_froot_has_root, list_items};
 
     // **A** — eval(Froots); assert_froot_has_root.
     #[test]
