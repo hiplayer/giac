@@ -4,16 +4,14 @@
 //!
 use std::sync::Arc;
 
-use num_bigint::BigInt;
-use num_rational::Ratio;
-use num_traits::{Signed, Zero};
+use num_traits::Signed;
 
 use giac_core::{
     algext_poly_to_expr, expr_contains_alg_coeff, expr_to_poly, expr_to_rational_polys,
-    factor_into_algext, poly_alg_from_expr, poly_to_expr, ratio_to_expr,
-    Context, EvalError, Expr, ExprArc, FuncKind,
+    factor_into_algext, factor_into_via_algext, poly_alg_from_expr, poly_to_expr,
+    Context, EvalError, Expr, ExprArc,
 };
-use giac_poly::{factor_into, factor_poly, quadratic_abc, ratio_perfect_sqrt, vars_in, Poly};
+use giac_poly::{factor_into, factor_poly};
 
 use crate::expand::normal;
 use crate::ifactor::ifactor;
@@ -107,8 +105,15 @@ fn factor_poly_form(e: &Expr, ctx: &Context) -> Result<ExprArc, EvalError> {
         }
     }
     if ctx.with_sqrt {
-        if let Some(factors) = try_factor_quadratic_sqrt(&p) {
-            return Ok(Expr::mul(factors));
+        if let Some(factors) = factor_into_via_algext(&p)? {
+            if factors.len() > 1 {
+                return Ok(Expr::mul(
+                    factors
+                        .iter()
+                        .map(algext_poly_to_expr)
+                        .collect::<Result<Vec<_>, _>>()?,
+                ));
+            }
         }
     }
     Ok(poly_to_expr(&factor_poly(&p)))
@@ -128,37 +133,4 @@ fn factor_algext_form(e: &Expr) -> Result<ExprArc, EvalError> {
         }
     }
     algext_poly_to_expr(&p)
-}
-
-// **Temporary** — Partial internal: `ctx.with_sqrt` quadratic sqrt factors.
-fn try_factor_quadratic_sqrt(p: &Poly) -> Option<Vec<ExprArc>> {
-    let vars = vars_in(p);
-    if vars.len() != 1 {
-        return None;
-    }
-    let var = &vars[0];
-    let (a, b, c) = quadratic_abc(p, var)?;
-    let disc = &b * &b - Ratio::from_integer(BigInt::from(4)) * &a * &c;
-    if disc.is_zero() {
-        return None;
-    }
-    if ratio_perfect_sqrt(&disc).is_some() {
-        return None;
-    }
-    let sqrt_d = Expr::func(FuncKind::Sqrt, vec![ratio_to_expr(&disc)]);
-    let two_a = ratio_to_expr(&(Ratio::from_integer(BigInt::from(2)) * &a));
-    let neg_b = ratio_to_expr(&(-&b));
-    let r1 = Arc::new(Expr::Frac(
-        Expr::add(vec![neg_b.clone(), sqrt_d.clone()]),
-        two_a.clone(),
-    ));
-    let r2 = Arc::new(Expr::Frac(
-        Expr::add(vec![neg_b, Expr::mul(vec![Expr::int(-1), sqrt_d])]),
-        two_a,
-    ));
-    let x = poly_to_expr(&Poly::var(var.clone()));
-    Some(vec![
-        Expr::add(vec![x.clone(), Expr::mul(vec![Expr::int(-1), r1])]),
-        Expr::add(vec![x, Expr::mul(vec![Expr::int(-1), r2])]),
-    ])
 }

@@ -68,7 +68,7 @@ pub use algebra::poly_alg_partfrac::{
 };
 pub use algebra::poly_alg_ops::{
     align_algext_polys, content_wrt_algext, div_rem_wrt_algext, egcd_wrt_algext,
-    ensure_common_field_for_polys, gcd_wrt_algext, infer_ambient_field, monic_wrt_algext,
+    ensure_common_field_for_polys, gcd_algext, gcd_wrt_algext, infer_ambient_field, monic_wrt_algext,
     normalize_algext_poly, primitive_part_wrt_algext, quo_exact_wrt_algext,
     split_quadratic_factor, square_free_part_wrt_algext,
 };

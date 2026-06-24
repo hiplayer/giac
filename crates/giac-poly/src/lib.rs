@@ -6,6 +6,7 @@
 //!
 mod nested;
 mod subresultant;
+mod subresultant_field;
 mod square_free;
 mod tresultant;
 mod univariate;
@@ -39,6 +40,7 @@ pub use poly_coeff::{FieldCoeff, PolyCoeff};
 pub use modint::{ModInt, irem, smod};
 pub use modular::{PolyMod, modp};
 pub use resultant::{coeff_at, resultant, roots, univariate_coeffs_ascending, univariate_degree};
+pub use subresultant_field::subresultant_gcd_field;
 pub use univ_wrt::{
     content_scalars, derivative_wrt, is_univariate_in, quadratic_coeffs_wrt, scalar_coeff_wrt,
 };

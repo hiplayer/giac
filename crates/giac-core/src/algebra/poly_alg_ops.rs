@@ -2,7 +2,7 @@
 //!
 //! **Upstream:** `common_EXT` + `ext_reduce` before `_EXT` polynomial arithmetic.
 
-use giac_poly::{FlatUni, MainVar, Var};
+use giac_poly::{FlatUni, MainVar, Var, subresultant_gcd_field};
 
 use crate::error::EvalError;
 
@@ -116,6 +116,29 @@ pub fn gcd_wrt_algext(
     fa.gcd(&fb).map_err(Into::into)
 }
 
+/// **Stable** — multivariate gcd in K[x₁,…,xₙ] via subresultant PRS (T3-1).
+pub fn gcd_algext(
+    session: &FieldSession,
+    a: &PolyAlgExt,
+    b: &PolyAlgExt,
+) -> Result<PolyAlgExt, EvalError> {
+    let (a, b) = align_algext_polys(session, a, b)?;
+    let vars = vars_in_algext(&a, &b);
+    if vars.len() <= 1 {
+        if let Some(v) = vars.first() {
+            return gcd_wrt_algext(session, &a, &b, v);
+        }
+        if a.is_zero() {
+            return Ok(b);
+        }
+        if b.is_zero() {
+            return Ok(a);
+        }
+        return Ok(PolyAlgExt::ring_one());
+    }
+    subresultant_gcd_field(&a, &b).map_err(Into::into)
+}
+
 /// **Stable** — extended gcd in K[var]; `(g, s, t)` with monic `g`.
 pub fn egcd_wrt_algext(
     session: &FieldSession,
@@ -174,6 +197,23 @@ pub fn split_quadratic_factor(
                 .map_err(Into::into)
         })
         .collect()
+}
+
+// **Pipeline private** — variable union for multivariate gcd
+fn vars_in_algext(a: &PolyAlgExt, b: &PolyAlgExt) -> Vec<Var> {
+    use std::collections::BTreeSet;
+
+    let mut set = BTreeSet::new();
+    for p in [a, b] {
+        for m in p.terms.keys() {
+            for (v, e) in m.iter() {
+                if e > 0 {
+                    set.insert(v.clone());
+                }
+            }
+        }
+    }
+    set.into_iter().collect()
 }
 
 // **Pipeline private** — aligned [`FlatUni`] for one polynomial.
@@ -282,6 +322,48 @@ mod tests {
         PolyAlgExt::ring_var(x_var())
             .try_add(&PolyAlgExt::ring_constant(alpha))
             .unwrap()
+    }
+
+    fn y_var() -> Var {
+        Var::from("y")
+    }
+
+    fn x_squared_minus_2_y_squared(session: &FieldSession) -> PolyAlgExt {
+        let x = PolyAlgExt::ring_var(x_var());
+        let y = PolyAlgExt::ring_var(y_var());
+        let two = session.int(2).unwrap();
+        x.try_mul(&x)
+            .unwrap()
+            .try_sub(
+                &PolyAlgExt::ring_constant(two)
+                    .try_mul(&y.try_mul(&y).unwrap())
+                    .unwrap(),
+            )
+            .unwrap()
+    }
+
+    fn x_minus_sqrt2_y(session: &FieldSession) -> PolyAlgExt {
+        let x = PolyAlgExt::ring_var(x_var());
+        let y = PolyAlgExt::ring_var(y_var());
+        let alpha = session.lift(&sqrt2_coeff()).unwrap();
+        x.try_sub(
+            &PolyAlgExt::ring_constant(alpha)
+                .try_mul(&y)
+                .unwrap(),
+        )
+        .unwrap()
+    }
+
+    #[test]
+    fn gcd_bivariate_x_squared_minus_2y_squared_and_x_minus_sqrt2_y() {
+        let k = k1_adjoin_sqrt2();
+        let session = FieldSession::new(k);
+        let a = x_squared_minus_2_y_squared(&session);
+        let b = x_minus_sqrt2_y(&session);
+        let g = gcd_algext(&session, &a, &b).unwrap();
+        assert_eq!(g.degree_wrt(&x_var()), 1);
+        assert_eq!(gcd_algext(&session, &b, &g).unwrap(), g);
+        assert_eq!(gcd_algext(&session, &a, &g).unwrap(), g);
     }
 
     #[test]

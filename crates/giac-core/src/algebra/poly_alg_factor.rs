@@ -367,6 +367,21 @@ mod tests {
     }
 
     #[test]
+    fn factor_irreducible_deg5_witness_over_k() {
+        use giac_poly::Poly;
+
+        let x = Poly::var("x");
+        let p_rational = x.pow(5).sub(&x).add(&Poly::one());
+        let p_alg = super::super::poly::poly_algext_from_poly(&p_rational).unwrap();
+        let session = FieldSession::new(ExtensionField::rational());
+        let flat = flat(&session, p_alg.clone());
+        let pairs = factor_univariate_over_k(&session, &flat).unwrap();
+        assert_eq!(pairs.len(), 1);
+        assert_eq!(pairs[0].0, p_alg);
+        assert_eq!(pairs[0].1, 1);
+    }
+
+    #[test]
     fn factor_x_fourth_minus_4_over_q() {
         let session = FieldSession::new(ExtensionField::rational());
         let p = x_fourth_minus_4(&session);
