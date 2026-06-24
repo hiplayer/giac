@@ -3,7 +3,7 @@
 **状态:** open  
 **类型:** 架构 / 表示层  
 **上游基线:** **`giac/giac-2.0.0`**（`gausspol.cc` `do_factor_hensel` / `try_sparse_factor` / `try_sparse_factor_bi`）  
-**相关:** [giac-poly-api-stability.md](../giac-poly-api-stability.md) §1、[GIAC-simplify-poly-upstream-gaps](GIAC-simplify-poly-upstream-gaps.md) §2、Cursor [giac-poly-nested-ring.mdc](../../.cursor/rules/giac-poly-nested-ring.mdc)  
+**相关:** [giac-poly-api-stability.md](../giac-poly-api-stability.md) §1、[GIAC-poly-flat-field-division-layering](GIAC-poly-flat-field-division-layering.md)（flat K[var] vs nested）、[GIAC-simplify-poly-upstream-gaps](GIAC-simplify-poly-upstream-gaps.md) §2、Cursor [giac-poly-nested-ring.mdc](../../.cursor/rules/giac-poly-nested-ring.mdc)  
 **验收:** `factor/*` 嵌套环热路径无裸 `Poly::div_rem`；embed/sparse 重建不经 `Poly` 往返；`nested::tests` + `testfactor_line` / `sparse_factor` 全绿
 
 **快照日期:** 2026-06-19

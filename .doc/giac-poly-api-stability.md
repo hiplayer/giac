@@ -67,7 +67,7 @@
 
 | 符号 | 环 | 说明 |
 |------|-----|------|
-| `FlatUni::{try_new,div_rem,gcd,sqff,…}` | **K[var]** | **首选** flat 一元入口（`C: FieldCoeff`） |
+| `FlatUni::{try_new,div_rem,gcd,sqff,…}` | **K[var]** | **首选** flat 一元入口；`div_rem → (FlatUni, FlatUni)` |
 | `is_univariate_in`, `scalar_coeff_wrt` | — | 一元检测 / 系数抽取（crate 根 re-export） |
 | `derivative_wrt`, `content_scalars`, `quadratic_coeffs_wrt` | **K[var]** | 辅助（crate 根 re-export） |
 | `univ_wrt::{gcd_wrt,div_rem,…}` | **K[var]** | **crate-internal**；勿裸调，用 `FlatUni` |

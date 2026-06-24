@@ -248,7 +248,7 @@ P2 `factor_univariate_over_k` 应接收 **`FlatUni<AlgExtCPolyCoeff>`**（或 `&
 | **P1** | **L0-3** | `giac-poly-api-stability.md` 增 `univ_wrt` / `FlatUni` **环列** | 文档门禁 | L0-2c | ✅ |
 | **P2** | **L1-1a** | `FlatUni::try_new` 验一元；`gcd` / `sqff` **方法**（`div_rem` 可先仍返回 `Poly`） | T2-1 需 typed 入口 | L0-1 | ✅ |
 | **P2** | **L3-1** | `factor_univariate_over_k(&FlatUni<AlgExtCPolyCoeff>)` | P2 主路径（§5） | T1 ✅, L1-1a | ✅ |
-| **P2** | **L1-1b** | `div_rem → (FlatUni, FlatUni)`；`FlatUni<C: FieldCoeff>` 收紧 | API 清洁；`factor/*` 有 churn | L1-1a | 部分 ✅（`FieldCoeff` 已收紧） |
+| **P2** | **L1-1b** | `div_rem → (FlatUni, FlatUni)`；`FlatUni<C: FieldCoeff>` 收紧 | API 清洁；`factor/*` 有 churn | L1-1a | ✅ |
 | **P2** | **L1-2** | giac-core `poly_alg_ops` 改走 `FlatUni` 方法 | 与 L1-1 同步 | L1-1a | ✅ |
 | **P3** | **L1-3** | deprecate crate 根 `gcd_wrt` 等自由函数 | 减裸调 | L1-2 | ✅ |
 | **P3** | **L2-1** | nested 除法重命名 + `univ_wrt` → `pub(crate)` | 纯 churn/消歧 | L1 稳定 | ✅ |
@@ -308,7 +308,7 @@ cargo test -p giac-poly --lib   # 全量回归
 1. **`d=0` / `lc=0`** — ✅ **已定案**：flat 路径一律 **`Err(TypeError)`**（§4.1）；L0-2a 落地。
 2. **`FlatUni` 是否存 `Arc<ExtensionField>` 标签** — 首版 **省略**；靠 giac-core `align` 纪律；P4 按需。
 3. **deprecate 周期** — 一 release 保持 `#[deprecated(note="use FlatUni::gcd")]` 再收 `pub(crate)`（L1-3）。
-4. **`FlatUni::new` vs `try_new`** — L1-1a 起新代码仅 `try_new`；`new` deprecate，不删至 L1-1b。
+4. **`FlatUni::new` vs `try_new`** — ✅ L1-1b 移除 `new`；仅 `try_new`。
 
 ---
 
@@ -322,7 +322,7 @@ cargo test -p giac-poly --lib   # 全量回归
 | L0-1 | `FieldCoeff` trait + impl | P1 ✅ | PR-2 |
 | L0-3 | api-stability 环列 | P1 ✅ | PR-2 |
 | L1-1a | `try_new` + `FlatUni::{gcd,sqff,…}` | P2 ✅ | PR-3 |
-| L1-1b | `div_rem→FlatUni` + `C: FieldCoeff` | P2 部分 ✅ | PR-3 |
+| L1-1b | `div_rem→FlatUni` + `C: FieldCoeff` | P2 ✅ | PR-4 |
 | L1-2 | giac-core → `FlatUni` | P2 ✅ | PR-3 |
 | L1-3 | deprecate 自由函数 | P3 | PR-4 |
 | L2-1 | nested 重命名 + `pub(crate)` | P3 | PR-4 |
