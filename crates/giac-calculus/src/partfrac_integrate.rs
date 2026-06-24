@@ -740,6 +740,17 @@ mod tests {
     }
 
     #[test]
+    fn integrate_x_over_x_squared_minus_two_via_k_partfrac() {
+        let x = Ident::new("x");
+        let den = Expr::add(vec![
+            Expr::pow(Expr::sym("x"), Expr::int(2)),
+            Expr::int(-2),
+        ]);
+        integrate_const_over_rational(&Expr::sym("x"), &den, &x)
+            .expect("K partfrac integrate x/(x²-2)");
+    }
+
+    #[test]
     fn integrate_ck_int_05_reciprocal() {
         let x = Ident::new("x");
         let den = Expr::mul(vec![

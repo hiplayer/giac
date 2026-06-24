@@ -34,3 +34,34 @@ fn eval_partfrac_one_over_x_squared_minus_two() {
     .unwrap();
     assert_equiv(expanded.as_ref(), orig.as_ref(), &ctx).unwrap();
 }
+
+#[test]
+fn eval_partfrac_x_over_x_squared_minus_two() {
+    let mut ctx = Context::xcas_default();
+    install_simplify(&mut ctx);
+    let orig = Expr::mul(vec![
+        Expr::sym("x"),
+        Expr::pow(
+            Expr::add(vec![
+                Expr::pow(Expr::sym("x"), Expr::int(2)),
+                Expr::int(-2),
+            ]),
+            Expr::int(-1),
+        ),
+    ]);
+    let pf = eval(
+        Expr::func(
+            FuncKind::Partfrac,
+            vec![Arc::clone(&orig), Expr::sym("x")],
+        )
+        .as_ref(),
+        &ctx,
+    )
+    .unwrap();
+    let expanded = eval(
+        Expr::func(FuncKind::Expand, vec![pf]).as_ref(),
+        &ctx,
+    )
+    .unwrap();
+    assert_equiv(expanded.as_ref(), orig.as_ref(), &ctx).unwrap();
+}
