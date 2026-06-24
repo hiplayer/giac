@@ -44,6 +44,8 @@ mod limit_engine;
 mod series;
 mod risch;
 
+pub mod test_verify;
+
 pub use diff::diff;
 pub use eval_diff::eval_diff;
 pub use eval_integrate::eval_integrate;

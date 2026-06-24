@@ -9,6 +9,7 @@ use giac_linalg::{
     eval_rref, eval_svd, eval_trace, eval_tran, f64_to_expr_numeric, format_float,
     is_identity_matrix, real_eigenvalues, to_dmatrix, DefaultLinalgPlugin,
 };
+use giac_linalg::test_verify::{assert_charpoly_equiv, assert_matrix_equiv};
 
 fn mat2() -> ExprArc {
     Arc::new(Expr::Matrix(vec![
@@ -34,12 +35,19 @@ fn numeric_lu_qr_svd_via_expr() {
     }
 }
 
+fn identity2() -> ExprArc {
+    Arc::new(Expr::Matrix(vec![
+        vec![Expr::int(1), Expr::int(0)],
+        vec![Expr::int(0), Expr::int(1)],
+    ]))
+}
+
 #[test]
 fn symbolic_rref_inv_ker_image() {
     let ctx = ctx();
     let m = mat2();
     let rref = eval_rref(&[Arc::clone(&m)], &ctx).unwrap();
-    assert!(format_expr(rref.as_ref()).contains('1'));
+    assert_matrix_equiv(&rref, &identity2(), &ctx);
 
     let inv = eval_inv(&m, &ctx).unwrap();
     assert!(!format_expr(inv.as_ref()).is_empty());
@@ -78,10 +86,17 @@ fn symbolic_linsolve_charpoly_pcar_trace() {
     ]));
     let vars = Arc::new(Expr::List(vec![Expr::sym("x"), Expr::sym("y")]));
     let sol = eval_linsolve(&eqs, &vars, &ctx).unwrap();
-    assert!(format_expr(sol.as_ref()).contains('x') || format_expr(sol.as_ref()).contains('1'));
+    // ponytail: rat sum 8/3+1/3-3→0 not proved by normal yet (GIAC-expr-api T1/2C).
+    assert!(
+        format_expr(sol.as_ref()).contains('x') || format_expr(sol.as_ref()).contains('1')
+    );
 
-    let cp = eval_charpoly(&m, &x, &ctx).unwrap();
-    assert!(format_expr(cp.as_ref()).contains('x'));
+    let cp_expected = Expr::add(vec![
+        Expr::pow(Expr::sym("x"), Expr::int(2)),
+        Expr::mul(vec![Expr::int(-5), Expr::sym("x")]),
+        Expr::int(-2),
+    ]);
+    assert_charpoly_equiv(&m, &x, cp_expected.as_ref(), &ctx);
 
     let pcar = eval_pcar(&m).unwrap();
     assert!(format_expr(pcar.as_ref()).starts_with("poly1["));

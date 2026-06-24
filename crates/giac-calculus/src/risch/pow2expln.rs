@@ -48,7 +48,11 @@ pub fn pow2expln(expr: &ExprArc, var: &Ident) -> ExprArc {
 
 #[cfg(test)]
 mod tests {
-    use giac_core::format_expr;
+    use std::sync::Arc;
+
+    use giac_core::{format_expr, Expr, FuncKind, Ident};
+
+    use crate::plugin::xcas_default;
 
     use super::*;
 
@@ -58,11 +62,22 @@ mod tests {
 
     #[test]
     fn pow2expln_x_to_x() {
+        let ctx = xcas_default();
         let var = Ident::new("x");
         let e = Expr::pow(x(), x());
         let r = pow2expln(&e, &var);
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("exp") && s.contains("ln"), "got {s}");
+        let expected = Expr::func(
+            FuncKind::Exp,
+            vec![Expr::mul(vec![
+                Arc::clone(&x()),
+                Expr::func(FuncKind::Ln, vec![x()]),
+            ])],
+        );
+        assert!(
+            giac_simplify::assert_equiv(r.as_ref(), &expected, &ctx).expect("assert_equiv"),
+            "got {}",
+            format_expr(r.as_ref())
+        );
     }
 
     #[test]
@@ -75,11 +90,22 @@ mod tests {
 
     #[test]
     fn pow2expln_x_to_const_exp() {
+        let ctx = xcas_default();
         let var = Ident::new("x");
         let e = Expr::pow(Expr::int(2), x());
         let r = pow2expln(&e, &var);
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("exp") && s.contains("ln(2)"), "got {s}");
+        let expected = Expr::func(
+            FuncKind::Exp,
+            vec![Expr::mul(vec![
+                x(),
+                Expr::func(FuncKind::Ln, vec![Expr::int(2)]),
+            ])],
+        );
+        assert!(
+            giac_simplify::assert_equiv(r.as_ref(), &expected, &ctx).expect("assert_equiv"),
+            "got {}",
+            format_expr(r.as_ref())
+        );
     }
 
     #[test]

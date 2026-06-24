@@ -12,6 +12,8 @@ mod symbolic;
 mod symbolic_eigen;
 mod svd;
 
+pub mod test_verify;
+
 pub use f64_eigen::real_eigenvalues;
 pub use gramschmidt::eval_gramschmidt;
 pub use lu::lu_decomp;

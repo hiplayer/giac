@@ -116,6 +116,7 @@ mod tests {
         let den = Poly::var("x").pow(4).add(&Poly::one());
         let r = rothstein_trager_integrate(&Poly::one(), &den, &var, &x_id()).unwrap();
         let s = format_expr(r.as_ref());
+        // ponytail: T3 — diff(antiderivative) not implemented for ln/atan shape yet.
         assert!(s.contains("ln"), "got {s}");
         assert!(s.contains("atan"), "got {s}");
     }

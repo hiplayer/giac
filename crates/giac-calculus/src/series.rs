@@ -228,6 +228,7 @@ mod tests {
 
     use super::*;
     use crate::plugin::xcas_default;
+    use crate::test_verify::assert_series_equiv_at;
 
     #[test]
     fn series_preprocess_pow2expln() {
@@ -245,19 +246,15 @@ mod tests {
     #[test]
     fn series_exp_at_zero() {
         let ctx = xcas_default();
-        let e = Expr::func(
-            FuncKind::Series,
-            vec![
-                Expr::func(FuncKind::Exp, vec![Expr::sym("x")]),
-                Expr::sym("x"),
-                Expr::int(0),
-                Expr::int(4),
-            ],
-        );
-        let r = eval(e.as_ref(), &ctx).unwrap();
-        let s = format_expr(r.as_ref());
-        assert!(s.contains("1"), "got {s}");
-        assert!(s.contains("x"), "got {s}");
+        let var = Ident::new("x");
+        let f = Expr::func(FuncKind::Exp, vec![Expr::sym("x")]);
+        let expected = Expr::add(vec![
+            Expr::int(1),
+            Expr::sym("x"),
+            Expr::mul(vec![Expr::rat(1, 2), Expr::pow(Expr::sym("x"), Expr::int(2))]),
+            Expr::mul(vec![Expr::rat(1, 6), Expr::pow(Expr::sym("x"), Expr::int(3))]),
+        ]);
+        assert_series_equiv_at(&f, &var, &Expr::int(0), 4, expected.as_ref(), &ctx);
     }
 
     #[test]
