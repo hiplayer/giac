@@ -72,6 +72,9 @@ pub use algebra::poly_alg_ops::{
     normalize_algext_poly, primitive_part_wrt_algext, quo_exact_wrt_algext,
     split_quadratic_factor, square_free_part_wrt_algext,
 };
+pub use algebra::poly_alg_sturm::{
+    sturm_sequence_wrt_algext, sturm_sign_variations_at_algext, sturmab_count_wrt_algext,
+};
 pub use algebra::poly_roots::{poly_algext_roots, poly_algext_roots_for_ctx};
 pub use algebra::poly_conv::{
     ERR_ALG_EXT_COEFF, ERR_ALG_EXT_C_COEFF, ERR_POLY_ALG_NO_ALG_COEFF, ERR_ROOTOF_COEFF,
