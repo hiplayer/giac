@@ -55,8 +55,8 @@
 | **P1** | **T1-3** | **二次分裂 `split_quadratic_factor`**（disc≤0 / disc>0 / 复根） | `ext_factor_nodegck` d=2 + `addtov` | T0-1, P3-6 deg2 ✅ | ✅ `factor(x²−2)→(x−√2)(x+√2)` |
 | **P2** | **T2-1** | **`factor_univariate_over_k` 主路径**：sqff → 一次 → 二次分裂 → K 内有理根 → 不可约 `[g]` | `ext_factor` + 次数校验（~6345–6351） | T1-1…T1-3 | ✅ `factor(x²−2)`；`factor(x⁴−4)=(x²−2)(x²+2)` |
 | **P2** | **T2-2** | **`factor_into` / `eval_factor` 接线** | `usual.cc` factor + `algext_convert` | T2-1 | ✅ `factor(x²−2)` splits; K-product = 原式 |
-| **P2** | **T2-3** | **solve 降次共用**（backlog P3-7 / P4-6） | `solve.cc` + `ext_factor` 递归 | T2-1, P3-6 ✅ | `(x²+1)(x³−x+1)` 五根；删 solve 形状特判 |
-| **P2** | **T2-4** | **partfrac 消费 K 上 factor**（backlog P2-3/P2-4） | `sym2poly.cc` partfrac | T1-3, T2-1 | `partfrac(1/(x²−2),x)` 两项一次 |
+| **P2** | **T2-3** | **solve 降次共用**（backlog P3-7 / P4-6） | `solve.cc` + `ext_factor` 递归 | T2-1, P3-6 ✅ | ✅ `(x²+1)(x³−x+1)` 五根；二次 K-split |
+| **P2** | **T2-4** | **partfrac 消费 K 上 factor**（backlog P2-3/P2-4） | `sym2poly.cc` partfrac | T1-3, T2-1 | ✅ `partfrac(1/(x²−2),x)` 两项一次 |
 | **P3** | **T3-1** | **多元 gcd（低维）**：子结果式 PRS 系数环 `PolyCoeff` 泛型 | `gcdheu` / `gcd_ext` 多元 | T1-1 稳定 | `gcd(x²−2·y, x−√2·y)` 类 |
 | **P3** | **T3-2** | **高次不可约 witness**：sqff 后不可约 → `[g]`（或 K 上 Zassenhaus 子集） | `ext_factor` 高次（无 EXT-Hensel） | T2-1 | 与 upstream「不 silent 错分」一致 |
 | **P3** | **T3-3** | **跨 crate 清理** | — | T2-2/T2-3 | 删 `try_factor_quadratic_rootof`、`biquadratic_rootof` 等；见 [GIAC-rs-four-crates-dedup-architecture](GIAC-rs-four-crates-dedup-architecture.md) C3-2 |
