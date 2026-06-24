@@ -6,6 +6,8 @@ alwaysApply: false
 
 # 测试与 Conformance
 
+**crate 单测分层与双轨：** [`.doc/test-writing-spec.md`](../../.doc/test-writing-spec.md)；写/改 `#[test]` 时见 [giac-test-writing.mdc](giac-test-writing.mdc)。
+
 ## 默认跑法
 
 giac-rs **800+** 测；全 workspace **用 `cargo test-timeout`**，不要习惯性裸跑 `cargo test --workspace`（挂死会阻塞整个套件）。

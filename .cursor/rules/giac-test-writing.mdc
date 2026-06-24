@@ -1,0 +1,59 @@
+---
+description: giac-rs 单测 A/B/C 分层与能力缺口双轨（smoke-until + #[ignore]）
+globs: giac-rs/crates/**/test_verify.rs,giac-rs/crates/**/*_tests.rs,giac-rs/crates/**/tests/**,giac-rs/tests/**
+alwaysApply: false
+---
+
+# 单测编写（A/B/C + 双轨）
+
+**完整规范：** [`.doc/test-writing-spec.md`](../../.doc/test-writing-spec.md)  
+**阻塞登记：** [`.doc/issues/GIAC-expr-api-test-contains-cleanup.md` §8](../../.doc/issues/GIAC-expr-api-test-contains-cleanup.md)
+
+## 先分层再写断言
+
+| 层 | 测什么 | 断言 |
+|----|--------|------|
+| **A** | `eval(FuncKind::*)` 用户通路 | `assert_equiv`、代入方程、`test_verify` |
+| **B** | Stable API（`canonical_*` / `decompose_*`） | 规范构造器 + `assert_equiv` / `match_*` |
+| **C** | Display 快照 | `assert_eq!(format_expr, "...")`，后缀 `_display` |
+
+**禁止** `format_expr(...).contains("…")` 作语义断言。共享 helper 放各 crate `test_verify.rs`。
+
+## 语义断言写不绿 → 双轨（禁止弱断言冒充）
+
+```
+目标契约     →  #[ignore] 语义测（B-* ID）
+临时记录     →  smoke-until 活跃测（修复后删）
+```
+
+```rust
+// smoke-until B-ODE: delete when `desolve_harmonic_satisfies_ode` green
+#[test]
+fn desolve_harmonic() { /* golden / 结构 / 非空 */ }
+
+#[test]
+#[ignore = "B-ODE: diff 未将 c0,c1 当常数"]
+fn desolve_harmonic_satisfies_ode() {
+    assert_desolve_lin_ode(...); // 目标契约
+}
+```
+
+1. smoke 标 `smoke-until B-*: delete when \`semantic_fn\` green`
+2. 另起 `#[ignore = "B-*: …"]` 测，函数体写**最终想要的** A/B 断言
+3. 在 cleanup issue **§8** 增一行；本地验：`cargo test -- --ignored semantic_fn`
+4. 解除阻塞：去 `ignore` → 语义测绿 → **删** smoke-until → 删 §8 行
+
+| ❌ | ✅ |
+|----|-----|
+| 改成弱 golden / `contains` 让 CI 绿 | 双轨 + §8 登记 |
+| 语义能绿仍留 smoke | 只写 A/B，不留 smoke |
+| smoke 长期当验收 | smoke 待删；PR 不以 smoke 绿当语义通过 |
+
+**不算语义 contains：** `Vec::contains`、lexer token、`expr_contains_*` 谓词、C 层完整 golden。
+
+## PR 自检
+
+- [ ]  touched 测试在 [审计表](../../.doc/issues/GIAC-expr-api-test-audit.md) 有 A/B/C 行
+- [ ]  Stable API 有 B；eval 入口有 A
+- [ ]  双轨已配对 + §8 登记；无新增语义 `contains`
+- [ ]  `cargo test-timeout -p <crate>` 全绿（`#[ignore]` 除外）

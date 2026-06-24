@@ -24,7 +24,7 @@ Rust 移植 **giac-rs** 对标 **giac-2.0.0**；**测试即规格**（53 CTest /
 | unitaryfactor / pzadic 缺口 | `.doc/issues/GIAC-poly-unitaryfactor-gaps.md` |
 | unitaryfactor 数学原理 | `.doc/giac-poly-factor-unitary-principles.md` |
 | limit 管线 | `.doc/issues/GIAC-limit-layered-pipeline.md` |
-| 测试规格 | `.doc/conformance-testing.md` |
+| 测试规格 | `.doc/conformance-testing.md`（golden / check）；crate 单测 `.doc/test-writing-spec.md`；Cursor：`giac-test-writing.mdc` |
 | 已知偏离 | `.doc/known-divergences.md` |
 | crate 去重计划 | `.doc/issues/GIAC-rs-crate-dedup-plan.md` |
 | 工程门禁 | `.doc/rust-migration-supplement.md` §6–7 |

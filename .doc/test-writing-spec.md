@@ -1,6 +1,6 @@
 # 算法 crate 单测编写规范
 
-与 [conformance-testing.md](conformance-testing.md)（golden / check 层）互补：本文规范 **giac-rs 算法 crate 内 `#[test]`** 的分层、断言手段与 PR 要求。表示层 API 契约见 [algorithm-expr-api.md](algorithm-expr-api.md) §2–§3。
+与 [conformance-testing.md](conformance-testing.md)（golden / check 层）互补：本文规范 **giac-rs 算法 crate 内 `#[test]`** 的分层、断言手段、**能力缺口双轨测例**与 PR 要求。表示层 API 契约见 [algorithm-expr-api.md](algorithm-expr-api.md) §2–§3。
 
 **审计表（3A/3B 首批落点）：** [issues/GIAC-expr-api-test-audit.md](issues/GIAC-expr-api-test-audit.md)
 
@@ -107,6 +107,8 @@
 | A 测试里手搓常量 parser 且不文档化 | 使用 `test_verify` 共享 helper + stability doc 约定输出 |
 | 直接 `integrate()` 却声称覆盖「用户通路」 | A 用 `eval(Integrate)`；直接 `integrate` 标 **B** |
 | 仅 `tree_contains` / `contains` 证明预处理「做过事」 | 写清 preprocess 契约，或 A′ 断言 `limit(pre)==目标值` |
+| 语义断言做不到时，把 A/B 改成弱 golden / `contains` 让 CI 绿 | **双轨**：保留 smoke + 新增 `#[ignore]` 语义测 + §8 登记（见 §6） |
+| smoke 测例长期保留、与语义测重复维护 | smoke 标 `smoke-until`；阻塞解除后 **删除** smoke，只留语义测 |
 
 ---
 
@@ -115,15 +117,110 @@
 | 设施 | 位置 | 用途 |
 |------|------|------|
 | `assert_equiv` / `is_zero` | `giac-simplify` | A / B 语义等价 |
-| `test_verify` | 各 crate `src/test_verify.rs`（测试专用） | A 层：代入方程、rootof 列表、扩域谓词 |
-| `xcas_default()` | 各 crate `plugin.rs` | A / A′ 的 Context；缺 simplify 时见 audit blocker |
+| `test_verify` | 各 crate `src/test_verify.rs`（及 `giac-core/tests/semantic_pending.rs`） | A 层：代入方程、微分还原、矩阵/级数/ODE 等 |
+| `xcas_default()` | 各 crate `plugin.rs` | A / A′ 的 Context；缺 simplify 时见 §6 / blocker 表 |
 | Golden check | `giac-rs/tests/conformance/` | 系统级；**不替代** crate 内 A/B |
 
 新增验证逻辑：**优先**放入 `test_verify`，禁止在多个测试里复制 ad-hoc 解析。
 
+### 5.1 `test_verify` 索引（按 crate）
+
+| Crate | 模块 | 典型 helper | 用于 |
+|-------|------|-------------|------|
+| `giac-simplify` | `test_verify` | `assert_factorization` | factor / partfrac 重组 |
+| `giac-solve` | `test_verify` | `assert_equation_solutions`, `assert_roots_zero_poly` | solve / roots |
+| `giac-calculus` | `test_verify` | `assert_deriv_equals_integrand`, `assert_series_equiv_at` | integrate / series |
+| `giac-linalg` | `test_verify` | `assert_matrix_equiv`, `assert_linsolve_satisfies` | 矩阵 / linsolve |
+| `giac-ode` | `test_verify` | `assert_desolve_lin_ode`, `subst_constants` | desolve 残差 |
+| `giac-core` | `test_verify`（`#[cfg(test)]`） | `assert_poly_identity`, `assert_bezout`, `assert_divides` | rem / egcd（**不用** `giac_simplify::assert_equiv`，避免 dev-dep 双编译类型冲突） |
+| `giac-core` | `tests/semantic_pending.rs` | 集成测 + `assert_equiv` | core eval 语义待解禁 |
+
+谓词名含 `expr_contains_*`（实现函数，非 `format_expr.contains`）**允许**在 B 层作结构契约，**禁止**对 `format_expr` 输出做子串 `contains`。
+
 ---
 
-## 6. PR / issue 验收（替代「contains 减少 80%」）
+## 6. 能力缺口：双轨测例（smoke-until + `#[ignore]` 语义）
+
+当 **目标 A/B 断言**（`assert_equiv`、代入方程、残差归零、重组恒等式等）因算法或化简缺口 **暂时失败** 时，**不得**用弱 golden、`contains`、非空输出等「绕过去」冒充已验收。
+
+采用 **双轨**（源自 [GIAC-expr-api-test-contains-cleanup](issues/GIAC-expr-api-test-contains-cleanup.md)）：
+
+```text
+目标契约（将来要绿）
+  └── #[ignore] 语义测 ── 登记 B-*，CI 默认跳过
+临时行为记录（修复后删）
+  └── smoke-until 活跃测 ── 记录当前输出/结构，cargo test 默认跑
+```
+
+### 6.1 何时走双轨
+
+| 情形 | 做法 |
+|------|------|
+| 语义断言 **可直接写绿** | 只写 A/B 测，**不要**再留 smoke |
+| 语义断言 **已知会失败**（缺口已确认） | smoke-until + `#[ignore]` 语义测 + §8 登记 |
+| 仅需 **C 层** display golden | 单轨 C 即可，无需 `#[ignore]` |
+| 不确定能否 `assert_equiv` | 先写语义测跑一遍；失败则回退双轨，**禁止**静默改成弱断言 |
+
+### 6.2 smoke-until（活跃 smoke，待删）
+
+在 **现有** smoke/golden/结构测上方加注释（`rg 'smoke-until'` 可枚举）：
+
+```rust
+// smoke-until B-ODE: delete when `desolve_harmonic_satisfies_ode` green
+#[test]
+fn desolve_harmonic() { /* 当前行为：golden / 非空 / 结构 */ }
+```
+
+约定：
+
+- `B-*` 与 [cleanup issue §8](issues/GIAC-expr-api-test-contains-cleanup.md#8-已知阻塞ignore-登记) 表内 ID **一致**。
+- `delete when` 后写 **对侧** `#[ignore]` 语义测函数名（或多个，逗号分隔）。
+- 测例内 **仅部分** 为 smoke 时（如混合测里的一个代码块），在块首标 `smoke-until`，解除后 **删块** 不必删整测。
+- smoke **不是** 目标规格；禁止在 PR 里把「smoke 绿了」当作语义验收。
+
+### 6.3 `#[ignore]` 语义测（目标契约）
+
+另起 **独立** 测试函数，命名建议后缀 `_semantic` / `_satisfies_*` / `_recomposes`：
+
+```rust
+#[test]
+#[ignore = "B-ODE: diff/normal 未将 c0,c1 当常数，ODE 残差无法归零"]
+fn desolve_harmonic_satisfies_ode() {
+    // 目标：assert_desolve_lin_ode(...) 或 assert_equiv(...)
+}
+```
+
+约定：
+
+- `ignore` 字符串 **必须以 `B-` 或审计 ID（如 `T3`）开头**，附一句缺口说明。
+- 函数体写 **最终想要的** A/B 断言，不要用当前偶然输出。
+- 默认 `cargo test` **不跑**；解除阻塞后：去 `ignore` → 全绿 → 删对应 smoke-until → 更新 §8 表。
+
+本地验证：`cargo test -- --ignored <fn_name>`。
+
+### 6.4 阻塞登记与解除
+
+| 动作 | 要求 |
+|------|------|
+| 新增双轨 | 在 [GIAC-expr-api-test-contains-cleanup.md §8](issues/GIAC-expr-api-test-contains-cleanup.md#8-已知阻塞ignore-登记) 增一行：`B-*`、语义测名、smoke 待删、解除路径 |
+| 解除阻塞 | ① 去 `#[ignore]` ② 语义测绿 ③ **删除** smoke-until 测例/代码块 ④ 删 §8 行 ⑤ 更新 [审计表](issues/GIAC-expr-api-test-audit.md) |
+| 新增 `contains` 语义断言 | **禁止**；无例外 |
+
+**不算语义 `contains`：** `Vec::contains`；lexer `Token` 检查；实现谓词 `expr_contains_*`；C 层完整 `assert_eq!(format_expr, "...")`。
+
+### 6.5 与 A/B/C 的关系
+
+| 轨道 | 相当于 | CI |
+|------|--------|-----|
+| 普通 A/B/C | 正式验收 | 默认跑，须绿 |
+| smoke-until | 临时 C 或弱结构记录 | 默认跑，须绿，**修复后删除** |
+| `#[ignore]` 语义 | 欠账的 A/B | 默认跳过，解除后升格为普通 A/B |
+
+**禁止** 用 smoke-until 替代本该有的 B；Stable API 仍须另有（或计划另有）非 ignore 的 B 或明确登记 Pipeline 例外。
+
+---
+
+## 7. PR / issue 验收
 
 算法 crate 单测 PR 须满足：
 
@@ -131,14 +228,17 @@
 - [ ] 每个 touched **Stable** API 有 **B**（或说明由已有 B 覆盖）
 - [ ] 每个 touched **公开 eval 入口** 有 **A**（或说明由已有 A 覆盖）
 - [ ] **C** 已标注且非唯一语义依据
-- [ ] 无未文档化的测试内 helper /parser
-- [ ] `cargo test-timeout -p <crate>` 全绿
+- [ ] 无未文档化的测试内 helper / parser
+- [ ] 若语义断言暂不可绿：**smoke-until** + **`#[ignore]` 语义测** + [§8 阻塞表](issues/GIAC-expr-api-test-contains-cleanup.md#8-已知阻塞ignore-登记) 已登记（§6）
+- [ ] 无新增 `format_expr` / `assert!` 的 **语义** `contains`
+- [ ] `cargo test-timeout -p <crate>` 全绿（`#[ignore]` 除外）
 
 ---
 
-## 7. 参考
+## 8. 参考
 
 - [conformance-testing.md](conformance-testing.md) §3 `assert_equiv`、check golden
 - [algorithm-expr-api.md](algorithm-expr-api.md) §3 稳定 API 契约模板
 - [issues/GIAC-expr-api-tech-debt.md](issues/GIAC-expr-api-tech-debt.md) 3A / 3B / 3C
 - [issues/GIAC-expr-api-test-audit.md](issues/GIAC-expr-api-test-audit.md) 审计表
+- [issues/GIAC-expr-api-test-contains-cleanup.md](issues/GIAC-expr-api-test-contains-cleanup.md) contains 清理进度与 **§8 阻塞登记表**（双轨测例实例）

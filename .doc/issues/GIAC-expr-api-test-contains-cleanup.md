@@ -2,7 +2,8 @@
 
 **状态:** open  
 **类型:** AFK（测试契约 / 共享 helper）  
-**父项:** [GIAC-expr-api-tech-debt](GIAC-expr-api-tech-debt.md) §3B 延伸；[test-writing-spec.md](../test-writing-spec.md) §2（**禁止** `contains`）  
+**父项:** [GIAC-expr-api-tech-debt](GIAC-expr-api-tech-debt.md) §3B 延伸  
+**项目规范（必读）：** [test-writing-spec.md](../test-writing-spec.md) §1–§7（A/B/C 分层、双轨 smoke-until、`test_verify`）  
 **审计表:** [GIAC-expr-api-test-audit.md](GIAC-expr-api-test-audit.md)（逐测登记）  
 **快照:** 2026-06-24（`giac-rs/crates` 内 `assert!(…contains…)` 约 **66** 处；**P0 H1/H2 已落地**）
 
@@ -29,14 +30,14 @@ giac-rs 算法 crate 内大量单测用 `format_expr` + `contains` 做语义断�
 |--------|-----|------|-----------|------------|------|
 | **P0** | [H1](#h1-calculus-test_verify) | `giac-calculus::test_verify`（微分还原 + 级数截断） | 解锁 ~30 | — | **done** |
 | **P0** | [H2](#h2-linalg-test_verify) | `giac-linalg::test_verify`（矩阵 / charpoly） | 解锁 ~20 | — | **done** |
-| **P1** | [C1](#c1-simplify-contains) | `giac-simplify` 插件 + expand/trig/ratnormal | ~11 | — | 改测 |
-| **P1** | [C2](#c2-limit-engine-contains) | `limit_engine` remove_lnexp / mrv / mrv_w | ~9 | — | 改测 |
-| **P1** | [C3](#c3-core-eval-contains) | `giac-core` eval + eval_poly_tests | ~8 | H6（egcd 部分） | 改测 |
-| **P1** | [H3](#h3-ode-test_verify) | `giac-ode::test_verify`（ODE 代入验算） | 解锁 2 | — | helper |
+| **P1** | [C1](#c1-simplify-contains) | `giac-simplify` 插件 + expand/trig/ratnormal | ~11 | — | **done** |
+| **P1** | [C2](#c2-limit-engine-contains) | `limit_engine` remove_lnexp / mrv / mrv_w | ~9 | — | **done** |
+| **P1** | [C3](#c3-core-eval-contains) | `giac-core` eval + eval_poly_tests | ~8 | H6（egcd 部分） | **done** |
+| **P1** | [H3](#h3-ode-test_verify) | `giac-ode::test_verify`（ODE 代入验算） | 解锁 2 | — | **done** |
 | **P2** | [C4](#c4-series-sparse-series) | `series.rs` + `sparse_series.rs` | ~13 | **H1** I4 | 改测 |
 | **P2** | [C5](#c5-risch-heuristics) | `risch/*` + `integrate_heuristics.rs` | ~16 | **H1** I1 / T3 | 改测 |
 | **P2** | [C6](#c6-linalg-coverage) | `phase3_coverage` + symbolic + gramschmidt + eigen | ~20 | **H2** | 改测 |
-| **P2** | [H4](#h4-simplify-factor-verify) | expr 层 `assert_factorization` | 解锁 3 | — | helper |
+| **P2** | [H4](#h4-simplify-factor-verify) | expr 层 `assert_factorization` | 解锁 3 | — | **done**（P1 提前落地） |
 | **P3** | [C7](#c7-ode-plugin) | `giac-ode` plugin 通路 | 1 | **H3** | 改测 |
 | **P3** | [C8](#c8-wasm-smoke) | `giac-wasm` 两条 | 2 | — | 改测 |
 | **P3** | [H5](#h5-poly-sqrt-factor-api) | `quadratic_sqrt_factor_exprs` 返回 `Expr` | 1 | API | 表示层 |
@@ -270,8 +271,8 @@ P3  长尾
 
 ## 6. 验收标准（MVP）
 
-- [ ] P0：**H1 + H2** 落地，各有 ≥1 个生产调用方
-- [ ] P1：**C1 + C2 + C3** 语义 `contains` 清零；审计表更新
+- [x] P0：**H1 + H2** 落地，各有 ≥1 个生产调用方
+- [x] P1：**C1 + C2 + C3 + H3/H4/H6** 语义 `contains` 清零（C 层 display 保留 `!contains(" mod 13*")` 一条）
 - [ ] P2：**C4 + C5 + C6** 清零（T3 失败项登记 gap + `#[ignore]` 或保留闭式 `assert_equiv`，**禁止**新 `contains`）
 - [ ] P3：**C7–C9 + H5** 收尾
 - [ ] `rg 'assert!.*\.contains\(' giac-rs/crates` 仅剩排除项（lexer / 已注释 C 层备选）
@@ -294,22 +295,41 @@ P3  长尾
 
 ## 8. 已知阻塞（`#[ignore]` 登记）
 
-解除阻塞后：**删 ignore、跑绿、更新本表**。
+解除阻塞后：**删 `#[ignore]`、删对应 `smoke-until` 测例（或其中 smoke 代码块）、跑绿、更新本表**。
 
-| ID | 阻塞 | `#[ignore]` 测试 | Crate / 文件 |
-|----|------|------------------|--------------|
-| **B-T3** | `diff(F)` 未覆盖 ln/atan 代数原函数（审计 T3） | `rothstein_deriv_equals_integrand` | `risch/rothstein_trager.rs` |
-| **B-T3** | 同上 | `algebraic_rt_one_over_x4_plus_one_deriv` | `risch/algebraic_rt.rs` |
-| **B-T3** | 同上 | `algebraic_rt_one_over_x4_plus_four_via_res_deriv` | `risch/algebraic_rt.rs` |
-| **B-T3** | 同上 | `algebraic_rt_one_over_x4_plus_x2_plus_one_via_res_deriv` | `risch/algebraic_rt.rs` |
-| **B-LIN** | `normal` 未证明有理和 `8/3+1/3-3→0`（T1/2C） | `linsolve_2x2_satisfies_equations` | `linalg/tests/phase3_coverage.rs` |
-| **B-LIN** | 同上（helper 自检） | `assert_linsolve_satisfies_smoke` | `linalg/test_verify.rs` |
+**工作流（P1 起）：** 若语义断言（`assert_equiv` / ODE 残差 / 重组恒等式等）因能力缺口暂时做不到，**不得**用弱 golden 替代目标契约。应：
+1. **保留**现有 smoke/golden/结构测试，并标 `// smoke-until B-…: delete when …`；
+2. **另写**贴合最终功能的 `#[test] #[ignore = "B-…"]`；
+3. 在本表登记 `B-*`、smoke 待删项与解除路径。
 
-**解除路径：** B-T3 → `diff` 补 ln/atan 链；B-LIN → `normal`/`assert_equiv` 有理和归零或 `linsolve` 输出规范 `Rat`。
+检索：`rg 'smoke-until' giac-rs` 列出全部待删 smoke。
+
+| ID | 阻塞 | `#[ignore]` 语义测试 | smoke 待删（修复后删除） | Crate / 文件 |
+|----|------|----------------------|--------------------------|--------------|
+| **B-T3** | `diff(F)` 未覆盖 ln/atan 代数原函数（审计 T3） | `rothstein_deriv_equals_integrand` | `rothstein_one_over_x_fourth_plus_one_smoke` | `risch/rothstein_trager.rs` |
+| **B-T3** | 同上 | `algebraic_rt_one_over_x4_plus_one_deriv` | `algebraic_rt_one_over_x4_plus_one_smoke` | `risch/algebraic_rt.rs` |
+| **B-T3** | 同上 | `algebraic_rt_one_over_x4_plus_four_via_res_deriv` | `algebraic_rt_one_over_x4_plus_four_via_res_smoke` | `risch/algebraic_rt.rs` |
+| **B-T3** | 同上 | `algebraic_rt_one_over_x4_plus_x2_plus_one_via_res_deriv` | `algebraic_rt_one_over_x4_plus_x2_plus_one_via_res_smoke` | `risch/algebraic_rt.rs` |
+| **B-LIN** | `normal` 未证明有理和 `8/3+1/3-3→0`（T1/2C） | `linsolve_2x2_satisfies_equations` | `symbolic_linsolve_charpoly_pcar_trace` 内 linsolve len 块 | `linalg/tests/phase3_coverage.rs` |
+| **B-LIN** | 同上（helper 自检） | `assert_linsolve_satisfies_smoke` | —（helper 内联，无独立 smoke） | `linalg/test_verify.rs` |
+| **B-ODE** | `diff` 将 `c0,c1` 当变元；`normal` 未归零 ODE 残差 | `desolve_harmonic_satisfies_ode`, `desolve_via_plugin_satisfies_ode` | `desolve_harmonic`, `desolve_via_plugin` | `giac-ode` |
+| **B-ODE-NORM** | 常数代入后未规范为 `cos(x)`/`sin(x)`/`exp(x²/2)` | `desolve_harmonic_subst_canonical`, `desolve_via_plugin_subst_canonical` | 同上（与 B-ODE 同测例；全绿后整测删除） | `giac-ode` |
+| **B-EXPAND-BINOM** | `expand` 未展开 `(sin(x)+1)²` | `expand_binomial_fallback_semantic` | `expand_binomial_fallback_for_non_poly` | `giac-simplify/expand.rs` |
+| **B-RATNORM** | `ratnormal` 未约分 `2/4→1/2` | `ratnormal_reduces_common_factor_semantic` | `ratnormal_reduces_common_factor` | `giac-simplify/ratnormal.rs` |
+| **B-TEQUIV** | `texpand` 输出与恒等式 `assert_equiv` 未接通 | `texpand_cos_sum_semantic` | `texpand_cos_sum` | `giac-simplify/trig.rs` |
+| **B-FACTOR-ALGEXT** | `expand(factor(x²-2))` 未 `assert_equiv` 原式 | `eval_factor_x_squared_minus_two_factorization` | `eval_factor_x_squared_minus_two_rootof` | `giac-simplify/plugin.rs` |
+| **B-PARTFRAC** | 分项乘回分母未化简为 `1` | `eval_partfrac_direct_recomposes`, `eval_partfrac_mixed_recomposes` | `eval_partfrac_direct`, `eval_partfrac_mixed_linear_quadratic` | `giac-core/eval_poly_tests.rs` |
+| **B-EGCD** | `a*u+b*v≠g`（Bézout 系数缩放） | `eval_egcd_bezout_identity` | `eval_egcd_abcuv` 内 egcd golden+divides 块 | `giac-core/eval_poly_tests.rs` |
+| **B-MUL-FMT** | `(1+i)*x` 与 `x+x*i` 未 `assert_equiv` | `eval_mul_mixed_complex_symbolic_equiv` | `eval_mul_mixed_complex_symbolic` | `giac-core/eval.rs` |
+| **B-ARG** | `arg(-1+i)` 未规范为 `3π/4` | `eval_arg_second_quadrant_canonical` | `eval_sign_negative_and_arg_second_quadrant` 内 arg golden | `giac-core/eval.rs` |
+| **B-MRV** | `exp(-x)` 换元含 `ln(exp(-x))` 而非 `ln(w)` | `mrv_exp_neg_x_substitutes_ln_w` | `mrv_exp_neg_x` | `calculus/limit_engine/mrv.rs` |
+
+**解除路径：** B-T3 → `diff` 补 ln/atan 链；B-LIN → `normal`/`assert_equiv` 有理和归零；B-ODE → `diff` 识别积分常数 + `normal` 残差；B-ODE-NORM/B-MUL-FMT/B-ARG/B-TEQUIV → `assert_equiv`/`normal` 规范形；B-PARTFRAC/B-FACTOR-ALGEXT → 重组或 expand 化简；B-EGCD → egcd 返回规范 Bézout；B-MRV → MRV 换元消除外层 `ln(exp(·))`；B-RATNORM/B-EXPAND-BINOM → 对应化简路径。
 
 ---
 
 ## 9. 维护
 
-- 新增 `contains` 语义断言：**禁止**；PR 须链本 issue 或审计表说明
+- 新增 `contains` 语义断言：**禁止**（见 [test-writing-spec.md](../test-writing-spec.md) §2、§6）
+- **绕不过去时：** 按 [test-writing-spec.md §6](../test-writing-spec.md#6-能力缺口双轨测例smoke-until--ignore-语义) 双轨；阻塞实例登记本文 §8
 - 完成子项后更新本文 §2 状态列 + [GIAC-expr-api-test-audit.md](GIAC-expr-api-test-audit.md) §1 汇总
