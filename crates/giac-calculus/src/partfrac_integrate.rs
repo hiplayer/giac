@@ -699,6 +699,7 @@ mod tests {
     #[test]
     fn partfrac_integrate_half_angle_rational_in_t() {
         use giac_poly::Poly;
+
         let t = Ident::new("__t");
         let tv = Poly::var("__t");
         let den = tv
@@ -713,8 +714,19 @@ mod tests {
             .mul_scalar(&Ratio::from_integer(2.into()))
             .add(&tv.mul_scalar(&Ratio::from_integer(8.into())))
             .add(&Poly::constant(Ratio::from_integer(2.into())));
-        let r = integrate_const_over_rational(&poly_to_expr(&num), &poly_to_expr(&den), &t);
-        assert!(r.is_ok(), "{:?}", r);
+        let antiderivative = integrate_const_over_rational(
+            &poly_to_expr(&num),
+            &poly_to_expr(&den),
+            &t,
+        )
+        .expect("half-angle K-partfrac integrate");
+        // ponytail: diff(antiderivative) hits NotImplemented on AlgExtC ln terms;
+        // full semantic check is conformance CK-INT-12 (SymPy risch cross-verify).
+        assert!(
+            matches!(antiderivative.as_ref(), Expr::Add(_)),
+            "expected nontrivial antiderivative, got {}",
+            format_expr(antiderivative.as_ref())
+        );
     }
 
     #[test]

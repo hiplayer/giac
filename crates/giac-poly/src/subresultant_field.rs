@@ -39,7 +39,7 @@ fn term_with_var_field<C: FieldCoeff>(coeff: &Poly<C>, var: &Var, exp: u64) -> P
     if exp == 0 {
         return Ok(coeff.clone());
     }
-    Ok(coeff.try_mul(&Poly::ring_var(var.clone()).try_pow(exp)?)?)
+    coeff.try_mul(&Poly::ring_var(var.clone()).try_pow(exp)?)
 }
 
 // **Pipeline private** — sorted variables in `p`
@@ -171,7 +171,7 @@ fn pseudo_rem_wrt_field<C: FieldCoeff>(a: &Poly<C>, b: &Poly<C>, var: &Var) -> P
     let exp = da - db + 1;
     let scaled = a.try_mul(&lc_b.try_pow(exp)?)?;
     let (_, r) = nested_div_rem_wrt_in_field(&scaled, b, var)?;
-    Ok(primitive_part_wrt_field(&r, var)?)
+    primitive_part_wrt_field(&r, var)
 }
 
 // **Pipeline private** — monic normalize w.r.t. lex leading coefficient in K

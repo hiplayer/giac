@@ -2,12 +2,13 @@
 //!
 //! **Upstream:** `ext_factor` / `ext_factor_nodegck` — sqff → linear / quadratic split / roots / witness.
 
-use giac_poly::{FlatUni, MainVar, Poly, PolyCoeff, Var};
+use giac_poly::{factor_into, FlatUni, MainVar, Poly, PolyCoeff, Var};
 
 use crate::error::EvalError;
 
+use super::field_arith::expr_to_ratio;
 use super::field_session::FieldSession;
-use super::poly::PolyAlgExt;
+use super::poly::{poly_algext_from_poly, PolyAlgExt};
 use super::poly_alg_coeff::AlgExtCPolyCoeff;
 use super::poly_alg_ops::{
     div_rem_wrt_algext, infer_ambient_field, normalize_algext_poly, split_quadratic_factor,
@@ -144,6 +145,21 @@ fn aligned_flat(
     .map_err(Into::into)
 }
 
+// **Pipeline private** — embed `FlatUni` as ℚ `Poly` when all coeffs lie in ℚ.
+fn try_as_rational_poly(g: &FlatUni<AlgExtCPolyCoeff>) -> Option<Poly> {
+    let p = g.as_poly();
+    let mut out = Poly::ring_zero();
+    for (m, c) in &p.terms {
+        let alg_c = c.as_inner();
+        if !alg_c.im.iter().all(|e| e.is_zero()) || !alg_c.field.is_base() {
+            return None;
+        }
+        let r = expr_to_ratio(alg_c.re.first()?.as_ref()).ok()?;
+        out = out.add(&Poly::term(m.clone(), r));
+    }
+    Some(out)
+}
+
 // **Pipeline private** — square-free factor in K[var].
 fn factor_square_free_over_k(
     session: &FieldSession,
@@ -161,6 +177,22 @@ fn factor_square_free_over_k(
             return Ok(lin);
         }
         return Ok(vec![p.clone()]);
+    }
+    if deg >= 3 {
+        if let Some(qpoly) = try_as_rational_poly(g) {
+            if let Some(qfactors) = factor_into(&qpoly) {
+                if qfactors.len() > 1 {
+                    let mut out = Vec::new();
+                    for qf in qfactors {
+                        let lifted = poly_algext_from_poly(&qf)?;
+                        let flat = FlatUni::try_new(lifted, MainVar::new(var.clone()))
+                            .map_err(Into::into)?;
+                        out.extend(factor_square_free_over_k(session, &flat)?);
+                    }
+                    return Ok(out);
+                }
+            }
+        }
     }
     if deg == 4 && is_even_only(p, var) {
         if let Some(facs) = try_factor_via_x_squared(session, p, var)? {
@@ -382,11 +414,33 @@ mod tests {
     }
 
     #[test]
+    fn factor_quartic_reducible_over_q_yields_four_linear() {
+        use giac_poly::Poly;
+
+        let t = Var::from("__t");
+        let tv = Poly::var("__t");
+        let p = tv
+            .pow(4)
+            .mul_scalar(&Ratio::from_integer((-1).into()))
+            .add(&tv.pow(3).mul_scalar(&Ratio::from_integer(4.into())))
+            .add(&tv.pow(2).mul_scalar(&Ratio::from_integer((-2).into())))
+            .add(&tv.mul_scalar(&Ratio::from_integer(4.into())))
+            .add(&Poly::constant(Ratio::from_integer((-1).into())));
+        let p_alg = super::super::poly::poly_algext_from_poly(&p).unwrap();
+        let session = FieldSession::new(ExtensionField::rational());
+        let flat = FlatUni::try_new(p_alg.clone(), MainVar::new(t.clone())).unwrap();
+        let factors = factor_univariate_flat_over_k(&session, &flat).unwrap();
+        assert_eq!(factors.len(), 4);
+        assert!(factors.iter().all(|f| f.degree_wrt(&t) == 1));
+        assert!(product_divides(&session, &p_alg, &factors, &t).unwrap());
+    }
+
+    #[test]
     fn factor_x_fourth_minus_4_over_q() {
         let session = FieldSession::new(ExtensionField::rational());
         let p = x_fourth_minus_4(&session);
         let pairs = factor_univariate_over_k(&session, &flat(&session, p.clone())).unwrap();
-        assert_eq!(pairs.len(), 2);
+        assert_eq!(pairs.len(), 4);
         assert!(pairs.iter().all(|(_, k)| *k == 1));
         let prod = pairs
             .iter()
@@ -397,6 +451,6 @@ mod tests {
             .unwrap();
         let (_, r) = div_rem_wrt_algext(&session, &p, &prod, &x_var()).unwrap();
         assert!(r.is_zero());
-        assert!(pairs.iter().all(|(f, _)| f.degree_wrt(&x_var()) == 2));
+        assert!(pairs.iter().all(|(f, _)| f.degree_wrt(&x_var()) == 1));
     }
 }

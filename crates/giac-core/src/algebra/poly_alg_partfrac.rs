@@ -52,7 +52,7 @@ pub fn partfrac_needs_k_split(num: &Poly, den: &Poly, var: &Var) -> bool {
         }
     }
     match partfrac_rational_terms(num, den, var) {
-        Err(EvalError::NotImplemented(msg)) if msg == "partfrac real quadratic split" => true,
+        Err(EvalError::NotImplemented("partfrac real quadratic split")) => true,
         Ok((_, terms)) => terms
             .iter()
             .any(|(_, d)| quadratic_factor_needs_k_in_q(d, var)),

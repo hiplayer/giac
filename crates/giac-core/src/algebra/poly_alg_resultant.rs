@@ -85,7 +85,7 @@ fn sylvester_det2_wrt(
     let a0 = session.lift(&scalar_coeff_wrt(a, var, 0))?;
     let b1 = session.lift(&scalar_coeff_wrt(b, var, 1))?;
     let b0 = session.lift(&scalar_coeff_wrt(b, var, 0))?;
-    Ok(a1.coeff_mul(&b0)?.coeff_sub(&a0.coeff_mul(&b1)?)?)
+    a1.coeff_mul(&b0)?.coeff_sub(&a0.coeff_mul(&b1)?)
 }
 
 // **Pipeline private** — Sylvester matrix determinant in K.
