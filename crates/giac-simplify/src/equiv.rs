@@ -41,7 +41,7 @@ pub fn is_zero(e: &Expr, ctx: &Context) -> Result<bool, EvalError> {
 
 /// **Stable** — true when `a` and `b` are mathematically equivalent under `normal`.
 ///
-/// Pre-normalizes a narrow class of `sqrt` radicals via internal `canonical_radical`;
+/// Pre-normalizes a narrow class of `sqrt` radicals via [`canonical_radical_expr`];
 /// other AST drift shapes rely on `normal` alone.
 pub fn assert_equiv(a: &Expr, b: &Expr, ctx: &Context) -> Result<bool, EvalError> {
     if a == b {
@@ -59,8 +59,8 @@ pub fn assert_equiv(a: &Expr, b: &Expr, ctx: &Context) -> Result<bool, EvalError
                 && assert_equiv(ai.as_ref(), bi.as_ref(), ctx)?,
         );
     }
-    let ca = canonical_radical(a);
-    let cb = canonical_radical(b);
+    let ca = canonical_radical_expr(a);
+    let cb = canonical_radical_expr(b);
     if ca == cb {
         return Ok(true);
     }
@@ -68,10 +68,16 @@ pub fn assert_equiv(a: &Expr, b: &Expr, ctx: &Context) -> Result<bool, EvalError
     is_zero(d.as_ref(), ctx)
 }
 
-// **Temporary** — drift_* for `assert_equiv` only (not a crate-wide `canonical_*` API).
-// Maps `1/sqrt(n)` → `sqrt(n)/n`. **退役:** 迁入 `normal` 或稳定 `canonical_radical` pub API。
-// **Temporary** — drift: 1/sqrt(n)↔sqrt(n)/n for assert_equiv
-fn canonical_radical(e: &Expr) -> ExprArc {
+// I/O contract for `canonical_radical_expr`:
+// - Input:  any `Expr` (typically a `Mul`/`Pow`/`Sqrt` subtree fed to `assert_equiv`).
+// - Output: `ExprArc` with the narrow `Pow(Sqrt(n), -1)` form rewritten to
+//   `Mul[Rat(1,n), Sqrt(n)]`; scalar `Mul` factors are collected into a leading
+//   `Rat`. All other shapes pass through unchanged.
+// - Scope:  pre-normalization for `assert_equiv` only; not a crate-wide radical
+//   simplifier (denominator rationalization beyond `1/sqrt(int)` lives in
+//   `ratnormal`). Idempotent: a second pass is a no-op.
+// **Stable** — `canonical_radical_expr`: 1/sqrt(n) → (1/n)*sqrt(n) pre-normalizer for assert_equiv
+pub(crate) fn canonical_radical_expr(e: &Expr) -> ExprArc {
     match e {
         Expr::Pow(base, exp) => {
             if let Expr::Int(e) = exp.as_ref() {
@@ -87,7 +93,7 @@ fn canonical_radical(e: &Expr) -> ExprArc {
             let mut scalar = Ratio::one();
             let mut rest = Vec::new();
             for f in factors {
-                match canonical_radical(f.as_ref()).as_ref() {
+                match canonical_radical_expr(f.as_ref()).as_ref() {
                     Expr::Int(n) => {
                         scalar *= Ratio::from(n.clone());
                     }
@@ -112,8 +118,8 @@ fn canonical_radical(e: &Expr) -> ExprArc {
     }
 }
 
-// **Temporary** — drift helper for canonical_radical
-fn inv_sqrt_to_mul(base: &Expr) -> Option<ExprArc> {
+// **Stable** — `inv_sqrt_to_mul`: Pow(Sqrt(n),-1) → Mul[Rat(1,n),Sqrt(n)] helper of canonical_radical_expr
+pub(crate) fn inv_sqrt_to_mul(base: &Expr) -> Option<ExprArc> {
     let args = match base {
         Expr::Func(FuncKind::Sqrt, args) => args,
         _ => return None,
@@ -168,6 +174,33 @@ mod tests {
             Expr::int(-1),
         );
         assert!(assert_equiv(a.as_ref(), b.as_ref(), &ctx).unwrap());
+    }
+
+    // **B** — canonical_radical_expr contract: 1/sqrt(n) ↔ (1/n)*sqrt(n) (2C).
+    #[test]
+    fn canonical_radical_expr_inv_sqrt_form() {
+        let sqrt2 = Expr::func(FuncKind::Sqrt, vec![Expr::int(2)]);
+        // 1/sqrt(2) → (1/2)*sqrt(2)
+        let inv = Expr::pow(sqrt2.clone(), Expr::int(-1));
+        let got = canonical_radical_expr(inv.as_ref());
+        let want = Expr::mul(vec![Expr::rat(1, 2), sqrt2.clone()]);
+        assert!(assert_equiv(got.as_ref(), want.as_ref(), &Context::default()).unwrap());
+        // Idempotent: second pass is a no-op on already-canonical form.
+        let got2 = canonical_radical_expr(got.as_ref());
+        assert!(assert_equiv(got2.as_ref(), got.as_ref(), &Context::default()).unwrap());
+        // Non-sqrt inverse power passes through unchanged.
+        let passthrough = Expr::pow(Expr::sym("x"), Expr::int(-1));
+        assert_eq!(
+            format_expr(canonical_radical_expr(passthrough.as_ref()).as_ref()),
+            format_expr(passthrough.as_ref())
+        );
+        // Negative / zero radicand: inv_sqrt_to_mul returns None → passthrough.
+        let sqrt_neg = Expr::func(FuncKind::Sqrt, vec![Expr::int(-3)]);
+        let inv_neg = Expr::pow(sqrt_neg.clone(), Expr::int(-1));
+        assert_eq!(
+            format_expr(canonical_radical_expr(inv_neg.as_ref()).as_ref()),
+            format_expr(inv_neg.as_ref())
+        );
     }
 
     #[test]

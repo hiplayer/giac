@@ -20,7 +20,7 @@
 //! | **Stable (legacy default)** | `expand` | Same as `expand_with_policy(..., Full)`; prefer `expand_polynomial` when `exp` shapes must be preserved |
 //! | **Partial** | `texpand`, `lin`, `halftan` | Rule-table subsets of upstream `usual.cc` / `lin.cc`; general input → `NotImplemented` |
 //!
-//! **Temporary (private):** `ratnormal_algext` (shim); `canonical_radical` / `inv_sqrt_to_mul` (equiv drift only).
+//! **Temporary (private):** `ratnormal_algext` (shim). `canonical_radical_expr` / `inv_sqrt_to_mul` graduated to **Stable** crate-internal (GIAC-expr-api-2C, 2026-06-27).
 
 mod expand;
 mod equiv;
