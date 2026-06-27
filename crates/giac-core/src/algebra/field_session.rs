@@ -619,6 +619,18 @@ pub(crate) fn coords_in_field(
         return Err(EvalError::TypeError("expected real coefficient"));
     }
     let re = rationalize_poly1(&inner.re)?;
+    if Arc::ptr_eq(&inner.field, target) || *inner.field == **target {
+        return Ok(pad_to_len(&re, target.dimension()));
+    }
+    if ExtensionField::is_subfield_of(&inner.field, target) {
+        let emb = ExtensionField::try_subfield_embedding(&inner.field, target)?
+            .ok_or(EvalError::TypeError("coords_in_field: subfield embed"))?;
+        return Ok(emb.apply(&pad_to_len(&re, inner.field.dimension())));
+    }
+    if inner.field.is_base() {
+        let r = pad_to_len(&re, 1)[0].clone();
+        return Ok(target.embed_rational(&r));
+    }
     let aligned = session.align_elements(&inner.field, &re, target, &target.zero_coords())?;
     Ok(pad_to_len(&aligned.left, target.dimension()))
 }

@@ -53,7 +53,13 @@ use super::field_arith::{
     coords_to_expr, CoordsQ,
 };
 
+#[path = "common_minimal.rs"]
+mod common_minimal;
+
 static FIELD_ID: AtomicU64 = AtomicU64::new(1);
+
+/// Upper bound for θ = α + k·β primitive-element search (flatten / compose / U1a).
+pub(crate) const PRIMITIVE_K_SEARCH_MAX: i64 = 64;
 
 // **Pipeline private** — `next_field_id`
 fn next_field_id() -> u64 {
@@ -1058,6 +1064,155 @@ impl CommonFieldPair {
     }
 }
 
+/// U0 compositum gate — see `.doc/issues/GIAC-ext-common-unified-path.md` §3.
+// **Pipeline private** — `verify_common_pair`
+pub(crate) fn verify_common_pair(
+    pair: &CommonFieldPair,
+    a: &Arc<ExtensionField>,
+    b: &Arc<ExtensionField>,
+) -> Result<(), EvalError> {
+    let subfield =
+        ExtensionField::is_subfield_of(a, b) || ExtensionField::is_subfield_of(b, a);
+    if !subfield {
+        let expected = a.dimension().checked_mul(b.dimension()).ok_or(
+            EvalError::TypeError("common verify: dimension overflow"),
+        )?;
+        if pair.field.dimension() != expected {
+            return Err(EvalError::TypeError("common verify: compositum degree mismatch"));
+        }
+    }
+    verify_embedded_one(pair, a)?;
+    verify_embedded_one(pair, b)?;
+    verify_embedded_generator(pair, a)?;
+    verify_embedded_generator(pair, b)?;
+    Ok(())
+}
+
+// **Pipeline private** — `element_pow_coords`
+fn element_pow_coords(
+    field: &ExtensionField,
+    base: &CoordsQ,
+    exp: u64,
+) -> Result<CoordsQ, EvalError> {
+    let mut out = field.one_coords();
+    if exp == 0 {
+        return Ok(out);
+    }
+    let mut pow = base.clone();
+    let mut e = exp;
+    while e > 0 {
+        if e & 1 == 1 {
+            out = field.element_mul(&out, &pow)?;
+        }
+        e >>= 1;
+        if e > 0 {
+            pow = field.element_mul(&pow, &pow)?;
+        }
+    }
+    Ok(out)
+}
+
+// **Pipeline private** — Horner eval of monic poly1 `[c_deg,…,c_0]` at field element.
+fn eval_rational_poly1_at_field(
+    field: &ExtensionField,
+    poly: &[Ratio<BigInt>],
+    x: &CoordsQ,
+) -> Result<CoordsQ, EvalError> {
+    let deg = poly_degree(poly);
+    let mut acc = field.zero_coords();
+    for (i, c) in poly.iter().enumerate().take(deg + 1) {
+        if c.is_zero() {
+            continue;
+        }
+        let exp = (deg - i) as u64;
+        let term = field.element_mul(&field.embed_rational(c), &element_pow_coords(field, x, exp)?)?;
+        acc = field.element_add(&acc, &term)?;
+    }
+    Ok(acc)
+}
+
+// **Pipeline private** — `verify_embedded_one`
+fn verify_embedded_one(
+    pair: &CommonFieldPair,
+    operand: &Arc<ExtensionField>,
+) -> Result<(), EvalError> {
+    if operand.is_base() {
+        return Ok(());
+    }
+    let emb = ExtensionField::embedding_for(operand, pair)?;
+    let one = emb.apply(&operand.one_coords());
+    if !pair
+        .field
+        .element_eq_mod(&one, &pair.field.one_coords())
+        .unwrap_or(false)
+    {
+        return Err(EvalError::TypeError("common verify: embed(1) != 1"));
+    }
+    Ok(())
+}
+
+// **Pipeline private** — layer generator + minpoly vanishing in common field.
+fn verify_embedded_generator(
+    pair: &CommonFieldPair,
+    operand: &Arc<ExtensionField>,
+) -> Result<(), EvalError> {
+    if operand.is_base() {
+        return Ok(());
+    }
+    let emb = ExtensionField::embedding_for(operand, pair)?;
+    let gen = operand.generator_coords();
+    let gen_sq = operand.element_mul(&gen, &gen)?;
+    let img = emb.apply(&gen);
+    let img_sq = emb.apply(&gen_sq);
+    let img_g_sq = pair.field.element_mul(&img, &img)?;
+    if !pair
+        .field
+        .element_eq_mod(&img_g_sq, &img_sq)
+        .unwrap_or(false)
+    {
+        return Err(EvalError::TypeError(
+            "common verify: embed(g)^2 != embed(g^2)",
+        ));
+    }
+    match layer_minpoly_coords_for_adjoin(operand)? {
+        LayerMinPolyForAdjoin::Rational(m) => {
+            let val = eval_rational_poly1_at_field(&pair.field, m, &img)?;
+            if !pair.field.element_is_zero(&val) {
+                return Err(EvalError::TypeError(
+                    "common verify: layer minpoly does not vanish at embed(g)",
+                ));
+            }
+        }
+        LayerMinPolyForAdjoin::ParentBlocks(blocks) => {
+            let parent = operand
+                .parent_field
+                .as_ref()
+                .ok_or(EvalError::TypeError("common verify: no parent"))?;
+            let parent_emb = ExtensionField::embedding_for(parent, pair)?;
+            let pd = parent.dimension();
+            let deg = blocks.len().checked_sub(1).ok_or(EvalError::TypeError(
+                "common verify: layer minpoly",
+            ))?;
+            let mut acc = pair.field.zero_coords();
+            for (j, block) in blocks.iter().enumerate() {
+                let c = parent_emb.apply(&pad_to_len(block, pd));
+                let exp = (deg - j) as u64;
+                let term = pair.field.element_mul(
+                    &c,
+                    &element_pow_coords(&pair.field, &img, exp)?,
+                )?;
+                acc = pair.field.element_add(&acc, &term)?;
+            }
+            if !pair.field.element_is_zero(&acc) {
+                return Err(EvalError::TypeError(
+                    "common verify: parent-blocks minpoly does not vanish at embed(g)",
+                ));
+            }
+        }
+    }
+    Ok(())
+}
+
 /// Two extension elements aligned into a common ambient field.
 #[derive(Clone, Debug)]
 pub struct AlignedElements {
@@ -1641,13 +1796,13 @@ pub(crate) fn duplicate_field_arc_for_test(f: &Arc<ExtensionField>) -> Arc<Exten
 }
 
 /// Layer minpoly for T4a sibling adjoin (rational or T3+ parent blocks).
-enum LayerMinPolyForAdjoin<'a> {
+pub(crate) enum LayerMinPolyForAdjoin<'a> {
     Rational(&'a CoordsQ),
     ParentBlocks(&'a [CoordsQ]),
 }
 
 // **Pipeline private** — `layer_minpoly_coords_for_adjoin`
-fn layer_minpoly_coords_for_adjoin(
+pub(crate) fn layer_minpoly_coords_for_adjoin(
     field: &ExtensionField,
 ) -> Result<LayerMinPolyForAdjoin<'_>, EvalError> {
     if field.is_base() {
@@ -1728,17 +1883,32 @@ pub(crate) fn flatten_min_poly_over_q(
     flatten_min_poly_over_q_cold(field, None)
 }
 
+// **Pipeline private** — compositum minpoly via multiplication-matrix charpoly (no k-search).
+fn compose_min_poly_via_charpoly(
+    parent: &ExtensionField,
+    layer_min_poly: &CoordsQ,
+) -> Result<CoordsQ, EvalError> {
+    let blocks: Vec<CoordsQ> = layer_min_poly
+        .iter()
+        .map(|r| parent.embed_rational(r))
+        .collect();
+    let ring = parent_coeff_ring!(parent);
+    Ok(char_poly_matrix(&mult_matrix_of_adjoin_generator(
+        parent, &blocks, &ring,
+    )?))
+}
+
 // **Pipeline private** — `compose_min_poly_over_q`
 fn compose_min_poly_over_q(
-    parent: &ExtensionField,
+    parent: &Arc<ExtensionField>,
     layer_min_poly: &CoordsQ,
     session: Option<&super::field_session::FieldSession>,
 ) -> Result<(CoordsQ, Option<i64>), EvalError> {
     let na = parent.dimension();
     let nb = poly_degree(layer_min_poly);
     let expected = na * nb;
-    let parent_mp = flatten_min_poly_over_q(parent, session)?;
-    for k in 1i64..=12 {
+    let parent_mp = flatten_min_poly_over_q(parent.as_ref(), session)?;
+    for k in 1i64..=PRIMITIVE_K_SEARCH_MAX {
         match common_primitive_sum(
             &parent_mp,
             layer_min_poly,
@@ -1753,7 +1923,19 @@ fn compose_min_poly_over_q(
             Err(e) => return Err(e),
         }
     }
-    Err(EvalError::NotImplemented("ExtensionField::adjoin compose minpoly"))
+    compose_min_poly_via_charpoly(parent.as_ref(), layer_min_poly).and_then(|min_g| {
+        if poly_degree(&min_g) != expected {
+            return Err(EvalError::NotImplemented("ExtensionField::adjoin compose minpoly"));
+        }
+        let field = match session {
+            Some(s) => s.get_or_create_base_by_min_poly(min_g.clone()),
+            None => get_or_create_base_by_min_poly(min_g.clone()),
+        };
+        if ExtensionField::try_subfield_embedding(parent, &field)?.is_none() {
+            return Err(EvalError::NotImplemented("ExtensionField::adjoin compose minpoly"));
+        }
+        Ok((min_g, None))
+    })
 }
 
 // **Pipeline private** — `rational_subfield_embedding`
@@ -1851,6 +2033,16 @@ fn compose_field_embeddings(
     })
 }
 
+/// Multiplication-by-layer-generator matrix for U1b `common_minimal`.
+// **Pipeline private** — `mult_matrix_layer_gen`
+pub(crate) fn mult_matrix_layer_gen(
+    parent: &ExtensionField,
+    blocks: &[CoordsQ],
+) -> Result<Vec<Vec<Ratio<BigInt>>>, EvalError> {
+    let ring = parent_coeff_ring!(parent);
+    mult_matrix_of_adjoin_generator(parent, blocks, &ring)
+}
+
 // **Pipeline private** — `compute_common_dispatch`
 fn compute_common_dispatch(
     a: &Arc<ExtensionField>,
@@ -1860,11 +2052,25 @@ fn compute_common_dispatch(
     if ExtensionField::is_subfield_of(a, b) || ExtensionField::is_subfield_of(b, a) {
         return subfield_common_pair(a, b);
     }
+    if tower_minimal_eligible(a, b) && !common_minimal::compositum_upstream_active() {
+        if let Ok(pair) = common_minimal::compute_common_minimal_pair(a, b, session) {
+            return Ok(pair);
+        }
+    }
     #[cfg(feature = "tower-common")]
     if tower_common_eligible(a, b) {
         return compute_common_tower(a, b);
     }
     compute_common_flatten(a, b, session)
+}
+
+/// True when upstream compositum pipeline may apply (not subfield).
+// **Pipeline private** — `tower_minimal_eligible`
+fn tower_minimal_eligible(a: &Arc<ExtensionField>, b: &Arc<ExtensionField>) -> bool {
+    !a.is_base()
+        && !b.is_base()
+        && !ExtensionField::is_subfield_of(a, b)
+        && !ExtensionField::is_subfield_of(b, a)
 }
 
 /// T4b: `common(sub, sup)` = inclusion into the superfield (no new compositum, no flatten search).
@@ -1983,7 +2189,6 @@ fn compute_common_tower(
 }
 
 /// Embed `source` ≅ ℚ(α) into `target` when `target` adjoins the same layer minpoly over a superfield.
-#[cfg(feature = "tower-common")]
 // **Pipeline private** — `simple_over_q_embedding`
 fn simple_over_q_embedding(
     source: &Arc<ExtensionField>,
@@ -2008,7 +2213,6 @@ fn simple_over_q_embedding(
 }
 
 /// Evaluate `coords` (poly1 in `source`) at the adjoin generator of `target`.
-#[cfg(feature = "tower-common")]
 // **Pipeline private** — `embed_simple_over_q_coords`
 fn embed_simple_over_q_coords(
     source: &ExtensionField,
@@ -2044,7 +2248,63 @@ pub(crate) fn tower_adjoin_parent_for_test<'a>(
     pick_tower_adjoin_parent(a, b).0
 }
 
-/// Phase 0 flatten compositum: primitive element θ = α + k·β, search `k = 1..12`.
+/// Compositum = adjoin(sibling.layer_minpoly) over parent when sibling is simple-over-ℚ.
+// **Pipeline private** — `common_adjoin_sibling_over`
+fn common_adjoin_sibling_over(
+    parent: &Arc<ExtensionField>,
+    sibling: &Arc<ExtensionField>,
+) -> Result<Arc<CommonFieldPair>, EvalError> {
+    if !sibling.tower().is_simple_over_q() {
+        return Err(EvalError::TypeError("common adjoin: sibling not simple over Q"));
+    }
+    let common = match layer_minpoly_coords_for_adjoin(sibling)? {
+        LayerMinPolyForAdjoin::Rational(layer) => {
+            ExtensionField::adjoin_irreducible(parent, layer.to_vec())?
+        }
+        LayerMinPolyForAdjoin::ParentBlocks(blocks) => {
+            ExtensionField::adjoin_irreducible_parent_coeffs(parent, blocks.to_vec())?
+        }
+    };
+    let expected_dim = parent.dimension() * sibling.dimension();
+    if common.dimension() != expected_dim {
+        return Err(EvalError::TypeError("common adjoin: degree mismatch"));
+    }
+    let embed_parent = ExtensionField::try_subfield_embedding(parent, &common)?
+        .ok_or(EvalError::TypeError("common adjoin: parent embed missing"))?;
+    let embed_sibling = simple_over_q_embedding(sibling, &common)?;
+    Ok(Arc::new(CommonFieldPair {
+        field: Arc::clone(&common),
+        embed_a: embed_parent,
+        embed_b: embed_sibling,
+    }))
+}
+
+// **Pipeline private** — nested + simple-over-ℚ compositum when flatten k-search fails
+pub(crate) fn try_common_adjoin_one_simple(
+    a: &Arc<ExtensionField>,
+    b: &Arc<ExtensionField>,
+) -> Result<Arc<CommonFieldPair>, EvalError> {
+    if b.tower().is_simple_over_q()
+        && !ExtensionField::is_subfield_of(b, a)
+        && !ExtensionField::is_subfield_of(a, b)
+    {
+        return common_adjoin_sibling_over(a, b);
+    }
+    if a.tower().is_simple_over_q()
+        && !ExtensionField::is_subfield_of(a, b)
+        && !ExtensionField::is_subfield_of(b, a)
+    {
+        let pair = common_adjoin_sibling_over(b, a)?;
+        return Ok(Arc::new(CommonFieldPair {
+            field: Arc::clone(&pair.field),
+            embed_a: pair.embed_b.clone(),
+            embed_b: pair.embed_a.clone(),
+        }));
+    }
+    Err(EvalError::TypeError("common adjoin: no eligible simple operand"))
+}
+
+/// Phase 0 flatten compositum: primitive element θ = α + k·β, search `k = 1..PRIMITIVE_K_SEARCH_MAX`.
 // **Pipeline private** — `compute_common_flatten`
 fn compute_common_flatten(
     a: &Arc<ExtensionField>,
@@ -2061,7 +2321,7 @@ fn compute_common_flatten(
     let mb = flatten_min_poly_over_q(b, session)?;
     let na = poly_degree(&ma);
     let nb = poly_degree(&mb);
-    for k in 1i64..=12 {
+    for k in 1i64..=PRIMITIVE_K_SEARCH_MAX {
         match common_primitive_sum(&ma, &mb, na, nb, k) {
             Ok((min_g, mat_a, mat_b)) => {
                 let field = match session {
@@ -2086,6 +2346,9 @@ fn compute_common_flatten(
             Err(EvalError::TypeError(_)) => continue,
             Err(e) => return Err(e),
         }
+    }
+    if let Ok(pair) = try_common_adjoin_one_simple(a, b) {
+        return Ok(pair);
     }
     Err(EvalError::NotImplemented("ExtensionField::common"))
 }
@@ -2328,6 +2591,255 @@ mod tests {
     }
 
     #[test]
+    fn compose_minpoly_charpoly_matches_nested_sqrt2_sqrt3() {
+        let k1 = k1_adjoin_sqrt2();
+        let k2 = ExtensionField::adjoin_irreducible(&k1, minpoly_u2_minus(-3)).unwrap();
+        let layer = match layer_minpoly_coords_for_adjoin(&k2).unwrap() {
+            LayerMinPolyForAdjoin::Rational(p) => p.to_vec(),
+            LayerMinPolyForAdjoin::ParentBlocks(_) => panic!("expected rational layer"),
+        };
+        let (via_k, _) = compose_min_poly_over_q(&k1, &layer, None).unwrap();
+        let via_char = compose_min_poly_via_charpoly(&k1, &layer).unwrap();
+        assert_eq!(poly_degree(&via_k), 4);
+        assert_eq!(poly_degree(&via_char), 4);
+        // ponytail: charpoly minpoly may differ from θ=α+kβ primitive poly; same degree suffices for fallback.
+    }
+
+    #[test]
+    fn common_adjoin_nested_sqrt2_sqrt3_with_sqrt5() {
+        let k1 = k1_adjoin_sqrt2();
+        let k2 = ExtensionField::adjoin_irreducible(&k1, minpoly_u2_minus(-3)).unwrap();
+        let k5 = ExtensionField::adjoin_irreducible(
+            &ExtensionField::rational(),
+            minpoly_u2_minus(-5),
+        )
+        .unwrap();
+        let pair = common_adjoin_sibling_over(&k2, &k5).unwrap();
+        assert_eq!(pair.field.dimension(), 8);
+        let emb_k5 = ExtensionField::embedding_for(&k5, &pair).unwrap();
+        let b = emb_k5.apply(&k5.generator_coords());
+        let sq_b = pair.field.element_mul(&b, &b).unwrap();
+        let five = pair.field.embed_rational(&Ratio::from_integer(5.into()));
+        assert!(pair.field.element_eq_mod(&sq_b, &five).unwrap());
+        let emb_k2 = ExtensionField::embedding_for(&k2, &pair).unwrap();
+        let a = emb_k2.apply(&k2.generator_coords());
+        let sum = pair.field.element_add(&a, &b).unwrap();
+        assert!(!pair.field.element_is_zero(&sum));
+    }
+
+    // U0 — compositum verify gate (see `.doc/issues/GIAC-ext-common-unified-path.md`).
+    mod u0_verify_common_pair {
+        use super::*;
+
+        #[test]
+        fn t4a_sqrt2_sqrt3_passes() {
+            let k1 = k1_adjoin_sqrt2();
+            let k3 = k1_adjoin_sqrt3();
+            let pair = ExtensionField::common_over_q(&k1, &k3).unwrap();
+            super::super::verify_common_pair(&pair, &k1, &k3).expect("legacy T4a");
+        }
+
+        #[test]
+        fn subfield_k1_in_k2_passes() {
+            let k1 = k1_adjoin_sqrt2();
+            let k2 = ExtensionField::adjoin_irreducible(&k1, minpoly_u2_minus(-3)).unwrap();
+            let pair = ExtensionField::common_over_q(&k1, &k2).unwrap();
+            super::super::verify_common_pair(&pair, &k1, &k2).expect("T4b subfield");
+        }
+
+        #[test]
+        fn adjoin_nested_sqrt2_sqrt3_with_sqrt5_passes() {
+            let k1 = k1_adjoin_sqrt2();
+            let k2 = ExtensionField::adjoin_irreducible(&k1, minpoly_u2_minus(-3)).unwrap();
+            let k5 = ExtensionField::adjoin_irreducible(
+                &ExtensionField::rational(),
+                minpoly_u2_minus(-5),
+            )
+            .unwrap();
+            let pair = common_adjoin_sibling_over(&k2, &k5).unwrap();
+            super::super::verify_common_pair(&pair, &k2, &k5).expect("common adjoin");
+        }
+
+        #[test]
+        fn flatten_k_search_nested_sqrt5_fails_verify() {
+            let k1 = k1_adjoin_sqrt2();
+            let k2 = ExtensionField::adjoin_irreducible(&k1, minpoly_u2_minus(-3)).unwrap();
+            let k5 = ExtensionField::adjoin_irreducible(
+                &ExtensionField::rational(),
+                minpoly_u2_minus(-5),
+            )
+            .unwrap();
+            let pair = compute_common_flatten_for_test(&k2, &k5).unwrap();
+            assert!(
+                super::super::verify_common_pair(&pair, &k2, &k5).is_err(),
+                "flatten k-search must not pass U0 gate on Q(sqrt2,sqrt3) x Q(sqrt5)"
+            );
+        }
+    }
+
+    // U1a — upstream `common_minimal_POLY` simple×simple (see GIAC-ext-common-unified-path.md).
+    mod u1a_common_minimal {
+        use super::*;
+        use super::common_minimal::compute_common_minimal_pair_for_test;
+
+        #[test]
+        fn sqrt2_sqrt3_passes_verify() {
+            let k1 = k1_adjoin_sqrt2();
+            let k3 = k1_adjoin_sqrt3();
+            let pair = compute_common_minimal_pair_for_test(&k1, &k3).expect("U1a compositum");
+            verify_common_pair(&pair, &k1, &k3).expect("U0 gate");
+            assert_eq!(pair.field.dimension(), 4);
+        }
+
+        #[test]
+        fn sqrt2_cbrt2_passes_verify() {
+            let k2 = k1_adjoin_sqrt2();
+            let k3 = k1_adjoin_cbrt2();
+            let pair = compute_common_minimal_pair_for_test(&k2, &k3).expect("U1a compositum");
+            verify_common_pair(&pair, &k2, &k3).expect("U0 gate");
+            assert_eq!(pair.field.dimension(), 6);
+        }
+
+        #[test]
+        fn dispatch_prefers_minimal_over_t4a() {
+            let k1 = k1_adjoin_sqrt2();
+            let k3 = k1_adjoin_sqrt3();
+            let pair = ExtensionField::common_over_q(&k1, &k3).unwrap();
+            verify_common_pair(&pair, &k1, &k3).expect("dispatch compositum");
+            assert!(pair.field.parent_field().is_none(), "U1a flat compositum");
+        }
+    }
+
+    mod u1b_common_minimal {
+        use super::*;
+        use super::common_minimal::{
+            common_minimal_poly_over_parent_for_test,
+        };
+
+        #[test]
+        fn over_parent_sqrt2_u2_minus_alpha_degree_four() {
+            let k1 = k1_adjoin_sqrt2();
+            let one = k1.one_coords();
+            let zero = k1.zero_coords();
+            let neg_alpha = k1.element_neg(&k1.generator_coords()).unwrap();
+            let layer = vec![one, zero, neg_alpha];
+            let ma = simple_layer_minpoly_from_field(&k1);
+            let (min_g, _k, _w_a, _w_b) =
+                common_minimal_poly_over_parent_for_test(&k1, &ma, &layer).expect("U1b core");
+            assert_eq!(poly_degree(&min_g), 4);
+        }
+
+        fn simple_layer_minpoly_from_field(f: &ExtensionField) -> CoordsQ {
+            match layer_minpoly_coords_for_adjoin(f).unwrap() {
+                LayerMinPolyForAdjoin::Rational(m) => m.to_vec(),
+                LayerMinPolyForAdjoin::ParentBlocks(_) => panic!("expected rational"),
+            }
+        }
+
+        #[test]
+        fn mrref_spec_tensor_dims_consistent() {
+            use super::super::common_minimal::{
+                compositum_session_active, compute_compositum_upstream_for_test,
+            };
+            assert!(!compositum_session_active());
+            let k1 = k1_adjoin_sqrt2();
+            let k3 = k1_adjoin_sqrt3();
+            let spec = compute_compositum_upstream_for_test(&k1, &k3).expect("U1a spec");
+            assert_eq!(spec.dim(), 4);
+            assert_eq!(spec.na() * spec.nb(), spec.dim());
+            assert_eq!(spec.mat_theta().len(), spec.dim());
+            assert!(!compositum_session_active());
+        }
+
+        #[test]
+        fn verify_k5_flat_k2_core_embeddings_pass_v2() {
+            use super::super::common_minimal::compute_compositum_upstream_for_test;
+            let k1 = k1_adjoin_sqrt2();
+            let k2 = ExtensionField::adjoin_irreducible(&k1, minpoly_u2_minus(-3)).unwrap();
+            let k5 = ExtensionField::adjoin_irreducible(
+                &ExtensionField::rational(),
+                minpoly_u2_minus(-5),
+            )
+            .unwrap();
+            let spec = compute_compositum_upstream_for_test(&k5, &k2).expect("U2 minimal core");
+            assert_eq!(poly_degree(spec.min_g()), 8);
+            assert_eq!(spec.dim(), 8);
+            assert_eq!(spec.na() * spec.nb(), spec.dim());
+            let pair = super::super::common_minimal::compute_common_minimal_pair_for_test(
+                &k2, &k5,
+            )
+            .expect("compositum with adjoin fallback");
+            verify_common_pair(&pair, &k2, &k5).expect("U0 gate");
+        }
+
+        #[test]
+        fn flatten_k2_sqrt2_sqrt3_is_fast() {
+            use super::super::flatten_min_poly_over_q;
+            let k1 = k1_adjoin_sqrt2();
+            let k2 = ExtensionField::adjoin_irreducible(&k1, minpoly_u2_minus(-3)).unwrap();
+            let flat = flatten_min_poly_over_q(k2.as_ref(), None).unwrap();
+            assert_eq!(poly_degree(&flat), 4);
+        }
+
+        #[test]
+        fn nested_sqrt5_upstream_passes_verify() {
+            let k1 = k1_adjoin_sqrt2();
+            let k2 = ExtensionField::adjoin_irreducible(&k1, minpoly_u2_minus(-3)).unwrap();
+            let k5 = ExtensionField::adjoin_irreducible(
+                &ExtensionField::rational(),
+                minpoly_u2_minus(-5),
+            )
+            .unwrap();
+            let pair = super::super::common_minimal::compute_common_minimal_pair_for_test(&k2, &k5)
+                .expect("U2 upstream");
+            verify_common_pair(&pair, &k2, &k5).expect("U0 gate");
+            assert_eq!(pair.field.dimension(), 8);
+        }
+
+        #[test]
+        fn dispatch_nested_sqrt5_prefers_upstream() {
+            let k1 = k1_adjoin_sqrt2();
+            let k2 = ExtensionField::adjoin_irreducible(&k1, minpoly_u2_minus(-3)).unwrap();
+            let k5 = ExtensionField::adjoin_irreducible(
+                &ExtensionField::rational(),
+                minpoly_u2_minus(-5),
+            )
+            .unwrap();
+            let pair = ExtensionField::common_over_q(&k2, &k5).expect("dispatch common");
+            assert_eq!(pair.field.dimension(), 8);
+            verify_common_pair(&pair, &k2, &k5).expect("U0 gate");
+        }
+    }
+
+    mod u2_factor_select {
+        use super::*;
+        use crate::algebra::poly_alg_factor::{
+            factor_minpoly_over_field, select_factor_for_common,
+        };
+
+        #[test]
+        fn factor_x4_minus_4_over_sqrt2_selects_quadratic() {
+            let k1 = k1_adjoin_sqrt2();
+            // (x²-2)² = x⁴ - 4x² + 4; over Q(√2): x⁴-4 = (x²-2)(x²+2)
+            let mb = vec![
+                Ratio::one(),
+                Ratio::zero(),
+                Ratio::zero(),
+                Ratio::zero(),
+                Ratio::from_integer((-4).into()),
+            ];
+            let factors = factor_minpoly_over_field(&mb, &k1).expect("factor");
+            assert!(factors.len() >= 2);
+            let k3 = ExtensionField::adjoin_irreducible(&k1, minpoly_u2_minus(-2)).unwrap();
+            let picked = select_factor_for_common(&factors, &k3, &k1).expect("select");
+            assert_eq!(
+                picked.degree_wrt(&crate::algebra::poly_alg_factor::common_minpoly_var()),
+                2,
+            );
+        }
+    }
+
+    #[test]
     fn r6_parent_coeff_adjoin_flatten_explicit_four() {
         let k1 = k1_adjoin_sqrt2();
         let zero = k1.zero_coords();
@@ -2516,12 +3028,13 @@ mod tests {
         assert!(field.element_eq_mod(&sq, &two).unwrap());
     }
 
-    // **B** — F5: align then probe √ in common superfield.
+    // **B** — F5: align then probe √ in common superfield (tower compositum; flat U1a S-path TBD).
     #[test]
+    #[cfg(feature = "tower-common")]
     fn try_square_root_after_align_in_common() {
         let k1 = k1_adjoin_sqrt2();
         let k3 = k1_adjoin_sqrt3();
-        let common = ExtensionField::common_over_q(&k1, &k3).unwrap();
+        let common = compute_common_tower(&k1, &k3).unwrap();
         let emb = ExtensionField::embedding_for(&k1, &common).unwrap();
         let alpha = emb.apply(&k1.generator_coords());
         let sq_alpha = common.field.element_mul(&alpha, &alpha).unwrap();
@@ -2857,18 +3370,19 @@ mod tests {
 
     #[cfg(feature = "tower-common")]
     mod t4a {
+        //! Legacy T4a dispatch — superseded by [GIAC-ext-common-unified-path.md](../../../../.doc/issues/GIAC-ext-common-unified-path.md) U3.
         use super::*;
         use crate::algebra::test_fixtures::{k1_adjoin_cbrt2, k1_adjoin_sqrt2, k1_adjoin_sqrt3};
 
     #[test]
-        fn common_sqrt2_sqrt3_has_tower_parent() {
+        fn common_sqrt2_sqrt3_tower_adjoin_has_parent() {
             let k1 = k1_adjoin_sqrt2();
             let k3 = k1_adjoin_sqrt3();
-            let pair = ExtensionField::common_over_q(&k1, &k3).unwrap();
+            // Legacy T4a path (dispatch now prefers U1a flat compositum).
+            let pair = compute_common_tower(&k1, &k3).unwrap();
             assert_eq!(pair.field.dimension(), 4);
             let expected_parent = tower_adjoin_parent_for_test(&k1, &k3);
             assert_eq!(pair.field.parent_field(), Some(expected_parent));
-            assert!(pair.field.parent_field().is_some());
         }
 
     #[test]

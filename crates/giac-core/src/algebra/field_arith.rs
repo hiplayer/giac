@@ -567,3 +567,51 @@ pub fn poly_inv_mod_with_coeffs_in_field(
 ) -> Result<Vec<CoordsQ>, EvalError> {
     dense::inv_mod(&ParentBlockRing::new(ring), a, m, POLY1_Q)
 }
+
+/// Reduced row echelon form over ℚ; returns matrix rank (U1a `common_minimal_POLY`).
+// **Pipeline private** — `mrref_q`
+pub fn mrref_q(matrix: &mut [Vec<Ratio<BigInt>>]) -> usize {
+    if matrix.is_empty() {
+        return 0;
+    }
+    let rows = matrix.len();
+    let cols = matrix[0].len();
+    let mut rank = 0usize;
+    for col in 0..cols {
+        if rank >= rows {
+            break;
+        }
+        let mut pivot_row = None;
+        for r in rank..rows {
+            if !matrix[r][col].is_zero() {
+                pivot_row = Some(r);
+                break;
+            }
+        }
+        let Some(pr) = pivot_row else {
+            continue;
+        };
+        if pr != rank {
+            matrix.swap(rank, pr);
+        }
+        let pivot = matrix[rank][col].clone();
+        for c in col..cols {
+            matrix[rank][c] /= pivot.clone();
+        }
+        for r in 0..rows {
+            if r == rank {
+                continue;
+            }
+            let factor = matrix[r][col].clone();
+            if factor.is_zero() {
+                continue;
+            }
+            let pivot_row: Vec<Ratio<BigInt>> = matrix[rank][col..cols].to_vec();
+            for (c, pivot_val) in pivot_row.iter().enumerate() {
+                matrix[r][col + c] -= factor.clone() * pivot_val.clone();
+            }
+        }
+        rank += 1;
+    }
+    rank
+}

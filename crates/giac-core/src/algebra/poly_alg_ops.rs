@@ -252,6 +252,26 @@ fn monomial_to_poly(m: &giac_poly::Monomial) -> Result<PolyAlgExt, EvalError> {
     Ok(out)
 }
 
+/// Horner evaluation of univariate `p` at `x` in session working field.
+// **Pipeline private** — `eval_univariate_algext_at`
+pub fn eval_univariate_algext_at(
+    session: &FieldSession,
+    p: &PolyAlgExt,
+    var: &Var,
+    x: &AlgExtCPolyCoeff,
+) -> Result<AlgExtCPolyCoeff, EvalError> {
+    let deg = p.degree_wrt(var);
+    if deg == 0 {
+        return session.lift(&giac_poly::scalar_coeff_wrt(p, var, 0));
+    }
+    let mut acc = session.lift(&giac_poly::scalar_coeff_wrt(p, var, deg))?;
+    for exp in (0..deg).rev() {
+        acc = session.mul(&acc, x)?;
+        acc = session.add(&acc, &session.lift(&giac_poly::scalar_coeff_wrt(p, var, exp))?)?;
+    }
+    Ok(acc)
+}
+
 #[cfg(test)]
 mod tests {
     use giac_poly::{scalar_coeff_wrt, PolyCoeff};

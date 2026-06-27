@@ -2,18 +2,28 @@
 //!
 //! **Upstream:** `ext_factor` / `ext_factor_nodegck` — sqff → linear / quadratic split / roots / witness.
 
+use std::sync::Arc;
+
 use giac_poly::{factor_into, FlatUni, MainVar, Poly, PolyCoeff, Var};
+use num_traits::Zero;
 
 use crate::error::EvalError;
 
-use super::field_arith::expr_to_ratio;
-use super::field_session::FieldSession;
+use super::ext_tower::ExtensionField;
+use super::field_arith::{expr_to_ratio, poly_degree, CoordsQ};
+use super::field_session::{coeff_from_coords, FieldSession};
 use super::poly::{poly_algext_from_poly, PolyAlgExt};
 use super::poly_alg_coeff::AlgExtCPolyCoeff;
 use super::poly_alg_ops::{
-    div_rem_wrt_algext, infer_ambient_field, normalize_algext_poly, split_quadratic_factor,
+    div_rem_wrt_algext, eval_univariate_algext_at, infer_ambient_field, normalize_algext_poly,
+    split_quadratic_factor,
 };
 use super::poly_roots::poly_algext_roots;
+
+/// Formal layer variable for minpoly factorization over **K**.
+pub(crate) fn common_minpoly_var() -> Var {
+    Var::from("__u")
+}
 
 /// **Stable (bounded)** — irreducible factors over K for univariate `p`; `None` if not split.
 pub fn factor_into_algext(p: &PolyAlgExt) -> Result<Option<Vec<PolyAlgExt>>, EvalError> {
@@ -315,6 +325,113 @@ fn product_divides(
     Ok(r.is_zero())
 }
 
+// **Pipeline private** — embed monic `poly1` / ℚ into `PolyAlgExt` over `base`.
+pub(crate) fn minpoly_q_to_poly_over_field(
+    minpoly: &CoordsQ,
+    base: &Arc<ExtensionField>,
+    var: &Var,
+) -> Result<PolyAlgExt, EvalError> {
+    let deg = poly_degree(minpoly);
+    let u = PolyAlgExt::ring_var(var.clone());
+    let mut p = PolyAlgExt::ring_zero();
+    for (i, c) in minpoly.iter().enumerate() {
+        if c.is_zero() {
+            continue;
+        }
+        let exp = deg - i;
+        let coords = base.embed_rational(c);
+        let coeff = coeff_from_coords(base, &coords)?;
+        let mut term = PolyAlgExt::ring_constant(coeff);
+        if exp > 0 {
+            term = term.try_mul(&u.try_pow(exp as u64)?)?;
+        }
+        p = p.try_add(&term)?;
+    }
+    Ok(p)
+}
+
+// **Pipeline private** — `poly1` minpoly over ℚ → `Poly` in `var`.
+fn minpoly_coords_to_poly(minpoly: &CoordsQ, var: &Var) -> Poly {
+    let deg = poly_degree(minpoly);
+    let u = Poly::var(&**var);
+    let mut p = Poly::ring_zero();
+    for (i, c) in minpoly.iter().enumerate() {
+        if c.is_zero() {
+            continue;
+        }
+        let exp = deg - i;
+        let term = if exp == 0 {
+            Poly::constant(c.clone())
+        } else {
+            Poly::constant(c.clone()).mul(&u.pow(exp as u64))
+        };
+        p = p.add(&term);
+    }
+    p
+}
+
+/// Upstream `ext_factor` on `b` minpoly over **K** = `base` (U2).
+// **Pipeline private** — `factor_minpoly_over_field`
+pub(crate) fn factor_minpoly_over_field(
+    minpoly: &CoordsQ,
+    _base: &Arc<ExtensionField>,
+) -> Result<Vec<PolyAlgExt>, EvalError> {
+    let var = common_minpoly_var();
+    let session = FieldSession::new(Arc::clone(_base));
+    let q_poly = minpoly_coords_to_poly(minpoly, &var);
+    let q_chunks = match factor_into(&q_poly) {
+        Some(facs) if !facs.is_empty() => facs,
+        _ => vec![q_poly],
+    };
+    q_chunks
+        .into_iter()
+        .map(|qf| {
+            let p_alg = poly_algext_from_poly(&qf)?;
+            normalize_algext_poly(&p_alg, &session)
+        })
+        .collect()
+}
+
+/// Upstream `common_EXT` factor choice: vanishing at `b` gen, else minimum degree (U2).
+// **Pipeline private** — `select_factor_for_common`
+pub(crate) fn select_factor_for_common(
+    factors: &[PolyAlgExt],
+    b: &Arc<ExtensionField>,
+    _base: &Arc<ExtensionField>,
+) -> Result<PolyAlgExt, EvalError> {
+    if factors.is_empty() {
+        return Err(EvalError::TypeError("select_factor: empty"));
+    }
+    if factors.len() == 1 {
+        return Ok(factors[0].clone());
+    }
+    let var = common_minpoly_var();
+    let eval_session = FieldSession::new(Arc::clone(_base));
+    let can_eval_at_b = ExtensionField::is_subfield_of(b, _base)
+        || ExtensionField::is_subfield_of(_base, b)
+        || Arc::ptr_eq(b, _base);
+    if can_eval_at_b {
+        let b_gen = if ExtensionField::is_subfield_of(b, _base) {
+            let emb = ExtensionField::try_subfield_embedding(b, _base)?
+                .ok_or(EvalError::TypeError("select_factor: embed b"))?;
+            coeff_from_coords(_base, &emb.apply(&b.generator_coords()))?
+        } else {
+            coeff_from_coords(b, &b.generator_coords())?
+        };
+        for f in factors {
+            let val = eval_univariate_algext_at(&eval_session, f, &var, &b_gen)?;
+            if val.coeff_is_zero() {
+                return Ok(f.clone());
+            }
+        }
+    }
+    factors
+        .iter()
+        .min_by_key(|f| f.degree_wrt(&var))
+        .cloned()
+        .ok_or(EvalError::TypeError("select_factor: no factor"))
+}
+
 fn push_factor(out: &mut Vec<(PolyAlgExt, usize)>, f: PolyAlgExt, k: usize) {
     if f.is_one() {
         return;
@@ -333,7 +450,7 @@ mod tests {
     
 
     use num_rational::Ratio;
-    
+    use num_traits::Zero;
 
     use super::*;
     use crate::algebra::ext_tower::ExtensionField;
@@ -433,6 +550,21 @@ mod tests {
         assert_eq!(factors.len(), 4);
         assert!(factors.iter().all(|f| f.degree_wrt(&t) == 1));
         assert!(product_divides(&session, &p_alg, &factors, &t).unwrap());
+    }
+
+    #[test]
+    fn factor_minpoly_x4_minus_4_over_sqrt2() {
+        let k1 = k1_adjoin_sqrt2();
+        let mb = vec![
+            Ratio::from_integer(1.into()),
+            Ratio::zero(),
+            Ratio::zero(),
+            Ratio::zero(),
+            Ratio::from_integer((-4).into()),
+        ];
+        let factors = factor_minpoly_over_field(&mb, &k1).expect("factor");
+        assert!(factors.len() >= 2);
+        assert!(factors.iter().all(|f| f.degree_wrt(&common_minpoly_var()) == 2));
     }
 
     #[test]
