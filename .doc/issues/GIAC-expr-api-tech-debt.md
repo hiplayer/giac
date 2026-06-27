@@ -16,7 +16,7 @@ giac-rs 算法 crate 在 [algorithm-expr-api.md](../algorithm-expr-api.md) 落�
 |------|-------------------|----------|
 | API tier + 稳定性文档 | **7** crate + `giac-core-algebra-api-stability.md`（514 fn inventory）；`giac-core/algebra` ~70% fn 已标 tier | §2 三层分类；§7.2 inventory |
 | 显式算法上下文 | **`FieldSession` + `PolyInK::prepare`** 单路径进 `roots_dispatch` | §6.3 |
-| 临时 API | `mrv_w` **7×** `drift_*`；`equiv::canonical_radical` + `inv_sqrt_to_mul`；`ratnormal_algext` shim — 均未退役 | §2 须写退役条件 + issue |
+| 临时 API | `mrv_w` **7×** `drift_*`；`ratnormal_algext` shim — 未退役（`equiv::canonical_radical` + `inv_sqrt_to_mul` 已升格 Stable，见 [2C](#giac-expr-api-2c)） | §2 须写退役条件 + issue |
 | 测试契约 | `integrate.rs` 已补 **A**（`eval_integrate_matches`）+ 语义 `contains` 清零；`diff(integrate)` gap 仍在 | §3 / §5 |
 | §4 索引 | 与 `*-api-stability.md` **一致** | §4 |
 
@@ -36,7 +36,7 @@ giac-rs 算法 crate 在 [algorithm-expr-api.md](../algorithm-expr-api.md) 落�
 | [1B](#giac-expr-api-1b) | `PolyInK` 入口规范化 | AFK | P0 | 1A | **done** |
 | [2A](#giac-expr-api-2a) | 退役 `mrv_w::drift_*` | AFK | P1 | [GIAC-limit-mrv-followup](GIAC-limit-mrv-followup.md) Phase 3A | open |
 | [2B](#giac-expr-api-2b) | 退役 `ratnormal_algext` shim | AFK | P2 | [GIAC-algext-adoption](GIAC-algext-adoption.md) A-03 | open |
-| [2C](#giac-expr-api-2c) | `assert_equiv` 漂移收敛 | HITL | P2 | — | open |
+| [2C](#giac-expr-api-2c) | `assert_equiv` 漂移收敛 | HITL | P2 | — | **done**（2026-06-27，选 A 升格 `canonical_radical_expr`） |
 | [3A](#giac-expr-api-3a) | `giac-solve` 测试去字符串语义 | AFK | P1 | 0B | **done** |
 | [3B](#giac-expr-api-3b) | `giac-calculus` 积分 / limit 单测契约 | AFK | P1 | — | **partial** → [GIAC-expr-api-test-contains-cleanup](GIAC-expr-api-test-contains-cleanup.md) |
 | [3D](#giac-expr-api-3d) | `giac-core/algebra` 扩域单测 | AFK | P1 | 1A ✅ | **done** |
@@ -253,22 +253,37 @@ Phase 3A 落地后删除 **7** 个 `drift_*`（`drift_fold_ln_atoms`、`drift_is
 **Type:** HITL  
 **优先级:** P2  
 **Blocked by:** None  
-**落点:** `giac-simplify/src/equiv.rs`；可能 `giac-simplify` 公开 API
+**落点:** `giac-rs/crates/giac-simplify/src/equiv.rs`  
+**状态:** **done**（2026-06-27）
+
+### HITL 决策（ADR 一行）
+
+**选 A — 升格为 `pub(crate) fn canonical_radical_expr` + `inv_sqrt_to_mul`（Stable crate-internal）。**
+理由：(1) 命名已符 `algorithm-expr-api.mdc` 的 `canonical_*` 稳定 API 规约；(2) 行为不变，不波及 `normal`/golden；(3) 选项 B（并入 `normal`）会改 `normal` 行为且与 `ratnormal` 域职责重叠（denominator 有理化是 `ratnormal` 的活）；(4) 工作量最小。I/O 契约写入 `equiv.rs` 源码注释，并同步 `giac-simplify-api-stability.md` §3 / §4 / Per-file。
 
 ### What to build
 
 决策 `canonical_radical` / `inv_sqrt_to_mul` 归宿：
 
-- **选项 A：** 升格为 `giac-simplify` 稳定 `canonical_radical_expr`（有 I/O 契约 + 单测）
+- **选项 A：** 升格为 `giac-simplify` 稳定 `canonical_radical_expr`（有 I/O 契约 + 单测）✅
 - **选项 B：** 并入 `normal` 主路径，测试层不再依赖私有 drift
 
 Conformance 与单元测试覆盖 radical 往返 + 化简后形态。
 
 ### Acceptance criteria
 
-- [ ] HITL 决策记录在 issue 评论或 ADR 一行
-- [ ] `equiv.rs` 无未文档化的 Temporary drift（或已升格 Stable）
-- [ ] conformance `assert_equiv` 覆盖 `1/sqrt(n) ↔ sqrt(n)/n` 类形态
+- [x] HITL 决策记录在 issue 评论或 ADR 一行（本节「HITL 决策」段）
+- [x] `equiv.rs` 无未文档化的 Temporary drift（或已升格 Stable）— 两 `// **Temporary**` 已改 `// **Stable**`，`lib.rs` Temporary 摘要行已更新
+- [x] conformance `assert_equiv` 覆盖 `1/sqrt(n) ↔ sqrt(n)/n` 类形态 — `equiv_sqrt_half_forms`（既有）+ 新增 B 层 `canonical_radical_expr_inv_sqrt_form`（契约 + 幂等 + passthrough + 负 radicand）
+
+### 落地
+
+- `equiv.rs`：`canonical_radical` → `canonical_radical_expr`（`pub(crate)`，I/O 契约注释）；`inv_sqrt_to_mul` `pub(crate)`；三处 `// **Temporary**` 删除
+- `lib.rs`：Temporary 摘要行移除两者
+- `scripts/annotate_api_tiers.py`：FN_TIERS 两者改 Stable
+- `.doc/giac-simplify-api-stability.md`：§2 `assert_equiv` 行、§3 `equiv.rs` 行、§4 删两 Temporary 行 + 升格说明、Per-file 表刷新
+- `cargo test -p giac-simplify`：48 passed / 4 ignored（含新测）
+- `cargo test -p giac-conformance`：见 PR
 
 ---
 

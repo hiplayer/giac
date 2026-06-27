@@ -33,7 +33,7 @@
 | `ratnormal` | **Stable** | `ratnormal` | 非有理子树 → `TypeError` |
 | `factor` | **Stable (bounded)** | `factor` | 多变量 Hensel 缺口在 giac-poly FAC-G* |
 | `ifactor` | **Stable** | `ifactor` | 大整数可能慢 |
-| `assert_equiv` | **Stable** | `equiv` | 经 `normal`；窄 radical drift 见 §4 |
+| `assert_equiv` | **Stable** | `equiv` | 经 `normal`；radical 形态经 `canonical_radical_expr`（§3） |
 | `is_zero` | **Stable** | `equiv` | |
 | `sub` | **Stable** | `equiv` | |
 | `texpand` | **Partial** | `trig` | 负整数倍角 → `NotImplemented` |
@@ -61,7 +61,7 @@
 | `factor.rs` | `factor_expr`, `factor_poly_form`, `flatten_mul`, `rational_num_den` | Expr→Poly→factor |
 | `trig.rs` | `texpand_rec`, `expand_sin_arg`, `expand_cos_arg`, `integer_multiple`, `lin_rec`, `detect_halftan_tan` | 三角/指数规则表 |
 | `ifactor.rs` | 内部试除循环 | |
-| `equiv.rs` | — | 见 §4 临时 drift |
+| `equiv.rs` | `canonical_radical_expr`, `inv_sqrt_to_mul` (Stable crate-internal), `sub`/`is_zero`/`assert_equiv` | radical 预归一 + `normal` 等价判定 |
 
 ---
 
@@ -70,11 +70,11 @@
 | 函数 | 文件 | 类型 | 退役条件 |
 |------|------|------|----------|
 | `ratnormal_algext` | `ratnormal.rs` | **shim** | [GIAC-algext-adoption](issues/GIAC-algext-adoption.md) A-03：`ext_reduce` 有理化 |
-| `canonical_radical` | `equiv.rs` | **drift_*** | 迁入 crate 级 `canonical_radical` 或 `normal` 吸收 `1/sqrt(n)↔sqrt(n)/n` |
-| `inv_sqrt_to_mul` | `equiv.rs` | **drift_*** | 同上 |
 | `try_factor_quadratic_sqrt` | `factor.rs` | **Partial 内部** | `ctx.with_sqrt` 下二次 sqrt 分解 |
 
 **已退役（2026-06）：** `try_factor_via_algext` / `try_factor_quadratic_rootof` 不得再接回 `factor()` 主路径；扩域线性分解见 `solve` / `factor_into_algext`（非通用 `factor` 展示）。
+
+**已升格（2026-06-27，GIAC-expr-api-2C）：** `canonical_radical_expr` / `inv_sqrt_to_mul` 从 Temporary drift 升为 **Stable (crate-internal)**；I/O 契约见 `equiv.rs` 源码 doc。HITL 决策：选 A（升格），理由：命名已符 `canonical_*` 规约、行为不变、不波及 `normal`/golden、工作量最小；选项 B（并入 `normal`）会改 `normal` 行为且与 `ratnormal` 域职责重叠。
 
 **禁止:** 在 `giac-calculus` / `limit_engine` 复制上述 drift 逻辑；应调用 `assert_equiv` 或扩展 owning 模块稳定 API。
 
@@ -137,11 +137,12 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `sub` | **Stable** | construct `a - b` as an expression tree. |
 | `is_zero` | **Stable** | true when `normal(e)` simplifies to zero. |
 | `assert_equiv` | **Stable** | true when `a` and `b` are mathematically equivalent under `normal`. |
-| `canonical_radical` | **Temporary** | drift: 1/sqrt(n)↔sqrt(n)/n for assert_equiv |
-| `inv_sqrt_to_mul` | **Temporary** | drift helper for canonical_radical |
+| `canonical_radical_expr` | **Stable** | `canonical_radical_expr`: 1/sqrt(n) → (1/n)*sqrt(n) pre-normalizer for assert_equiv |
+| `inv_sqrt_to_mul` | **Stable** | `inv_sqrt_to_mul`: Pow(Sqrt(n),-1) → Mul[Rat(1,n),Sqrt(n)] helper of canonical_radical_expr |
 | `equiv_commutative_add` | **Pipeline private** | `equiv_commutative_add` |
 | `equiv_expanded_square` | **Pipeline private** | `equiv_expanded_square` |
 | `equiv_sqrt_half_forms` | **Pipeline private** | `equiv_sqrt_half_forms` |
+| `canonical_radical_expr_inv_sqrt_form` | **Pipeline private** | `canonical_radical_expr_inv_sqrt_form` |
 | `equiv_rational_reduced` | **Pipeline private** | `equiv_rational_reduced` |
 | `is_zero_complex` | **Pipeline private** | `is_zero_complex` |
 | `sub_fraction_difference` | **Pipeline private** | `sub_fraction_difference` |
@@ -178,6 +179,7 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `expand_rhs_add_and_zero_power` | **Pipeline private** | `expand_rhs_add_and_zero_power` |
 | `normal_fast_path_already_polynomial` | **Pipeline private** | `normal_fast_path_already_polynomial` |
 | `expand_binomial_fallback_for_non_poly` | **Pipeline private** | `expand_binomial_fallback_for_non_poly` |
+| `expand_binomial_fallback_semantic` | **Pipeline private** | `expand_binomial_fallback_semantic` |
 | `expand_recurses_into_frac` | **Pipeline private** | `expand_recurses_into_frac` |
 
 ### `factor.rs`
@@ -188,8 +190,7 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `factor_expr` | **Pipeline private** | recursive factor on Mul/Pow/Frac |
 | `flatten_mul` | **Pipeline private** | flatten Mul to factor vec |
 | `factor_poly_form` | **Pipeline private** | normal→poly→factor_into chain |
-| `factor_algext_form` | **Pipeline private** | 含 AlgExt 系数时的 factor 路径 |
-| `try_factor_quadratic_sqrt` | **Temporary** | Partial internal: `ctx.with_sqrt` quadratic sqrt factors. |
+| `factor_algext_form` | **Pipeline private** | path B: factor in K[var] when expr has algebraic coefficients. |
 
 ### `ifactor.rs`
 
@@ -220,7 +221,9 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `eval_normal_via_plugin` | **Pipeline private** | `eval_normal_via_plugin` |
 | `eval_expand_binomial_via_plugin` | **Pipeline private** | `eval_expand_binomial_via_plugin` |
 | `eval_factor_via_plugin` | **Pipeline private** | `eval_factor_via_plugin` |
-| `eval_factor_x_squared_minus_two_irreducible` | **Pipeline private** | `factor(x²-2)` stays irreducible over ℚ |
+| `eval_factor_x_squared_minus_two_irreducible` | **Pipeline private** | `eval_factor_x_squared_minus_two_irreducible` |
+| `eval_factor_x_squared_minus_two_factorization` | **Pipeline private** | `eval_factor_x_squared_minus_two_factorization` |
+| `eval_factor_x_squared_minus_two_stays_irreducible` | **Pipeline private** | `eval_factor_x_squared_minus_two_stays_irreducible` |
 
 ### `ratnormal.rs`
 
@@ -242,7 +245,15 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `ratnormal_not_rational_error` | **Pipeline private** | `ratnormal_not_rational_error` |
 | `ratnormal_non_integer_power_error` | **Pipeline private** | `ratnormal_non_integer_power_error` |
 | `ratnormal_reduces_common_factor` | **Pipeline private** | `ratnormal_reduces_common_factor` |
+| `ratnormal_reduces_common_factor_semantic` | **Pipeline private** | `ratnormal_reduces_common_factor_semantic` |
 | `ratnormal_algext_square_minus_two` | **Pipeline private** | `ratnormal_algext_square_minus_two` |
+
+### `test_verify.rs`
+
+| Function | Tier | Description |
+|----------|------|-------------|
+| `assert_factorization` | **Pipeline private** | `assert_factorization` |
+| `assert_factorization_eval` | **Pipeline private** | `assert_factorization_eval` |
 
 ### `trig.rs`
 
@@ -274,6 +285,7 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `lin_exp_plus_one_pow` | **Pipeline private** | expand (exp+1)^2 only |
 | `ctx` | **Pipeline private** | `ctx` |
 | `texpand_cos_sum` | **Pipeline private** | `texpand_cos_sum` |
+| `texpand_cos_sum_semantic` | **Pipeline private** | `texpand_cos_sum_semantic` |
 | `texpand_cos_triple_angle` | **Pipeline private** | `texpand_cos_triple_angle` |
 | `detect_halftan_direct` | **Pipeline private** | `detect_halftan_direct` |
 | `halftan_sin_over_one_plus_cos` | **Pipeline private** | `halftan_sin_over_one_plus_cos` |
