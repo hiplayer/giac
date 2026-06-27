@@ -40,8 +40,19 @@ cargo test -p giac-calculus foo       # 调试子集可用裸 cargo test
 ## MVP 门禁
 
 1. `cargo test-timeout` 全绿  
-2. `cargo ci-clippy` 全绿  
+2. `./scripts/ci-clippy.sh` 全绿（clippy + `lint-substring-golden`）
 3. golden 全绿 **或** 偏离已登记并验证
+
+## 禁止 substring golden（`assert!` + `.contains("…")`）
+
+Clippy `disallowed-methods` **无法**在 MSRV 1.75 上可靠匹配 `str::contains` 的 def_path（`Vec::contains` / `Token` 检查不受影响）。
+
+```bash
+cd giac-rs
+./scripts/lint-substring-golden.sh   # 已并入 ./scripts/ci-clippy.sh
+```
+
+改用 `assert_equiv`、精确 `assert_eq!(format_expr(...), "...")` 或 `test_verify` helper。跟踪 [GIAC-expr-api-test-contains-cleanup.md](../../.doc/issues/GIAC-expr-api-test-contains-cleanup.md)。
 
 ## L1 失败（须人工确认）
 

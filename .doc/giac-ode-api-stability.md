@@ -86,9 +86,10 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `trig_rat_times_x` | **Pipeline private** | `trig_rat_times_x` |
 | `const_sym` | **Pipeline private** | `const_sym` |
 | `ratio_sqrt` | **Pipeline private** | `ratio_sqrt` |
-| `integer_sqrt` | **Pipeline private** | `integer_sqrt` |
 | `is_zero_expr` | **Pipeline private** | `is_zero_expr` |
 | `desolve_harmonic` | **Pipeline private** | `desolve_harmonic` |
+| `desolve_harmonic_satisfies_ode` | **Pipeline private** | `desolve_harmonic_satisfies_ode` |
+| `desolve_harmonic_subst_canonical` | **Pipeline private** | `desolve_harmonic_subst_canonical` |
 
 ### `plugin.rs`
 
@@ -98,3 +99,14 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `install_ode` | **Stable** | register DefaultOdePlugin |
 | `xcas_default` | **Stable** | Context with simplify plugin |
 | `desolve_via_plugin` | **Pipeline private** | `desolve_via_plugin` |
+| `desolve_via_plugin_satisfies_ode` | **Pipeline private** | `desolve_via_plugin_satisfies_ode` |
+| `desolve_via_plugin_subst_canonical` | **Pipeline private** | `desolve_via_plugin_subst_canonical` |
+
+### `test_verify.rs`
+
+| Function | Tier | Description |
+|----------|------|-------------|
+| `assert_lin_ode_solution` | **Pipeline private** | `assert_lin_ode_solution` |
+| `desolve_sol` | **Pipeline private** | `desolve_sol` |
+| `subst_constants` | **Pipeline private** | `subst_constants` |
+| `assert_desolve_lin_ode` | **Pipeline private** | `assert_desolve_lin_ode` |

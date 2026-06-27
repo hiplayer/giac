@@ -343,5 +343,6 @@ P3  长尾
 ## 9. 维护
 
 - 新增 `contains` 语义断言：**禁止**（见 [test-writing-spec.md](../test-writing-spec.md) §2、§6）
+- **门禁：** `cd giac-rs && cargo lint-substring-golden`（`scripts/lint-substring-golden.sh`；匹配 `assert!`/`assert_eq!` + `.contains("`/`'`）。Clippy `disallowed-methods` 无法可靠拦截 `str::contains`（MSRV 1.75 def_path）。legacy 清零后并入 `cargo ci-clippy`。
 - **绕不过去时：** 按 [test-writing-spec.md §6](../test-writing-spec.md#6-能力缺口双轨测例smoke-until--ignore-语义) 双轨；阻塞实例登记本文 §8
 - 完成子项后更新本文 §2 状态列 + [GIAC-expr-api-test-audit.md](GIAC-expr-api-test-audit.md) §1 汇总

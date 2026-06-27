@@ -164,8 +164,6 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | Function | Tier | Description |
 |----------|------|-------------|
 | `quadratic_rootof_roots` | **Stable (bounded)** | two rootof branches for quadratic |
-| `biquadratic_rootof_roots` | **Partial** | biquadratic rootof; general quartic NotImplemented |
-| `rootof_expr` | **Pipeline private** | `rootof_expr` |
 | `x` | **Pipeline private** | `x` |
 | `t_sq_minus` | **Pipeline private** | `t_sq_minus` |
 | `quadratic_rootof_has_two_branches` | **Pipeline private** | `quadratic_rootof_has_two_branches` |
@@ -193,10 +191,11 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | Function | Tier | Description |
 |----------|------|-------------|
 | `solve_univariate_over_q` | **Pipeline private** | sqff × factor → per-factor roots |
+| `solve_factor_with_k_split` | **Pipeline private** | optional K factor split then roots (T2-3). |
+| `solve_irreducible_factor_algext` | **Pipeline private** | roots of one K[var] factor after split |
 | `solve_irreducible_factor` | **Pipeline private** | deg≤4 algext; deg≥5 single rootof branch |
+| `irreducible_rootof_branch_algext` | **Pipeline private** | S0 deg≥5 rootof branch in K[var] |
 | `irreducible_rootof_branch` | **Pipeline private** | S0 deg≥5 rootof (not biquadratic fallback) |
-| `factor_poly_for_solve` | **Pipeline private** | sqff then factor_into; factor failure → irreducible piece |
-| `rootof_expr` | **Pipeline private** | rootof([num], minpoly) |
 | `dedup_expr_roots` | **Pipeline private** | collapse repeated roots (solve lists unique roots) |
 | `poly_x5_minus_x_plus_1` | **Pipeline private** | `poly_x5_minus_x_plus_1` |
 | `solve_irreducible_deg5_one_branch` | **Pipeline private** | `solve_irreducible_deg5_one_branch` |

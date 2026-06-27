@@ -4,7 +4,7 @@
 **类型:** 架构决策 / 执行计划  
 **来源:** `giac-core`、`giac-poly`、`giac-calculus`、`giac-solve` 重复代码审计（2026-06-23）  
 **父项:** [GIAC-rs-crate-dedup-plan](GIAC-rs-crate-dedup-plan.md)（D0–D5 执行索引）  
-**相关:** [GIAC-poly-algext-gcd-factor-priority](GIAC-poly-algext-gcd-factor-priority.md) T3-3、[expr-poly-conversion.md](../expr-poly-conversion.md)、[algorithm-expr-api.md](../algorithm-expr-api.md)  
+**相关:** [GIAC-poly-algext-gcd-factor-priority](../issues_resolved/GIAC-poly-algext-gcd-factor-priority.md) T3-3 ✅、[expr-poly-conversion.md](../expr-poly-conversion.md)、[algorithm-expr-api.md](../algorithm-expr-api.md)  
 **快照:** 2026-06-23
 
 ---
@@ -268,7 +268,7 @@ pub fn quadratic_rootof_branches(poly: &Poly, var: &Var) -> Result<Vec<ExprArc>,
 | C2-1 | `QuadraticCoeffs` + `quadratic_rational_roots` | P1 | `giac-poly/quadratic.rs`（新建） | D1-1 | **done** (PR-D) |
 | C2-2 | `quadratic_algext_roots` 抽自 `poly_roots` | P2 | `giac-core/algebra/poly_roots.rs` | D1-3 | open |
 | C3-1 | `factor_poly_for_solve` → `factor_univariate_pairs` | P1 | `giac-solve/solve_poly.rs` | — | **done** (PR-D) |
-| C3-2 | 退役 `biquadratic_rootof_roots` 生产路径 | P1 | `giac-solve/rootof.rs` | D3-2, [T3-3](GIAC-poly-algext-gcd-factor-priority.md) | **done** (PR-E) |
+| C3-2 | 退役 `biquadratic_rootof_roots` 生产路径 | P1 | `giac-solve/rootof.rs` | D3-2, [T3-3](../issues_resolved/GIAC-poly-algext-gcd-factor-priority.md) | **done** (PR-E) |
 | C3-3 | `realroot` 改调 `giac_poly::roots` | P2 | `giac-solve/realroot.rs` | — | open |
 | C4-1 | calculus 删工具拷贝 | P0 | `limit_engine/*`、`partfrac_integrate.rs` | C0-1/C0-2 | **done** (PR-A/B) |
 | C4-3 | 删 `split_depressed_quartic` | P2 | `giac-core/poly_roots.rs` | D4-3 | **done** (PR-E) |
@@ -307,6 +307,6 @@ cd giac-rs && cargo test-timeout && cargo ci-clippy
 ## 9. 参考
 
 - [GIAC-rs-crate-dedup-plan](GIAC-rs-crate-dedup-plan.md) — D0–D5 母计划  
-- [GIAC-poly-algext-gcd-factor-priority](GIAC-poly-algext-gcd-factor-priority.md) — K 上 factor 后 T3-3 跨 crate 清理  
+- [GIAC-poly-algext-gcd-factor-priority](../issues_resolved/GIAC-poly-algext-gcd-factor-priority.md) — K 上 factor + T3-3 跨 crate 清理 ✅ resolved  
 - [GIAC-expr-api-tech-debt](GIAC-expr-api-tech-debt.md) — API 分层母索引  
 - [giac-poly-api-stability.md](../giac-poly-api-stability.md) — `quadratic_abc`、factor FAC-G*

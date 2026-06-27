@@ -3,7 +3,7 @@
 **状态:** open  
 **类型:** 架构 / 表示层  
 **触发:** P1 `univ_wrt::univariate_div_rem_wrt` 常数除数死循环 — flat 域除法误抄 nested 环语义；`gcd(x²−2,x+√2)` 验收写错暴露 K[x] 语境未钉死  
-**父项:** [GIAC-poly-nested-ring-types](GIAC-poly-nested-ring-types.md) §1.4、[GIAC-poly-algext-gcd-factor-priority](GIAC-poly-algext-gcd-factor-priority.md) T0–T1  
+**父项:** [GIAC-poly-nested-ring-types](GIAC-poly-nested-ring-types.md) §1.4、[GIAC-poly-algext-gcd-factor-priority](../issues_resolved/GIAC-poly-algext-gcd-factor-priority.md) T0–T1 ✅  
 **Rust 落点:** `giac-poly::{poly_coeff, nested, univ_wrt, square_free}`、`giac-core::algebra::{field_session, poly_alg_ops}`  
 **快照:** 2026-06-23（**L0 ✅ PR-1/2**、**L1-1a/L1-2/L3-1 ✅ PR-3**）
 
@@ -237,7 +237,7 @@ P2 `factor_univariate_over_k` 应接收 **`FlatUni<AlgExtCPolyCoeff>`**（或 `&
 
 ### 6.1 优先级总表
 
-与 [GIAC-poly-algext-gcd-factor-priority](GIAC-poly-algext-gcd-factor-priority.md) **P2（T2-1）** 对齐：
+与 [GIAC-poly-algext-gcd-factor-priority](../issues_resolved/GIAC-poly-algext-gcd-factor-priority.md) **P2（T2-1）** 对齐：
 
 | 优先级 | ID | 任务 | 理由 | 依赖 | 建议时机 |
 |:--:|:--:|---|---|:---:|---|

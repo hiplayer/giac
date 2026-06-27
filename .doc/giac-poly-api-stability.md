@@ -432,6 +432,13 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `next_u64` | **Stable** | `Poly::next_u64` |
 | `next_i64` | **Stable** | `Poly::next_i64` |
 | `random_poly` | **Pipeline private** | `random_poly` |
+| `is_zero` | **Pipeline private** | `is_zero` |
+| `is_one` | **Pipeline private** | `is_one` |
+| `derivative` | **Pipeline private** | `derivative` |
+| `gcd` | **Pipeline private** | `gcd` |
+| `div_exact` | **Pipeline private** | `div_exact` |
+| `sub` | **Pipeline private** | `sub` |
+| `max_exponent` | **Pipeline private** | `max_exponent` |
 | `square_free_yun` | **Pipeline private** | `square_free_yun` |
 | `distinct_degree_factorization` | **Pipeline private** | `distinct_degree_factorization` |
 | `extract_linear_factors` | **Pipeline private** | `extract_linear_factors` |
@@ -588,7 +595,14 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `term_with_var` | **Stable** | coeff * var^exp as Poly |
 | `derivative_wrt` | **Stable** | ∂p/∂var treating coefficients in ℚ[others]. |
 | `square_free_wrt` | **Stable** | Square-free factorization w.r.t. `var` over ℚ[others] (Yun-style via gcd). |
-| `square_free_wrt_impl` | **Pipeline private** | `square_free_wrt_impl` |
+| `is_zero` | **Pipeline private** | `is_zero` |
+| `is_one` | **Pipeline private** | `is_one` |
+| `derivative` | **Pipeline private** | `derivative` |
+| `gcd` | **Pipeline private** | `gcd` |
+| `div_exact` | **Pipeline private** | `div_exact` |
+| `sub` | **Pipeline private** | `sub` |
+| `max_exponent` | **Pipeline private** | `max_exponent` |
+| `square_free_wrt_yun` | **Pipeline private** | Yun sqff over ℚ[others][var] |
 | `substitute_poly` | **Stable** | Substitute `sub_var -> sub_poly` in `p`. |
 | `factor_sqff_over_coeff_ring` | **Partial** | Factor square-free `g` in ℚ[others][var] recursively. |
 | `factor_sqff_over_coeff_ring_ctx` | **Pipeline private** | typed sqff factor chain |
@@ -648,7 +662,6 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `bilinear_at_m` | **Pipeline private** | `bilinear_at_m` |
 | `solve_a_j_at_m` | **Pipeline private** | `solve_a_j_at_m` |
 | `rational_sqrt` | **Pipeline private** | `rational_sqrt` |
-| `integer_sqrt_bigint` | **Pipeline private** | `integer_sqrt_bigint` |
 | `solve_sparse_system` | **Pipeline private** | upstream iterative linear extraction + bilinear finish |
 | `solve_linear_equations` | **Pipeline private** | extract one linear equation and solve via Gaussian elimination |
 | `solve_bilinear_remaining` | **Pipeline private** | handle remaining bilinear equations (2-factor `A*B` terms) |
@@ -821,12 +834,17 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `monic_cubic_poly` | **Pipeline private** | `monic_cubic_poly` |
 | `try_factor_two_cubics` | **Pipeline private** | optional fallback `try_factor_two_cubics` |
 | `term_with_var` | **Stable** | coeff * var^exp as Poly |
+| `var_x` | **Pipeline private** | `var_x` |
+| `product` | **Pipeline private** | `product` |
+| `factor_univariate_linear_singleton` | **Pipeline private** | `factor_univariate_linear_singleton` |
+| `factor_univariate_irreducible_quadratic_singleton` | **Pipeline private** | `factor_univariate_irreducible_quadratic_singleton` |
+| `factor_univariate_reducible_quadratic_splits` | **Pipeline private** | `factor_univariate_reducible_quadratic_splits` |
+| `factor_univariate_high_degree_not_implemented` | **Pipeline private** | `factor_univariate_high_degree_not_implemented` |
 
 ### `factor/util.rs`
 
 | Function | Tier | Description |
 |----------|------|-------------|
-| `vars_in` | **Stable** | All variables appearing in `p`, lexicographically sorted. |
 | `is_univariate_in` | **Stable** | `is_univariate_in` |
 | `main_var` | **Stable** | Variable of minimum degree (giac `factor_multivar` main var heuristic). |
 | `min_var_exponents` | **Stable** | Minimum exponent of each variable across all terms (missing var counts as 0). |
@@ -940,15 +958,24 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `eval_aux` | **Stable** | substitute `aux ↦ value` in ℚ[others][main]; `main` unchanged. |
 | `new` | **Stable** | construct owned nested-ring element. |
 | `as_view` | **Stable** | borrowed view. |
-| `new` | **Stable** | view `poly` as univariate in `var`. |
+| `try_new` | **Stable** | construct when `poly` is univariate in `var` over K. |
 | `as_poly` | **Stable** | underlying polynomial. |
 | `into_poly` | **Stable** | consume and return inner [`Poly`]. |
 | `var` | **Stable** | main variable. |
 | `degree` | **Stable** | degree w.r.t. main variable (coefficient-ring agnostic). |
-| `try_new` | **Stable** | construct when `poly` is genuinely univariate in `var` over ℚ. |
-| `div_rem` | **Stable** | Euclidean `(q, r)` in ℚ[var] via [`univariate_div_rem_wrt`]. |
-| `divides` | **Stable** | whether `divisor` divides `self` in ℚ[var]. |
-| `exact_quo` | **Stable** | exact quotient `self / divisor` when remainder is zero. |
+| `is_flat` | **Stable** | whether `poly` uses only powers of `var`. |
+| `scalar_coeff` | **Stable** | coefficient of `var^exp` as a scalar in K. |
+| `div_rem` | **Stable** | Euclidean `(q, r)` in K[var]; quotient and remainder keep `MainVar` context. |
+| `is_zero` | **Stable** | whether the underlying polynomial is zero. |
+| `divides` | **Stable** | whether `divisor` divides `self` in K[var]. |
+| `exact_quo` | **Stable** | exact quotient when remainder is zero. |
+| `monic` | **Stable** | monic normalize w.r.t. main variable. |
+| `gcd` | **Stable** | gcd in K[var] (monic). |
+| `egcd` | **Stable** | extended gcd in K[var]; monic `g`. |
+| `content` | **Stable** | scalar content in K. |
+| `primitive_part` | **Stable** | primitive part in K[var]. |
+| `square_free_part` | **Stable** | square-free part in K[var]. |
+| `square_free_factorization` | **Stable** | Yun square-free factorization `p = ∏ g_k^k`. |
 | `new` | **Stable** | wrap a general sparse polynomial. |
 | `as_poly` | **Stable** | underlying [`Poly`] (explicit downgrade). |
 | `into_inner` | **Stable** | consume and return inner [`Poly`]. |
@@ -989,7 +1016,6 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `sorted_from_poly` | **Stable** | `Poly::sorted_from_poly` |
 | `embed_monomials_to_poly` | **Pipeline private** | build `Poly` from sorted embed monomials + aux exponents |
 | `term_with_var` | **Pipeline private** | shared with `poly_uni::term_with_var` |
-| `coeff_wrt_impl` | **Pipeline private** | `coeff_wrt_impl` |
 | `eval_tn_impl` | **Pipeline private** | `eval_tn` |
 | `flat_uni_div_rem_vs_multivariate_div_rem` | **Pipeline private** | `flat_uni_div_rem_vs_multivariate_div_rem` |
 | `primitive_part_wrt_tags_main` | **Pipeline private** | `primitive_part_wrt_tags_main` |
@@ -1102,44 +1128,40 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 
 ### `poly_coeff.rs`
 
-| Function / trait | Tier | Ring | Description |
-|------------------|------|------|-------------|
-| `PolyCoeff` | **Stable** | 环 | sparse 系数环 |
-| `FieldCoeff` | **Stable** | **域 K** | flat Euclidean / gcd；impl: `Ratio<BigInt>`, `AlgExtCPolyCoeff` |
-| `coeff_inv`, `field_div` | **Stable** | 域 | default via `coeff_div` |
-| `coeff_zero` | **Pipeline private** | — | `coeff_zero` |
-| `coeff_one` | **Pipeline private** | — | `coeff_one` |
-| `coeff_is_zero` | **Pipeline private** | — | `coeff_is_zero` |
-| `coeff_is_one` | **Pipeline private** | — | `coeff_is_one` |
-| `coeff_add` | **Pipeline private** | — | `coeff_add` |
-| `coeff_sub` | **Pipeline private** | — | `coeff_sub` |
-| `coeff_neg` | **Pipeline private** | — | `coeff_neg` |
-| `coeff_mul` | **Pipeline private** | — | `coeff_mul` |
-| `coeff_div` | **Pipeline private** | — | `coeff_div` |
-| `coeff_zero` | **Stable** | — | `Poly::coeff_zero` |
-| `coeff_one` | **Stable** | — | `Poly::coeff_one` |
-| `coeff_is_zero` | **Stable** | — | `Poly::coeff_is_zero` |
-| `coeff_is_one` | **Stable** | — | `Poly::coeff_is_one` |
-| `ratio_coeff_ring` | **Pipeline private** | — | `ratio_coeff_ring` |
+| Function | Tier | Description |
+|----------|------|-------------|
+| `coeff_zero` | **Pipeline private** | `coeff_zero` |
+| `coeff_one` | **Pipeline private** | `coeff_one` |
+| `coeff_is_zero` | **Pipeline private** | `coeff_is_zero` |
+| `coeff_is_one` | **Pipeline private** | `coeff_is_one` |
+| `coeff_add` | **Pipeline private** | `coeff_add` |
+| `coeff_sub` | **Pipeline private** | `coeff_sub` |
+| `coeff_neg` | **Pipeline private** | `coeff_neg` |
+| `coeff_mul` | **Pipeline private** | `coeff_mul` |
+| `coeff_div` | **Pipeline private** | `coeff_div` |
+| `coeff_inv` | **Pipeline private** | `coeff_inv` |
+| `field_div` | **Pipeline private** | `field_div` |
+| `coeff_zero` | **Stable** | `Poly::coeff_zero` |
+| `coeff_one` | **Stable** | `Poly::coeff_one` |
+| `coeff_is_zero` | **Stable** | `Poly::coeff_is_zero` |
+| `coeff_is_one` | **Stable** | `Poly::coeff_is_one` |
+| `coeff_add` | **Pipeline private** | `coeff_add` |
+| `coeff_sub` | **Pipeline private** | `coeff_sub` |
+| `coeff_neg` | **Pipeline private** | `coeff_neg` |
+| `coeff_mul` | **Pipeline private** | `coeff_mul` |
+| `coeff_div` | **Pipeline private** | `coeff_div` |
+| `ratio_coeff_ring` | **Pipeline private** | `ratio_coeff_ring` |
+| `ratio_field_coeff_inv` | **Pipeline private** | `ratio_field_coeff_inv` |
 
-### `univ_wrt.rs`
+### `quadratic.rs`
 
-| Function | Tier | Ring | Description |
-|----------|------|------|-------------|
-| `is_univariate_in` | **Stable** | — | only powers of `var` |
-| `scalar_coeff_wrt` | **Stable** | K | coefficient of `var^exp` |
-| `univariate_div_rem_wrt` | **Stable** | **K[var]** | Euclidean `(q,r)`; `d=0`/`lc=0` → Err |
-| `quo_exact_wrt` | **Stable** | **K[var]** | exact quotient |
-| `derivative_wrt` | **Stable** | **K[var]** | formal derivative |
-| `egcd_wrt` | **Stable** | **K[var]** | extended gcd (monic) |
-| `gcd_wrt` | **Stable** | **K[var]** | gcd (monic) |
-| `content_scalars` | **Stable** | K | scalar content |
-| `content_wrt` | **Stable** | **K[var]** | content w.r.t. var |
-| `primitive_part_wrt` | **Stable** | **K[var]** | primitive part |
-| `square_free_part_wrt` | **Stable** | **K[var]** | square-free part (Yun) |
-| `quadratic_coeffs_wrt` | **Stable** | **K[var]** | `(a,b,c)` for deg-2 |
-| `monic_wrt` | **Stable** | **K[var]** | monic normalize |
-| `debug_assert_euclidean_post` | **Pipeline private** | — | debug-only post check |
+| Function | Tier | Description |
+|----------|------|-------------|
+| `quadratic_abc` | **Pipeline private** | `quadratic_abc` |
+| `quadratic_coeffs` | **Stable** | extract `(a, b, c)` from a quadratic univariate `p`. |
+| `quadratic_rational_roots` | **Stable (bounded)** | exact rational roots when the discriminant is a square in ℚ. |
+| `ratio_perfect_sqrt` | **Pipeline private** | `ratio_perfect_sqrt` |
+| `integer_nth_root` | **Pipeline private** | `integer_nth_root` |
 
 ### `resultant.rs`
 
@@ -1155,10 +1177,6 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `univariate_degree` | **Stable** | degree w.r.t. var |
 | `univariate_leading_coeff` | **Pipeline private** | `univariate_leading_coeff` |
 | `roots` | **Stable (bounded)** | low-degree exact roots as Poly factors |
-| `quadratic_abc` | **Pipeline private** | `quadratic_abc` |
-| `quadratic_coeffs` | **Pipeline private** | `quadratic_coeffs` |
-| `ratio_is_perfect_square` | **Pipeline private** | `ratio_is_perfect_square` |
-| `int_isqrt` | **Pipeline private** | `int_isqrt` |
 | `quadratic_roots` | **Pipeline private** | `quadratic_roots` |
 | `is_xn_minus_one` | **Pipeline private** | `is_xn_minus_one` |
 | `x` | **Pipeline private** | `x` |
@@ -1175,6 +1193,36 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `roots_quadratic_perfect_square` | **Pipeline private** | `roots_quadratic_perfect_square` |
 | `roots_quadratic_irrational_discriminant` | **Pipeline private** | `roots_quadratic_irrational_discriminant` |
 
+### `square_free.rs`
+
+| Function | Tier | Description |
+|----------|------|-------------|
+| `is_zero` | **Pipeline private** | `is_zero` |
+| `is_one` | **Pipeline private** | `is_one` |
+| `derivative` | **Pipeline private** | `derivative` |
+| `gcd` | **Pipeline private** | `gcd` |
+| `div_exact` | **Pipeline private** | `div_exact` |
+| `sub` | **Pipeline private** | `sub` |
+| `max_exponent` | **Pipeline private** | `max_exponent` |
+| `gcd_reduce` | **Pipeline private** | divide `w,y` by gcd(w,y); return that gcd |
+| `square_free_yun` | **Pipeline private** | `square_free_yun` |
+| `square_free_yun_mod` | **Pipeline private** | `square_free_yun_mod` |
+| `is_zero` | **Pipeline private** | `is_zero` |
+| `is_one` | **Pipeline private** | `is_one` |
+| `derivative` | **Pipeline private** | `derivative` |
+| `gcd` | **Pipeline private** | `gcd` |
+| `div_exact` | **Pipeline private** | `div_exact` |
+| `sub` | **Pipeline private** | `sub` |
+| `max_exponent` | **Pipeline private** | `max_exponent` |
+| `new` | **Stable (crate-internal)** | ring view for Yun sqff over `Poly<C>`. |
+| `is_zero` | **Pipeline private** | `is_zero` |
+| `is_one` | **Pipeline private** | `is_one` |
+| `derivative` | **Pipeline private** | `derivative` |
+| `gcd` | **Pipeline private** | `gcd` |
+| `div_exact` | **Pipeline private** | `div_exact` |
+| `sub` | **Pipeline private** | `sub` |
+| `max_exponent` | **Pipeline private** | `max_exponent` |
+
 ### `subresultant.rs`
 
 | Function | Tier | Description |
@@ -1189,8 +1237,8 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `rational_primitive` | **Pipeline private** | `rational_primitive` |
 | `div_exact_coeff` | **Stable** | `div_exact_coeff` |
 | `quo_exact_coeff` | **Stable** | `quo_exact_coeff` |
-| `univariate_div_rem_wrt` | **Stable** | `univariate_div_rem_wrt` |
-| `quo_exact_wrt` | **Stable** | `quo_exact_wrt` |
+| `nested_div_rem_wrt_in` | **Stable** | `nested_div_rem_wrt_in` |
+| `nested_exact_quo_wrt_in` | **Stable** | `nested_exact_quo_wrt_in` |
 | `pseudo_rem_wrt` | **Pipeline private** | `pseudo_rem_wrt` |
 | `content_wrt` | **Stable** | content w.r.t. main var |
 | `primitive_part_wrt` | **Stable** | primitive part w.r.t. var |
@@ -1204,6 +1252,35 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `gcd_bivariate_linear_and_quadratic` | **Pipeline private** | `gcd_bivariate_linear_and_quadratic` |
 | `gcd_univariate_matches_subresultant` | **Pipeline private** | `gcd_univariate_matches_subresultant` |
 | `content_wrt_y_of_xy` | **Pipeline private** | `content_wrt_y_of_xy` |
+
+### `subresultant_field.rs`
+
+| Function | Tier | Description |
+|----------|------|-------------|
+| `monomial_pow` | **Pipeline private** | `monomial_pow` |
+| `coeff_wrt_field` | **Stable** | coefficient of `var^exp` as an element of K[others]. |
+| `term_with_var_field` | **Pipeline private** | `term_with_var_field` |
+| `vars_in_field` | **Pipeline private** | sorted variables in `p` |
+| `vars_union_field` | **Pipeline private** | `vars_union_field` |
+| `main_var_for_gcd_field` | **Pipeline private** | `main_var_for_gcd_field` |
+| `div_exact_coeff_field` | **Stable (crate-internal)** | exact quotient `a/b` in K[others] when `b \| a`. |
+| `div_rem_leading_field` | **Stable (crate-internal)** | multivariate leading-term division for `Poly<C>`. |
+| `nested_div_rem_wrt_in_field` | **Stable (crate-internal)** | division in K[others][var] (nested; not flat K[var]). |
+| `pseudo_rem_wrt_field` | **Pipeline private** | pseudo-remainder in K[others][var] |
+| `scalar_monic_poly` | **Pipeline private** | monic normalize w.r.t. lex leading coefficient in K |
+| `content_wrt_field` | **Pipeline private** | content in K[others] w.r.t. `var` |
+| `primitive_part_wrt_field` | **Pipeline private** | primitive part in K[others][var] |
+| `nested_exact_quo_coeff_field` | **Pipeline private** | exact quotient in coefficient ring K[others] |
+| `gcd_constant_wrt_field` | **Pipeline private** | gcd when `var` side is constant in main |
+| `subresultant_gcd_wrt_field` | **Pipeline private** | subresultant gcd w.r.t. main variable |
+| `field_scalar_content_gcd` | **Pipeline private** | scalar content gcd in K |
+| `gcd_univariate_field` | **Pipeline private** | gcd univariate in one variable via flat K[var] |
+| `subresultant_gcd_field` | **Stable** | multivariate gcd over field coefficients K via subresultant PRS. |
+| `primitive_part_scalar_field` | **Pipeline private** | divide out scalar content from K |
+| `scale_gcd_by_scalar_content` | **Pipeline private** | attach scalar content to polynomial gcd |
+| `gcd_field_xy_and_y_matches_rational` | **Pipeline private** | `gcd_field_xy_and_y_matches_rational` |
+| `gcd_field_univariate_matches_univ_wrt` | **Pipeline private** | `gcd_field_univariate_matches_univ_wrt` |
+| `gcd_field_bivariate_linear_and_quadratic_coprime` | **Pipeline private** | `gcd_field_bivariate_linear_and_quadratic_coprime` |
 
 ### `tresultant.rs`
 
@@ -1234,6 +1311,37 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `tresultant_one_over_x_squared_plus_one` | **Pipeline private** | `tresultant_one_over_x_squared_plus_one` |
 | `tresultant_one_over_x_fourth_plus_one` | **Pipeline private** | `tresultant_one_over_x_fourth_plus_one` |
 
+### `univ_wrt.rs`
+
+| Function | Tier | Description |
+|----------|------|-------------|
+| `is_univariate_in` | **Stable** | whether `p` uses only powers of `var`. |
+| `scalar_coeff_wrt` | **Stable** | coefficient of `var^exp` as a scalar in K (0 if absent). |
+| `term_with_var` | **Pipeline private** | `term_with_var` |
+| `debug_assert_euclidean_post` | **Pipeline private** | `debug_assert_euclidean_post` |
+| `debug_assert_euclidean_post` | **Pipeline private** | `debug_assert_euclidean_post` |
+| `univariate_div_rem_wrt` | **Pipeline private** | `univariate_div_rem_wrt` |
+| `quo_exact_wrt` | **Stable** | exact quotient in K[var]; fails if remainder is nonzero. |
+| `derivative_wrt` | **Stable** | formal derivative w.r.t. `var` in K[var]. |
+| `scalar_coeff_from_u64` | **Pipeline private** | embed small integer into C via 1+1+… |
+| `egcd_wrt` | **Stable** | extended gcd in K[var]; returns `(g, s, t)` with `g` monic. |
+| `gcd_wrt` | **Stable** | gcd in K[var] (monic). |
+| `content_scalars` | **Stable** | gcd of scalar coefficients (content in K). |
+| `content_wrt` | **Stable** | content w.r.t. `var` (univariate; equals scalar content in K). |
+| `primitive_part_wrt` | **Stable** | primitive part w.r.t. `var` in K[var]. |
+| `square_free_factorization_wrt` | **Stable** | square-free factorization `p = ∏ g_k^k` in K[var] (Yun). |
+| `square_free_part_wrt` | **Stable** | square-free part w.r.t. `var` in K[var]. |
+| `quadratic_coeffs_wrt` | **Stable** | `(a, b, c)` for univariate quadratic `a·var² + b·var + c`. |
+| `coeff_gcd` | **Pipeline private** | gcd in coefficient ring K |
+| `monic_wrt` | **Stable** | divide by leading coefficient w.r.t. `var` (monic in K). |
+| `x` | **Pipeline private** | `x` |
+| `div_rem_rational_x_squared_minus_one` | **Pipeline private** | `div_rem_rational_x_squared_minus_one` |
+| `monic_wrt_makes_leading_one` | **Pipeline private** | `monic_wrt_makes_leading_one` |
+| `gcd_wrt_rational_coprimality` | **Pipeline private** | `gcd_wrt_rational_coprimality` |
+| `gcd_wrt_rational_x_squared_minus_2_and_x_plus_one` | **Pipeline private** | `gcd_wrt_rational_x_squared_minus_2_and_x_plus_one` |
+| `div_rem_by_zero_is_error` | **Pipeline private** | `div_rem_by_zero_is_error` |
+| `div_rem_constant_divisor_exact` | **Pipeline private** | `div_rem_constant_divisor_exact` |
+
 ### `univariate.rs`
 
 | Function | Tier | Description |
@@ -1258,7 +1366,6 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `gcd_univariate` | **Stable** | univariate gcd |
 | `univariate_gcd` | **Pipeline private** | `univariate_gcd` |
 | `univariate_div_exact` | **Pipeline private** | `univariate_div_exact` |
-| `gcd_reduce` | **Pipeline private** | `gcd_reduce` |
 | `univariate_rem` | **Pipeline private** | `univariate_rem` |
 | `sturm_sequence` | **Stable** | Sturm chain |
 | `eval_univariate_at` | **Stable** | Horner eval |
