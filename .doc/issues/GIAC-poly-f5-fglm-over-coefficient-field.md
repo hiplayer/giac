@@ -1,6 +1,6 @@
 # GIAC-poly — F5 FGLM over 系数域 F=ℚ(α)（dim-12 塔域 √Δ_Q 探测）
 
-**状态:** P0–P1 完成 / P2–P4 open
+**状态:** P0–P2 完成 / P3–P4 open
 **类型:** 实现 / AFK 可抓取
 **父项:** [GIAC-poly-quartic-roots-F1-F5](GIAC-poly-quartic-roots-F1-F5.md) §F5 reframe
 **Rust 落点:** `giac-groebner`、`giac-poly`、`giac-core::algebra::{ext_tower, poly_roots}`
@@ -126,6 +126,19 @@ groebner 内部对系数只做同域非零 lc 上的 `+ − × ÷`，`AlgExtCPol
 **文件：** `giac-groebner/src/lib.rs`（新 `fglm` 模块/段）
 **tier 登记：** `fglm_generic` `Partial`；`fglm` `Stable`（ℚ 包装）。
 
+**✅ 完成（2026-06-29）实现偏离登记：**
+- **API 形态偏离**（vs 任务 3「ℚ 包装 + 泛型核心」+ tier 登记「`fglm_generic` `Partial` / `fglm` `Stable` ℚ 包装」）：与 P0/P1 一致，未做双层包装，直接 `pub fn fglm<C: FieldCoeff>(...)`（默认类型参数对 ℚ 调用方透明）；私有辅助 `fglm_solve`/`fglm_matvec`/`monom_pow`/`monomials_of_degree` + `fadd/fsub/fmul/fdiv/padd` scalar/poly invariant helper。故无独立 `fglm_generic` 命名（tier 顺延到 P4 登记时统一记 `fglm` 为 `Stable (bounded)`）。
+- **算法形态偏离**（vs 任务 1「`g₀(x₀)` = `M_{x₀}` 极小多项式，`x₀`=var_order[0] 最大变量」）：实际采用 **shape-lemma 形式，univariate 在最小变量 `x_{n-1}=var_order[n-1]`**（与验收例 `{x²−1,y−x} → {y²−1, x−y}` 一致，y 是最小变量；plan 任务 1 的「x₀ 最大变量」与验收例自相矛盾，以验收例/lex 三角化数学为准）。即：`g_{n-1}(x_{n-1})` = `M_{x_{n-1}}` 极小多项式（Krylov `u=coords(1)`，`w_{j+1}=M·w_j`，首个线性相关给 `g_{n-1}=t^d−Σcᵢtⁱ`）；对 `k<n−1`，`φ_k` 由 `K⁻¹·coords(NF(x_k))` 解出（`K=[w_0..w_{d-1}]` Krylov 矩阵），`g_k = x_k − φ_k(x_{n-1})`。**只需 `M_{x_{n-1}}` 一个乘法矩阵**（NF(x_k) 走 `greduce_grevlex`，无需 `M_{x_k}`），比 plan「每个 `xᵢ` 一个 `M_{xᵢ}`」更省。
+- **通用位置（generic position）限制**（plan 未提及，关键约束）：shape-lemma FGLM 要求理想对最小变量 `x_{n-1}` 处于 generic position（`x_{n-1}` 的极小多项式次数 = d，即 d 个根有 d 个不同的 `x_{n-1}` 值）。`mp_deg < d` ⇒ 返回 `None`（非 generic），调用方退回 blind adjoin —— **miss ≠ 错答**（与 P3「S7 miss 退回 `try_sqrt_pairwise_fallback`」语义一致，安全兜底）。P3 的 √Δ_Q 系统解 `±x`，只要 x 的 `x_{n-1}` 分量 ≠ 0 即 generic（随机 disc_q 下成立）。
+- **DoD 测例偏离**（vs 验收「d=4 `{x²−2, y²−3, xy−6}` 回代 4 解」）：该系统与 P1 同样**不一致**（`xy=6` 与 `(xy)²=6 ⇒ xy=±√6` 矛盾）⇒ unit ideal d=0。改用 **`{x²+y²−5, xy−2}`**（4 有理根 (2,1),(1,2),(−2,−1),(−1,−2)，y 值 {±1,±2} 4 个不同 ⇒ generic w.r.t. y，d=4），`fglm_x2_plus_y2_5_xy_2_d4_generic`：FGLM 出 `{y⁴−5y²+4, x+(y³−5y)/2}`（shape-lemma），用**理想等式双向校验**（generators 经 LEX `greduce` mod fg = 0 ∧ fg 经 GREVLEX `greduce_grevlex` mod grev = 0 ⇒ ⟨fg⟩=⟨gens⟩，**理想成员资格必须用与 GB 序匹配的归约序**，用错序会假阴性）+ 结构断言（一元 y⁴ + x 线性）+ <500ms。
+- **d=2 对照测**：`fglm_x2_1_y_minus_x_matches_lex` —— FGLM(grevlex GB) **集合相等**于独立路径 `groebner_basis_lex`（gold cross-check）+ spot-check `{y²−1, x−y}`。
+- **unit ideal 测**：`fglm_unit_ideal_returns_none`（`{x−1, x−2}` 不一致 ⇒ 空 grevlex GB ⇒ FGLM None）。
+- **ℚ(√2) 测**（P3 前置）：`fglm_over_qsqrt2`（`{x²−αx, y−x}` ⇒ d=2 generic，FGLM 出 `{y²−αy, x−y}`，α 系数 Krylov + 高斯消元，双向理想等式 + 结构（x−y 结构相等，y² 三角用 LT+monic 避 field-id 误判）+ <500ms）。位于 `giac-core/poly_alg_coeff.rs`，证明 FGLM 在 `AlgExtCPolyCoeff` 上端到端可用（P3 直接依赖）。
+- **边界**：`d=0`（unit / `1∈ideal`）/ `d>FGLM_D_MAX=64`（ponytail 天花板）/ 非泛型位置 / NF 项落基外 ⇒ 一律 `None`。`FGLM_D_MAX=64` inline 标注 ceiling + 升级路径（增大或换分裂版 FGLM）。
+- **规模**：FGLM 段 ~190 行（含注释），未触退役条件（<300 行）；通用 d 一次到位，无 d=2 专属分支。
+- **回归**：`giac-groebner` 10/10（5 lex + 3 grevlex + 3 fglm ℚ，含 unit-ideal None）、`giac-core --lib` 含 `fglm_over_qsqrt2` 全绿；`clippy -p giac-groebner -p giac-core --tests` 对 FGLM 代码 clean（`poly_roots.rs:1976` 一条 `manual_memcpy` 警告为既有 `proto_*` dead code，非 P2 引入）。
+- **待办（不阻塞 P3）**：tier 登记（`annotate_api_tiers.py --inventory`）与 `giac-groebner-api-stability.md` 仍顺延到 P4 一次性做。
+
 ---
 
 ### P3 — 接线 dim-12 塔域 √Δ_Q 探测（ext_tower S7）
@@ -210,6 +223,6 @@ groebner 内部对系数只做同域非零 lc 上的 `+ − × ÷`，`AlgExtCPol
 
 - [x] P0：`giac-groebner` 泛型核心 `C: FieldCoeff`；ℚ 包装签名不变、既有例不回归；ℚ(√2) 例绿；lib 无 `num-*` deps（实现偏离见 §2 P0 末尾）
 - [x] P1：grevlex Buchberger；0-dim 例 <100ms；grevlex 路径未误用 `leading_term()`（实现偏离见 §2 P1 末尾）
-- [ ] P2：FGLM 通用 d；d=4 三角形回代出全部解；`d>D_MAX` 返回 `None`
+- [x] P2：FGLM 通用 d；d=4 三角形回代出全部解；`d>D_MAX` 返回 `None`（实现偏离见 §2 P2 末尾；shape-lemma generic-position 限制：非 generic ⇒ None 安全兜底）
 - [ ] P3：`diag_a4_sqrt_probe_gap` dim-12 √Δ_Q = Some（自校 `s²=disc_q`）；`quartic_a4_galois_dim_le_12` unignore 绿（dim ≤ 12）；S7 局部 fuel 接线
 - [ ] P4：`t⁴+t+1` dim ≤ 24 不回归；全 suite 绿；clippy + substring-golden 绿；api-stability 登记 + inventory
