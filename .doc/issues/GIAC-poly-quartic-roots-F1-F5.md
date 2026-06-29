@@ -343,6 +343,26 @@ Euler 第二开方在 shallow/ratio 失败后可能 **blind adjoin**，使 Sessi
 **状态:** 🟡 **M5 部分完成**（F5 S0–S6 + S4 全量 ✅；F4′ Galois σ 待办；`t⁴+t+1` 实测 dim=24）  
 **依赖:** F1 语义稳定（✅）
 
+### F5 reframe（2026-06-27）— √Δ 探测的真正缺口定位
+
+> **结论摘要：** 原「fix √Δ_C probe in dim-4 ℚ(α) for A₄→12」前提数学上不可能 — A₄ dim 12 = 4·3，故 √Δ_C ∉ dim-4（已验证：`N(α³−α²+9)=81` 是平方但 ℚ(α) 内无根；dim-4 probe 正确返回 None）。**真正缺口**是 dim-12 塔域 ℚ(α,β) 的 √Δ_Q 探测（现返回 None，应为 Some）→ 盲 adjoin → 24。该塔探测归约为 flat dim-4 ℚ(α) 内 √(·) 子问题。
+
+对 A₄ 四次 `x⁴+8x+12`（resolvent `z³−48z−64`，disc=576²）实测 `diag_a4_sqrt_probe_gap`：
+
+| 探测 | 域 | `try_sqrt_in_field` | 数学期望 | 结论 |
+|------|----|--------------------|----------|------|
+| √Δ_C | dim-4 ℚ(α) | **None** | None（正确） | A₄ 分裂域 dim 12 = 4·3，**非** 4·2 ⇒ √Δ_C ∉ ℚ(α)（否则四根全在 ℚ(α) ⇒ dim≤4，矛盾）。验证：`N(α³−α²+9)=81`（平方，必要条件满足）但暴力搜 [−16,16] 无整数根 ⇒ 确不在 dim-4。**dim-4 探测正确返回 None，无需修复。** |
+| √Δ_Q | dim-12 ℚ(α,β) | **None** | **Some**（应为分裂域本身） | **真正缺口**：adjoin-deflate 已达 dim 12，但 F5 启发式在 dim-12 **塔域**漏检 √Δ_Q ⇒ 盲 adjoin ⇒ 24。 |
+
+**结论：** 原「补 F5 √Δ_C 在 dim-4 ℚ(α)」前提错误；A₄→12 的杠杆是 **dim-12 塔域 ℚ(α,β) 的 √Δ_Q 探测**。该塔探测的 x₀ 坐标递归归约为 **flat dim-4 ℚ(α) 内 √(·)** 子问题（3 个 quadric in 3 未知数 over ℚ(α)）。
+
+**已落地（giac-groebner）：** `groebner_basis_lex`（Buchberger + Gebauer-Möller product/chain criteria），小例正确（1077 测绿）。但 **lex 序对 x²=u 的 4 坐标 quadric 中间度爆炸**（120s 未完成；rank-deficient 系统即使 generic Vandermonde 换坐标亦然）。flat-over-ℚ solver `proto_try_sqrt_flat_over_q` 正确但过慢，待 **FGLM**（grevlex GB → lex 线性代数转换）提速。
+
+**下一步选项：** (A) FGLM：grevlex Buchberger + FGLM 转换（~250 行，稳）；(B) 3-var-over-ℚ(α) 定向消元（resultant/GCD，比 4-var 更可控）；(C) 其它。`proto_try_sqrt_flat_over_q` 及其 helper（`generic_vandermonde`/`substitute_linear`/`proto_subst`/`proto_rational_roots`）保留为 WIP（`#[allow(dead_code)]`）。
+
+**已选定并立项：** 方案 (A) FGLM over 系数域 `F=ℚ(α)`。详细 plan 与优先级见 [GIAC-poly-f5-fglm-over-coefficient-field](GIAC-poly-f5-fglm-over-coefficient-field.md)（P0 groebner 泛型 `C: FieldCoeff` → P1 grevlex → P2 FGLM → P3 塔域 S7 探测 → P4 回归；~4–5d）。
+
+
 ### 问题
 
 F1 当前 `try_square_root_in_field` 在 layer/basis 扫描之后依赖 **有界 ±1 线性枚举**（§6 1c–1e，dim 上界见算法规格 §1）。这是 **ponytail interim**：漏检 → blind adjoin，根仍对但可能多余扩域、且 dim³ 路径曾拖慢 CI。

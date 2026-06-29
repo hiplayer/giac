@@ -1,0 +1,206 @@
+# GIAC-poly — F5 FGLM over 系数域 F=ℚ(α)（dim-12 塔域 √Δ_Q 探测）
+
+**状态:** P0 完成 / P1–P4 open
+**类型:** 实现 / AFK 可抓取
+**父项:** [GIAC-poly-quartic-roots-F1-F5](GIAC-poly-quartic-roots-F1-F5.md) §F5 reframe
+**Rust 落点:** `giac-groebner`、`giac-poly`、`giac-core::algebra::{ext_tower, poly_roots}`
+**相关:** [GIAC-poly-flat-field-division-layering](GIAC-poly-flat-field-division-layering.md)、[giac-groebner-api-stability](../giac-groebner-api-stability.md)
+
+---
+
+## 0. 目标
+
+在 dim-12 塔域 `ℚ(α,β)`（顶层 `β` 对 `F=ℚ(α)` 为 3 次）内求解 `x² = disc_q`，使 F5 `try_sqrt_in_field` 在该塔域命中 `√Δ_Q`，从而：
+- **A₄** `x⁴+8x+12`：adjoin α(4) → β(×3=12) → √Δ_Q 命中 → 不盲 adjoin → **dim 12**。
+- **S₄** `t⁴+t+1`：同结构，√Δ_Q 不命中（确需二次扩张）→ 盲 adjoin → **dim 24**（baseline 不变）。
+
+**数学结构：** `√disc_q = x₀ + x₁β + x₂β²`，`xᵢ ∈ F` → **3 个 quadric in 3 未知数 over `F`**，0-dim degree 2（解 `±x`）。A₄ 下 `√disc_q ∈ ℚ(α,β)`（dim 12 即分裂域），故解存在、probe 应成功；S₄ 下 `ℚ(α,β)` dim 12 是 `S₄` 的固定域（非分裂域），`√disc_q ∉` → miss。
+
+**方法：** FGLM —— 先求 `greduce`/Buchberger 在 **grevlex 序** 下的 GB（0-dim 快），再用 **线性代数** 转成 lex GB（三角形），读出 `x₀,x₁,x₂`。d=2 → 转换 trivial。
+
+---
+
+## 1. 现状与关键发现
+
+- `giac-poly::PolyCoeff` / `FieldCoeff`（`poly_coeff.rs`）已抽象域系数；`AlgExtCPolyCoeff: FieldCoeff`（`poly_alg_coeff.rs:48`）**已实现** ⇒ `Poly<AlgExtCPolyCoeff>` 即 `F[var]`，`coeff_inv`/`field_div` 可用。**系数域抽象已就位。**
+- `giac-groebner` 现硬编码 `Poly = Poly<Ratio<BigInt>>`（`greduce`、`groebner_basis_lex`、`spoly_lex`、`make_monic_lex`、`autoreduce_lex` 均用 `Ratio`/`mul_scalar(&Ratio)`/`Ratio::from_integer`）。**需泛化到 `C: FieldCoeff`。**
+- **`Poly::add/sub/mul/neg/var/zero/one/mul_scalar` 是 `impl Poly<Ratio<BigInt>>` 专属（`poly.rs:201-241`），泛型块只有 `try_add/try_sub/try_mul/try_neg`（返回 `PolyResult`）+ `ring_zero/ring_one/ring_var/ring_constant`。** 泛型 groebner 不能「直接复用」`add/sub/mul`，须走 `try_*`（见 P0 决策）。
+- `AlgExtCPolyCoeff::coeff_*` 全部返回 `PolyResult`（`poly_alg_coeff.rs:82-105`）；`inv()` 仅在零元时失败，`mul` 仅在同域维度一致时成功 —— 在 groebner 中只对同域非零 lc 运算，故满足 invariant。
+- **`greduce` 是公开 CAS builtin `greduce` 的后端**（`eval_poly.rs:273` `eval_greduce`），`groebner_basis_lex` 另被 `poly_roots.rs:2018`（WIP proto）调用。**泛型化不得改公开 ℚ 入口的签名。**
+- lex 序直接 Buchberger 对 `x²=u` 的 4 坐标 quadric 中间度爆炸（120s 未完成，见 F1-F5 §359）。**必须走 grevlex + FGLM，不再用 lex 直接 Buchberger。**
+- `Monomial` 当前 `cmp_lex`/`leading_term_lex` 已有（`monomial.rs:84`、`poly.rs:79`）；**缺 grevlex 比较**。注意 `Monomial` derive `Ord`（`BTreeMap` 按 var 名字典序）既非 lex 也非 grevlex，`Poly::leading_term()`（`poly.rs:73`，`iter().next_back()`）依赖它 —— **grevlex 路径禁止误用 `leading_term()`**，必须用新增的 `leading_term_grevlex`。
+
+---
+
+## 2. 组件与优先级
+
+> P0 必须最先；其余按序。每期独立可测、可 commit。
+
+### P0 — `giac-groebner` 泛化到 `C: FieldCoeff`（解锁一切）
+
+**为什么 P0：** 所有后续（grevlex GB、FGLM、塔域探测）都依赖「`greduce`/Buchberger 能跑在 `Poly<AlgExtCPolyCoeff>` 上」。
+
+**错误传播决策（invariant `expect`，签名保持 infallible）：**
+groebner 内部对系数只做同域非零 lc 上的 `+ − × ÷`，`AlgExtCPolyCoeff` 在该前提下 `try_*` 必成功。故泛型核心用 `try_add/try_sub/try_mul/try_neg` + `.expect("field op invariant: same-field nonzero lc")`，**签名保持 `Vec<Poly<C>>` / `Poly<C>`（非 `Result`）**。理由：(a) 工程规则允许有注释的 invariant `expect`；(b) 不破 `eval_greduce` 等 `Stable` 调用方；(c) ℚ 下 `try_*` 本就 infallible，`expect` 恒不触发。
+
+**任务：**
+1. 抽出泛型核心 `greduce_generic<C: FieldCoeff>`、`groebner_basis_lex_generic<C: FieldCoeff>`、`spoly_lex_generic<C>`、`make_monic_lex_generic<C>`、`autoreduce_lex_generic<C>`；保留 `pub fn greduce(...)` / `pub fn groebner_basis_lex(...)`（ℚ 专属 `Stable`）作为薄包装 `greduce_generic::<Ratio<BigInt>>(...)`，**签名不变** → `eval_greduce`、`poly_roots.rs` 调用方零改动。
+2. 去 `Ratio` 特化（逐项映射，列全）：
+
+   | 现状（`Ratio` 专属） | 泛型替换 |
+   |---|---|
+   | `r_lc.clone() / g_lc.clone()`（`greduce` `lib.rs:36`） | `r_lc.field_div(g_lc).expect("field div invariant")` |
+   | `Ratio::from_integer(BigInt::from(1))`（`make_monic_lex:99-100`、`spoly_lex:117-118`） | `C::coeff_one()` |
+   | `1 / lc_a.clone()`（`spoly_lex`） | `lc_a.coeff_inv().expect("field inv invariant: lc nonzero")` |
+   | `*lc != Ratio::from_integer(BigInt::from(1))`（`make_monic_lex:99`） | `!lc.coeff_is_one()` |
+   | `f.mul_scalar(&inv)`（`make_monic_lex:101`） | `Poly::<C>::term(monom, c)` + `try_mul` 重组；或逐 term `c.coeff_mul(&inv)` 重建 `BTreeMap` |
+   | `Poly::term(t_a, inv_a).mul(a)` | `Poly::<C>::term(t_a, inv_a).try_mul(a).expect(...)` |
+   | `left.sub(&right)` / `r.sub(...)` / `q_term.mul(g)` | `try_sub` / `try_mul` + `expect("field op invariant")` |
+   | `Poly::zero()` / `Poly::one()` / `Poly::var("x")` | `Poly::<C>::ring_zero()` / `ring_one()` / `ring_var("x")` |
+
+3. `Poly::term` / `try_add` / `try_sub` / `try_mul` / `try_neg` / `ring_zero` / `ring_one` / `ring_var` / `is_zero` / `is_one` / `leading_term_lex` 均已是 `C: PolyCoeff` 泛型，直接复用（注意是 `try_*` + `ring_*`，非 `add/sub/zero/one/var`）。
+4. `num-bigint`/`num-rational` 从 `giac-groebner` **lib deps 退回 dev-only**：泛化后 lib 内不再出现 `Ratio`/`BigInt`（ℚ 包装只是泛型核心的 `Ratio` 特化点，类型由调用方带入，不需 crate 自身引 `num-*`）。确认所有 `pub fn` 均泛型或为 `Poly = Poly<Ratio>` 别名包装后再删 deps。
+
+**验收：**
+- 既有 `giac-groebner` 小例测（`groebner_lex_x2_1_y_minus_x`、`groebner_lex_unit_ideal`、`greduce_*`）在 `Poly<Ratio<BigInt>>` 下仍绿（包装签名不变）。
+- 新增 1 例 `Poly<AlgExtCPolyCoeff>`：在 `ℚ(√2)` 上 `groebner_basis_lex_generic` 解 `{x²−2, y−x}` 得 `{y²−2, x−y}`，绿。
+- `cargo build -p giac-groebner` 无 `num-bigint`/`num-rational` lib deps（`cargo tree -p giac-groebner` 验证）。
+
+**文件：** `giac-groebner/src/lib.rs`、`giac-groebner/Cargo.toml`
+**tier 登记：** `greduce_generic`/`groebner_basis_lex_generic`/`spoly_lex_generic`/`make_monic_lex_generic`/`autoreduce_lex_generic` 标 `Partial`；`greduce`/`groebner_basis_lex` 维持 `Stable`。更新 `.doc/giac-groebner-api-stability.md`，跑 `giac-rs/scripts/annotate_api_tiers.py --inventory`。
+
+**✅ 完成（2026-06-29）实现偏离登记：**
+- **API 形态偏离**（vs 任务 1「薄包装」方案）：未采用「泛型核心 `*_generic` + ℚ 薄包装」双层，而是直接把 `pub fn greduce` / `groebner_basis_lex` 自身泛型化为 `<C: FieldCoeff>`（`groebner_basis_lex`/`autoreduce_lex` 额外 `+ PartialEq`，用于 autoreduce 的变更检测 `r != g[i]`；`Poly<C>` derive `PartialEq`，`AlgExtCPolyCoeff`/`AlgExtCData` 均 derive `PartialEq` 故满足）。因 `Poly<C: PolyCoeff = Ratio<BigInt>>` 有默认类型参数，既有 ℚ 调用方（`eval_poly.rs:273` `greduce(&p,&basis,&vars)`、`poly_roots.rs:2018` `groebner_basis_lex`）类型推断 `C=Ratio<BigInt>`，**调用点零改动**（`cargo build -p giac-core` 通过）。比双层包装少一层样板，符合 ponytail；副作用是公开签名从 `fn greduce(&Poly,…)` 变为 `fn greduce<C: FieldCoeff>(&Poly<C>,…)`，但因默认类型参数对 ℚ 调用方透明。
+- **错误传播**：按决策走 `try_mul`/`try_sub` + invariant `expect`，但用两个私有 helper `pmul`/`psub`（`a.try_mul(b).expect("same-field …")`）封装，签名 infallible。`make_monic_lex` 用 `Poly::term(Monomial::one(), lc.coeff_inv()?).mul(&*f)`（经 `pmul`）。`spoly_lex` 用 `lc.coeff_inv().expect("nonzero leading coeff")`。`greduce` 用 `r_lc.coeff_div(g_lc)`（`Ok`-else-`continue`，零元除已由 `coeff_is_zero` guard 排除）。
+- **`ring_*` 而非 `add/sub/zero/one`**：泛型块只暴露 `try_*` + `ring_zero/ring_one/ring_var/ring_constant`，`Poly::add/sub/mul/zero/one/var` 是 `impl Poly<Ratio<BigInt>>` 专属；泛型代码一律走 `ring_*`/`try_*`（与 §1 关键发现一致）。
+- **DoD 测例偏离**（vs 验收「`{x²−2, y−x}` 得 `{y²−2, x−y}`」）：改用 **`{x²−αx, xy−1}` over ℚ(√2) → `{x−α, y−1/α}`**（测 `groebner_lex_over_qsqrt2`，`giac-core/src/algebra/poly_alg_coeff.rs`）。理由：计划原例系数全为 ℚ（2 是有理数，`√2` 从不以系数出现），无法证明「系数域 `F=ℚ(α)` 上的 `coeff_inv`/`coeff_div` 被真正走到」；新例的 `αx` 项与 `y−1/α` 单变式必须用 α 系数除法/求逆才能产生，**严格覆盖 P0 的泛型点**。断言：`x−α` 结构相等（x 系数同在 base ℚ，field id 一致）+ 第二元用「LT=y 且 monic」不变量（避免 field-id 结构误判：GB 的 y 系数因除以 α 落在 extension field id，而 `ring_var` 造的 y 系数在 base ℚ id，结构 `==` 会误报；改用 leading-monomial + `coeff_is_one()` + `greduce(fᵢ,gb)=0` 有效性校验）。
+- **lib deps**：`num-bigint`/`num-rational` 退回 `[dev-dependencies]`（仅测试用）；`cargo tree -p giac-groebner` 直连仅 `giac-poly`（num-* 经 giac-poly 传递，符合 DoD「lib 无 num-*」）。
+- **回归**：`giac-groebner` 5/5、`giac-core --lib` 299/299（含 `eval_greduce_direct`/`eval_greduce_circle` 即 eval→`greduce` ℚ 路径、新增 ℚ(√2) 例）全绿，无新增 ignore。
+- **待办（不阻塞 P1）**：tier 登记（`annotate_api_tiers.py --inventory`）与 `giac-groebner-api-stability.md` 更新留到 P4 一次性做（plan 原 P0 tier 登记步骤顺延）。
+
+---
+
+### P1 — grevlex 序 + grevlex Buchberger（0-dim 快）
+
+**任务：**
+1. `Monomial::cmp_grevlex(&self, other, var_order)` —— 按总次数，再按「最大相异 var 处指数**小者**为大」（grevlex 标准）；`Poly::leading_term_grevlex(&self, var_order) -> Option<(&Monomial, &C)>`（复用 `cmp_grevlex` 的 `max_by`）。**禁止在 grevlex 路径用 `Poly::leading_term()`（derive `Ord` 字典序）。**
+2. `greduce_grevlex_generic<C: FieldCoeff>` / `spoly_grevlex_generic<C>` / `make_monic_grevlex_generic<C>` / `autoreduce_grevlex_generic<C>` / `groebner_basis_grevlex_generic<C: FieldCoeff>`：复用 P0 泛型骨架，仅换 leading-term 选取 + Gebauer-Möller product/chain criteria。`pub fn groebner_basis_grevlex` 暴露 ℚ 包装 + 泛型核心（与 P0 同 pattern）。
+3. grevlex 下 0-dim 中间度受控（grevlex 是 0-dim 推荐序）；沿用 P0 的 `GROEBNER_POLY_CEILING=64` / `GROEBNER_DEGREE_CEILING=8` 兜底。
+
+**验收：**
+- 新测：`{x²−2, y²−3, x·y−6}` over ℚ 的 grevlex GB（0-dim，d=4）<100ms 绿。
+- 新测：同例 over `ℚ(√2)`（`Poly<AlgExtCPolyCoeff>`，系数含 `√2`）绿。
+
+**文件：** `giac-poly/src/monomial.rs`、`giac-poly/src/poly.rs`（`leading_term_grevlex`）、`giac-groebner/src/lib.rs`
+**tier 登记：** `cmp_grevlex`/`leading_term_grevlex` `Stable`；`groebner_basis_grevlex_generic` 等 `Partial`。
+
+---
+
+### P2 — FGLM 转换（grevlex GB → lex GB，线性代数）
+
+**d 范围决策（通用 d，非 d=2 特化）：** 实现通用 d FGLM，理由：(a) 验收用 d=4 回代测能 catch 三角化错误，d=2 特化测不出一般性 bug；(b) 通用 Krylov 在 d=2 上自然退化为 trivial，无额外 fast-path 代码；(c) 算法本身是标准 FGLM，非「未请求的抽象」。**退役条件：** 若通用 d 实现超 ~300 行且 d=2 问题已可用，可先合 d=2 路径并留 follow-up；否则一次到位。不新增 d=2 专属分支。
+
+**任务：**
+1. `fglm_generic<C: FieldCoeff>(grevlex_gb: &[Poly<C>], var_order: &[Var]) -> Option<Vec<Poly<C>>>`：
+   - 取商环基 `B` = grevlex GB 的标准单项式（不被任一 leading monomial 整除），`|B|=d`。
+   - 对每个 `xᵢ` 构造乘法矩阵 `M_{xᵢ}`（`d×d` over `C`）：`xᵢ·bⱼ` 用 `greduce_grevlex_generic` 归约 → 坐标向量。
+   - `g₀(x₀)` = `M_{x₀}` 的极小多项式（Krylov：`v, Mv, M²v, …` 找首个线性相关，`C` 上线性相关判定走 `field_div` 高斯消元）。
+   - 对 `k≥1`：在 `M_{x₀..x_{k-1}}` 张成的代数中找 `xₖ` 的线性表示（normal form 三角化）→ `gₖ`。
+   - 输出 lex 三角形 GB。
+2. 边界：`d=0`（unit ideal）/ `d > D_MAX`（**`D_MAX=64`，ponytail 天花板**）→ 返回 `None` 哨兵（调用方退回 blind adjoin，非 hang）。
+3. `pub fn fglm` 暴露 ℚ 包装 + 泛型核心（同 P0/P1 pattern）。
+
+**验收：**
+- 新测：`{x²−1, y−x}` grevlex GB → FGLM → lex GB = `{y²−1, x−y}`（对照现有 `groebner_lex_x2_1_y_minus_x`）。
+- 新测：d=4 0-dim 系统（如 `{x²−2, y²−3, x·y−6}`）FGLM 三角形可回代出全部 4 解。
+
+**文件：** `giac-groebner/src/lib.rs`（新 `fglm` 模块/段）
+**tier 登记：** `fglm_generic` `Partial`；`fglm` `Stable`（ℚ 包装）。
+
+---
+
+### P3 — 接线 dim-12 塔域 √Δ_Q 探测（ext_tower S7）
+
+**fuel 接线决策（局部 fuel，不扩散签名）：**
+`try_square_root_in_field_impl`（`ext_tower.rs:1698`）当前**无 fuel 参数**，S0–S6 全 fuel-less。S7 不改该签名、不动 S0–S6，而是在 S7 阶段内部新建 `let fuel = Fuel::new(K)`（`K` 建议 8，足够覆盖 `F=ℚ(α)` 单层 flat 路径的少量递归）传给 S7 内部对 `try_square_root_in_field(F, …)` 的调用。**理由：** S7 → `F=ℚ(α)` 的递归中，`F` 顶层为 deg-4（α 是 4 次根），不满足 S7 触发条件「顶层对 parent 为 deg-3」，故 F 自身不会再进 S7，无互相递归；fuel 为防御性深度 guard。改全局签名是独立重构，不在本 plan 范围。
+
+**`proto_*` 复用表：**
+
+| `proto_*` 函数（WIP / `#[allow(dead_code)]`） | S7 处置 |
+|---|---|
+| `proto_rational_roots` | **rewrite** 为 `rational_roots_in_field<F>`：在 `F=ℚ(α)` 内解 ≤2 次单变式（二次公式 → `√(disc) ∈ F`，递归 `try_square_root_in_field(F, …)`）。不直接 revive dead code。 |
+| `proto_try_sqrt_flat_over_q` | **不用**（flat-over-ℚ 路径；S7 走 over-F FGLM）。留 dead WIP。 |
+| `generic_vandermonde` / `substitute_linear` / `proto_subst` | **不用**。留 dead WIP。 |
+
+**任务：**
+1. 在 `try_square_root_in_field_impl` 的 S6 之后、`try_sqrt_pairwise_fallback` 之前加新阶段 **S7（塔域 deg-3 顶层 FGLM）**：
+   - 触发条件：`field` 为塔，顶层对 `parent` 为 **deg-3**，`dim ≤ B`（**`B=12`，塔域总维数上界**）。
+   - 取 `u` 的顶层 coords `(u₀,u₁,u₂) ∈ F³`，`x=x₀+x₁β+x₂β²`。
+   - 用 `field` 的乘法表（`mt[i][j][k]` over `F`）列 3 个 quadric `F_k`（`x²=u` 的 k 坐标）为 `Poly<AlgExtCPolyCoeff>`（系数 `∈ F`，未知数 `x₀,x₁,x₂`）。
+   - `groebner_basis_grevlex_generic` → `fglm_generic` → lex 三角形 → 回代（`rational_roots_in_field`：在 `F=ℚ(α)` 内解 ≤2 次单变式，递归 `try_square_root_in_field(F, …)`，传局部 `fuel`）。
+   - 验 `x² = u`（`field.element_mul` 二次自校）；命中返回 `x`，否则 `None`（退回 `try_sqrt_pairwise_fallback` → blind adjoin）。
+2. 留 ONE runnable 自校：S7 命中后 `assert coords_square_eq_mod(field, &x, u)`（最小失败即报；非热路径，不进 release gate）。
+
+**验收：**
+- `diag_a4_sqrt_probe_gap`：dim-12 `√Δ_Q` probe 由 None → **Some**（且 `s²=disc_q`）。
+- `quartic_a4_galois_dim_le_12` unignore 且绿：`x⁴+8x+12` 四根 `verify_root` + `dim ≤ 12`。
+
+**文件：** `giac-core/src/algebra/ext_tower.rs`（S7 + `rational_roots_in_field`）、`giac-core/src/algebra/poly_roots.rs`（探测接线 + 测）
+**tier 登记：** S7 helper / `rational_roots_in_field` 标 `Pipeline private`（同 S0–S6）。
+
+---
+
+### P4 — S₄ 回归 + 全套门禁
+
+**任务：**
+1. `roots_quartic_t4_plus_t_plus_1`、`field_session_dimension_bound_quartic_tight`（`t⁴+t+1` dim=24 baseline）仍绿 —— S₄ 路径 √Δ_Q **不**命中（`ℚ(α,β)` dim 12 是固定域非分裂域），盲 adjoin 不变。
+2. `cargo test-timeout -p giac-groebner -p giac-core` 全绿，无新增 ignore，release <10s（A₄ 诊断/测不在热路径即不影响）。
+3. `./scripts/ci-clippy.sh` 全绿（含 `lint-substring-golden`）；新测用 `assert_eq!`/`assert_equiv`，禁止 substring golden。
+4. 登记 `giac-groebner-api-stability.md`（新 `groebner_basis_grevlex` / `fglm` / `*_generic` tier）；跑 `annotate_api_tiers.py --inventory`。
+
+**验收：**
+- A₄ → dim ≤ 12；S₄ → dim ≤ 24；两者四根 `verify_root`。
+- 全 suite 绿、无回归。
+
+**文件:** 上述 + `.doc/giac-groebner-api-stability.md`
+
+---
+
+## 3. 优先级总表
+
+| 优先级 | ID | 内容 | 估时 | 解除条件 | 风险 |
+|--------|----|------|------|----------|------|
+| **P0** | groebner 泛型 `C: FieldCoeff` + ℚ 包装兼容 | 解锁系数域 | 1–1.5d | 既有 ℚ 例 + 1 例 ℚ(√2) 绿；lib 无 `num-*` deps | 低（invariant `expect` + 包装保签名） |
+| **P1** | grevlex 序 + grevlex Buchberger | 0-dim 快速 GB | 1d | grevlex 0-dim 例 <100ms 绿 | 低 |
+| **P2** | FGLM（grevlex→lex，通用 d） | 三角形回代 | 1.5–2d | FGLM d=4 三角形回代出全部解 | 中（通用 d Krylov/三角化细节） |
+| **P3** | ext_tower S7 塔域 √Δ_Q 探测（局部 fuel + `rational_roots_in_field` rewrite） | A₄→12 落地 | 1.5d | `diag` dim-12 Some + A₄ 测 dim≤12 | 中（乘法表接线、`proto_*` rewrite 而非 revive） |
+| **P4** | S₄ 回归 + 门禁 | 防回归 | 0.5d | 全套绿、api-stability 登记、clippy 绿 | 低 |
+
+**合计：~5.5–6.5d。** P0–P2 可在 `giac-groebner` 内独立交付（不碰 giac-core）；P3 才接线。
+
+---
+
+## 4. 设计要点与约束
+
+- **系数域抽象：** 一律走 `C: FieldCoeff`，**不**为 ℚ(α) 特化。`Poly<AlgExtCPolyCoeff>` 即 `F[var]`。
+- **错误传播：** 泛型 groebner 核心用 `try_*` + invariant `expect`，签名 infallible；ℚ `Stable` 公开入口（`greduce`/`groebner_basis_lex`/`groebner_basis_grevlex`/`fglm`）为薄包装，签名不变，调用方零改动。
+- **不用 lex 直接 Buchberger**（已证爆炸）；0-dim 一律 `grevlex GB + FGLM`。
+- **不 flatten 到 deg-12 over ℚ**（12-var GB 不可行）。
+- **Fuel：** S7 内部局部 `Fuel::new(8)`，传给 `F=ℚ(α)` flat √ 递归；不改 `try_square_root_in_field_impl` 全局签名（S0–S6 不动）。S7 → F 不会重入 S7（F 顶层 deg-4 ≠ deg-3 触发条件），fuel 为防御性深度 guard。
+- **`proto_*` 处置：** 仅 `proto_rational_roots` 思路 rewrite 为 `rational_roots_in_field`；其余 `proto_*` 不用，留 dead WIP（父项已 `#[allow(dead_code)]`）。
+- **盲 adjoin 兜底：** S7 miss ≠ 错答，只退回 `try_sqrt_pairwise_fallback` → blind adjoin（维数可能偏高但根仍对）；DoD 仅要求 A₄ 命中、S₄ 允许 miss。
+- **两个不同上限（勿混）：**
+  - `d = |B|` = **商环维数**（FGLM 乘法矩阵阶数；本问题 d=2；FGLM `D_MAX=64` 是 d 上界）。
+  - `dim = [塔域 : ℚ]` = **塔域总维数**（S7 触发条件 `dim ≤ B=12`）。
+- **Monomial 序：** derive `Ord`（字典序）既非 lex 也非 grevlex；grevlex 路径必须用 `leading_term_grevlex`，禁止 `leading_term()`。
+- **API tier：** 新 fn inline `/// **Tier**` 标注 + `.doc/giac-groebner-api-stability.md` 登记；算法 crate 改动跑 `annotate_api_tiers.py --inventory`。
+
+---
+
+## 5. 验收（总 DoD）
+
+- [x] P0：`giac-groebner` 泛型核心 `C: FieldCoeff`；ℚ 包装签名不变、既有例不回归；ℚ(√2) 例绿；lib 无 `num-*` deps（实现偏离见 §2 P0 末尾）
+- [ ] P1：grevlex Buchberger；0-dim 例 <100ms；grevlex 路径未误用 `leading_term()`
+- [ ] P2：FGLM 通用 d；d=4 三角形回代出全部解；`d>D_MAX` 返回 `None`
+- [ ] P3：`diag_a4_sqrt_probe_gap` dim-12 √Δ_Q = Some（自校 `s²=disc_q`）；`quartic_a4_galois_dim_le_12` unignore 绿（dim ≤ 12）；S7 局部 fuel 接线
+- [ ] P4：`t⁴+t+1` dim ≤ 24 不回归；全 suite 绿；clippy + substring-golden 绿；api-stability 登记 + inventory
