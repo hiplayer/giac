@@ -185,6 +185,8 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `fold_algext_product` | **Stable** | canonical product of AlgExt terms |
 | `fold_algext_product_for_ctx` | **Stable (bounded)** | fold product with Context session |
 | `fold_algext_product_impl` | **Pipeline private** | `fold_algext_product_impl` |
+| `rootof_from_minpoly` | **Stable** | `rootof([n₀, n₁, …], minpoly)` as an `Expr`. |
+| `quadratic_rootof_branches` | **Stable (bounded)** | two `rootof` branches `±α` for quadratic irrational roots. |
 | `try_rootof_to_algext` | **Stable** | Func(RootOf) → AlgExt Expr |
 | `contains_algext` | **Stable** | subtree contains AlgExt or rootof |
 | `try_as_algext_data` | **Stable** | view Expr as AlgExtData if present |
@@ -250,6 +252,74 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `canonicalize_algext_roundtrip` | **Pipeline private** | `canonicalize_algext_roundtrip` |
 | `canonicalize_complex_with_algext_im` | **Pipeline private** | `canonicalize_complex_with_algext_im` |
 
+### `common_minimal.rs`
+
+| Function | Tier | Description |
+|----------|------|-------------|
+| `new` | **Pipeline private** | `new` |
+| `min_g` | **Pipeline private** | `min_g` |
+| `k` | **Pipeline private** | `k` |
+| `mat_theta` | **Pipeline private** | `mat_theta` |
+| `w_a` | **Pipeline private** | `w_a` |
+| `w_b` | **Pipeline private** | `w_b` |
+| `na` | **Pipeline private** | `na` |
+| `nb` | **Pipeline private** | `nb` |
+| `dim` | **Pipeline private** | `dim` |
+| `side_spec_for` | **Pipeline private** | `side_spec_for` |
+| `tensor_index_exp` | **Pipeline private** | `tensor_index_exp` |
+| `tensor_index` | **Pipeline private** | `tensor_index` |
+| `add_tensor_term_rational` | **Pipeline private** | bivariate reduction mod rational `ma`, `mb` (U1a). |
+| `mul_by_gen_a_rational` | **Pipeline private** | `mul_by_gen_a_rational` |
+| `mul_by_gen_b_rational` | **Pipeline private** | `mul_by_gen_b_rational` |
+| `mul_by_theta_rational` | **Pipeline private** | `mul_by_theta_rational` |
+| `build_compositum_matrix_rational` | **Pipeline private** | `build_compositum_matrix_rational` |
+| `mat_b_from_spec` | **Pipeline private** | `mat_b_from_spec` |
+| `build_mat_theta` | **Pipeline private** | `build_mat_theta` |
+| `tensor_unit_1` | **Pipeline private** | `tensor_unit_1` |
+| `tensor_gen_a` | **Pipeline private** | `tensor_gen_a` |
+| `tensor_gen_b` | **Pipeline private** | `tensor_gen_b` |
+| `build_compositum_matrix` | **Pipeline private** | `build_compositum_matrix` |
+| `compositum_rref_solvable` | **Pipeline private** | `compositum_rref_solvable` |
+| `minpoly_from_rref` | **Pipeline private** | `minpoly_from_rref` |
+| `embed_poly_from_rref_col` | **Pipeline private** | `embed_poly_from_rref_col` |
+| `common_minimal_poly_core` | **Pipeline private** | `common_minimal_poly_core` |
+| `common_minimal_poly_over_q` | **Pipeline private** | `common_minimal_poly_over_q` |
+| `common_minimal_poly_over_parent` | **Pipeline private** | `common_minimal_poly_over_parent` |
+| `element_pow_coords` | **Pipeline private** | `element_pow_coords` |
+| `invert_rational_matrix` | **Pipeline private** | invert square matrix over ℚ (dim ≤ compositum bound). |
+| `power_basis_invertible` | **Pipeline private** | `power_basis_invertible` |
+| `nested_primitive_from_k` | **Pipeline private** | `nested_primitive_from_k` |
+| `embedding_passes_generator_gate` | **Pipeline private** | `embedding_passes_generator_gate` |
+| `power_basis_to_ops` | **Pipeline private** | `power_basis_to_ops` |
+| `try_nested_tensor_ops_embed` | **Pipeline private** | `try_nested_tensor_ops_embed` |
+| `nested_embedding_from_compositum` | **Pipeline private** | `nested_embedding_from_compositum` |
+| `flat_primitive_candidates` | **Pipeline private** | `flat_primitive_candidates` |
+| `embed_side` | **Pipeline private** | `embed_side` |
+| `embed_simple_power` | **Pipeline private** | `embed_simple_power` |
+| `simple_layer_minpoly` | **Pipeline private** | `simple_layer_minpoly` |
+| `primitive_minpoly_for_nested` | **Pipeline private** | `primitive_minpoly_for_nested` |
+| `charpoly_of_element_op` | **Pipeline private** | `charpoly_of_element_op` |
+| `minpoly_and_prim_for_common` | **Pipeline private** | `minpoly_and_prim_for_common` |
+| `common_operand_degree` | **Pipeline private** | `common_operand_degree` |
+| `order_operands_for_common` | **Pipeline private** | `order_operands_for_common` |
+| `is_embedded_rational` | **Pipeline private** | `is_embedded_rational` |
+| `coeff_as_embedded_rational` | **Pipeline private** | `coeff_as_embedded_rational` |
+| `factor_to_minpoly_q` | **Pipeline private** | `factor_to_minpoly_q` |
+| `factor_to_parent_blocks` | **Pipeline private** | `factor_to_parent_blocks` |
+| `compute_compositum_upstream` | **Pipeline private** | `compute_compositum_upstream` |
+| `compute_compositum_upstream_inner` | **Pipeline private** | `compute_compositum_upstream_inner` |
+| `compute_common_minimal_pair` | **Pipeline private** | `compute_common_minimal_pair` |
+| `compute_common_minimal_pair_inner` | **Pipeline private** | `compute_common_minimal_pair_inner` |
+| `compute_compositum_upstream_for_test` | **Pipeline private** | `compute_compositum_upstream_for_test` |
+| `compute_common_minimal_pair_for_test` | **Pipeline private** | `compute_common_minimal_pair_for_test` |
+| `common_minimal_poly_over_parent_for_test` | **Pipeline private** | `common_minimal_poly_over_parent_for_test` |
+
+### `compositum_session.rs`
+
+| Function | Tier | Description |
+|----------|------|-------------|
+| `with_compositum_session` | **Pipeline private** | `with_compositum_session` |
+
 ### `ext_tower.rs`
 
 | Function | Tier | Description |
@@ -309,16 +379,32 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `element_is_zero` | **Stable** | `element_is_zero` |
 | `element_is_one` | **Stable** | `element_is_one` |
 | `ensure_same_field_len` | **Pipeline private** | `ensure_same_field_len` |
-| `common_over_q` | **Stable** | `common_over_q` |
-| `common_over_q_with_cache` | **Stable (bounded)** | common with session cache |
+| `compositum` | **Stable** | `compositum` |
+| `compositum_with_cache` | **Stable (bounded)** | compositum with session cache |
 | `embedding_for` | **Stable** | `embedding_for` |
-| `align_elements` | **Stable** | `align_elements` |
-| `align_elements_with_cache` | **Stable (bounded)** | align with session cache |
+| `align_pair` | **Stable** | `align_pair` |
+| `align_pair_with_cache` | **Stable (bounded)** | align with session cache |
 | `with_ephemeral_common_cache` | **Pipeline private** | ephemeral cache for static API (R5b: no cross-call dedup). |
-| `common_over_q_in_cache` | **Pipeline private** | `common_over_q_in_cache` |
-| `align_elements_in_cache` | **Pipeline private** | `align_elements_in_cache` |
+| `compositum_in_cache` | **Pipeline private** | `compositum_in_cache` |
+| `align_pair_in_cache` | **Pipeline private** | `align_pair_in_cache` |
 | `apply` | **Stable** | `Poly::apply` |
+| `field` | **Pipeline private** | `field` |
+| `arc` | **Pipeline private** | `arc` |
+| `arc_ref` | **Pipeline private** | `arc_ref` |
+| `into_operand` | **Pipeline private** | `into_operand` |
+| `from_arc` | **Pipeline private** | `from_arc` |
+| `deref` | **Pipeline private** | `deref` |
 | `identity` | **Stable** | `Poly::identity` |
+| `new` | **Pipeline private** | `new` |
+| `strategy` | **Pipeline private** | `strategy` |
+| `pair` | **Pipeline private** | `pair` |
+| `identity` | **Pipeline private** | `identity` |
+| `deref` | **Pipeline private** | `deref` |
+| `verify_common_pair` | **Pipeline private** | `verify_common_pair` |
+| `element_pow_coords` | **Pipeline private** | `element_pow_coords` |
+| `eval_rational_poly1_at_field` | **Pipeline private** | Horner eval of monic poly1 `[c_deg,…,c_0]` at field element. |
+| `verify_embedded_one` | **Pipeline private** | `verify_embedded_one` |
+| `verify_embedded_generator` | **Pipeline private** | layer generator + minpoly vanishing in common field. |
 | `common_cache_key` | **Pipeline private** | `common_cache_key` |
 | `min_poly_key_bytes` | **Pipeline private** | byte key for ℚ minpoly dedup (R4 session cache). |
 | `adjoin_cache_key_rational` | **Pipeline private** | adjoin dedup key (R4). |
@@ -344,32 +430,25 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `build_adjoin_parent_coeffs` | **Pipeline private** | construct parent-coeff adjoin without session dedup (R4). |
 | `get_or_create_base_by_min_poly` | **Pipeline private** | construct base extension without session dedup (R4/R5b). |
 | `build_base_extension_uncached` | **Pipeline private** | construct base extension without dedup (R4). |
-| `compute_common_flatten_for_test` | **Stable** | `compute_common_flatten_for_test` |
 | `duplicate_field_arc_for_test` | **Stable** | `duplicate_field_arc_for_test` |
 | `layer_minpoly_coords_for_adjoin` | **Pipeline private** | `layer_minpoly_coords_for_adjoin` |
 | `flatten_min_poly_over_q_cold` | **Pipeline private** | `flatten_min_poly_over_q_cold` |
 | `flatten_min_poly_over_q` | **Pipeline private** | `flatten_min_poly_over_q` |
+| `compose_min_poly_via_charpoly` | **Pipeline private** | compositum minpoly via multiplication-matrix charpoly (no k-search). |
 | `compose_min_poly_over_q` | **Pipeline private** | `compose_min_poly_over_q` |
 | `rational_subfield_embedding` | **Pipeline private** | `rational_subfield_embedding` |
 | `flatten_layer_blocks` | **Pipeline private** | `flatten_layer_blocks` |
 | `fields_same_parent` | **Pipeline private** | `fields_same_parent` |
 | `direct_adjoin_parent_embedding` | **Pipeline private** | `direct_adjoin_parent_embedding` |
 | `compose_field_embeddings` | **Pipeline private** | `compose_field_embeddings` |
+| `mult_matrix_layer_gen` | **Pipeline private** | `mult_matrix_layer_gen` |
 | `compute_common_dispatch` | **Pipeline private** | `compute_common_dispatch` |
 | `subfield_common_pair` | **Pipeline private** | `subfield_common_pair` |
-| `tower_common_eligible` | **Pipeline private** | `tower_common_eligible` |
-| `pick_tower_adjoin_parent` | **Pipeline private** | `pick_tower_adjoin_parent` |
-| `embedding_for_common_operand` | **Pipeline private** | `embedding_for_common_operand` |
-| `compute_common_tower` | **Pipeline private** | `compute_common_tower` |
 | `simple_over_q_embedding` | **Pipeline private** | `simple_over_q_embedding` |
 | `embed_simple_over_q_coords` | **Pipeline private** | `embed_simple_over_q_coords` |
-| `tower_adjoin_parent_for_test` | **Stable** | `tower_adjoin_parent_for_test` |
-| `compute_common_flatten` | **Pipeline private** | `compute_common_flatten` |
-| `embed_rationals_into` | **Pipeline private** | `embed_rationals_into` |
+| `common_adjoin_sibling_over` | **Pipeline private** | `common_adjoin_sibling_over` |
+| `try_common_adjoin_one_simple` | **Pipeline private** | nested + simple-over-ℚ compositum when flatten k-search fails |
 | `common_primitive_sum` | **Pipeline private** | `common_primitive_sum` |
-| `embedding_matrix_from_theta` | **Pipeline private** | `embedding_matrix_from_theta` |
-| `embedding_matrix_from_theta_block` | **Pipeline private** | `embedding_matrix_from_theta_block` |
-| `embed_in_gamma_vector` | **Pipeline private** | `embed_in_gamma_vector` |
 | `embed_coords` | **Stable** | `embed_coords` |
 | `new` | **Pipeline private** | `new` |
 | `zero` | **Pipeline private** | `zero` |
@@ -382,6 +461,23 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `eq_mod` | **Pipeline private** | `eq_mod` |
 | `assert_embedding_ring_hom` | **Pipeline private** | `assert_embedding_ring_hom` |
 | `r6_nested_adjoin_layer_two_flatten_explicit_four` | **Pipeline private** | `r6_nested_adjoin_layer_two_flatten_explicit_four` |
+| `compose_minpoly_charpoly_matches_nested_sqrt2_sqrt3` | **Pipeline private** | `compose_minpoly_charpoly_matches_nested_sqrt2_sqrt3` |
+| `common_adjoin_nested_sqrt2_sqrt3_with_sqrt5` | **Pipeline private** | `common_adjoin_nested_sqrt2_sqrt3_with_sqrt5` |
+| `t4a_sqrt2_sqrt3_passes` | **Pipeline private** | `t4a_sqrt2_sqrt3_passes` |
+| `subfield_k1_in_k2_passes` | **Pipeline private** | `subfield_k1_in_k2_passes` |
+| `adjoin_nested_sqrt2_sqrt3_with_sqrt5_passes` | **Pipeline private** | `adjoin_nested_sqrt2_sqrt3_with_sqrt5_passes` |
+| `sqrt2_sqrt3_passes_verify` | **Pipeline private** | `sqrt2_sqrt3_passes_verify` |
+| `compositum_reentry_returns_budget_err` | **Pipeline private** | `compositum_reentry_returns_budget_err` |
+| `sqrt2_cbrt2_passes_verify` | **Pipeline private** | `sqrt2_cbrt2_passes_verify` |
+| `dispatch_prefers_minimal_over_t4a` | **Pipeline private** | `dispatch_prefers_minimal_over_t4a` |
+| `over_parent_sqrt2_u2_minus_alpha_degree_four` | **Pipeline private** | `over_parent_sqrt2_u2_minus_alpha_degree_four` |
+| `simple_layer_minpoly_from_field` | **Pipeline private** | `simple_layer_minpoly_from_field` |
+| `compositum_plan_tensor_dims_consistent` | **Pipeline private** | `compositum_plan_tensor_dims_consistent` |
+| `verify_k5_flat_k2_core_embeddings_pass_v2` | **Pipeline private** | `verify_k5_flat_k2_core_embeddings_pass_v2` |
+| `flatten_k2_sqrt2_sqrt3_is_fast` | **Pipeline private** | `flatten_k2_sqrt2_sqrt3_is_fast` |
+| `nested_sqrt5_upstream_passes_verify` | **Pipeline private** | `nested_sqrt5_upstream_passes_verify` |
+| `dispatch_nested_sqrt5_prefers_upstream` | **Pipeline private** | `dispatch_nested_sqrt5_prefers_upstream` |
+| `factor_x4_minus_4_over_sqrt2_selects_quadratic` | **Pipeline private** | `factor_x4_minus_4_over_sqrt2_selects_quadratic` |
 | `r6_parent_coeff_adjoin_flatten_explicit_four` | **Pipeline private** | `r6_parent_coeff_adjoin_flatten_explicit_four` |
 | `rational_field_dimension_one` | **Pipeline private** | `rational_field_dimension_one` |
 | `t3a_adjoin_k1_u2_minus_sqrt2_has_dimension_four` | **Pipeline private** | `t3a_adjoin_k1_u2_minus_sqrt2_has_dimension_four` |
@@ -415,14 +511,10 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `k2_embedded_sqrt2_squared_is_two` | **Pipeline private** | `k2_embedded_sqrt2_squared_is_two` |
 | `t3_k1_sqrt2_squared_is_two` | **Pipeline private** | `t3_k1_sqrt2_squared_is_two` |
 | `t3_k2_sqrt2_beta_times_beta_is_three_sqrt2` | **Pipeline private** | `t3_k2_sqrt2_beta_times_beta_is_three_sqrt2` |
-| `common_q_sqrt2_without_tower_common` | **Pipeline private** | `common_q_sqrt2_without_tower_common` |
-| `common_sqrt2_sqrt3_has_flatten_parent_none` | **Pipeline private** | `common_sqrt2_sqrt3_has_flatten_parent_none` |
-| `common_sqrt2_sqrt3_has_tower_parent` | **Pipeline private** | `common_sqrt2_sqrt3_has_tower_parent` |
 | `align_sqrt2_plus_sqrt3_reverse_order` | **Pipeline private** | `align_sqrt2_plus_sqrt3_reverse_order` |
-| `common_cache_hits_after_tower_common` | **Pipeline private** | `common_cache_hits_after_tower_common` |
+| `common_cache_hits_after_dispatch` | **Pipeline private** | `common_cache_hits_after_dispatch` |
 | `align_sqrt2_cbrt2_dim_six` | **Pipeline private** | `align_sqrt2_cbrt2_dim_six` |
-| `tower_common_invariants_sqrt2_sqrt3` | **Pipeline private** | `tower_common_invariants_sqrt2_sqrt3` |
-| `tower_common_matches_flatten_minpoly_on_sqrt2_sqrt3` | **Pipeline private** | `tower_common_matches_flatten_minpoly_on_sqrt2_sqrt3` |
+| `dispatch_invariants_sqrt2_sqrt3` | **Pipeline private** | `dispatch_invariants_sqrt2_sqrt3` |
 
 ### `field_arith.rs`
 
@@ -482,6 +574,7 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `poly_sub_with_coeffs_in_field` | **Stable** | `poly_sub_with_coeffs_in_field` |
 | `poly_neg_with_coeffs_in_field` | **Stable** | `poly_neg_with_coeffs_in_field` |
 | `poly_inv_mod_with_coeffs_in_field` | **Stable** | `poly_inv_mod_with_coeffs_in_field` |
+| `rational_rref` | **Pipeline private** | `rational_rref` |
 
 ### `field_session.rs`
 
@@ -501,8 +594,8 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `ambient` | **Stable** | ambient K (normalized poly coefficients) |
 | `working` | **Stable** | current working L |
 | `common_cache_len` | **Stable (bounded)** | common cache length |
-| `common_over_q` | **Stable (bounded)** | common extension with session cache |
-| `align_elements` | **Stable (bounded)** | align coords on session cache |
+| `compositum` | **Stable (bounded)** | compositum with session cache |
+| `align_pair` | **Stable (bounded)** | align coords on session cache |
 | `zero` | **Stable** | zero in L |
 | `one` | **Stable** | one in L |
 | `int` | **Stable** | integer constant in L |
@@ -528,8 +621,8 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `bump_to` | **Pipeline private** | `bump_to` |
 | `rat` | **Pipeline private** | rational constant in field |
 | `coeff_in_field` | **Pipeline private** | `coeff_in_field` |
-| `is_negative_rational` | **Pipeline private** | negative constant in ℚ ⊂ K |
-| `coords_in_field` | **Pipeline private** | embed real coeff coords into `target`. |
+| `is_negative_rational` | **Pipeline private** | negative constant in ℚ ⊂ K (for Δ<0 guard) |
+| `embed_coeff_into` | **Pipeline private** | `embed_coeff_into` |
 | `coeff_from_coords` | **Pipeline private** | embed coords as coeff in `field`. |
 | `r2_session_common_cache_hit_on_second_common` | **Pipeline private** | `r2_session_common_cache_hit_on_second_common` |
 | `restore_checkpoint_discards_later_adjoin` | **Pipeline private** | `restore_checkpoint_discards_later_adjoin` |
@@ -541,6 +634,7 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `r6_flatten_cache_hit_same_semantic_key` | **Pipeline private** | `r6_flatten_cache_hit_same_semantic_key` |
 | `r6_simple_over_q_skips_flatten_cache` | **Pipeline private** | `r6_simple_over_q_skips_flatten_cache` |
 | `set_working_restores_adjoin` | **Pipeline private** | `set_working_restores_adjoin` |
+| `embed_coeff_into_rejects_non_subfield_no_grow` | **Pipeline private** | `embed_coeff_into_rejects_non_subfield_no_grow` |
 
 ### `galois_automorphism.rs`
 
@@ -610,6 +704,145 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `coeff_mul` | **Pipeline private** | `coeff_mul` |
 | `coeff_div` | **Pipeline private** | `coeff_div` |
 | `algext_c_coeff_mul_sqrt2` | **Pipeline private** | `algext_c_coeff_mul_sqrt2` |
+| `groebner_lex_over_qsqrt2` | **Pipeline private** | `groebner_lex_over_qsqrt2` |
+| `groebner_grevlex_over_qsqrt2` | **Pipeline private** | `groebner_grevlex_over_qsqrt2` |
+| `fglm_over_qsqrt2` | **Pipeline private** | `fglm_over_qsqrt2` |
+
+### `poly_alg_factor.rs`
+
+| Function | Tier | Description |
+|----------|------|-------------|
+| `common_minpoly_var` | **Pipeline private** | `common_minpoly_var` |
+| `factor_into_algext` | **Stable (bounded)** | irreducible factors over K for univariate `p`; `None` if not split. |
+| `univariate_main_var` | **Pipeline private** | single main variable when `p` is univariate in it. |
+| `expand_factor_pairs` | **Pipeline private** | `expand_factor_pairs` |
+| `factor_into_via_algext` | **Stable** | factor `Poly` over ℚ via K[var] pipeline when univariate split exists. |
+| `factor_univariate_pairs_over_k` | **Stable (bounded)** | sqff factor pairs over K for univariate `Poly` over ℚ (T2-3). |
+| `factor_univariate_over_k` | **Stable** | factor `flat` in K[var] as `(factor, multiplicity)` pairs. |
+| `factor_univariate_flat_over_k` | **Stable** | flat list of factors (with repetition for multiplicity). |
+| `aligned_flat` | **Pipeline private** | normalize and re-wrap as [`FlatUni`]. |
+| `try_as_rational_poly` | **Pipeline private** | embed `FlatUni` as ℚ `Poly` when all coeffs lie in ℚ. |
+| `factor_square_free_over_k` | **Pipeline private** | square-free factor in K[var]. |
+| `try_factor_by_roots` | **Pipeline private** | full linear split when all roots lie in K. |
+| `try_factor_via_x_squared` | **Pipeline private** | p(x)=h(x²); factor h quadratically and lift to x²−r. |
+| `is_even_only` | **Pipeline private** | `is_even_only` |
+| `halve_exponents` | **Pipeline private** | `halve_exponents` |
+| `linear_root_coeff` | **Pipeline private** | `linear_root_coeff` |
+| `product_divides` | **Pipeline private** | `product_divides` |
+| `minpoly_q_to_poly_over_field` | **Pipeline private** | embed monic `poly1` / ℚ into `PolyAlgExt` over `base`. |
+| `minpoly_coords_to_poly` | **Pipeline private** | `poly1` minpoly over ℚ → `Poly` in `var`. |
+| `factor_minpoly_over_field` | **Pipeline private** | `factor_minpoly_over_field` |
+| `select_factor_for_common` | **Pipeline private** | `select_factor_for_common` |
+| `push_factor` | **Pipeline private** | `push_factor` |
+| `x_var` | **Pipeline private** | `x_var` |
+| `flat` | **Pipeline private** | `flat` |
+| `x_squared_minus_2` | **Pipeline private** | `x_squared_minus_2` |
+| `x_fourth_minus_4` | **Pipeline private** | `x_fourth_minus_4` |
+| `factor_into_algext_x_squared_minus_2` | **Pipeline private** | `factor_into_algext_x_squared_minus_2` |
+| `factor_into_via_algext_from_rational_poly` | **Pipeline private** | `factor_into_via_algext_from_rational_poly` |
+| `factor_x_squared_minus_2_over_k1` | **Pipeline private** | `factor_x_squared_minus_2_over_k1` |
+| `factor_irreducible_deg5_witness_over_k` | **Pipeline private** | `factor_irreducible_deg5_witness_over_k` |
+| `factor_quartic_reducible_over_q_yields_four_linear` | **Pipeline private** | `factor_quartic_reducible_over_q_yields_four_linear` |
+| `factor_minpoly_x4_minus_4_over_sqrt2` | **Pipeline private** | `factor_minpoly_x4_minus_4_over_sqrt2` |
+| `factor_x_fourth_minus_4_over_q` | **Pipeline private** | `factor_x_fourth_minus_4_over_q` |
+
+### `poly_alg_ops.rs`
+
+| Function | Tier | Description |
+|----------|------|-------------|
+| `infer_ambient_field` | **Stable** | infer ambient **K** from polynomial coefficients (max-dimension field). |
+| `normalize_algext_poly` | **Stable** | lift all coefficients into session working field **L**. |
+| `align_algext_polys` | **Stable** | align two polynomials to a common working field **L** (monotone bump). |
+| `ensure_common_field_for_polys` | **Stable** | bump session **L** to contain all coefficient fields in `polys`. |
+| `div_rem_wrt_algext` | **Stable** | `(q, r)` with `a = q*b + r` in K[var] after coefficient alignment. |
+| `quo_exact_wrt_algext` | **Stable** | exact quotient in K[var]; `Err` if remainder nonzero. |
+| `monic_wrt_algext` | **Stable** | monic normalize w.r.t. `var` in K[var]. |
+| `gcd_wrt_algext` | **Stable** | gcd in K[var] after coefficient alignment (monic). |
+| `gcd_algext` | **Stable** | multivariate gcd in K[x₁,…,xₙ] via subresultant PRS (T3-1). |
+| `egcd_wrt_algext` | **Stable** | extended gcd in K[var]; `(g, s, t)` with monic `g`. |
+| `content_wrt_algext` | **Stable** | scalar content in K. |
+| `primitive_part_wrt_algext` | **Stable** | primitive part in K[var]. |
+| `square_free_part_wrt_algext` | **Stable** | square-free part in K[var]. |
+| `split_quadratic_factor` | **Stable** | split monic quadratic into linear factors `(var − root)` over K. |
+| `vars_in_algext` | **Pipeline private** | variable union for multivariate gcd |
+| `flat_aligned` | **Pipeline private** | aligned [`FlatUni`] for one polynomial. |
+| `aligned_pair` | **Pipeline private** | aligned pair in K[var]. |
+| `monomial_to_poly` | **Pipeline private** | `monomial_to_poly` |
+| `eval_univariate_algext_at` | **Pipeline private** | `eval_univariate_algext_at` |
+| `x_var` | **Pipeline private** | `x_var` |
+| `sqrt2_coeff` | **Pipeline private** | `sqrt2_coeff` |
+| `x_squared_minus_2` | **Pipeline private** | `x_squared_minus_2` |
+| `x_minus_sqrt2` | **Pipeline private** | `x_minus_sqrt2` |
+| `rem_x_squared_minus_2_mod_x_minus_sqrt2` | **Pipeline private** | `rem_x_squared_minus_2_mod_x_minus_sqrt2` |
+| `monic_wrt_leading_one` | **Pipeline private** | `monic_wrt_leading_one` |
+| `align_scales_do_not_change_divisibility` | **Pipeline private** | `align_scales_do_not_change_divisibility` |
+| `x_plus_sqrt2` | **Pipeline private** | `x_plus_sqrt2` |
+| `y_var` | **Pipeline private** | `y_var` |
+| `x_squared_minus_2_y_squared` | **Pipeline private** | `x_squared_minus_2_y_squared` |
+| `x_minus_sqrt2_y` | **Pipeline private** | `x_minus_sqrt2_y` |
+| `gcd_bivariate_x_squared_minus_2y_squared_and_x_minus_sqrt2_y` | **Pipeline private** | `gcd_bivariate_x_squared_minus_2y_squared_and_x_minus_sqrt2_y` |
+| `gcd_x_squared_minus_2_and_x_minus_sqrt2` | **Pipeline private** | `gcd_x_squared_minus_2_and_x_minus_sqrt2` |
+| `gcd_x_squared_minus_2_and_x_plus_sqrt2` | **Pipeline private** | `gcd_x_squared_minus_2_and_x_plus_sqrt2` |
+| `gcd_x_squared_minus_2_and_x_plus_one_is_one` | **Pipeline private** | `gcd_x_squared_minus_2_and_x_plus_one_is_one` |
+| `split_quadratic_x_squared_minus_2` | **Pipeline private** | `split_quadratic_x_squared_minus_2` |
+| `square_free_part_x_squared_minus_2_is_self` | **Pipeline private** | `square_free_part_x_squared_minus_2_is_self` |
+| `flat_uni_quo_exact_matches_div_rem` | **Pipeline private** | `flat_uni_quo_exact_matches_div_rem` |
+
+### `poly_alg_partfrac.rs`
+
+| Function | Tier | Description |
+|----------|------|-------------|
+| `quadratic_factor_needs_k_in_q` | **Pipeline private** | irreducible quadratic over ℚ with disc > 0 (splits in K). |
+| `partfrac_needs_k_split` | **Stable** | ℚ partfrac cannot split an irreducible quadratic (disc>0) → use K[var]. |
+| `partfrac_sqff_factor_needs_k` | **Stable** | sqff quadratic factor irreducible in ℚ but splits in K (disc > 0). |
+| `partfrac_rational_terms_over_k` | **Stable (bounded)** | `(poly_part, terms)` with denominators factored in K[var]. |
+| `linear_root_coeff` | **Pipeline private** | `-c0/lc` for monic-linear `lc*x + c0`. |
+| `eval_wrt` | **Pipeline private** | Horner evaluation in K. |
+| `x` | **Pipeline private** | `x` |
+| `partfrac_one_over_x_squared_minus_two` | **Pipeline private** | `partfrac_one_over_x_squared_minus_two` |
+| `partfrac_x_over_x_squared_minus_two` | **Pipeline private** | `partfrac_x_over_x_squared_minus_two` |
+| `partfrac_needs_k_split_false_for_x_squared_minus_one` | **Pipeline private** | `partfrac_needs_k_split_false_for_x_squared_minus_one` |
+
+### `poly_alg_resultant.rs`
+
+| Function | Tier | Description |
+|----------|------|-------------|
+| `resultant_wrt_algext` | **Stable** | Sylvester resultant of univariate `a`, `b` ∈ K[var]; scalar in K. |
+| `leading_coeff_wrt` | **Pipeline private** | leading coefficient in K[var]. |
+| `univariate_coeffs_asc` | **Pipeline private** | ascending coeffs c₀ + c₁ var + … in K. |
+| `sylvester_det2_wrt` | **Pipeline private** | Res(ax+b, cx+d) = ad − bc. |
+| `sylvester_det_field` | **Pipeline private** | Sylvester matrix determinant in K. |
+| `det_field` | **Pipeline private** | Gaussian elimination determinant in K. |
+| `coeff_pow` | **Pipeline private** | c^exp in K. |
+| `x_var` | **Pipeline private** | `x_var` |
+| `session_for` | **Pipeline private** | `session_for` |
+| `sqrt2_coeff` | **Pipeline private** | `sqrt2_coeff` |
+| `x_squared_minus_2` | **Pipeline private** | `x_squared_minus_2` |
+| `x_minus_sqrt2` | **Pipeline private** | `x_minus_sqrt2` |
+| `from_q` | **Pipeline private** | `from_q` |
+| `resultant_two_linear_polys` | **Pipeline private** | `resultant_two_linear_polys` |
+| `resultant_shared_factor_is_zero` | **Pipeline private** | `resultant_shared_factor_is_zero` |
+| `resultant_x_squared_minus_2_and_x_minus_sqrt2` | **Pipeline private** | `resultant_x_squared_minus_2_and_x_minus_sqrt2` |
+| `resultant_x_squared_minus_2_and_x_plus_one` | **Pipeline private** | `resultant_x_squared_minus_2_and_x_plus_one` |
+| `resultant_quadratic` | **Pipeline private** | `resultant_quadratic` |
+
+### `poly_alg_sturm.rs`
+
+| Function | Tier | Description |
+|----------|------|-------------|
+| `sturm_sequence_wrt_algext` | **Stable** | classical Sturm chain in K[var]: P₀ = sqff(p), P₁ = P₀′, Pᵢ₊₁ = −rem(Pᵢ₋₁, Pᵢ). |
+| `sturm_sign_variations_at_algext` | **Stable** | sign-variation count V(a) for a Sturm sequence at rational `a` ∈ ℚ ⊂ K. |
+| `sturmab_count_wrt_algext` | **Stable** | root count in `(a, b]` for `p` ∈ K[var] (odd-multiplicity sqff convention on ℚ embed). |
+| `sturmab_count_rational_poly` | **Stable** | `sturmab_count_wrt_algext` for ℚ[var] via `poly_algext_from_poly` lift. |
+| `eval_algext_at_rational` | **Pipeline private** | Horner evaluation at x ∈ ℚ ⊂ L. |
+| `rational_coeff` | **Pipeline private** | embed ℚ constant into current L. |
+| `negate_algext_poly` | **Pipeline private** | −p in K[var]. |
+| `sign_of_algext_value` | **Pipeline private** | sign for Sturm (rational or positive real constant in ℚ ⊂ K). |
+| `sign_variations_i8` | **Pipeline private** | sign changes in Sturm sequence values. |
+| `x_var` | **Pipeline private** | `x_var` |
+| `session_for` | **Pipeline private** | `session_for` |
+| `sturm_sequence_x_squared_minus_two` | **Pipeline private** | `sturm_sequence_x_squared_minus_two` |
+| `sturmab_count_x_squared_minus_two` | **Pipeline private** | `sturmab_count_x_squared_minus_two` |
 
 ### `poly_conv.rs`
 
@@ -639,7 +872,6 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `monic_univariate` | **Pipeline private** | `monic_univariate` |
 | `linear_root` | **Pipeline private** | `linear_root` |
 | `quadratic_roots_formula` | **Pipeline private** | quadratic roots via √Δ (no x²+bx+c adjoin layer) |
-| `is_negative_rational` | **Pipeline private** | negative constant in ℚ ⊂ K (for Δ<0 guard) |
 | `sqrt_disc` | **Pipeline private** | sqrt(Δ) via session; imaginary branch when Δ<0 in ℚ ⊂ K |
 | `mul_i` | **Pipeline private** | formal i times real z on session working field |
 | `cubic_depressed_parts` | **Pipeline private** | √γ = −q / (√α·√β) for depressed x⁴+px²+qx+r (q≠0) |
@@ -673,14 +905,45 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `roots_all_vanish` | **Pipeline private** | `roots_all_vanish` |
 | `root_vanishes` | **Pipeline private** | verify root vanishes (fresh session, like verify_root) |
 | `eval_vanishes` | **Pipeline private** | quick vanishing check on working session |
-| `split_depressed_quartic` | **Pipeline private** | `split_depressed_quartic` (legacy Ferrari; kept for tests) |
 | `deflate_monic` | **Pipeline private** | `deflate_monic` |
+| `real_from_pure_imag` | **Pipeline private** | real coords of z = i·r (formal i, r ∈ K real) |
+| `sqrt_branches_pure_imag` | **Pipeline private** | ±√(i·r) for formal i and real r (cyclotomic biquadratic) |
 | `sqrt_branches` | **Pipeline private** | ±√z via session (replaces blind `algext_square_roots`) |
 | `coeff_inv` | **Pipeline private** | `coeff_inv` |
 | `eq_mod` | **Pipeline private** | `eq_mod` |
 | `coeff_inv` | **Stable** | `Poly::coeff_inv` |
 | `eq_mod` | **Stable** | `Poly::eq_mod` |
 | `verify_root` | **Pipeline private** | verify root vanishes mod minpoly (same prepare path as roots) |
+| `krylov_minpoly_coords` | **Pipeline private** | `krylov_minpoly_coords` |
+| `poly_mul_mod` | **Pipeline private** | `poly_mul_mod` |
+| `poly_from_low` | **Pipeline private** | `poly_from_low` |
+| `poly_to_low` | **Pipeline private** | `poly_to_low` |
+| `poly_inv_mod` | **Pipeline private** | `poly_inv_mod` |
+| `ff_mul` | **Pipeline private** | `ff_mul` |
+| `ff_pow` | **Pipeline private** | `ff_pow` |
+| `ff_degree` | **Pipeline private** | `ff_degree` |
+| `ff_sqrt` | **Pipeline private** | `ff_sqrt` |
+| `rational_reconstruct` | **Pipeline private** | `rational_reconstruct` |
+| `ff_extgcd` | **Pipeline private** | `ff_extgcd` |
+| `ff_inv` | **Pipeline private** | `ff_inv` |
+| `crt_combine_poly` | **Pipeline private** | `crt_combine_poly` |
+| `sqrt_base_case` | **Pipeline private** | `sqrt_base_case` |
+| `padic_sqrt_lift` | **Pipeline private** | `padic_sqrt_lift` |
+| `pn_reduce` | **Pipeline private** | `pn_reduce` |
+| `pn_mulmod` | **Pipeline private** | `pn_mulmod` |
+| `pn_inv` | **Pipeline private** | `pn_inv` |
+| `lcm` | **Pipeline private** | `lcm` |
+| `mon_x_pow` | **Pipeline private** | `mon_x_pow` |
+| `ff_reduce` | **Pipeline private** | `ff_reduce` |
+| `poly_to_low_bigint` | **Pipeline private** | `poly_to_low_bigint` |
+| `crt_combine` | **Pipeline private** | `crt_combine` |
+| `mod_inv` | **Pipeline private** | `mod_inv` |
+| `small_primes` | **Pipeline private** | `small_primes` |
+| `is_prime_i64` | **Pipeline private** | `is_prime_i64` |
+| `mod_pow_i64` | **Pipeline private** | `mod_pow_i64` |
+| `large_primes` | **Pipeline private** | `large_primes` |
+| `isqrt` | **Pipeline private** | `isqrt` |
+| `sqrt_fmodule` | **Pipeline private** | `sqrt_fmodule` |
 | `q_session` | **Pipeline private** | `q_session` |
 | `rat_coeff` | **Pipeline private** | `rat_coeff` |
 | `cubic_one_root_vanishes` | **Pipeline private** | `cubic_one_root_vanishes` |
@@ -703,9 +966,25 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `euler_four_roots_vanish` | **Pipeline private** | `euler_four_roots_vanish` |
 | `field_session_dimension_bound_quartic` | **Pipeline private** | `field_session_dimension_bound_quartic` |
 | `field_session_dimension_bound_quartic_tight` | **Pipeline private** | `field_session_dimension_bound_quartic_tight` |
+| `quartic_adjoin_deflate_t4_plus_t_plus_1` | **Pipeline private** | `quartic_adjoin_deflate_t4_plus_t_plus_1` |
+| `quartic_a4_galois_dim_le_12` | **Pipeline private** | `quartic_a4_galois_dim_le_12` |
 | `roots_quartic_t4_plus_t_plus_1` | **Pipeline private** | `roots_quartic_t4_plus_t_plus_1` |
 | `roots_x3_minus_x_plus_1_vanish` | **Pipeline private** | `roots_x3_minus_x_plus_1_vanish` |
 | `field_session_dimension_bound_cubic_x3_minus_x_plus_1` | **Pipeline private** | `field_session_dimension_bound_cubic_x3_minus_x_plus_1` |
 | `f2_resolvent_split_no_cardano_stack` | **Pipeline private** | `f2_resolvent_split_no_cardano_stack` |
+| `roots_biquadratic_x4_plus_1` | **Pipeline private** | `roots_biquadratic_x4_plus_1` |
 | `roots_biquadratic_t4_minus_2` | **Pipeline private** | `roots_biquadratic_t4_minus_2` |
-
+| `diag_a4_sqrt_probe_gap` | **Pipeline private** | `diag_a4_sqrt_probe_gap` |
+| `diag_adjoin_collapse_recovery` | **Pipeline private** | `diag_adjoin_collapse_recovery` |
+| `diag_fmodule_step1` | **Pipeline private** | `diag_fmodule_step1` |
+| `diag_fmodule_sqrt_recovery` | **Pipeline private** | `diag_fmodule_sqrt_recovery` |
+| `proto_subst` | **Pipeline private** | `proto_subst` |
+| `proto_rational_roots` | **Pipeline private** | `proto_rational_roots` |
+| `generic_vandermonde` | **Pipeline private** | `generic_vandermonde` |
+| `substitute_linear` | **Pipeline private** | `substitute_linear` |
+| `proto_try_sqrt_flat_over_q` | **Pipeline private** | `proto_try_sqrt_flat_over_q` |
+| `verify` | **Pipeline private** | `verify` |
+| `dfs` | **Pipeline private** | `dfs` |
+| `diag_norm_of_disc_c_is_square` | **Pipeline private** | `diag_norm_of_disc_c_is_square` |
+| `diag_bruteforce_sqrt_of_resolvent_core` | **Pipeline private** | `diag_bruteforce_sqrt_of_resolvent_core` |
+| `integer_sqrt` | **Pipeline private** | `integer_sqrt` |

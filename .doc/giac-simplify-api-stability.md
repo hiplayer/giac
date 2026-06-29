@@ -158,11 +158,12 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 |----------|------|-------------|
 | `expand` | **Stable** | distribute products over sums and expand powers of sums (`ExpandPolicy::Full`). |
 | `expand_with_policy` | **Stable** | [`expand`] with an explicit policy. |
+| `expand_with_policy_fueled` | **Pipeline private** | fueled recursive core. Public entries mint a fresh |
 | `expand_polynomial` | **Stable** | polynomial-oriented expand: no distribution through `exp`/`ln` subtrees. |
 | `expr_contains_exp_ln` | **Pipeline private** | used by `ExpandPolicy::NoExpDistribute`. |
-| `expand_mul_pair` | **Pipeline private** | distribute one mul factor over add |
-| `expand_pow` | **Pipeline private** | expand integer powers and mod-poly powers |
-| `repeated_mul` | **Pipeline private** | repeated multiply for small integer power |
+| `expand_mul_pair_fueled` | **Pipeline private** | distribute one mul factor over add |
+| `expand_pow_fueled` | **Pipeline private** | expand integer powers and mod-poly powers |
+| `repeated_mul_fueled` | **Pipeline private** | repeated multiply for small integer power |
 | `expand_binomial` | **Pipeline private** | binomial power via poly or Expr::pow |
 | `normal` | **Stable** | expand then collect into polynomial normal form. |
 | `modulus_from_expr` | **Pipeline private** | coerce Expr modulus to i64 |
@@ -181,6 +182,9 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `expand_binomial_fallback_for_non_poly` | **Pipeline private** | `expand_binomial_fallback_for_non_poly` |
 | `expand_binomial_fallback_semantic` | **Pipeline private** | `expand_binomial_fallback_semantic` |
 | `expand_recurses_into_frac` | **Pipeline private** | `expand_recurses_into_frac` |
+| `expand_deep_nesting_terminates_within_budget` | **Pipeline private** | `expand_deep_nesting_terminates_within_budget` |
+| `expand_exhausted_budget_returns_err` | **Pipeline private** | `expand_exhausted_budget_returns_err` |
+| `expand_wide_leaf_sum_does_not_exhaust` | **Pipeline private** | `expand_wide_leaf_sum_does_not_exhaust` |
 
 ### `factor.rs`
 

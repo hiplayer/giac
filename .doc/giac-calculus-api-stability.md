@@ -132,7 +132,10 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `diff_tan` | **Pipeline private** | chain rule for `tan`. |
 | `is_const_wrt` | **Pipeline private** | syntactic constness w.r.t. `var` (local copy). |
 | `x` | **Pipeline private** | `x` |
+| `xcas` | **Pipeline private** | `xcas` |
 | `diff_simplified` | **Pipeline private** | `diff_simplified` |
+| `diff_matches` | **Pipeline private** | `diff_matches` |
+| `eval_diff_matches` | **Pipeline private** | `eval_diff_matches` |
 | `diff_x_squared` | **Pipeline private** | `diff_x_squared` |
 | `diff_sin_x_squared` | **Pipeline private** | `diff_sin_x_squared` |
 | `diff_ln_times_x_squared` | **Pipeline private** | `diff_ln_times_x_squared` |
@@ -176,6 +179,8 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | Function | Tier | Description |
 |----------|------|-------------|
 | `integrate` | **Stable** | symbolic integration |
+| `integrate_fueled` | **Pipeline private** | fueled recursive core. Public [`integrate`] mints a |
+| `integrate_rewrite` | **Pipeline private** | rewrite re-entry: charge one fuel unit then recurse. |
 | `try_as_rational` | **Stable** | normalize `Expr` to `(num, den)` rational form. |
 | `integrate_frac` | **Stable** | integrate rational `num/den` w.r.t. `var`. |
 | `integrate_reciprocal` | **Pipeline private** | integrate reciprocal. |
@@ -188,7 +193,9 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `count_var_factors` | **Pipeline private** | count var factors. |
 | `integrate_pow` | **Pipeline private** | integrate pow. |
 | `ln_abs` | **Pipeline private** | ln abs. |
+| `xcas` | **Pipeline private** | `xcas` |
 | `assert_integrate_matches` | **Pipeline private** | `assert_integrate_matches` |
+| `eval_integrate_matches` | **Pipeline private** | `eval_integrate_matches` |
 | `giac223_tanh_exp_frac` | **Pipeline private** | `giac223_tanh_exp_frac` |
 | `giac223_exp_over_linear` | **Pipeline private** | `giac223_exp_over_linear` |
 | `integrate_reciprocal` | **Pipeline private** | `integrate_reciprocal` |
@@ -214,6 +221,9 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `integrate_not_implemented_messages` | **Pipeline private** | `integrate_not_implemented_messages` |
 | `integrate_cos_and_sin` | **Pipeline private** | `integrate_cos_and_sin` |
 | `integrate_x_cubed` | **Pipeline private** | `integrate_x_cubed` |
+| `integrate_exhausted_budget_returns_err` | **Pipeline private** | `integrate_exhausted_budget_returns_err` |
+| `integrate_wide_polynomial_sum_does_not_exhaust` | **Pipeline private** | `integrate_wide_polynomial_sum_does_not_exhaust` |
+| `integrate_nested_rewrite_terminates_within_budget` | **Pipeline private** | `integrate_nested_rewrite_terminates_within_budget` |
 
 ### `integrate_helpers.rs`
 
@@ -233,6 +243,7 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | Function | Tier | Description |
 |----------|------|-------------|
 | `try_integrate_heuristic` | **Pipeline** | top-level sqrt / trig-fraction hooks before generic `integrate` dispatch. |
+| `try_integrate_heuristic_fueled` | **Pipeline private** | fueled core; [`try_integrate_heuristic`] mints a fresh |
 | `try_integrate_sin_kx_over_sin_x` | **Partial** | ∫ sin(k·x)/sin(x) dx via Chebyshev U_{k-1}(cos x) (GIAC-225). **退役：** Risch / partfrac. |
 | `try_integrate_trig_power_product` | **Partial** | ∫ sin^m(x)·cos^n(x) dx by power reduction when m,n ≥ 1 (GIAC-225). **退役：** Risch / partfrac. |
 | `trig_power_exponents` | **Pipeline private** | trig power exponents. |
@@ -433,7 +444,6 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `valuation_at_zero` | **Pipeline private** | valuation at zero |
 | `limit_from_laurent_exponent` | **Pipeline private** | limit from laurent exponent |
 | `sign_infinity` | **Pipeline private** | sign infinity |
-| `ratio_to_expr` | **Pipeline private** | ratio to expr |
 | `limit_from_scaled_finite` | **Pipeline private** | limit from scaled finite |
 | `sign_infinity_from_value` | **Pipeline private** | sign infinity from value |
 | `laurent_terms_at_zero` | **Pipeline private** | laurent terms at zero |
@@ -583,7 +593,6 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `limit_rational_infinity` | **Pipeline private** | limit rational infinity |
 | `leading_ratio` | **Pipeline private** | leading ratio |
 | `sign_infinity` | **Pipeline private** | sign infinity |
-| `ratio_to_expr` | **Pipeline private** | ratio to expr |
 | `pole_infinity` | **Pipeline private** | pole infinity |
 | `limit_via_reciprocal` | **Pipeline private** | limit via reciprocal |
 | `subst_eval` | **Pipeline private** | subst eval |
@@ -639,6 +648,7 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `mrv_nested_exp_inner` | **Pipeline private** | `mrv_nested_exp_inner` |
 | `choose_mrv_seven_over_eight_pow_n` | **Pipeline private** | `choose_mrv_seven_over_eight_pow_n` |
 | `mrv_exp_neg_x` | **Pipeline private** | `mrv_exp_neg_x` |
+| `mrv_exp_neg_x_substitutes_ln_w` | **Pipeline private** | `mrv_exp_neg_x_substitutes_ln_w` |
 
 ### `limit_engine/mrv_lead_term.rs`
 
@@ -675,7 +685,7 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `pnormal_series` | **Pipeline private** | pnormal series |
 | `series_lead_at_zero` | **Stable** | `w=0` 级数 lead |
 | `mrv_series_lead_loop` | **Pipeline private** | mrv series lead loop |
-| `lead_from_peeled_core` | **Pipeline private** | lead from peeled core |
+| `lead_from_peeled_core` | **Pipeline private** | `lead_from_peeled_core` |
 | `mrv_series_lead_loop_inner` | **Pipeline private** | mrv series lead loop inner |
 | `lead_coeff_ready` | **Pipeline private** | lead coeff ready |
 | `depends_on_w` | **Pipeline private** | depends on w |
@@ -843,7 +853,6 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `simplify_series_coeff` | **Pipeline private** | simplify series coeff |
 | `normalize_map` | **Pipeline private** | normalize map |
 | `valuation_at_zero` | **Pipeline private** | valuation at zero |
-| `ratio_to_expr` | **Pipeline private** | ratio to expr |
 | `bigint_to_i64` | **Pipeline private** | bigint to i64 |
 | `factorial` | **Pipeline private** | factorial |
 | `is_series_var` | **Pipeline private** | is series var |
@@ -871,7 +880,10 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | Function | Tier | Description |
 |----------|------|-------------|
 | `integrate_one_over_quadratic` | **Stable** | ∫ 1/(ax²+bx+c) dx for constant-coefficient denominator (degree 1 or 2). |
-| `integrate_rational_partfrac` | **Pipeline private** | integrate rational via partial fractions. |
+| `integrate_rational_partfrac` | **Pipeline private** | integrate rational via partial fractions (ℚ, then K fallback). |
+| `integrate_q_partfrac_terms` | **Pipeline private** | integrate ℚ partfrac terms. |
+| `integrate_k_partfrac` | **Pipeline private** | integrate K partfrac terms (`partfrac_rational_terms_over_k`). |
+| `integrate_algext_linear_term` | **Pipeline private** | ∫ c/(a·x+b) dx with c, a, b ∈ K (AlgExtC). |
 | `integrate_const_over_rational` | **Stable** | ∫ num/den dx for rational expressions (Hermite, Rothstein–Trager, partfrac). |
 | `den_perfect_power_expr` | **Pipeline private** | detect `base^exp` denominator with `exp >= 2`. |
 | `hermite_factor_sign` | **Pipeline private** | sign correction for Hermite quadratic factors. |
@@ -885,9 +897,7 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `integrate_over_quadratic` | **Pipeline private** | ∫ rational over irreducible or repeated quadratic. |
 | `integrate_over_quadratic_real_roots` | **Pipeline private** | ∫ (B·t+C)/(a·t²+b·t+c) dt when the quadratic has real roots (disc > 0). |
 | `ratio_sqrt` | **Pipeline private** | exact square root of a perfect-square rational. |
-| `integer_sqrt` | **Pipeline private** | integer square root by binary search. |
 | `sqrt_ratio_expr` | **Pipeline private** | build `sqrt(r)` as `Expr` (exact or nested `sqrt`). |
-| `ratio_to_expr` | **Pipeline private** | convert `Ratio<BigInt>` to `ExprArc`. |
 | `integrate_poly_over_linear_term` | **Pipeline private** | `integrate_poly_over_linear_term` |
 | `partfrac_integrate_x_over_repeated_linear` | **Pipeline private** | `partfrac_integrate_x_over_repeated_linear` |
 | `integrate_one_over_x_fourth_plus_one` | **Pipeline private** | `integrate_one_over_x_fourth_plus_one` |
@@ -899,6 +909,8 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `integrate_one_over_x_fourth_plus_one_fourth_power` | **Pipeline private** | `integrate_one_over_x_fourth_plus_one_fourth_power` |
 | `partfrac_integrate_half_angle_rational_in_t` | **Pipeline private** | `partfrac_integrate_half_angle_rational_in_t` |
 | `integrate_one_over_quadratic_one_minus_x_squared` | **Pipeline private** | `integrate_one_over_quadratic_one_minus_x_squared` |
+| `integrate_one_over_x_squared_minus_two_via_k_partfrac` | **Pipeline private** | `integrate_one_over_x_squared_minus_two_via_k_partfrac` |
+| `integrate_x_over_x_squared_minus_two_via_k_partfrac` | **Pipeline private** | `integrate_x_over_x_squared_minus_two_via_k_partfrac` |
 | `integrate_ck_int_05_reciprocal` | **Pipeline private** | `integrate_ck_int_05_reciprocal` |
 
 ### `plugin.rs`
@@ -920,7 +932,7 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 
 | Function | Tier | Description |
 |----------|------|-------------|
-| `integrate_monic_x4_plus_one` | **Partial** | integrate `k/(x^4+1)` via RT conjugate pairing. **退役：** `try_algebraic_rt_log_part` general path. |
+| `integrate_monic_x4_plus_one` | **Pipeline private** | `integrate_monic_x4_plus_one` |
 | `try_algebraic_rt_log_part` | **Partial** | RT log part when `Res_t` has algebraic conjugate pairs on an even monic quartic. **退役：** unified RT resultant handler. |
 | `is_monic_x4_plus_one` | **Partial** | monic quartic `x^4+1` shape predicate. |
 | `is_monic_even_quartic` | **Partial** | monic even quartic shape predicate (odd coefficients zero). |
@@ -941,9 +953,13 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `sqrt_ratio_expr` | **Pipeline private** | `√r` as expression (perfect square or surd ratio). |
 | `ratio_perfect_sqrt` | **Pipeline private** | perfect rational square root if exists. |
 | `integer_perfect_sqrt` | **Pipeline private** | integer perfect square root via binary search. |
-| `algebraic_rt_one_over_x4_plus_one_shape` | **Pipeline private** | `algebraic_rt_one_over_x4_plus_one_shape` |
-| `algebraic_rt_one_over_x4_plus_four_via_res` | **Pipeline private** | `algebraic_rt_one_over_x4_plus_four_via_res` |
-| `algebraic_rt_one_over_x4_plus_x2_plus_one_via_res` | **Pipeline private** | `algebraic_rt_one_over_x4_plus_x2_plus_one_via_res` |
+| `integrand_one_over` | **Pipeline private** | `integrand_one_over` |
+| `algebraic_rt_one_over_x4_plus_one_smoke` | **Pipeline private** | `algebraic_rt_one_over_x4_plus_one_smoke` |
+| `algebraic_rt_one_over_x4_plus_one_deriv` | **Pipeline private** | `algebraic_rt_one_over_x4_plus_one_deriv` |
+| `algebraic_rt_one_over_x4_plus_four_via_res_smoke` | **Pipeline private** | `algebraic_rt_one_over_x4_plus_four_via_res_smoke` |
+| `algebraic_rt_one_over_x4_plus_four_via_res_deriv` | **Pipeline private** | `algebraic_rt_one_over_x4_plus_four_via_res_deriv` |
+| `algebraic_rt_one_over_x4_plus_x2_plus_one_via_res_smoke` | **Pipeline private** | `algebraic_rt_one_over_x4_plus_x2_plus_one_via_res_smoke` |
+| `algebraic_rt_one_over_x4_plus_x2_plus_one_via_res_deriv` | **Pipeline private** | `algebraic_rt_one_over_x4_plus_x2_plus_one_via_res_deriv` |
 
 ### `risch/hermite.rs`
 
@@ -988,7 +1004,9 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `rothstein_trager_integrate` | **Partial** | integrate `numer / factor` when `factor` is square-free and partfrac failed. **退役：** full Rothstein–Trager with algebraic extensions. |
 | `x_var` | **Pipeline private** | `x_var` |
 | `x_id` | **Pipeline private** | `x_id` |
-| `rothstein_one_over_x_fourth_plus_one` | **Pipeline private** | `rothstein_one_over_x_fourth_plus_one` |
+| `integrand_one_over_x4_plus_one` | **Pipeline private** | `integrand_one_over_x4_plus_one` |
+| `rothstein_one_over_x_fourth_plus_one_smoke` | **Pipeline private** | `rothstein_one_over_x_fourth_plus_one_smoke` |
+| `rothstein_deriv_equals_integrand` | **Pipeline private** | `rothstein_deriv_equals_integrand` |
 | `rothstein_one_over_x_squared_plus_one` | **Pipeline private** | `rothstein_one_over_x_squared_plus_one` |
 
 ### `risch/tower.rs`
@@ -1041,3 +1059,12 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `series_cos_taylor_diff_fallback` | **Pipeline private** | `series_cos_taylor_diff_fallback` |
 | `series_taylor_at_center_two` | **Pipeline private** | `series_taylor_at_center_two` |
 | `eval_series_direct_bad_order` | **Pipeline private** | `eval_series_direct_bad_order` |
+
+### `test_verify.rs`
+
+| Function | Tier | Description |
+|----------|------|-------------|
+| `assert_deriv_equals_integrand` | **Pipeline private** | `assert_deriv_equals_integrand` |
+| `assert_series_equiv_at` | **Pipeline private** | `assert_series_equiv_at` |
+| `assert_taylor_equiv_at` | **Pipeline private** | `assert_taylor_equiv_at` |
+| `assert_deriv_equals_integrand_smoke` | **Pipeline private** | `assert_deriv_equals_integrand_smoke` |

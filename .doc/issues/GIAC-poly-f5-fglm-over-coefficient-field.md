@@ -205,19 +205,19 @@ groebner 内部对系数只做同域非零 lc 上的 `+ − × ÷`，`AlgExtCPol
 
 ---
 
-### P4 — S₄ 回归 + 全套门禁
+### P4 — S₄ 回归 + 全套门禁 ✅
 
 **任务：**
-1. `roots_quartic_t4_plus_t_plus_1`、`field_session_dimension_bound_quartic_tight`（`t⁴+t+1` dim=24 baseline）仍绿 —— S₄ 路径 √Δ_Q **不**命中（`ℚ(α,β)` dim 12 是固定域非分裂域），盲 adjoin 不变。
-2. `cargo test-timeout -p giac-groebner -p giac-core` 全绿，无新增 ignore，release <10s（A₄ 诊断/测不在热路径即不影响）。
-3. `./scripts/ci-clippy.sh` 全绿（含 `lint-substring-golden`）；新测用 `assert_eq!`/`assert_equiv`，禁止 substring golden。
-4. 登记 `giac-groebner-api-stability.md`（新 `groebner_basis_grevlex` / `fglm` / `*_generic` tier）；跑 `annotate_api_tiers.py --inventory`。
+1. `roots_quartic_t4_plus_t_plus_1`、`field_session_dimension_bound_quartic_tight`（`t⁴+t+1` dim=24 baseline）仍绿 —— S₄ 路径 √Δ_Q **不**命中（`ℚ(α,β)` dim 12 是固定域非分裂域），盲 adjoin 不变。**绿**（0.30s/测，4 根 `verify_root`，dim ≤ 24）。
+2. `cargo test-timeout -p giac-groebner -p giac-core` 全绿，无新增 ignore。**绿**：nextest release `1089 passed, 46 skipped, 0 failed/timeout`，13.8s（A₄ 测已 un-ignore 计入 passed；46 skipped 为既有 slow/brute-force）。
+3. `./scripts/ci-clippy.sh` 全绿（含 `lint-substring-golden`）。**绿**：修 3 处 clippy（`redundant_closure` ×2、`needless_borrow`、`manual_memcpy`，均 P3 迁出的 `sqrt_fmodule` 代码）+ 1 处 pre-existing substring-golden（`giac-calculus/integrate.rs`，`1be6dbd` 引入，改用 `depends_on_var` 结构检查）。
+4. 登记 `giac-groebner-api-stability.md`（新 `groebner_basis_lex`/`groebner_basis_grevlex`/`fglm`/`greduce_grevlex` 均 **Stable (bounded)**，泛型 `C: FieldCoeff`）；跑 `annotate_api_tiers.py --inventory` 刷新 5 份 api-stability Per-file 表。
 
 **验收：**
-- A₄ → dim ≤ 12；S₄ → dim ≤ 24；两者四根 `verify_root`。
-- 全 suite 绿、无回归。
+- A₄ → dim ≤ 12（`quartic_a4_galois_dim_le_12` 0.12s 绿）；S₄ → dim ≤ 24（`t⁴+t+1` 0.30s 绿）；两者四根 `verify_root`。**满足**。
+- 全 suite 绿、无回归。**满足**。
 
-**文件:** 上述 + `.doc/giac-groebner-api-stability.md`
+**文件:** `giac-core/src/algebra/poly_roots.rs`（clippy）、`giac-calculus/src/integrate.rs`（lint）、`.doc/giac-groebner-api-stability.md`（§2 + inventory）、其余 4 份 api-stability（inventory 刷新）。
 
 ---
 

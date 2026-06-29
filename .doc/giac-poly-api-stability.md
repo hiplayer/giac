@@ -934,6 +934,7 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `div_exact` | **Stable** | exact division if remainder zero |
 | `is_dividing` | **Stable** | `is_dividing` |
 | `cmp_lex` | **Stable** | `cmp_lex` |
+| `cmp_grevlex` | **Stable** | `cmp_grevlex` |
 | `divides` | **Stable** | `divides` |
 | `lcm` | **Stable** | Poly lcm |
 
@@ -1088,6 +1089,7 @@ Regenerate: `python3 scripts/annotate_api_tiers.py --inventory`
 | `is_one` | **Stable** | Poly is one |
 | `leading_term` | **Stable** | leading term by total degree |
 | `leading_term_lex` | **Stable** | leading term with variable order |
+| `leading_term_grevlex` | **Stable** | grevlex leading term |
 | `term` | **Stable** | monomial × coefficient |
 | `degree` | **Stable** | total degree |
 | `degree_wrt` | **Stable** | univariate degree in `var` (independent of coefficient ring `C`). |
