@@ -186,14 +186,17 @@ groebner 内部对系数只做同域非零 lc 上的 `+ − × ÷`，`AlgExtCPol
 1. **P3b 可行性 diag**（`poly_roots.rs`）：A₄ 上实现 F-module step 1 —— 算 `m_{disc_q}`（deg 6）、F=ℚ(disc_q) 基、选 w∈K\F、算 T/N（F-coord）、`u'=4u/(T²−4N)`、打印 `deg m_{u'}`（判 base case dim）。验证线性代数基础设施。
 2. **P3c base case**：小-d（≤6）`p(u)²=u` via grevlex GB + FGLM；ℚ-d=1 有理 √ trivial。
 3. **P3d 递归组装**：F-module step + 递归 √ in F + δ = (w−T/2)·√u'；diag 恢复 √(disc_q) ∈ K 且自校 `δ²=disc_q`。
-4. **P3e 接线**：进 `try_square_root_in_field_impl`（S7 新阶段：collapse 检测 + F-module 恢复，gate `dim ≤ B`）；un-ignore `quartic_a4_galois_dim_le_12`；全 quartic 门禁。
+4. **P3e 接线**：进 `try_square_root_in_field_impl`（S7 新阶段：collapse 检测 + F-module 恢复，gate `dim ≥ 4`）；un-ignore `quartic_a4_galois_dim_le_12`；全 quartic 门禁。
+   - **回归防护（`sqrt_base_case` `LIFT_BUDGET=8`）**：F-module 基例的 p-adic Newton 提升对「模 p 是平方但 ℚ 上非平方」的 u 会穷举 60 素数 × 8 符号组合 → 100s 超时。真平方（A₄ √Δ）在首个可用素数/首个组合即成功，故硬上限 8 次 lift 既保 A₄ 命中又把非平方调用的代价封顶。release 实测 8 个原超时 quartic 测全绿（≤0.4s/测，`euler_four_roots_vanish` 11s 不变），A₄ 测 0.12s 绿。
+   - **未采用：norm 预过滤**（`N_{K/ℚ}(u)` 非有理平方 ⇒ 早退）。数学正确，但 F-module 递归调用处存在 low-first/high-first CoordsQ 约定错配（krylov 看到的是「转置」元素），norm 被误判 → 误杀 A₄ 真平方。已移除，仅留 `LIFT_BUDGET`。
 
 #### 3.5 验收
 
 - `diag_adjoin_collapse_recovery`：collapse 检测绿（**已就位**）。
-- 新 `diag_fmodule_sqrt_recovery`：A₄ dim-12 塔域恢复 √(disc_q) ∈ K，自校 `δ²=disc_q`，dim 不增（仍 12）。
-- `quartic_a4_galois_dim_le_12` unignore 绿：四根 `verify_root` + `dim ≤ 12`。
-- `t⁴+t+1`（S₄）dim ≤ 24 不回归（√Δ_Q ∉ K，collapse 判 false → 盲 adjoin 不变）。
+- 新 `diag_fmodule_sqrt_recovery`：A₄ dim-12 塔域恢复 √(disc_q) ∈ K，自校 `δ²=disc_q`，dim 不增（仍 12）。**绿**。
+- `quartic_a4_galois_dim_le_12` unignore 绿：四根 `verify_root` + `dim ≤ 12`。**绿**（0.12s）。
+- `t⁴+t+1`（S₄）dim ≤ 24 不回归（√Δ_Q ∉ K，collapse 判 false → 盲 adjoin 不变）。**绿**。
+- **P3e 回归**：原 100s 超时的 8 个 giac-core + 2 个 giac-solve quartic 测全绿（`LIFT_BUDGET=8` 封顶非平方 lift 代价）。
 
 **文件：** `giac-core/src/algebra/ext_tower.rs`（F-module √ + S7 接线）、`giac-core/src/algebra/poly_roots.rs`（diag + 测）、`giac-core/src/algebra/field_arith.rs`（复用 `rational_rref`）/ 可能新增 subfield-module 辅助。
 **tier 登记：** F-module √ / S7 helper 标 `Pipeline private`（同 S0–S6）。
