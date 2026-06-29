@@ -70,7 +70,7 @@ Phase 2（P2 落地后，免费 perf）
 | **P2** ✅ | postmortem §3.1 末 DoD：`diag_fmodule_sqrt_recovery` + `quartic_a4_galois_dim_le_12` 仍 green（`cargo test -p giac-core` 305 passed / 0 failed）**且** 反向误用编译失败已验证 —— `sqrt_fmodule` 的 `f_basis: Vec<HighFirstQ>` 拒收 raw `CoordsQ`（`poly_roots.rs:1933: error[E0308]` 探针确认）。newtype 用 const-generic `FieldCoords<{HIGH_FIRST}>`/`FieldCoords<{LOW_FIRST}>` 统一定义，`Deref→Vec<Ratio>` 保留借用侧零摩擦，owned 边界显式 `.0` 标记。 |
 | **P3** ✅ | `sqrt_base_case` 签名含 `fuel: &Fuel`（crate `Fuel` 用 `&Fuel` 不可变引用 + `Cell` 内部可变，非 `&mut`）；`const LIFT_BUDGET` 删除，`8` 移至调用方 `Fuel::new(8)`；release 6 quartic 测 0.30s 绿（≤0.4s/测 DoD 满足），`diag_fmodule_sqrt_recovery` 绿 |
 | **P4** ✅ | `sqrt_fmodule(field, u, mode: FmoduleMode)`，`enum FmoduleMode { Top, Recurse }`（无数据载体，因 `sqrt_base_case` 改从 `field.generator_minpoly_low()` 取 m_gen，mode 纯控制流判别）；`sqrt_base_case` 去掉 `m_gen_low` 参，新增 `ExtensionField::generator_minpoly_low() -> Option<CoordsQ>`（high-first `min_poly_q` 反转成 low-first，仅单层 base extension / `common_over_q` 命中，tower/block 返回 None bail）；norm 过滤（P5）挂 `FmoduleMode::Top` 分支（`matches!(mode, FmoduleMode::Top)`）；top 基例 bail（外部构建的 K 可能 u≠存储生成元，m_gen 不可安全取），仅 `Recurse` 进 base case 读 field。全 quartic 测绿（`cargo test -p giac-core --lib` 306 passed / 0 failed）。 |
-| **P5** ✅ | `N_{K/ℚ}(u)=(−1)^{d_k}·c0^{d_k/d_f}` 早退过滤恢复（`c0`=low-first monic minpoly 常数项，`sqrt_fmodule` 内 `is_q_square` 谓词）；**top-gated**——仅 `m_gen_low.is_none()`（顶层）启用，因递归调用仍带 §2.4 self-consistent relabel（low-first `u_prime` 字节标 `HighFirstQ::new` 无反转），递归层算 norm 会读「转置」元素误杀（即 #7），归 P2-followup（base case 端到端 `LowFirstQ`）后解锁递归层。DoD：A₄ 真平方仍命中（`quartic_a4_galois_dim_le_12` 绿，`cargo test -p giac-core --lib` 306 passed / 0 failed）+ `is_q_square_predicate` 单元测钉谓词。perf 收益（顶层非平方生成元 u 跳过 `sqrt_base_case` 的 Fuel 搜索）由代码路径保证；递归层 perf 待 P2-followup。 |
+| **P5** ✅ | `N_{K/ℚ}(u)=(−1)^{d_k}·c0^{d_k/d_f}` 早退过滤恢复（`c0`=low-first monic minpoly 常数项，`sqrt_fmodule` 内 `is_q_square` 谓词）。P2-followup 落地后**全层启用**（原 top-gated 限制解除）：递归边界改传**真 HighFirst** 字节（`HighFirstQ::from_low`，反转），krylov 的 `element_mul` 在每层都正确读 u′ → norm 在递归层也正确 → 过滤对 Top 与 Recurse 都安全。base case 端到端 `LowFirstQ`（`sqrt_base_case(field, u: &LowFirstQ, fuel) -> Option<LowFirstQ>`，`generator_minpoly_low() -> Option<LowFirstQ>`）。附带修了 d_k==1 分支 `BigInt::sqrt` 对负数 panic 的潜在 bug（mislabel 旧路径绕开，修正路径触发后加负数守卫）。DoD：A₄ 真平方仍命中（`quartic_a4_galois_dim_le_12` + `diag_fmodule_sqrt_recovery` 绿）+ biquadratic 两测绿（`x⁴+1`/`t⁴−2`）+ `is_q_square_predicate` 单元测 + `cargo test -p giac-core --lib` 306 passed / 0 failed。perf 收益：非平方 u 在任意递归深度跳过 `sqrt_base_case` 的 Fuel 搜索。 |
 | **P6** | 独立 issue DoD（待立项）：`sqrt_fmodule` 递归链所有循环（素数外循环、Newton 步数、`factor_mod_irreducibles`）均经 `Fuel` 受控 |
 
 ---
@@ -84,7 +84,7 @@ Phase 2（P2 落地后，免费 perf）
 - [ ] P3 落地 → 关闭根因 C（局部）
 - [x] P3 落地 → 关闭根因 C（局部）
 - [x] P4 落地 → 关闭根因 B
-- [x] P5 落地 → 收割 perf 收益（top-gated；递归层归 P2-followup）
+- [x] P5 落地 → 收割 perf 收益（全层启用，P2-followup 解除 top-gated 限制）
 - [ ] P6 立独立 issue → 根因 C 残余转出
 
 **根因 D** 不在本 issue 关闭条件内（归 dense-poly1-refactor D4）。
