@@ -1,6 +1,6 @@
 # GIAC-poly — F5 FGLM over 系数域 F=ℚ(α)（dim-12 塔域 √Δ_Q 探测）
 
-**状态:** P0–P2 完成 / P3–P4 open
+**状态:** P0–P2 完成 / P3 重定向为 F-module 递归 √-归约（collapse 检测已就位，值恢复 in_progress）/ P4 open
 **类型:** 实现 / AFK 可抓取
 **父项:** [GIAC-poly-quartic-roots-F1-F5](GIAC-poly-quartic-roots-F1-F5.md) §F5 reframe
 **Rust 落点:** `giac-groebner`、`giac-poly`、`giac-core::algebra::{ext_tower, poly_roots}`
@@ -141,34 +141,62 @@ groebner 内部对系数只做同域非零 lc 上的 `+ − × ÷`，`AlgExtCPol
 
 ---
 
-### P3 — 接线 dim-12 塔域 √Δ_Q 探测（ext_tower S7）
+### P3 — 重定向：F-module 递归 √-归约（dim-12 塔域 √ 值恢复）
 
-**fuel 接线决策（局部 fuel，不扩散签名）：**
-`try_square_root_in_field_impl`（`ext_tower.rs:1698`）当前**无 fuel 参数**，S0–S6 全 fuel-less。S7 不改该签名、不动 S0–S6，而是在 S7 阶段内部新建 `let fuel = Fuel::new(K)`（`K` 建议 8，足够覆盖 `F=ℚ(α)` 单层 flat 路径的少量递归）传给 S7 内部对 `try_square_root_in_field(F, …)` 的调用。**理由：** S7 → `F=ℚ(α)` 的递归中，`F` 顶层为 deg-4（α 是 4 次根），不满足 S7 触发条件「顶层对 parent 为 deg-3」，故 F 自身不会再进 S7，无互相递归；fuel 为防御性深度 guard。改全局签名是独立重构，不在本 plan 范围。
+> **历史路径（已否决，留档防回退）：** 原 P3 计划「S7 塔域 deg-3 顶层 FGLM」假定 `x²=u` 在 deg-n 域对应 0-dim degree **2** 的系统，FGLM 三角化后回代 ≤2 次单变式。**该假定错误**：`x²=u` 在 deg-n 域（相对基）对应 n 个 quadric in n 未知数 over 基，0-dim degree **2ⁿ**（n 个嵌入 × ±），非 2。A₄ dim-12 下 2¹²=4096，FGLM 不可行（diag 实测 `g_last` deg 8 for 3-var-over-ℚ(α) 塔系统、4-var-over-ℚ flat 系统）。S7/`flat_sqrt_via_fglm` 代码已 revert。
 
-**`proto_*` 复用表：**
+> **Euler-resolvent-first 旁路（已否决）：** 试图把 `quartic_roots` 改为 Euler 优先（adjoin-deflate fallback），期望 Euler 的 √β 在 dim-6 盲 adjoin → 12 以避开 dim-12 √Δ_Q miss。**diag 实测否决**：A₄ 下 Euler 路径 √α → dim 12、√β 盲 adjoin → dim 24，**同一 dim-12 塔域 √ miss**。两条 quartic 路径都撞同一 gap，无 lazy 旁路。已 revert。
 
-| `proto_*` 函数（WIP / `#[allow(dead_code)]`） | S7 处置 |
+#### 3.1 已确立：collapse 检测（boolean，已验证）
+
+`diag_adjoin_collapse_recovery`（`poly_roots.rs`）证明 collapse 检测便宜且正确：
+- adjoin δ²=u → `flatten_min_poly_over_q_cold` → δ 的 ℚ-特征多项式（deg 2·dim K）→ `factor_univariate_pairs` → δ 的 ℚ-极小多项式 `m`（deg = multiplicity-free factor deg）。
+- **collapse 判据：δ ∈ K ⟺ deg(m) ≤ dim(K)。** A₄ 实测 `charpoly deg 24`、`factors=[(12,2)]`、`deg m=12 ≤ dim K=12` → `δ ∈ K = true`（0.18s）。S₄ 下 `deg m=24 > 12` → `δ ∉ K`（应盲 adjoin）。
+- 检测可用作 A₄/S₄ 布尔分类器，但**不**给 √ 值。
+
+#### 3.2 已否决：值恢复的 cheap 路径（全部撞墙）
+
+| 路径 | 结果 |
 |---|---|
-| `proto_rational_roots` | **rewrite** 为 `rational_roots_in_field<F>`：在 `F=ℚ(α)` 内解 ≤2 次单变式（二次公式 → `√(disc) ∈ F`，递归 `try_square_root_in_field(F, …)`）。不直接 revive dead code。 |
-| `proto_try_sqrt_flat_over_q` | **不用**（flat-over-ℚ 路径；S7 走 over-F FGLM）。留 dead WIP。 |
-| `generic_vandermonde` / `substitute_linear` / `proto_subst` | **不用**。留 dead WIP。 |
+| `align_pair(K, ℚ(δ))`（δ 由 `m` 经 `build_base_extension_uncached` 造 flat dim-12 域） | **hang** —— 两个同构但无共享塔链的 dim-12 域，compositum 算法不收敛 |
+| `try_subfield_embedding(ℚ(δ), K)` | **None** —— `is_subfield_of` 只沿塔 parent 链查；ℚ(δ) 非 K 祖先 |
+| `m(t) mod (t²−disc_q)` over K → `δ = −B/A` | **退化** —— A₄ 下 −δ 是 δ 的共轭（A₄ 的 2 阶元固定 disc_q、翻转 √），故 `(t²−disc_q) \| m(t)`，余式 0；而 splitting `t²−disc_q` over K 正是原问题（循环） |
+| FGLM on `x²=u` quadric 系统 | degree 2ⁿ（见上），不可行 |
 
-**任务：**
-1. 在 `try_square_root_in_field_impl` 的 S6 之后、`try_sqrt_pairwise_fallback` 之前加新阶段 **S7（塔域 deg-3 顶层 FGLM）**：
-   - 触发条件：`field` 为塔，顶层对 `parent` 为 **deg-3**，`dim ≤ B`（**`B=12`，塔域总维数上界**）。
-   - 取 `u` 的顶层 coords `(u₀,u₁,u₂) ∈ F³`，`x=x₀+x₁β+x₂β²`。
-   - 用 `field` 的乘法表（`mt[i][j][k]` over `F`）列 3 个 quadric `F_k`（`x²=u` 的 k 坐标）为 `Poly<AlgExtCPolyCoeff>`（系数 `∈ F`，未知数 `x₀,x₁,x₂`）。
-   - `groebner_basis_grevlex_generic` → `fglm_generic` → lex 三角形 → 回代（`rational_roots_in_field`：在 `F=ℚ(α)` 内解 ≤2 次单变式，递归 `try_square_root_in_field(F, …)`，传局部 `fuel`）。
-   - 验 `x² = u`（`field.element_mul` 二次自校）；命中返回 `x`，否则 `None`（退回 `try_sqrt_pairwise_fallback` → blind adjoin）。
-2. 留 ONE runnable 自校：S7 命中后 `assert coords_square_eq_mod(field, &x, u)`（最小失败即报；非热路径，不进 release gate）。
+**结论：** collapse 只给 yes/no；√ 的**值**恢复 = 原始「塔域 √」问题本身（伪装）。需 real machinery。
 
-**验收：**
-- `diag_a4_sqrt_probe_gap`：dim-12 `√Δ_Q` probe 由 None → **Some**（且 `s²=disc_q`）。
-- `quartic_a4_galois_dim_le_12` unignore 且绿：`x⁴+8x+12` 四根 `verify_root` + `dim ≤ 12`。
+#### 3.3 F-module 递归 √-归约（采用，real fix）
 
-**文件：** `giac-core/src/algebra/ext_tower.rs`（S7 + `rational_roots_in_field`）、`giac-core/src/algebra/poly_roots.rs`（探测接线 + 测）
-**tier 登记：** S7 helper / `rational_roots_in_field` 标 `Pipeline private`（同 S0–S6）。
+**核心思想：** √u in K（dim d_K，已知 δ∈K）→ 工作在 F=ℚ(u)（dim d_F = deg m_u）。`[K:F] ≥ 2` 时 K 是 F 上 rank-2 模，δ 在 F-module 上作用为 M∈M₂(F)，M² = u·I。任取 w∈K\F，算 T=tr_{K/F}(w)、N=N_{K/F}(w)（F-module 乘法矩阵的 trace/det），则：
+
+> δ = (w − T/2) · √(4u / (T² − 4N))，其中 √ 在 **F** 内（且 4u/(T²−4N) = 1/b² ∈ F 是 F 中平方，by 构造）
+
+递归把 √ in dim-d_K 归约到 √ in dim-d_F（每次 dim 减半，因 F=ℚ(u)ᐸK 当 u 不生成 K）。**base case**（u 生成当前域，`[K:F]=1`）：解 `p(u)² = u`，p ∈ ℚ[u]/(m_u)（d 个 quadric in d 未知数 over ℚ，degree 2^d）—— 仅对小 d（≤ ~6，degree ≤ 64）可行，走 P1/P2 的 grevlex GB + FGLM。递归链 A₄：dim 12 → dim 6 →（dim 3 或 base d=6）→ … → dim 1（ℚ，有理 √ trivial）。**完整、通用，修复两条 quartic 路径。**
+
+**关键子件（多数已存在）：**
+- u 的 ℚ-极小多项式 m_u（deg d_F）—— collapse 已算 charpoly/factor，复用。
+- F=ℚ(u) 的 ℚ-基 {1,u,…,u^{d_F−1}} 作为 K 内坐标（`k.element_mul` 逐次乘）。
+- K 作为 F-module 的 rank-2 分裂 + w∈K\F 选取 + F-coord 提取（12×12 ℚ-线性解，`rational_rref`）。
+- tr/norm_{K/F}（F-module 乘法矩阵 trace/det）。
+- F 内 √ 递归（同算法，dim 减半）。
+- base case：小 d GB/FGLM（P1/P2 已就位）。
+
+#### 3.4 任务（增量、每步可测）
+
+1. **P3b 可行性 diag**（`poly_roots.rs`）：A₄ 上实现 F-module step 1 —— 算 `m_{disc_q}`（deg 6）、F=ℚ(disc_q) 基、选 w∈K\F、算 T/N（F-coord）、`u'=4u/(T²−4N)`、打印 `deg m_{u'}`（判 base case dim）。验证线性代数基础设施。
+2. **P3c base case**：小-d（≤6）`p(u)²=u` via grevlex GB + FGLM；ℚ-d=1 有理 √ trivial。
+3. **P3d 递归组装**：F-module step + 递归 √ in F + δ = (w−T/2)·√u'；diag 恢复 √(disc_q) ∈ K 且自校 `δ²=disc_q`。
+4. **P3e 接线**：进 `try_square_root_in_field_impl`（S7 新阶段：collapse 检测 + F-module 恢复，gate `dim ≤ B`）；un-ignore `quartic_a4_galois_dim_le_12`；全 quartic 门禁。
+
+#### 3.5 验收
+
+- `diag_adjoin_collapse_recovery`：collapse 检测绿（**已就位**）。
+- 新 `diag_fmodule_sqrt_recovery`：A₄ dim-12 塔域恢复 √(disc_q) ∈ K，自校 `δ²=disc_q`，dim 不增（仍 12）。
+- `quartic_a4_galois_dim_le_12` unignore 绿：四根 `verify_root` + `dim ≤ 12`。
+- `t⁴+t+1`（S₄）dim ≤ 24 不回归（√Δ_Q ∉ K，collapse 判 false → 盲 adjoin 不变）。
+
+**文件：** `giac-core/src/algebra/ext_tower.rs`（F-module √ + S7 接线）、`giac-core/src/algebra/poly_roots.rs`（diag + 测）、`giac-core/src/algebra/field_arith.rs`（复用 `rational_rref`）/ 可能新增 subfield-module 辅助。
+**tier 登记：** F-module √ / S7 helper 标 `Pipeline private`（同 S0–S6）。
 
 ---
 
@@ -195,7 +223,7 @@ groebner 内部对系数只做同域非零 lc 上的 `+ − × ÷`，`AlgExtCPol
 | **P0** | groebner 泛型 `C: FieldCoeff` + ℚ 包装兼容 | 解锁系数域 | 1–1.5d | 既有 ℚ 例 + 1 例 ℚ(√2) 绿；lib 无 `num-*` deps | 低（invariant `expect` + 包装保签名） |
 | **P1** | grevlex 序 + grevlex Buchberger | 0-dim 快速 GB | 1d | grevlex 0-dim 例 <100ms 绿 | 低 |
 | **P2** | FGLM（grevlex→lex，通用 d） | 三角形回代 | 1.5–2d | FGLM d=4 三角形回代出全部解 | 中（通用 d Krylov/三角化细节） |
-| **P3** | ext_tower S7 塔域 √Δ_Q 探测（局部 fuel + `rational_roots_in_field` rewrite） | A₄→12 落地 | 1.5d | `diag` dim-12 Some + A₄ 测 dim≤12 | 中（乘法表接线、`proto_*` rewrite 而非 revive） |
+| **P3** | F-module 递归 √-归约（collapse 检测 + F-module 值恢复 + S7 接线） | A₄→12 落地 | 2–3d | `diag_fmodule_sqrt_recovery` 恢复 √(disc_q) 自校 + A₄ 测 dim≤12 | 中高（subfield-module 线代、递归、base-case GB/FGLM） |
 | **P4** | S₄ 回归 + 门禁 | 防回归 | 0.5d | 全套绿、api-stability 登记、clippy 绿 | 低 |
 
 **合计：~5.5–6.5d。** P0–P2 可在 `giac-groebner` 内独立交付（不碰 giac-core）；P3 才接线。
@@ -224,5 +252,5 @@ groebner 内部对系数只做同域非零 lc 上的 `+ − × ÷`，`AlgExtCPol
 - [x] P0：`giac-groebner` 泛型核心 `C: FieldCoeff`；ℚ 包装签名不变、既有例不回归；ℚ(√2) 例绿；lib 无 `num-*` deps（实现偏离见 §2 P0 末尾）
 - [x] P1：grevlex Buchberger；0-dim 例 <100ms；grevlex 路径未误用 `leading_term()`（实现偏离见 §2 P1 末尾）
 - [x] P2：FGLM 通用 d；d=4 三角形回代出全部解；`d>D_MAX` 返回 `None`（实现偏离见 §2 P2 末尾；shape-lemma generic-position 限制：非 generic ⇒ None 安全兜底）
-- [ ] P3：`diag_a4_sqrt_probe_gap` dim-12 √Δ_Q = Some（自校 `s²=disc_q`）；`quartic_a4_galois_dim_le_12` unignore 绿（dim ≤ 12）；S7 局部 fuel 接线
+- [ ] P3：`diag_adjoin_collapse_recovery` collapse 检测绿（**已就位**）；`diag_fmodule_sqrt_recovery` 恢复 √(disc_q)∈K 自校 `δ²=disc_q` 且 dim 不增；`quartic_a4_galois_dim_le_12` unignore 绿（dim ≤ 12）；S7（collapse + F-module）接线
 - [ ] P4：`t⁴+t+1` dim ≤ 24 不回归；全 suite 绿；clippy + substring-golden 绿；api-stability 登记 + inventory
