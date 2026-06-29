@@ -21,10 +21,10 @@
 
 | 条件 | 动作 |
 |---|---|
-| `GIAC-dense-poly1-refactor` §3.1 CoordsQ 双边 newtype 落地 + #5/#7 反向误用编译失败验证 | 关闭 §A、§D |
-| `sqrt_base_case` 接 `Fuel` 参数（§3.3 局部） | 关闭 §C |
-| `sqrt_fmodule` 改 `FmoduleMode`（§3.2） | 关闭 §B |
-| 全链 fuel 审计独立 issue 闭合（§3.3 follow-up F2） | 关闭 §C 残余 |
+| `GIAC-dense-poly1-refactor` §3.1 CoordsQ 双边 newtype 落地 + #5/#7 反向误用编译失败验证 | 关闭 §A、§D ✅（P2 + P2-followup） |
+| `sqrt_base_case` 接 `Fuel` 参数（§3.3 局部） | 关闭 §C ✅（P3） |
+| `sqrt_fmodule` 改 `FmoduleMode`（§3.2） | 关闭 §B ✅（P4） |
+| 全链 fuel 审计独立 issue 闭合（§3.3 follow-up F2） | 关闭 §C 残余（P6 已建档 [GIAC-poly-f5-fglm-fullchain-fuel-audit](GIAC-poly-f5-fglm-fullchain-fuel-audit.md)，待闭合） |
 
 ---
 
@@ -116,7 +116,7 @@ sparse `Poly`（升幂、`giac-poly::univariate`）与 dense `CoordsQ`（高次�
 
 **方案（双边 newtype + 过渡 guardrail）：**
 
-**第 0 步（过渡 guardrail，✅ 已落地 P1，见 [remediation](GIAC-poly-f5-fglm-postmortem-remediation.md)）：** `field.element_mul` / `krylov_minpoly_coords` / `poly_from_low` 标注 `// order:` 注释；`scripts/lint-coordsq-order.sh` 扫描 `fn.*CoordsQ` 要求相邻 `// order: HighFirst|LowFirst`，未标注的进 `scripts/coordsq-order-allowlist` ratchet（仅缩）。**注：** 原草案提的 `debug_assert_eq!(order, …)` 不可行——`CoordsQ = Vec<Ratio>` 无运行期 order 值，order 是隐式约定，运行期 assert 无从比较；这正是 P2 newtype 要解决的（把 order 编进类型，编译期抓）。故 P1 guardrail 是 lint + 注释，runtime assert 并入 P2。
+**第 0 步（过渡 guardrail，✅ 已落地 P1，见 [remediation](../issues_resolved/GIAC-poly-f5-fglm-postmortem-remediation.md)）：** `field.element_mul` / `krylov_minpoly_coords` / `poly_from_low` 标注 `// order:` 注释；`scripts/lint-coordsq-order.sh` 扫描 `fn.*CoordsQ` 要求相邻 `// order: HighFirst|LowFirst`，未标注的进 `scripts/coordsq-order-allowlist` ratchet（仅缩）。**注：** 原草案提的 `debug_assert_eq!(order, …)` 不可行——`CoordsQ = Vec<Ratio>` 无运行期 order 值，order 是隐式约定，运行期 assert 无从比较；这正是 P2 newtype 要解决的（把 order 编进类型，编译期抓）。故 P1 guardrail 是 lint + 注释，runtime assert 并入 P2。
 
 **第 1 步（双边 newtype）：**
 
@@ -186,5 +186,5 @@ fn sqrt_base_case(field, u, m_gen, fuel: &mut Fuel) -> Option<CoordsQ>
 
 | ID | 内容 | 触发条件 |
 |----|------|----------|
-| F1 | **norm 预过滤复活**：#7 移除的 `N_{K/ℚ}(u)` 早退数学正确，仅因 §A 约定错配误杀。§3.1 双边 newtype 落地后约定错配消失，norm 预过滤可安全复活，是纯 perf 收益（早退非平方 u，省 `LIFT_BUDGET` 次 lift）。 | §3.1 合并后评估 |
-| F2 | **全链 fuel 审计**：`sqrt_fmodule` 递归链上的 60 素数外循环、Newton lift 步数、`factor_mod_irreducibles` 内部均无界搜索，§3.3 局部只封 `sqrt_base_case`。 | 开独立 issue |
+| F1 | **norm 预过滤复活** ✅：#7 移除的 `N_{K/ℚ}(u)` 早退数学正确，仅因 §A 约定错配误杀。§3.1 双边 newtype 落地 + P2-followup（递归边界传真 HighFirst）后约定错配消失，norm 预过滤全层安全复活（P5），是纯 perf 收益（早退非平方 u，省 `sqrt_base_case` 的 Fuel 搜索）。 | §3.1 + P2-followup 合并后 ✅ |
+| F2 | **全链 fuel 审计**：`sqrt_fmodule` 递归链上的 60 素数外循环、Newton lift 步数、`factor_mod_irreducibles` 内部均无界搜索，§3.3 局部只封 `sqrt_base_case`。 | 开独立 issue ✅ → [GIAC-poly-f5-fglm-fullchain-fuel-audit](GIAC-poly-f5-fglm-fullchain-fuel-audit.md)（open；闭合后关闭 §C 残余） |

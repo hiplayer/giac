@@ -1,9 +1,9 @@
 # GIAC — F5 FGLM postmortem 整改优先级
 
-**状态:** open
+**状态:** P1–P5 全部落地 / 已解决（2026-06-29，P6 转出独立 issue，验收全绿，移入 `issues_resolved`）
 **类型:** 整改计划 / 优先级排序
-**来源:** [GIAC-poly-f5-fglm-debug-postmortem](GIAC-poly-f5-fglm-debug-postmortem.md)（根因分析 + 解决方案草案）
-**相关:** [GIAC-dense-poly1-refactor](GIAC-dense-poly1-refactor.md)（P2 落点）、[GIAC-poly-f5-fglm-over-coefficient-field](../issues_resolved/GIAC-poly-f5-fglm-over-coefficient-field.md)（P3 主体，已 resolved）
+**来源:** [GIAC-poly-f5-fglm-debug-postmortem](../issues/GIAC-poly-f5-fglm-debug-postmortem.md)（根因分析 + 解决方案草案）
+**相关:** [GIAC-dense-poly1-refactor](../issues/GIAC-dense-poly1-refactor.md)（P2 落点）、[GIAC-poly-f5-fglm-over-coefficient-field](GIAC-poly-f5-fglm-over-coefficient-field.md)（P3 主体，已 resolved）、[GIAC-poly-f5-fglm-fullchain-fuel-audit](../issues/GIAC-poly-f5-fglm-fullchain-fuel-audit.md)（P6 独立 issue，open）
 **快照:** 2026-06-29
 
 ---
@@ -81,11 +81,10 @@ Phase 2（P2 落地后，免费 perf）
 
 - [x] P1 落地 → 过渡 guardrail（lint + `// order:` 注释 + allowlist ratchet）就位，封住新增约定错配
 - [x] P1 + P2 落地 → 关闭根因 A
-- [ ] P3 落地 → 关闭根因 C（局部）
 - [x] P3 落地 → 关闭根因 C（局部）
 - [x] P4 落地 → 关闭根因 B
 - [x] P5 落地 → 收割 perf 收益（全层启用，P2-followup 解除 top-gated 限制）
-- [ ] P6 立独立 issue → 根因 C 残余转出
+- [x] P6 立独立 issue → 根因 C 残余转出（[GIAC-poly-f5-fglm-fullchain-fuel-audit](../issues/GIAC-poly-f5-fglm-fullchain-fuel-audit.md)，postmortem §C 残余待该 issue 闭合）
 
 **根因 D** 不在本 issue 关闭条件内（归 dense-poly1-refactor D4）。
 
