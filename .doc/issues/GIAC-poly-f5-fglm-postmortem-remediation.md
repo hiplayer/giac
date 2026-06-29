@@ -30,7 +30,7 @@
 | **P2** ✅ | §3.1 第 1 步 双边 `LowFirstQ`/`HighFirstQ` newtype（const-generic `FieldCoords<ORD>`） | A（根治） | 消灭 #5/#7 复发，编译期抓所有 HighFirst↔LowFirst 错配（60% 调试时间） | 实际 ~150 站点（`element_*`/`align_pair`/`try_sqrt_*`/`sqrt_fmodule`/F-module 管线全迁），见 postmortem §2.5 inventory | P1 先行 | ★★★★ 已落地 |
 | **P3** ✅ | §3.3 局部 `Fuel`（`sqrt_base_case` 接 `Fuel::new(N)`） | C | 封住 #6 已爆发超时，`LIFT_BUDGET=8` const 升级为参数 | 小（1 函数签名 + 调用点） | 无 | ★★★★ 已落地 |
 | **P4** | §3.2 `FmoduleMode` enum（`sqrt_fmodule` + `sqrt_base_case` 签名重构） | B | 消灭 norm 过滤放错位置，`m_gen_low` 冗余不一致 | 小中（2 函数签名 + norm 过滤归位） | 无 | ★★★ 与 P4 milestone 顺手 |
-| **P5** | F1 norm 预过滤复活 | —（纯 perf） | 早退非平方 u，省 `LIFT_BUDGET` 次 lift | 极小（恢复 #7 删除的过滤） | **P2**（约定错配消除后才安全） | ★★★ §3.1 落地后免费收益 |
+| **P5** ✅ | F1 norm 预过滤复活 | —（纯 perf） | 早退非平方 u，省 `LIFT_BUDGET` 次 lift | 极小（恢复 #7 删除的过滤） | **P2**（约定错配消除后才安全） | ★★★ §3.1 落地后免费收益 |
 | **P6** | F2 全链 fuel 审计（60 素数外循环 / Newton 步数 / `factor_mod_irreducibles`） | C（残余） | 封住 `sqrt_fmodule` 递归链上所有无界搜索 | 中大（改递归结构） | P3（P3 是其局部子集） | ★★ 建议开独立 issue |
 
 ---
@@ -47,7 +47,7 @@ Phase 1（dense-poly1-refactor 首切片，根治 A）
                                   DoD 见 postmortem §3.1 末（复用 diag_fmodule_sqrt_recovery / quartic_a4_galois_dim_le_12）
 
 Phase 2（P2 落地后，免费 perf）
-  └─ P5  norm 预过滤复活        ← 仅在 P2 验证 #5/#7 编译失败后启用
+  └─ P5  norm 预过滤复活 ✅      ← top-gated：仅 `m_gen_low.is_none()`（顶层）算 N_{K/ℚ}(u) 早退
 
 顺手（与 P4 milestone 并行，改动局部）
   └─ P4  FmoduleMode enum       ← 都在 sqrt_fmodule/sqrt_base_case
@@ -70,7 +70,7 @@ Phase 2（P2 落地后，免费 perf）
 | **P2** ✅ | postmortem §3.1 末 DoD：`diag_fmodule_sqrt_recovery` + `quartic_a4_galois_dim_le_12` 仍 green（`cargo test -p giac-core` 305 passed / 0 failed）**且** 反向误用编译失败已验证 —— `sqrt_fmodule` 的 `f_basis: Vec<HighFirstQ>` 拒收 raw `CoordsQ`（`poly_roots.rs:1933: error[E0308]` 探针确认）。newtype 用 const-generic `FieldCoords<{HIGH_FIRST}>`/`FieldCoords<{LOW_FIRST}>` 统一定义，`Deref→Vec<Ratio>` 保留借用侧零摩擦，owned 边界显式 `.0` 标记。 |
 | **P3** ✅ | `sqrt_base_case` 签名含 `fuel: &Fuel`（crate `Fuel` 用 `&Fuel` 不可变引用 + `Cell` 内部可变，非 `&mut`）；`const LIFT_BUDGET` 删除，`8` 移至调用方 `Fuel::new(8)`；release 6 quartic 测 0.30s 绿（≤0.4s/测 DoD 满足），`diag_fmodule_sqrt_recovery` 绿 |
 | **P4** | `sqrt_fmodule(field, u, mode: FmoduleMode)`；`sqrt_base_case` 不再收 `m_gen_low`（从 `field` 取）；norm 过滤挂在 `Mode::Top` 分支；全 quartic 测绿 |
-| **P5** | `N_{K/ℚ}(u)` 早退过滤恢复；非平方 u 提前退出（diag 计数 lift 次数下降）；A₄ 真平方仍命中（`quartic_a4_galois_dim_le_12` 绿） |
+| **P5** ✅ | `N_{K/ℚ}(u)=(−1)^{d_k}·c0^{d_k/d_f}` 早退过滤恢复（`c0`=low-first monic minpoly 常数项，`sqrt_fmodule` 内 `is_q_square` 谓词）；**top-gated**——仅 `m_gen_low.is_none()`（顶层）启用，因递归调用仍带 §2.4 self-consistent relabel（low-first `u_prime` 字节标 `HighFirstQ::new` 无反转），递归层算 norm 会读「转置」元素误杀（即 #7），归 P2-followup（base case 端到端 `LowFirstQ`）后解锁递归层。DoD：A₄ 真平方仍命中（`quartic_a4_galois_dim_le_12` 绿，`cargo test -p giac-core --lib` 306 passed / 0 failed）+ `is_q_square_predicate` 单元测钉谓词。perf 收益（顶层非平方生成元 u 跳过 `sqrt_base_case` 的 Fuel 搜索）由代码路径保证；递归层 perf 待 P2-followup。 |
 | **P6** | 独立 issue DoD（待立项）：`sqrt_fmodule` 递归链所有循环（素数外循环、Newton 步数、`factor_mod_irreducibles`）均经 `Fuel` 受控 |
 
 ---
@@ -84,7 +84,7 @@ Phase 2（P2 落地后，免费 perf）
 - [ ] P3 落地 → 关闭根因 C（局部）
 - [x] P3 落地 → 关闭根因 C（局部）
 - [ ] P4 落地 → 关闭根因 B
-- [ ] P5 落地 → 收割 perf 收益
+- [x] P5 落地 → 收割 perf 收益（top-gated；递归层归 P2-followup）
 - [ ] P6 立独立 issue → 根因 C 残余转出
 
 **根因 D** 不在本 issue 关闭条件内（归 dense-poly1-refactor D4）。
