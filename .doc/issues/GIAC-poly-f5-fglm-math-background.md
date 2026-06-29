@@ -1,6 +1,6 @@
 # GIAC-poly F5 FGLM —— 数学背景
 
-**配套 plan:** [GIAC-poly-f5-fglm-over-coefficient-field](GIAC-poly-f5-fglm-over-coefficient-field.md)
+**配套 plan:** [GIAC-poly-f5-fglm-over-coefficient-field](../issues_resolved/GIAC-poly-f5-fglm-over-coefficient-field.md)
 **用途:** 用 plain language 解释该 plan 的数学动机与结构，不涉及 Rust 实现细节。
 
 ---

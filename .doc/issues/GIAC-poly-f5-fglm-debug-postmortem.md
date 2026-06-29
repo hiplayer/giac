@@ -2,7 +2,7 @@
 
 **状态:** open（解决方案待落地）
 **类型:** 调试复盘 / 重构提案
-**相关:** [GIAC-poly-f5-fglm-over-coefficient-field](GIAC-poly-f5-fglm-over-coefficient-field.md)（P3 主体）、[GIAC-dense-poly1-refactor](GIAC-dense-poly1-refactor.md)（约定二元根因）、[GIAC-poly-nested-ring-types](GIAC-poly-nested-ring-types.md)
+**相关:** [GIAC-poly-f5-fglm-over-coefficient-field](../issues_resolved/GIAC-poly-f5-fglm-over-coefficient-field.md)（P3 主体）、[GIAC-dense-poly1-refactor](GIAC-dense-poly1-refactor.md)（约定二元根因）、[GIAC-poly-nested-ring-types](GIAC-poly-nested-ring-types.md)
 **快照:** 2026-06-29
 **触发提交:** `giac-rs 6693e6b`（P3e 接线 + `LIFT_BUDGET` 回归防护）
 

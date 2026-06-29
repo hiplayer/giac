@@ -360,7 +360,7 @@ Euler 第二开方在 shallow/ratio 失败后可能 **blind adjoin**，使 Sessi
 
 **下一步选项：** (A) FGLM：grevlex Buchberger + FGLM 转换（~250 行，稳）；(B) 3-var-over-ℚ(α) 定向消元（resultant/GCD，比 4-var 更可控）；(C) 其它。`proto_try_sqrt_flat_over_q` 及其 helper（`generic_vandermonde`/`substitute_linear`/`proto_subst`/`proto_rational_roots`）保留为 WIP（`#[allow(dead_code)]`）。
 
-**已选定并立项：** 方案 (A) FGLM over 系数域 `F=ℚ(α)`。详细 plan 与优先级见 [GIAC-poly-f5-fglm-over-coefficient-field](GIAC-poly-f5-fglm-over-coefficient-field.md)（P0 groebner 泛型 `C: FieldCoeff` → P1 grevlex → P2 FGLM → P3 塔域 S7 探测 → P4 回归；~4–5d）。
+**已选定并立项：** 方案 (A) FGLM over 系数域 `F=ℚ(α)`。详细 plan 与优先级见 [GIAC-poly-f5-fglm-over-coefficient-field](../issues_resolved/GIAC-poly-f5-fglm-over-coefficient-field.md)（P0 groebner 泛型 `C: FieldCoeff` → P1 grevlex → P2 FGLM → P3 塔域 S7 探测 → P4 回归；~4–5d）。
 
 
 ### 问题

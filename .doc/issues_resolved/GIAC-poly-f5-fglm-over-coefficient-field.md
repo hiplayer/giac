@@ -1,10 +1,10 @@
 # GIAC-poly — F5 FGLM over 系数域 F=ℚ(α)（dim-12 塔域 √Δ_Q 探测）
 
-**状态:** P0–P2 完成 / P3 重定向为 F-module 递归 √-归约（collapse 检测已就位，值恢复 in_progress）/ P4 open
+**状态:** P0–P4 全部完成 / 已解决（2026-06-29，验收全绿，移入 `issues_resolved`）
 **类型:** 实现 / AFK 可抓取
-**父项:** [GIAC-poly-quartic-roots-F1-F5](GIAC-poly-quartic-roots-F1-F5.md) §F5 reframe
+**父项:** [GIAC-poly-quartic-roots-F1-F5](../issues/GIAC-poly-quartic-roots-F1-F5.md) §F5 reframe
 **Rust 落点:** `giac-groebner`、`giac-poly`、`giac-core::algebra::{ext_tower, poly_roots}`
-**相关:** [GIAC-poly-flat-field-division-layering](GIAC-poly-flat-field-division-layering.md)、[giac-groebner-api-stability](../giac-groebner-api-stability.md)
+**相关:** [GIAC-poly-flat-field-division-layering](../issues/GIAC-poly-flat-field-division-layering.md)、[giac-groebner-api-stability](../giac-groebner-api-stability.md)
 
 ---
 
@@ -143,7 +143,7 @@ groebner 内部对系数只做同域非零 lc 上的 `+ − × ÷`，`AlgExtCPol
 
 ### P3 — 重定向：F-module 递归 √-归约（dim-12 塔域 √ 值恢复）
 
-> **调试复盘见** [GIAC-poly-f5-fglm-debug-postmortem](GIAC-poly-f5-fglm-debug-postmortem.md)：P3c→P3e 的 7 个错误清单、根因分类（约定不可见为主因）、及 order-newtype / 显式 mode / 搜索 budget 三项根治方案。
+> **调试复盘见** [GIAC-poly-f5-fglm-debug-postmortem](../issues/GIAC-poly-f5-fglm-debug-postmortem.md)：P3c→P3e 的 7 个错误清单、根因分类（约定不可见为主因）、及 order-newtype / 显式 mode / 搜索 budget 三项根治方案。
 
 > **历史路径（已否决，留档防回退）：** 原 P3 计划「S7 塔域 deg-3 顶层 FGLM」假定 `x²=u` 在 deg-n 域对应 0-dim degree **2** 的系统，FGLM 三角化后回代 ≤2 次单变式。**该假定错误**：`x²=u` 在 deg-n 域（相对基）对应 n 个 quadric in n 未知数 over 基，0-dim degree **2ⁿ**（n 个嵌入 × ±），非 2。A₄ dim-12 下 2¹²=4096，FGLM 不可行（diag 实测 `g_last` deg 8 for 3-var-over-ℚ(α) 塔系统、4-var-over-ℚ flat 系统）。S7/`flat_sqrt_via_fglm` 代码已 revert。
 
@@ -257,5 +257,5 @@ groebner 内部对系数只做同域非零 lc 上的 `+ − × ÷`，`AlgExtCPol
 - [x] P0：`giac-groebner` 泛型核心 `C: FieldCoeff`；ℚ 包装签名不变、既有例不回归；ℚ(√2) 例绿；lib 无 `num-*` deps（实现偏离见 §2 P0 末尾）
 - [x] P1：grevlex Buchberger；0-dim 例 <100ms；grevlex 路径未误用 `leading_term()`（实现偏离见 §2 P1 末尾）
 - [x] P2：FGLM 通用 d；d=4 三角形回代出全部解；`d>D_MAX` 返回 `None`（实现偏离见 §2 P2 末尾；shape-lemma generic-position 限制：非 generic ⇒ None 安全兜底）
-- [ ] P3：`diag_adjoin_collapse_recovery` collapse 检测绿（**已就位**）；`diag_fmodule_sqrt_recovery` 恢复 √(disc_q)∈K 自校 `δ²=disc_q` 且 dim 不增；`quartic_a4_galois_dim_le_12` unignore 绿（dim ≤ 12）；S7（collapse + F-module）接线
-- [ ] P4：`t⁴+t+1` dim ≤ 24 不回归；全 suite 绿；clippy + substring-golden 绿；api-stability 登记 + inventory
+- [x] P3：`diag_adjoin_collapse_recovery` collapse 检测绿（0.19s，已就位）；`diag_fmodule_sqrt_recovery` 恢复 √(disc_q)∈K 自校 `δ²=disc_q` 且 dim 不增（0.06s 绿）；`quartic_a4_galois_dim_le_12` unignore 绿（dim ≤ 12，0.12s）；S7（collapse + F-module）接线（`try_square_root_in_field_impl` gate dim ≥ 4）。实现偏离见 §2 P3 末尾 + [postmortem](../issues/GIAC-poly-f5-fglm-debug-postmortem.md)。
+- [x] P4：`t⁴+t+1` dim ≤ 24 不回归（`roots_quartic_t4_plus_t_plus_1` / `field_session_dimension_bound_quartic_tight` / `quartic_adjoin_deflate_t4_plus_t_plus_1` 全绿，4 根 `verify_root`）；全 suite 绿（nextest release `1089 passed / 46 skipped / 0 failed`，13.9s）；clippy + substring-golden 绿（`ci-clippy.sh`）；api-stability 登记（`giac-groebner-api-stability.md` §2 + 5 份 inventory 刷新）。实现偏离见 §2 P4 末尾。
