@@ -143,6 +143,8 @@ groebner 内部对系数只做同域非零 lc 上的 `+ − × ÷`，`AlgExtCPol
 
 ### P3 — 重定向：F-module 递归 √-归约（dim-12 塔域 √ 值恢复）
 
+> **调试复盘见** [GIAC-poly-f5-fglm-debug-postmortem](GIAC-poly-f5-fglm-debug-postmortem.md)：P3c→P3e 的 7 个错误清单、根因分类（约定不可见为主因）、及 order-newtype / 显式 mode / 搜索 budget 三项根治方案。
+
 > **历史路径（已否决，留档防回退）：** 原 P3 计划「S7 塔域 deg-3 顶层 FGLM」假定 `x²=u` 在 deg-n 域对应 0-dim degree **2** 的系统，FGLM 三角化后回代 ≤2 次单变式。**该假定错误**：`x²=u` 在 deg-n 域（相对基）对应 n 个 quadric in n 未知数 over 基，0-dim degree **2ⁿ**（n 个嵌入 × ±），非 2。A₄ dim-12 下 2¹²=4096，FGLM 不可行（diag 实测 `g_last` deg 8 for 3-var-over-ℚ(α) 塔系统、4-var-over-ℚ flat 系统）。S7/`flat_sqrt_via_fglm` 代码已 revert。
 
 > **Euler-resolvent-first 旁路（已否决）：** 试图把 `quartic_roots` 改为 Euler 优先（adjoin-deflate fallback），期望 Euler 的 √β 在 dim-6 盲 adjoin → 12 以避开 dim-12 √Δ_Q miss。**diag 实测否决**：A₄ 下 Euler 路径 √α → dim 12、√β 盲 adjoin → dim 24，**同一 dim-12 塔域 √ miss**。两条 quartic 路径都撞同一 gap，无 lazy 旁路。已 revert。
