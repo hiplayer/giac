@@ -1,6 +1,6 @@
 # GIAC-poly — F5 FGLM over 系数域 F=ℚ(α)（dim-12 塔域 √Δ_Q 探测）
 
-**状态:** P0 完成 / P1–P4 open
+**状态:** P0–P1 完成 / P2–P4 open
 **类型:** 实现 / AFK 可抓取
 **父项:** [GIAC-poly-quartic-roots-F1-F5](GIAC-poly-quartic-roots-F1-F5.md) §F5 reframe
 **Rust 落点:** `giac-groebner`、`giac-poly`、`giac-core::algebra::{ext_tower, poly_roots}`
@@ -93,6 +93,15 @@ groebner 内部对系数只做同域非零 lc 上的 `+ − × ÷`，`AlgExtCPol
 
 **文件：** `giac-poly/src/monomial.rs`、`giac-poly/src/poly.rs`（`leading_term_grevlex`）、`giac-groebner/src/lib.rs`
 **tier 登记：** `cmp_grevlex`/`leading_term_grevlex` `Stable`；`groebner_basis_grevlex_generic` 等 `Partial`。
+
+**✅ 完成（2026-06-29）实现偏离登记：**
+- **骨架共享（DRY）**（vs 任务 2「复用 P0 泛型骨架」）：未复制 Buchberger body，而是把 P0 lex 代码重构为 order-parameterized 共享核心 —— `Order` enum + `lt()` leading-term 分发 + `greduce_order`/`make_monic_order`/`spoly_order`/`autoreduce_order`/`buchberger_order`；`greduce`/`greduce_grevlex`/`groebner_basis_lex`/`groebner_basis_grevlex` 为薄包装。Gebauer-Möller product/chain criteria 本就 order 无关，只有 `lt()` 选取不同。消去 ~80 行重复。
+- **去冗余 bound**：P0 的 `+ PartialEq` 经核实冗余（`FieldCoeff: PolyCoeff: Clone+PartialEq+Debug`，`Poly<C>` derive `PartialEq`），P1 全部回退为 `<C: FieldCoeff>`。
+- **`cmp_grevlex` 约定**：graded reverse lex，`order[0]` = 最显著变量（同 `cmp_lex`）；等总次数时从**最不显著**变量扫描，**指数小者为大**（CLO 标准）。`Poly::leading_term_grevlex` 用 `max_by(cmp_grevlex)`；grevlex 路径未误用 `leading_term()`（derive Ord 字典序）。
+- **DoD 测例偏离**（vs 验收「`{x²−2, y²−3, xy−6}` 0-dim d=4」）：该系统**不一致**（`xy=6` 与 `(xy)²=6 ⇒ xy=±√6≠6` 矛盾）⇒ grevlex GB = unit ideal（空）。改作 **unit-ideal 检测测**（`groebner_grevlex_unit_inconsistent_under_100ms`，空 GB + <200ms，正是防 lex-blowup 的回归 guard）。d=4 0-dim 由 **`{x²−2, y²−3}`**（coprime ⇒ d=4 GB，`groebner_grevlex_x2_2_y2_3_d4`，validity via `greduce_grevlex=0`）覆盖。
+- **ℚ(√2) 测**：`groebner_grevlex_over_qsqrt2`（`{x²−αx, y−x}` ⇒ 0-dim d=2，validity + <500ms），走 α 系数 grevlex S-poly 归约，区别于 P0 lex 测（`Order::Grevlex` 的 lt 选取）。位于 `giac-core/poly_alg_coeff.rs`（避免 giac-groebner→giac-core 循环依赖）。
+- **回归**：`giac-groebner` 7/7（5 lex + 2 grevlex ℚ）、`giac-core --lib` 300/300（4 ignored）全绿；`clippy -p giac-groebner -p giac-core -p giac-poly --lib` clean。
+- **待办（不阻塞 P2）**：tier 登记（`annotate_api_tiers.py --inventory`）与 `giac-groebner-api-stability.md` 仍顺延到 P4 一次性做。
 
 ---
 
@@ -200,7 +209,7 @@ groebner 内部对系数只做同域非零 lc 上的 `+ − × ÷`，`AlgExtCPol
 ## 5. 验收（总 DoD）
 
 - [x] P0：`giac-groebner` 泛型核心 `C: FieldCoeff`；ℚ 包装签名不变、既有例不回归；ℚ(√2) 例绿；lib 无 `num-*` deps（实现偏离见 §2 P0 末尾）
-- [ ] P1：grevlex Buchberger；0-dim 例 <100ms；grevlex 路径未误用 `leading_term()`
+- [x] P1：grevlex Buchberger；0-dim 例 <100ms；grevlex 路径未误用 `leading_term()`（实现偏离见 §2 P1 末尾）
 - [ ] P2：FGLM 通用 d；d=4 三角形回代出全部解；`d>D_MAX` 返回 `None`
 - [ ] P3：`diag_a4_sqrt_probe_gap` dim-12 √Δ_Q = Some（自校 `s²=disc_q`）；`quartic_a4_galois_dim_le_12` unignore 绿（dim ≤ 12）；S7 局部 fuel 接线
 - [ ] P4：`t⁴+t+1` dim ≤ 24 不回归；全 suite 绿；clippy + substring-golden 绿；api-stability 登记 + inventory
