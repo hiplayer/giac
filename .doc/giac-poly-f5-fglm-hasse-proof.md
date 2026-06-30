@@ -1,0 +1,161 @@
+# GIAC — Hasse 平方判定：完整 Scholz 设计与实施路线
+
+**状态:** 跟踪文档（Step 1 待实现；步骤 2-7 路线图）。完整 Scholz ≈ 重写 PARI `bnfinit`，按 7 步推进，每步独立可测、sound-false-pass-on-skip（与 (A) 同架构）。
+**关联:** [GIAC-poly-f5-fglm-complete-square-decision](issues/GIAC-poly-f5-fglm-complete-square-decision.md)（总 issue / Phase C 优先级）、[giac-poly-f5-fglm-ideal-valuation-proof](giac-poly-f5-fglm-ideal-valuation-proof.md)（(A) 赋值公式证明）、`giac-rs/crates/giac-core/src/algebra/number_field_arith.rs` + `poly_roots.rs::sqrt_fmodule`
+**快照:** 2026-06-30
+
+---
+
+## 0. 数学约束（完整 Scholz）
+
+`u ∈ (K×)² ⟺` 以下四条**同时**成立：
+
+| 条件 | 含义 | 状态 |
+|---|---|---|
+| **(A_fin)** | 所有有限素理想 `v_𝔭(u)` 为偶 | 部分（good/tame/wild 已落地；缺大素因子 + `p∣index` + tower） |
+| **(A_inf)** | u **全正**：每个实嵌入 `σ(u) > 0` | **Step 1（待实现）** |
+| **(C)** | `J = ∏𝔭^{v_𝔭/2}` 在 `Cl(K)` 中主 | 缺（需类群 2-挠，Step 7） |
+| **(B)** | `η = u/γ² ∈ (𝔬_K×)²`（γ 是 J 的生成元） | 缺（需基本单位系 + 挠群 + mod-2，Step 5-6） |
+
+> **关键修正**：[总 issue](issues/GIAC-poly-f5-fglm-complete-square-decision.md) 原 P4 范围（"LLL + 基本单位 + mod-2"）**漏了 (C) 类群主性 + (A_inf) 全正**。完整 Scholz ≈ 重写 PARI `bnfinit`。本路线按 7 步推进，每步独立可测、sound-false-pass-on-skip（与 (A) 同架构：任一 skip → 续走 `sqrt_base_case`，ℚ 验证兜底，永不 false-reject）。
+
+---
+
+## 1. 接口审计（需标注的歧义 / 缺口）
+
+| 接口 | 文件:行 | 问题 / 标注 |
+|---|---|---|
+| `ideal_valuations_parity_ok → bool` | `number_field_arith.rs:98` | 丢弃 `(𝔭_i, v_𝔭_i(u))`、`g_i`、Hensel `G_i`、`u_int`、`d_u` —— (B)/(C) 全需要。**Step 2 重构为 `IdealValuationScan` 结构体** |
+| `generator_minpoly_low() -> Option<LowFirstQ>` | `ext_tower.rs:500` | `pub(crate)`，tower 返 `None`。**标注：仅单层 K=ℚ(α)** |
+| `FieldEmbedding` | `ext_tower.rs:1044` | **命名冲突**：这是子域 ℚ-线性嵌入，**非** archimedean `σ_i:K→ℂ`。需更名/加注 |
+| `field_arith::generator_coords(n)` vs `ExtensionField::generator_coords()` | `field_arith.rs:162` / `ext_tower.rs:466` | 同名不同物（幂基向量 vs 生成元 α）。加注 |
+| `krylov_minpoly_coords -> CoordsQ` | `poly_roots.rs:1103` | 无标签 `CoordsQ` 标 low-first monic；field 算术要 `HighFirstQ` —— 转换易错。标注惯例 |
+| `clear_denoms_low` (private) | `number_field_arith.rs:371` | (B) 需 `u_int = d_u·u ∈ ℤ[α]`；私有，Step 2 一并暴露 |
+| **缺失** | — | archimedean 嵌入 / signature / LLL / 数值根 / 高精度 log / 类群 —— P4 全部子系统均缺 |
+
+---
+
+## Step 1 —— signature (r₁, r₂) + 全正 (A_inf)【待实现】
+
+**位置**：`number_field_arith.rs` 旁新子模块 `algebra/archimedean.rs`（注册 `pub(crate) mod archimedean;` 于 `algebra/mod.rs`）。纯 ℚ 算术，**不依赖** LLL/f64/嵌入/类群。
+
+### 函数
+
+**`field_signature(field: &Arc<ExtensionField>) -> Option<(usize, usize)>`**
+- tower（`generator_minpoly_low() = None`）→ `None`（调用方 skip，sound）。
+- `m_α` → `poly_from_low` → `giac_poly::Poly`。Cauchy 根界 `B = 1 + max|a_i|/|lc|`（新增 ~10 行）。
+- `r1 = sturmab_count_rational_poly(m_α_poly, &x, &(-B), &B)?`（已存在，`poly_alg_sturm.rs:89`）。
+- `r2 = (d_k - r1) / 2`。
+
+**`is_totally_positive(field: &Arc<ExtensionField>, u_high: &HighFirstQ) -> bool`**
+- tower → `true`（skip，sound）。
+- `(r1, r2) = field_signature(field)`；`r1 == 0`（复域）→ `true`（复嵌入恒平方，无全正约束）。
+- 否则：Sturm **二分隔离** m_α 的 r1 个实根到互不相交区间（~80 行，纯 `Ratio<BigInt>` 递归用 `sturmab_count_rational_poly` 计数二分）；每个区间细化到 `u_poly`（u 作 ℚ[t]，`LowFirstQ::from_high`）在两端点同号且非零（精确有理 Horner）；任一实根处 `sign(u(ρ)) ≤ 0` → 返 `false`。
+
+### 接线（`poly_roots.rs:~2055`，紧接 `ideal_valuations_parity_ok` 之后、`if d_f == d_k` 之前）
+
+```rust
+if !super::super::number_field_arith::archimedean::is_totally_positive(field, u_coords) {
+    return None;
+}
+```
+
+**Soundness**：`u = δ²` 的每个实嵌入 `σ(δ²) = σ(δ)² ≥ 0`；若 `σ(δ) = 0` 则 `σ(u) = 0` → `N(u) = 0`，已被早先 `norm.is_zero` 拦截。故 `δ²` 全正 ⟹ **永不误拒真平方**。
+
+### 测试（PARI `/home/kanli.hu/upstream/pari/gp` 交叉验证，serial `--test-threads=1`）
+
+- **signature**：`ℚ(√2)` → (2,0)；`m=t³+t+1`（1 实根）→ (1,1)；`m=t⁴+t+1`（0 实根, 2 复对）→ (0,2)。PARI `nf.r1`/`nf.r2`。
+- **全正拒**：`ℚ(√2)`，`u=-1` → N=1（norm 过）、(A_fin) 过（无素数整除 1），但 `σ₁(-1)=-1<0` → (A_inf) **拒**。PARI `nfeltissquare(bnfinit(t^2-2), -1)=0`。**严格强于 norm+(A_fin)**。
+- **不误拒**：`u=(1+√2)²=3+2√2`（全正真平方）→ 过；`u=2`（`σ₁(2)=σ₂(2)=2>0`）→ 过。
+- **复域**：`m=t³+t+1`，`u=-1` → 无实嵌入 → 全正返 `true`（不约束）。
+
+### 验证
+`cargo test -p giac-core --lib algebra::number_field_arith -- --test-threads=1` + clippy。
+
+---
+
+## 步骤 2–7（路线图）
+
+### Step 2 —— 重构 (A) 为 `IdealValuationScan`
+
+- **做什么**：`ideal_valuations_parity_ok` 拆成 `compute_ideal_valuations(field, u_high, norm) -> IdealValuationScan`，返回结构体：
+  ```
+  IdealValuationScan {
+      u_int_low: Vec<BigInt>, d_u: BigInt,
+      signature: (usize, usize), totally_positive: bool,
+      entries: Vec<IdealValEntry>,  // { p, g_i: PolyMod, e_i, f_i, v_p_u: i64, status: Processed|Skipped }
+      parity_ok: bool,
+  }
+  ```
+  `ideal_valuations_parity_ok` 保留为薄包装（向后兼容）。
+- **约束**：skip 语义保留（sound false-pass）；Skipped 素数标记 —— (C)/(B) 仅在所有素数 Processed 时才有意义，否则 skip。
+- **文件**：`number_field_arith.rs`。**工作量**：中。**依赖**：Step 1。**PARI**：`nfeltval` 逐素数。
+
+### Step 3 —— 数值嵌入（f64）
+
+- **做什么**：`archimedean::embeddings(field) -> Vec<Complex<f64>>`（r1 实根 + r2 复对，共 d_k 个共轭 σ_i(α)）。实根用 Step 1 的 Sturm 二分隔离 → f64 中点；**复根用 companion matrix + nalgebra `Eigen`**（nalgebra 已是依赖，~40 行，比手写 Durand-Kerner 简单稳）。`eval_at_embedding(u_high, σ_α) -> Complex<f64>`：u_poly 的 Horner。
+- **约束**：f64 ~15 位精度；d≤12 + 有界系数下根精度足够判符号 + 粗 log。**verify-and-skip**：`|m_α(σ_α)| > tol`（根未收敛）→ 标记该嵌入不可靠，下游 skip。
+- **文件**：`archimedean.rs`。**工作量**：中。**依赖**：Step 1。**PARI**：`polroots(m_α)` 对照。
+
+### Step 4 —— 朴素 LLL（f64，dim ≤ 5）
+
+- **做什么**：`archimedean::lll(basis: Vec<Vec<f64>>) -> (Vec<Vec<f64>>, bool)` —— 实格 LLL 规约，dim ≤ `r1+r2-1 ≤ 5`。标准 LLL + f64 Gram-Schmidt，~100 行。
+- **约束**：f64 LLL 对近退化基数值脆弱 —— `ponytail:` 注明上限（全局：bigfloat/dashu）；sanity check：规约基须在容差内满足 Lovász 条件，否则返原基 + `false` 标志（下游 skip）。
+- **文件**：`archimedean.rs`（或新 `lattice.rs`）。**工作量**：中。**依赖**：无（纯 f64）。**PARI**：`qflll`/`matkerint`（可选对照）。
+
+### Step 5 —— 基本单位系 + 挠群（f64+verify）
+
+- **做什么**：`unit_group::fundamental_units(field) -> Option<(Vec<HighFirstQ>, Torsion)>`。Minkowski log-map `L(x) = (log|σ₁(x)|,…,log|σ_{r1}(x)|, 2·log|σ_{r1+j}(x)|) ∈ ℝ^{r1+r2}`；枚举小坐标代数整数，筛 `|N(x)|=1`（近单位），收 log-向量，LLL 规约取 r=`r1+r2-1` 个独立单位。挠群 `μ(K)`：实域 `={±1}`；一般解 `x^k-1` 在 K 中的根（用现有 `poly_algext_roots`/norm filter）。
+- **约束**：单位搜索是最难的算法件；用 Minkowski 界 bound regulator；bound 内找不到 r 个独立单位 → `None`（sound false-pass）。**f64+verify**：整数指数四舍入后**精确 ℚ 重建** `∏ ε_i^{a_i}` 在 K 中与 `η·ζ^{-1}` 比对（`element_eq_mod`），不一致 → skip。
+- **文件**：新 `unit_group.rs` 子模块。**工作量**：大。**依赖**：Step 1、3、4。**PARI**：`bnfinit(f).fu` + `nf.tu`。
+
+### Step 6 —— 单位 mod-2 求解（B）
+
+- **做什么**：`unit_group::unit_is_square(field, η, units, torsion) -> bool`。解 `L(η) = Σ a_i L(ε_i)` 的 r×r f64 系统，四舍五入 `a_i`，精确验证重建；查所有 `a_i` 偶 AND `ζ ∈ μ(K)²` AND（全正已由 A_inf）。挠平方：`μ={±1}` 时 `(-1)∈squares ⟺ i∈K`（解 `x²+1`，用现有 sqrt）；一般 `μ` 生成元 `ζ^k`，平方 ⟺ `k` 偶或 `ζ^{k/2}` 存在。
+- **约束**：GF(2) 线性代数（简单）；**verify-and-skip**：关系不验证 → 返 `true`（pass，sound false-pass）。
+- **文件**：`unit_group.rs`。**工作量**：中。**依赖**：Step 2、5。**PARI**：`bnfissunit(B,η)` + `nfeltissquare(B,η)`。
+
+### Step 7 —— 类群 2-挠 + J 主性（C）—— 最大件
+
+- **做什么**：`class_group::class_group_2torsion(field) -> Option<Cl2>` + `is_principal(J) -> Option<(bool, generator)>`。Minkowski 界 `B_M = (4/π)^{r2}·d!/d^d·√|disc|`；枚举 `norm ≤ B_M` 的素理想（用 Step 2 的 `factor_with_multiplicities` 分解每个 `p ≤ B_M`）；收集关系（小范理想找主生成元 via LLL 短向量）→ HNF → 类群结构 → 取 Sylow-2；J 主性：在关系格中归约 J，测是否平凡类 + LLL 搜生成元 γ。
+- **约束**：Buchmann 亚指数算法，多周量级；d≤12 小判别式下 Minkowski 界枚举变体可行但仍大（~400-600 行）。**需 `disc(m_α)`**（index gap 与 P5 `p∣index` 交互）。**需 (A) 完备**：若 (u) 任一素数被 skip，J 不全 → (C) 必须 skip（sound）。
+- **文件**：新 `class_group.rs` 子模块。**工作量**：很大（本身多轮）。**依赖**：Step 2、3、4、5 + (A) 完备（P3 大素因子 + P5 `p∣index`）。**PARI**：`bnfinit(f).clgp` + `bnfisprincipal(B,J)`。
+
+### 终态接线（Step 7 完成后）
+
+`sqrt_fmodule` 调用链：norm-square → **(A_fin)** → **(A_inf)**[Step 1] → **(C)** J 主性 + 取 γ[Step 7] → η=u/γ² → **(B)** 单位 mod-2[Step 6]。任一失败 `return None`；任一 skip → 续走 `sqrt_base_case`（ℚ 验证兜底，sound）。
+
+```mermaid
+flowchart TD
+    S1["Step 1: signature r1,r2 + totally-positive (A_inf)<br/>Sturm + bisection, pure Q arithmetic"]
+    S2["Step 2: refactor (A) to IdealValuationScan<br/>expose valuations, g_i, u_int, d_u"]
+    S3["Step 3: numerical embeddings<br/>real Sturm-bisection + complex companion-Eigen, f64"]
+    S4["Step 4: naive LLL (f64, dim <= 5)"]
+    S5["Step 5: fundamental units + torsion<br/>LLL on Minkowski log-lattice, f64+verify"]
+    S6["Step 6: unit mod-2 (B)<br/>express eta, check even exp + torsion square"]
+    S7["Step 7: class group 2-torsion (C)<br/>Buchmann sub-exponential + principality of J"]
+    S1-->S2-->S3-->S4-->S5-->S6
+    S7-->S6
+```
+
+---
+
+## 进度跟踪
+
+| 步骤 | 状态 | 备注 |
+|---|---|---|
+| Step 1 signature + (A_inf) | 待实现 | 本文档规格已定；纯 ℚ，无新依赖 |
+| Step 2 IdealValuationScan | 待实现 | 重构 (A)，(B)/(C) 前置 |
+| Step 3 数值嵌入 | 待实现 | f64 + nalgebra companion-Eigen |
+| Step 4 朴素 LLL | 待实现 | f64，dim≤5，verify-and-skip |
+| Step 5 基本单位系 + 挠群 | 待实现 | 最难算法件；f64+verify 精确重建 |
+| Step 6 单位 mod-2 (B) | 待实现 | GF(2) + 挠平方 |
+| Step 7 类群 2-挠 + J 主性 (C) | 待实现 | 最大件，Buchmann，多轮；需 (A) 完备 |
+
+## 参考
+
+- Keith Conrad, *The Local-Global Principle* — https://kconrad.math.uconn.edu/blurbs/gradnumthy/localglobal.pdf
+- Cohen, *A Course in Computational Algebraic Number Theory* §6（Dedekind / 素理想）、§4（范数与赋值）、§5/§6（Minkowski / 类群 / 单位 Dirichlet）
+- Buchmann, *A subexponential algorithm for the determination of class groups and regulators of algebraic number fields* (1990) — Step 7 类群算法
+- Pohst / Zassenhaus, *Algorithmic Algebraic Number Theory* — 单位搜索 / LLL 应用
+- PARI/GP `bnfinit` / `bnfisprincipal` / `bnfissunit` / `nfeltissquare` — 完备 oracle（首选）

@@ -191,7 +191,7 @@ giac-rs 工程规范（`giac-rust-engineering.mdc`）允许 `nalgebra`，禁止 
 
 **DoD**：
 - 完备性测试 N=1000 随机用例 100% 一致
-- paper proof sketch：(A) ∧ (B) ⟺ u 平方的 Hasse 论证写到 `.doc/giac-poly-f5-fglm-hasse-proof.md`
+- paper proof sketch：(A) ∧ (B) ⟺ u 平方的 Hasse 论证写到 `.doc/giac-poly-f5-fglm-hasse-proof.md`（**已立** 2026-06-30：完整 Scholz 设计 + 接口审计 + Step 1-7 实施路线跟踪文档；见 [giac-poly-f5-fglm-hasse-proof](../giac-poly-f5-fglm-hasse-proof.md)）
 - 任意非平方 u 进入 `sqrt_fmodule` 一定在 (A)+(B) 阶段 None，不进 fuel 搜索（计数器验证）
 
 ### Phase C 剩余优先级（2026-06-30 复盘）
