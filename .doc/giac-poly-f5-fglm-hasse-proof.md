@@ -35,7 +35,7 @@
 
 ---
 
-## Step 1 —— signature (r₁, r₂) + 全正 (A_inf)【待实现】
+## Step 1 —— signature (r₁, r₂) + 全正 (A_inf)【✅ 已实现】
 
 **位置**：`number_field_arith.rs` 旁新子模块 `algebra/archimedean.rs`（注册 `pub(crate) mod archimedean;` 于 `algebra/mod.rs`）。纯 ℚ 算术，**不依赖** LLL/f64/嵌入/类群。
 
@@ -144,7 +144,7 @@ flowchart TD
 
 | 步骤 | 状态 | 备注 |
 |---|---|---|
-| Step 1 signature + (A_inf) | 待实现 | 本文档规格已定；纯 ℚ，无新依赖 |
+| Step 1 signature + (A_inf) | ✅ 已实现 | `algebra/archimedean.rs`：`field_signature` + `is_totally_positive`（自洽稠密有理 Sturm + 有理 Horner 二分）；接线 `poly_roots.rs` (A_fin) 之后；PARI 交叉验证 9 测试全绿；#7 bar 0.63s |
 | Step 2 IdealValuationScan | 待实现 | 重构 (A)，(B)/(C) 前置 |
 | Step 3 数值嵌入 | 待实现 | f64 + nalgebra companion-Eigen |
 | Step 4 朴素 LLL | 待实现 | f64，dim≤5，verify-and-skip |
