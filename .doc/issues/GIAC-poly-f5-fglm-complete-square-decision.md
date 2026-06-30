@@ -1,6 +1,6 @@
 # GIAC — F5 FGLM / F-module √-reduction 完备平方判定算法
 
-**状态:** open（Phase A 已落地 2026-06-30；Phase B 已落地 2026-06-30（inert-good-prime 路径，split/bad prime 待 Phase C）；Phase C-D 待立项实现）
+**状态:** open（Phase A 已落地 2026-06-30；Phase B 已落地 2026-06-30（good-prime 路径完整：inert + split-prime Hensel，bad prime / 单位群待 Phase C）；Phase C-D 待立项实现）
 **类型:** 算法升级 / 完备性闭环
 **来源:** [GIAC-poly-f5-fglm-debug-postmortem](GIAC-poly-f5-fglm-debug-postmortem.md) §3.3 follow-up 范畴之外、[GIAC-poly-f5-fglm-fullchain-fuel-audit](GIAC-poly-f5-fglm-fullchain-fuel-audit.md)（fuel 是封顶，本 issue 是替换算法）
 **根因:** 当前 `sqrt_base_case` 是「fast path + 8 次 lift 截断」的启发式；soundness 由 ℚ 验证保证，completeness 由 fuel=8 / `nf>3` 跳过 / `target_bits=320` / `small_primes(60)` 四个工程封顶兜底，无完备性定理
@@ -159,15 +159,19 @@ giac-rs 工程规范（`giac-rust-engineering.mdc`）允许 `nalgebra`，禁止 
 | **B6** | 测试：构造非平方但 norm 平方的 u（如 K=ℚ(√2,√3) 中 u=2·3·√6 的某个非平方倍），验证 (A) 抓住 | 中 | 防回归 |
 
 **落地说明 (2026-06-30)**：
-- **B1-B6 已落地**：新模块 `giac-core::algebra::number_field_arith`，`ideal_valuations_parity_ok(field, &norm)` 接在 `sqrt_fmodule` norm filter 后、base-case/F-module 分支前；不通过直接 `return None`。
-- **实现范围 = good inert prime 路径**：对每个小素数 `p | N_{K/ℚ}(u)`（`small_primes(60)` trial-division `N(u)` 的分子/分母），`factor_mod_irreducibles(m_α, p)` 判 good（平方自由、次数和 `= d`）/ bad（跳过）/ inert（单因子，`f = d`）。inert 用 `v_𝔭(u) = v_p(N(u))/d`（仅需全局范数，**无需 Hensel / 局部范数 / resultant**，见证明 sketch §2）；奇 ⟹ `false`。
-- **B6 测试调整**：原例 K=ℚ(√2,√3)、u=6√6 的失败素数 2、3 对 `m_α=t⁴−10t²+1` 均为 **bad prime**（`m_α mod 2 = (t+1)⁴`、`m_α mod 3 = (t²+1)²`），good-prime-only 的 Phase B 抓不到。改为 **K=ℚ(√2)、u=3**：`N(3)=9`（norm 平方，norm filter 放行），inert good prime `p=3`（`2` mod 3 非剩余 ⟹ `t²−2` 不可约），`v_𝔭(3)=v_3(9)/2=1` 奇 ⟹ (A) 抓住。`√3 ∉ ℚ(√2)` 故确为非平方。测试 `sqrt_fmodule_b6_inert_non_square_skips_base_case` 用 `#[cfg(test)]` 调用计数器验证 `sqrt_base_case` 调用数不变（DoD）。
-- **明确不实现 / 推迟 Phase C**：split prime（`facs.len()>1`，需 Hensel 提升个别 `v_𝔭_i`）、bad prime（`p|disc`，需 Kummer）、大素因子（trial-division 上界外的 `N(u)` 因子）。三处跳过都是 negative filter 的 *安全失败*（false-pass，不 false-reject），soundness 由末端 ℚ 验证兜底。详见证明 sketch §5。
+- **B1-B6 已落地**：新模块 `giac-core::algebra::number_field_arith`，`ideal_valuations_parity_ok(field, u_high, &norm)` 接在 `sqrt_fmodule` norm filter 后、base-case/F-module 分支前；不通过直接 `return None`。
+- **实现范围 = good-prime 路径完整（inert + split）**：对每个小素数 `p | N_{K/ℚ}(u)`（`small_primes(60)` trial-division `N(u)` 的分子/分母），`factor_mod_irreducibles(m_α, p)` 判 good（平方自由、次数和 `= d`）/ bad（跳过）。
+  - **inert 路径**（单因子，`f = d`）：`v_𝔭(u) = v_p(N(u))/d`（仅需全局范数，无需 Hensel）。
+  - **split 路径**（`facs.len()>1`）：对每个 `g_i`，**二次 Hensel 提升** `g_i → G_i mod p^N`（Zassenhaus quadruple `(G,H,A,B)`，reduced corrections 保持 `G,H` monic；精度 `N = v_p(N(u_int))+1` 足够，因 `f_i·v_{𝔭_i}(u_int) ≤ v_p(N(u_int)) < N`），再算 **局部范数** `N_{K_{𝔭_i}/ℚ_p}(u_int) = det(乘 u_int 在 (ℤ/p^N)[t]/(G_i))`（Bareiss over ℤ，mod p^N），`v_{𝔭_i}(u) = v_p(local_norm)/f_i − v_p(d_u)`，奇 ⟹ `false`。
+  - **PARI/GP oracle 交叉验证**（`/home/kanli.hu/upstream/pari/gp`）：`u=187+102√2`（`N(u)=119²`，norm filter 放行），split `p=17`（2 是 QR mod 17，`t²−2=(t−6)(t+6)`），`nfeltval` 给 `v_{𝔭_1}=v_{𝔭_2}=1`（均奇，`nfeltissquare=0`）—— split 路径抓住，`sqrt_base_case` 不调用（`sqrt_fmodule_b6_split_non_square_skips_base_case` 计数器验证 DoD）。`factorpadic` 交叉验证 Hensel 单元测试（`√2 mod 17³ = 4290`）。
+- **B6 测试**：inert 例 `u=3`（`v_𝔭=1` 奇）+ split 例 `u=187+102√2`（`v_{𝔭_1}=v_{𝔭_2}=1` 均奇）；另加 split 真平方 `u=(7(1+√2))²=147+98√2`（split `p=7`，`v_{𝔭_i}=2` 偶 ⟹ (A) 放行，**不误拒真平方**）。
+- **明确不实现 / 推迟 Phase C**：bad prime（`p|disc`，需 Kummer）、大素因子（`small_primes(60)` 上界外的 `N(u)` 因子）、`v_p(N(u_int)) > PREC_CAP(60)` 的素数（Hensel 代价过高，跳过——sound）。三处跳过都是 negative filter 的 *安全失败*（false-pass，不 false-reject），soundness 由末端 ℚ 验证兜底。详见证明 sketch §5。
 
 **DoD**：
-- (A) 不通过 ⟹ `sqrt_base_case` 不被调用（用计数器或 `#[cfg(test)]` hook 验证）✅ `sqrt_fmodule_b6_inert_non_square_skips_base_case`
-- 真平方测（A₄ dim-6 + 大系数）仍绿 ✅ release 174 测全绿（A₄ dim-12 tower 因 `generator_minpoly_low=None` 跳过 (A)，保持原 fast path）
-- paper proof sketch：good prime 路径的 v_𝔭 公式正确性（写到 `.doc/giac-poly-f5-fglm-ideal-valuation-proof.md`）✅
+- (A) 不通过 ⟹ `sqrt_base_case` 不被调用（用计数器或 `#[cfg(test)]` hook 验证）✅ `sqrt_fmodule_b6_inert_non_square_skips_base_case` + `sqrt_fmodule_b6_split_non_square_skips_base_case`
+- 真平方测（A₄ dim-6 + 大系数）仍绿 ✅ release 317 测全绿（A₄ dim-12 tower 因 `generator_minpoly_low=None` 跳过 (A)，保持原 fast path）
+- paper proof sketch：good prime 路径的 v_𝔭 公式正确性（inert + split Hensel）写到 `.doc/giac-poly-f5-fglm-ideal-valuation-proof.md` ✅
+- PARI oracle 交叉验证 split-prime per-factor 赋值 ✅ `nfeltval` / `factorpadic`
 
 **不阻塞**：(B) 单位群。Phase B 完成时已有完备的 negative filter（比 norm 更强），消除大部分 false-None；只是无 positive 完备性保证。
 

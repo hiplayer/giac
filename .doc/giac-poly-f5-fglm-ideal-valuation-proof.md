@@ -1,6 +1,6 @@
 # GIAC — Phase B (A) 素理想赋值公式证明 sketch
 
-**状态:** Phase B 落地配套（good-prime inert 路径）
+**状态:** Phase B 落地配套（good-prime 完整路径：inert + split-prime Hensel）
 **关联:** [GIAC-poly-f5-fglm-complete-square-decision](GIAC-poly-f5-fglm-complete-square-decision.md) §1.2（条件 (A)）、`giac-rs/crates/giac-core/src/algebra/number_field_arith.rs`
 **快照:** 2026-06-30
 
@@ -8,7 +8,7 @@
 
 ## 0. 目的
 
-为 Phase B 落地的 `ideal_valuations_parity_ok` 提供纸面证明 sketch：**good-prime inert 路径**的 `v_𝔭(u)` 公式正确性，以及该路径作为 *negative filter* 的 soundness（返回 `false` ⟹ `u` 确非平方）。完备性（`(A) ∧ (B) ⟺ u` 平方）是 Phase C 的事，不在本文。
+为 Phase B 落地的 `ideal_valuations_parity_ok` 提供纸面证明 sketch：**good-prime 路径**（inert + split）的 `v_𝔭(u)` 公式正确性，以及该路径作为 *negative filter* 的 soundness（返回 `false` ⟹ `u` 确非平方）。完备性（`(A) ∧ (B) ⟺ u` 平方）是 Phase C 的事，不在本文。
 
 ## 1. 记号与前置
 
@@ -59,6 +59,34 @@ v_𝔭(u) = v_p(N_{K/ℚ}(u)) / d.                                              
 
 **为什么不需要 `u_int` / 去分母**：(†) 用的是 `u` 的 *全局* 范数 `N_{K/ℚ}(u) ∈ ℚ×`，它已包含 `u` 的分母信息（`v_p(N(u))` 对 `p | denom(u)` 取负值，正确反映 `v_𝔭(u) < 0` 的情形）。所以 `u` 的有理坐标直接经 `krylov_minpoly_coords` → `N(u) = (−1)^d·c0^{d/d_f}` 即可，无需额外整数化。这是 inert 路径比 split 路径轻得多的原因。
 
+## 2a. split 路径赋值公式（Hensel + 局部范数）
+
+**命题 (A-split).** 设 `p` 为 `K` 的 good **split** prime，`m_α mod p = ∏_{i=1}^r g_i`（`r > 1`，`g_i` 互异首一不可约，`f_i = deg g_i`，`Σ f_i = d`）。对每个 `i`，记 `u_int = d_u·u ∈ ℤ[α]`（`d_u = lcm(u 的分母)`）。则
+
+```
+v_{𝔭_i}(u) = v_p( N_{K_{𝔭_i}/ℚ_p}(u_int) ) / f_i  −  v_p(d_u),          …(‡)
+```
+
+其中 `N_{K_{𝔭_i}/ℚ_p}(u_int) = det( 乘 u_int 在 (ℤ/p^N)[t]/(G_i) )`，`G_i` 是 `g_i` 的 Hensel 提升到 `mod p^N` 的首一因子（`G_i | m_α mod p^N`）。精度 `N = v_p(N_{K/ℚ}(u_int)) + 1` 足够（见下）。
+
+**证明.**
+1. **Dedekind**（§1.1）：`𝔭_i = (p, g_i(α))`，`e_i = 1`，`f_i = deg g_i`。`u_int ∈ ℤ[α] ⊂ 𝔬_K`（整数），故 `v_{𝔭_i}(u_int) ≥ 0`。
+2. **局部范数 = resultant**：`K_{𝔭_i} ≅ ℚ_p[t]/(G_i)`（`G_i` 是 `g_i` 的 Hensel 提升，`m_α` 在 `ℚ_p` 上分裂为 `∏ G_i`，`G_i` 不可约）。`N_{K_{𝔭_i}/ℚ_p}(u_int) = ∏_{G_i(ρ)=0} u_int(ρ) = Res(G_i, u_int)`（`G_i` 首一 ⟹ `lc(G_i)^{deg u_int} = 1`）。实现用 `det(乘 u_int 的 f_i×f_i 矩阵)`（= resultant，Bareiss over ℤ 再 `mod p^N`）。
+3. **赋值公式**：unramified 局部域 `K_{𝔭_i}/ℚ_p`，`v_{𝔭_i}(u_int) = v_p(N_{K_{𝔭_i}/ℚ_p}(u_int))/f_i`（同 (★) 的局部版，`e=1`）。
+4. **去分母**：`u = u_int/d_u` ⟹ `v_{𝔭_i}(u) = v_{𝔭_i}(u_int) − v_{𝔭_i}(d_u) = v_{𝔭_i}(u_int) − v_p(d_u)`（`d_u ∈ ℤ`，`v_{𝔭_i}(d_u) = e_i·v_p(d_u) = v_p(d_u)`）。合并 3、4 得 (‡)。
+5. **精度足够**：`v_p(N_{K_{𝔭_i}/ℚ_p}(u_int)) = f_i·v_{𝔭_i}(u_int) ≤ Σ_j f_j·v_{𝔭_j}(u_int) = v_p(N_{K/ℚ}(u_int)) =: V`（最后一步由 (★) 用于 `u_int`）。故取 `N = V+1` 时 `v_p(local_norm) < N`，`mod p^N` 下 `v_p` 精确（不溢出）。 ∎
+
+**实现对应**（`number_field_arith.rs::ideal_valuations_parity_ok` split 分支）：
+- `u_int_low, d_u = clear_denoms_low(u_low)`；`vp_nu_int = v_p(N(u)) + d·v_p(d_u)`（即 `V`）。
+- 若 `vp_nu_int > PREC_CAP(60)` ⟹ 跳过（Hensel 代价过高，sound false-pass）；`N = vp_nu_int + 1`。
+- 对每个 `g_i`：`G_i = hensel_lift_factor(m_α, g_i, p, N)`（Zassenhaus 二次 Hensel，`(G,H,A,B)` 四元组，**reduced corrections** `δg = (b·e) rem g`、`δh = (a·e) rem h` 保持 `G,H` 首一；见下注）；`local_norm = local_norm_mod_pk(u_int, G_i, p^N)`（`det(乘 u_int 的 f_i×f_i 矩阵)`，Bareiss over ℤ，`mod p^N`）；`v_{𝔭_i}(u) = v_p(local_norm)/f_i − v_p(d_u)`，奇 ⟹ `false`。
+
+> **Hensel reduced-correction 注**：标准二次 Hensel 步 `g' = g + m·(t·e mod m)` 不对 `t·e` 取 `mod g`，会使 `g'` 的首项系数偏离 1（`t·e` 的 `deg ≥ f` 项污染），强制 monic 则破坏 `g'·h' ≡ m_α mod m²` 不变量。正确做法是 **reduced** Hensel：`δg = (t·e) rem g`（除以首一 `g`，余式 `deg < f`），`g' = g + m·δg` 自动保持首一；witness 同理 `δa = (t·q) rem g`。这是 `hensel_lift_sqrt2_mod_17_cubed` 单测（`√2 mod 17³ = 4290`，PARI `factorpadic` 交叉验证）捕捉到的关键修复。
+
+**PARI/GP oracle 交叉验证**（`/home/kanli.hu/upstream/pari/gp`）：
+- `u = 187+102√2 = 17·(3+√2)²`，`N(u) = 119²`（norm 平方，norm filter 放行）。split `p=17`（`2` 是 QR mod 17：`6²=2`，`t²−2=(t−6)(t+6)`）。PARI `nfeltval(K,u,pr[1])=1`、`nfeltval(K,u,pr[2])=1`（均奇），`nfeltissquare=0`。split 路径抓住两个奇赋值 ⟹ (A) `false` ⟹ `sqrt_fmodule` bail，`sqrt_base_case` 不调用（`sqrt_fmodule_b6_split_non_square_skips_base_case` 计数器 DoD）。
+- split 真平方 `u = (7(1+√2))² = 147+98√2`，`N(u) = 7⁴`，split `p=7`（`2` QR mod 7）。`v_{𝔭_i}(u) = 2·v_{𝔭_i}(7(1+√2)) = 2·1 = 2`（偶）⟹ (A) 放行（**不误拒真平方**，`ideal_valuations_parity_split_true_square_even_val`）。
+
 ## 3. Soundness（negative filter 正确性）
 
 **命题 (sound).** 若 `ideal_valuations_parity_ok` 返回 `false`，则 `u` 在 `K` 中**不是**平方。
@@ -81,22 +109,26 @@ v_p(N(u)) 偶  ⇏  v_𝔭(u) 偶
 
 ## 5. 不完备性（为何 Phase B 只是 negative filter）
 
-Phase B 的 (A) **不完备**，有三处 sound-but-not-complete 的跳过：
+Phase B 的 (A) **不完备**，有二处 sound-but-not-complete 的跳过：
 
-1. **bad prime**（`p | disc(m_α)` 或 `p | lc(m_α)`）：`m_α mod p` 非平方自由，Dedekind 单步分解不适用，需 Kummer/Dedekind ramification 分析（Phase C C6）。跳过 = 可能漏判（false-pass），但永不 false-reject。
-2. **split prime**（`facs.len() > 1`，good 但 `m_α mod p` 分裂）：(★) 给的是 `Σ f_i v_{𝔭_i}(u)`（求和），拿不到 *个别* `v_{𝔭_i}(u)`。inert 公式 (†) 依赖 `r=1`；split 需要 Hensel 提升 `g_i → G_i mod p^N` 后算 *局部* 范数 `det(mult by u_int)` 再 `v_p / f_i`（Phase C C6）。
-3. **大素数**：只扫 `small_primes(60)` 中整除 `N(u)` 的素数。`N(u)` 的 *大* 素因子不被 trial-division 发现 → 跳过。对大系数 `u`（如 A1 测试 `N(u) ~ 2^{13000}`），大素因子无法分解，(A) 退化为 vacuous-pass，回退到现有 `sqrt_base_case` fast path（由 ℚ 验证保 soundness）。
+1. **bad prime**（`p | disc(m_α)` 或 `p | lc(m_α)` 或 `p | denom(m_α)`）：`m_α mod p` 非平方自由 / 次数降 / 约化未定义，Dedekind 单步分解不适用，需 Kummer/Dedekind ramification 分析（Phase C C6）。跳过 = 可能漏判（false-pass），但永不 false-reject。
+2. **大素数 / 高赋值素数**：只扫 `small_primes(60)` 中整除 `N(u)` 的素数；且对 `v_p(N(u_int)) > PREC_CAP(60)` 的素数跳过（Hensel 代价过高）。`N(u)` 的 *大* 素因子不被 trial-division 发现，或 Hensel 精度超 cap ⟹ 跳过。对大系数 `u`（如 A1 测试 `N(u) ~ 2^{13000}`），大素因子无法分解或超 cap，(A) 退化为 vacuous-pass，回退到现有 `sqrt_base_case` fast path（由 ℚ 验证保 soundness）。
 
-三处跳过都是 *negative filter 的安全失败*：跳过一个可能失败的判定只能导致「本可 bail 却进入搜索」（false-pass，浪费 fuel），不会导致「误拒真平方」（false-reject，破坏 soundness）。最终的 ℚ 等式验证 `δ²=u`（`poly_roots.rs:1559`）是兜底 certificate，保证整体 soundness 不被任何 (A) 缺口破坏。
+二处跳过都是 *negative filter 的安全失败*：跳过一个可能失败的判定只能导致「本可 bail 却进入搜索」（false-pass，浪费 fuel），不会导致「误拒真平方」（false-reject，破坏 soundness）。最终的 ℚ 等式验证 `δ²=u`（`poly_roots.rs:1559`）是兜底 certificate，保证整体 soundness 不被任何 (A) 缺口破坏。
+
+> **split-prime 已补全**（2026-06-30）：原列于 Phase C C6 的 split-prime Hensel 路径已在 Phase B 落地（§2a），不再是缺口。
 
 ## 6. 真平方不被误拒的验证
 
-`ideal_valuations_parity_true_square_inert_even`：`K=ℚ(√2)`，`δ = 9+6√2`（`N(δ)=9`），`u = δ² = 153+108√2`，`N(u) = 81 = 3⁴`。inert `p=3`：`v_𝔭(u) = v_3(81)/2 = 4/2 = 2` 偶 ⟹ (A) 通过。这与 `v_𝔭(u) = 2·v_𝔭(δ) = 2·1 = 2` 一致（`v_𝔭(δ) = v_3(9)/2 = 1`）。真平方 ⟹ 全偶 ⟹ (A) 通过——soundness 的正面印证。A₄ dim-12 tower 真平方测（`quartic_a4_galois_dim_le_12`）因 `generator_minpoly_low() = None`（tower）而整段跳过 (A)，保持原 fast path 绿。
+- inert 真平方 `ideal_valuations_parity_true_square_inert_even`：`K=ℚ(√2)`，`δ = 9+6√2`（`N(δ)=9`），`u = δ² = 153+108√2`，`N(u) = 81 = 3⁴`。inert `p=3`：`v_𝔭(u) = v_3(81)/2 = 2` 偶 ⟹ (A) 通过（与 `v_𝔭(u)=2·v_𝔭(δ)=2·1` 一致）。
+- split 真平方 `ideal_valuations_parity_split_true_square_even_val`：`u=(7(1+√2))²=147+98√2`，split `p=7`，`v_{𝔭_i}=2` 偶 ⟹ (A) 放行。
+- 单位 `u=(1+√2)²`（`N=1`）：无素数整除 ⟹ vacuous-pass。
+- A₄ dim-12 tower 真平方测（`quartic_a4_galois_dim_le_12`）因 `generator_minpoly_low() = None`（tower）而整段跳过 (A)，保持原 fast path 绿。
 
 ## 7. 待办（Phase C）
 
-- **C2/C6 split-prime Hensel**：`hensel_lift(m_α, g_i, p, N) → G_i mod p^N`（quadratic Hensel，`(G,H,a,b)` 四元组提升），局部范数 `= Res(G_i, u_int) mod p^N` 或 `det(mult-by-u_int in (ℤ/p^N)[t]/(G_i))`，`v_𝔭_i(u_int) = v_p(局部范数)/f_i`，`v_𝔭_i(u) = v_𝔭_i(u_int) − v_p(d_u)`。
-- **C6 bad-prime Kummer**：`p | disc` 时 `m_α mod p = ∏ g_i^{e_i}`，`e_i` 取自重复度，`v_{𝔭_i}(u)` 用 `(p, g_i(α))^{e_i}`-adic 赋值。
+- **C6 bad-prime Kummer**：`p | disc` 时 `m_α mod p = ∏ g_i^{e_i}`，`e_i` 取自重复度，`v_{𝔭_i}(u)` 用 `(p, g_i(α))^{e_i}`-adic 赋值（Dedekind 的 ramified 扩展）。
+- **大素因子 / 高精度 cap**：trial-division 上界外的 `N(u)` 素因子（需 `N(u)` 的完整素分解或 ECM）；`v_p(N(u_int)) > 60` 的素数（提高 cap 或改用迭代赋值法降低 Hensel 精度需求）。
 - **(B) 单位群**：即使 (A) 全完备，单位部分 `η = u/∏𝔭^{v_𝔭(u)/2}` 是否在 `𝔬_K×/(𝔬_K×)²` 平凡仍需 Dirichlet 单位群 + LLL（C5-C8）。
 - 完备性测试 `N=1000` 随机用例 vs PARI `nfeltissquare(bnfinit(f), u)`（C7）。
 
