@@ -133,6 +133,13 @@ giac-rs 工程规范（`giac-rust-engineering.mdc`）允许 `nalgebra`，禁止 
 | **A1** | `target_bits` 动态化：从 m_gen/u 系数上界推导 `2·d·coeff_bits + log2(d!) + 16`，取 max(320, …) | 小（~10 行） | 消除「真平方坐标 >160 bit 时 RRecon 静默失败」 |
 | **A2** | 放宽 `nf > 3` 跳过为「combos ≤ fuel.remaining()+1 才进」，配合 fuel 上调到 64 | 小（~5 行） | 覆盖完全分裂素数（Chebotarev density 1/12） |
 
+> **A1 上界出处**（2026-06-30 订正）：`2·d·coeff_bits + ⌈log2(d!)⌉ + 16` **不是任何论文里的定理**，是 self-derived 工程启发式上界，由三条经典结论拼装而成——
+> - **(i) 多项式乘积系数增长**：δ² 未规约系数 ≤ d·(2C-bit 乘积) ⇒ `2·coeff_bits` 项 [von zur Gathen & Gerhard, *Modern Computer Algebra* 3e, §3.1]；
+> - **(ii) Hadamard 行列式不等式**：规约 mod m_α 的 d×d trace/Sylvester 系统行列式因子 ≤ d!·(max coeff)^d ⇒ `·d` + `⌈log2(d!)⌉` 项 [Hadamard 1893, Bull. Sci. Math.；Cohen, *A Course in Computational Algebraic Number Theory*, Springer 1993, §2.2.4/p.50 —— giac 自己的 `algo.tex` 也引此条]；
+> - **(iii) 绝对乘性高度 H(α²)=H(α)²**（精确）：⇒ H(δ)=√H(u)，是「δ 坐标只需 ~C bit 而非 ~2C bit」的结构性理由 [Silverman, *The Arithmetic of Elliptic Curves* 2e, §VIII.5；Bombieri–Gubler, *Heights in Diophantine Geometry*, §1.5]。
+>
+> **为何不直接用 naive 严谨界**：在 Vandermonde `V_{ki}=σ_k(α)^i` 上跑 Cramer+Hadamard 得 `|a_i| ≤ d^(d/2)·2^(R·d(d-1))·H(δ)/|disc|^(1/2)` ≈ `2^(d²·C)`，即 `target_bits ~ d²·C`——可证但比启发式慢 ~30×（padic_lift 多 2 次 pk 平方、pk 大 ~4×）。**又紧又严谨**的界需显式算 `disc(m_α)` 取回 `−(1/2)·bit(disc)` 项，归入 **Phase B**（number-field arith 模块）。当前启发式：比 naive 严谨界紧、floor 320 保证小用例不回归、由 `sqrt_base_case_large_coord_above_160_bits`（321-bit 坐标）实测覆盖。
+
 **DoD**：
 - `quartic_a4_galois_dim_le_12` 仍绿
 - 新增大系数 A₄ 测（构造 √Δ 坐标 >160 bit）绿
