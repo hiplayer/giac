@@ -1,6 +1,6 @@
 # GIAC — Hasse 平方判定：完整 Scholz 设计与实施路线
 
-**状态:** 跟踪文档（Step 1-4 已实现；步骤 5-7 路线图）。完整 Scholz ≈ 重写 PARI `bnfinit`，按 7 步推进，每步独立可测、sound-false-pass-on-skip（与 (A) 同架构）。
+**状态:** 跟踪文档（Step 1-4 已实现；Step 5 部分已实现（real-quadratic-maximal + maximality 基础设施 + dedekind bug 修复）；步骤 5b/6/7 路线图）。完整 Scholz ≈ 重写 PARI `bnfinit`，按 7 步推进，每步独立可测、sound-false-pass-on-skip（与 (A) 同架构）。
 **关联:** [GIAC-poly-f5-fglm-complete-square-decision](issues/GIAC-poly-f5-fglm-complete-square-decision.md)（总 issue / Phase C 优先级）、[giac-poly-f5-fglm-ideal-valuation-proof](giac-poly-f5-fglm-ideal-valuation-proof.md)（(A) 赋值公式证明）、`giac-rs/crates/giac-core/src/algebra/number_field_arith.rs` + `poly_roots.rs::sqrt_fmodule`
 **快照:** 2026-06-30
 
@@ -12,10 +12,10 @@
 
 | 条件 | 含义 | 状态 |
 |---|---|---|
-| **(A_fin)** | 所有有限素理想 `v_𝔭(u)` 为偶 | 部分（good/tame/wild 已落地；缺大素因子 + `p∣index` + tower） |
+| **(A_fin)** | 所有有限素理想 `v_𝔭(u)` 为偶 | 部分（good/tame/wild 已落地 + dedekind 分支素数 bug 已修；缺大素因子 + `p∣index`(Montes) + tower） |
 | **(A_inf)** | u **全正**：每个实嵌入 `σ(u) > 0` | ✅ Step 1（`archimedean::is_totally_positive`） |
 | **(C)** | `J = ∏𝔭^{v_𝔭/2}` 在 `Cl(K)` 中主 | 缺（需类群 2-挠，Step 7） |
-| **(B)** | `η = u/γ² ∈ (𝔬_K×)²`（γ 是 J 的生成元） | 缺（需基本单位系 + 挠群 + mod-2，Step 5-6） |
+| **(B)** | `η = u/γ² ∈ (𝔬_K×)²`（γ 是 J 的生成元） | 部分（Step 5：全实二次域极大序的单位系 + 挠群 {±1} 已落地；缺 r≥2 多单位 + 复域 torsion + mod-2 求解，Step 5b/6） |
 
 > **关键修正**：[总 issue](issues/GIAC-poly-f5-fglm-complete-square-decision.md) 原 P4 范围（"LLL + 基本单位 + mod-2"）**漏了 (C) 类群主性 + (A_inf) 全正**。完整 Scholz ≈ 重写 PARI `bnfinit`。本路线按 7 步推进，每步独立可测、sound-false-pass-on-skip（与 (A) 同架构：任一 skip → 续走 `sqrt_base_case`，ℚ 验证兜底，永不 false-reject）。
 
@@ -108,11 +108,21 @@ if !super::super::number_field_arith::archimedean::is_totally_positive(field, u_
 - **文件**：新 `lattice.rs` 子模块（纯 f64 泛用格规约，与 `archimedean` 的 field→嵌入解耦）。**工作量**：中。**依赖**：无（纯 f64）。**PARI**：`qflll` 对照（2D `[[1,2],[3,4]]→[[1,0],[0,±2]]` 对齐；3D 用 |det| 保持 + Lovász 不变量，δ 不同不强求逐向量一致）。
 - **测试**：8 个新增 —— 2D/3D PARI 对照、already-reduced、single/empty、degenerate→None、NaN→None、ragged→None。全 348 giac-core lib release 11.12s；#7 bar 0.11s 无回归；clippy 干净。
 
-### Step 5 —— 基本单位系 + 挠群（f64+verify）
+### Step 5 —— 基本单位系 + 挠群（f64+verify）【部分已实现（real-quadratic-maximal）；其余 sound-skip】
 
-- **做什么**：`unit_group::fundamental_units(field) -> Option<(Vec<HighFirstQ>, Torsion)>`。Minkowski log-map `L(x) = (log|σ₁(x)|,…,log|σ_{r1}(x)|, 2·log|σ_{r1+j}(x)|) ∈ ℝ^{r1+r2}`；枚举小坐标代数整数，筛 `|N(x)|=1`（近单位），收 log-向量，LLL 规约取 r=`r1+r2-1` 个独立单位。挠群 `μ(K)`：实域 `={±1}`；一般解 `x^k-1` 在 K 中的根（用现有 `poly_algext_roots`/norm filter）。
-- **约束**：单位搜索是最难的算法件；用 Minkowski 界 bound regulator；bound 内找不到 r 个独立单位 → `None`（sound false-pass）。**f64+verify**：整数指数四舍入后**精确 ℚ 重建** `∏ ε_i^{a_i}` 在 K 中与 `η·ζ^{-1}` 比对（`element_eq_mod`），不一致 → skip。
-- **文件**：新 `unit_group.rs` 子模块。**工作量**：大。**依赖**：Step 1、3、4。**PARI**：`bnfinit(f).fu` + `nf.tu`。
+- **做什么**：`unit_group::fundamental_units(field) -> Option<Vec<HighFirstQ>>` + `unit_group::torsion(field) -> Option<Torsion>`。
+- **已落地范围**：**全实二次域 + 极大幂基**（`r₂=0`, `r=r₁−1=1`, `ℤ[α]=𝔬_K`）：
+  - `torsion`：`μ(K)={±1}`（全实域无非实单位根，exact）。
+  - `fundamental_units`：`ℤ[α]` 有界枚举（`UNIT_COORD_BOUND=256`），精确 `|N|=1` 滤子（二次闭式 `a²−c₁ab+c₀b²`），用 Step 3 嵌入取极小 regulator 的单位 ε（ε 与 ε⁻¹/±ε 等价，任一即可）。PARI `bnfinit(t²-d).fu` 对照（d=2,3,6,7 全过，regulator 误差 <1e-6）。
+- **sound-skip（None）**：非实域（r₂>0，复 torsion via `x^k−1` 根 + 复 log-map 延后）；非极大序（`ℤ[α]≠𝔬_K` → 子序单位群是 `𝔬_K×` 真子群，会漏 𝔬_K-单位，由 `power_order_is_maximal` 拦截）；全实 degree≥3（r≥2 多单位 LLL log-格延后）；大 regulator（基本单位坐标 >256）；`c₀,c₁` 不入 i64。
+- **新增基础设施（Step 5/7 共用）**：
+  - `number_field_arith::poly_discriminant_low` —— 稠密 ℚ Sylvester 结式 + 判别式（`disc=(−1)^{n(n−1)/2}·Res(m,m′)/lc`）。
+  - `number_field_arith::power_order_is_maximal(field) -> Option<bool>` —— 在每个 `p | disc(m_α)` 跑 Dedekind 判据认证 `[𝔬_K:ℤ[α]]=1`；`Some(true)`=极大，`Some(false)`=非极大/不可认证（下游 skip），`None`=tower/d≤1。Step 7 类群复用。
+  - **`dedekind_index_ok` bug 修复**：原代码把 `M=∏g_i^{e_i}` 累加 **mod p**（丢了 p-adic 高位），污染 `T=(m−M)/p mod p`，对**分支素数**给错判据（全实二次 p=2：d=3 误判 index|、d=5 误判 index∤）。改为 **mod p²** 累加（规范 [0,p) 提升，gcd 结果与提升无关 — Cohen §6.2.6）。原 (A) 测试从未检分支素数故漏网；新增 `scan_ramified_prime_dedekind_fix_processes_p2_in_q_sqrt3` 回归守护（ℚ(√3), u=2, p=2 现判 Processed/v_𝔭=2）。
+- **约束**：f64+verify 框架就位（嵌入 + 精确范数）；二次闭式范数已精确，无需 ℚ 重建。`ponytail:` 上限 `UNIT_COORD_BOUND=256`（大 regulator → None，sound）；升级路径 Buchmann 亚指数单位搜索。
+- **文件**：新 `unit_group.rs` 子模块 + `number_field_arith.rs`（discriminant/maximal/dedekind-fix）。**工作量**：大（本回合：real-quadratic-maximal 子集 + maximality 基础设施 + dedekind bug 修复）。**依赖**：Step 1、3（+ Step 4 待 r≥2 接入）。**PARI**：`bnfinit(t²-d).fu`/`.reg`/`.tu`、`poldisc`、`nf.disc`。
+- **测试**：14 个新增（5 nfa：disc×2 + maximal×2 + dedekind-fix；9 unit_group：torsion×2 + fund_units×4 PARI 对照 + sound-skip×3）。全 362 giac-core lib release 11.11s；#7 bar 0.11s 无回归；clippy 干净。
+- **剩余（Step 5b/后续回合）**：r≥2 全实域多单位 LLL log-格 + 精确 ℚ 重建 verify；非实域复 torsion（`x^k−1` 在 K 中的根，接 `poly_algext_roots`）+ 复 log-map。
 
 ### Step 6 —— 单位 mod-2 求解（B）
 
