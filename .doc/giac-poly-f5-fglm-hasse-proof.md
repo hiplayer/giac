@@ -23,15 +23,15 @@
 
 ## 1. 接口审计（需标注的歧义 / 缺口）
 
-| 接口 | 文件:行 | 问题 / 标注 |
-|---|---|---|
-| `ideal_valuations_parity_ok → bool` | `number_field_arith.rs:98` | 丢弃 `(𝔭_i, v_𝔭_i(u))`、`g_i`、Hensel `G_i`、`u_int`、`d_u` —— (B)/(C) 全需要。**Step 2 重构为 `IdealValuationScan` 结构体** |
-| `generator_minpoly_low() -> Option<LowFirstQ>` | `ext_tower.rs:500` | `pub(crate)`，tower 返 `None`。**标注：仅单层 K=ℚ(α)** |
-| `FieldEmbedding` | `ext_tower.rs:1044` | **命名冲突**：这是子域 ℚ-线性嵌入，**非** archimedean `σ_i:K→ℂ`。需更名/加注 |
-| `field_arith::generator_coords(n)` vs `ExtensionField::generator_coords()` | `field_arith.rs:162` / `ext_tower.rs:466` | 同名不同物（幂基向量 vs 生成元 α）。加注 |
-| `krylov_minpoly_coords -> CoordsQ` | `poly_roots.rs:1103` | 无标签 `CoordsQ` 标 low-first monic；field 算术要 `HighFirstQ` —— 转换易错。标注惯例 |
-| `clear_denoms_low` (private) | `number_field_arith.rs:371` | (B) 需 `u_int = d_u·u ∈ ℤ[α]`；私有，Step 2 一并暴露 |
-| **缺失** | — | archimedean 嵌入 / signature / LLL / 数值根 / 高精度 log / 类群 —— P4 全部子系统均缺 |
+| 接口 | 文件:行 | 问题 / 标注 | 状态 |
+|---|---|---|---|
+| `ideal_valuations_parity_ok → bool` | `number_field_arith.rs:98` | 丢弃 `(𝔭_i, v_𝔭_i(u))`、`g_i`、Hensel `G_i`、`u_int`、`d_u` —— (B)/(C) 全需要。**Step 2 重构为 `IdealValuationScan` 结构体** | 待 Step 2 |
+| `generator_minpoly_low() -> Option<LowFirstQ>` | `ext_tower.rs:500` | `pub(crate)`，tower 返 `None`。**标注：仅单层 K=ℚ(α)；`None` = skip（sound false-pass），非 error；Step 2/3 key off 此 `None` bail tower** | ✅ 已标注 |
+| `FieldEmbedding` | `ext_tower.rs:1044` | **命名冲突**：这是子域 ℚ-线性嵌入，**非** archimedean `σ_i:K→ℂ`。后者尚未实现（Step 3，`archimedean.rs`）；doc 注明勿混淆 | ✅ 已标注 |
+| `field_arith::generator_coords(n)` vs `ExtensionField::generator_coords()` | `field_arith.rs:162` / `ext_tower.rs:466` | 同名不同物不同序：free fn 返 low-first `CoordsQ` 幂基单位向量（建乘阵用）；method 返 high-first `HighFirstQ` 字段生成元 α。两侧 doc 互指 + 显式转换路径 `LowFirstQ::from_high`/`HighFirstQ::new` | ✅ 已标注 |
+| `krylov_minpoly_coords -> CoordsQ` | `poly_roots.rs:1103` | 输入 high-first `HighFirstQ`，输出 low-first monic `CoordsQ`；无标签 `CoordsQ` 隐藏方向翻转（foot-gun）。doc 注明 + 显式转换路径 | ✅ 已标注 |
+| `clear_denoms_low` (private) | `number_field_arith.rs:371` | (B) 需 `u_int = d_u·u ∈ ℤ[α]`；私有，Step 2 一并暴露 | 待 Step 2 |
+| **缺失** | — | archimedean 嵌入 / signature / LLL / 数值根 / 高精度 log / 类群 —— P4 全部子系统均缺 | Step 3–7 |
 
 ---
 
