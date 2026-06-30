@@ -1,6 +1,6 @@
 # GIAC — Hasse 平方判定：完整 Scholz 设计与实施路线
 
-**状态:** 跟踪文档（Step 1 待实现；步骤 2-7 路线图）。完整 Scholz ≈ 重写 PARI `bnfinit`，按 7 步推进，每步独立可测、sound-false-pass-on-skip（与 (A) 同架构）。
+**状态:** 跟踪文档（Step 1/2/3 已实现；步骤 4-7 路线图）。完整 Scholz ≈ 重写 PARI `bnfinit`，按 7 步推进，每步独立可测、sound-false-pass-on-skip（与 (A) 同架构）。
 **关联:** [GIAC-poly-f5-fglm-complete-square-decision](issues/GIAC-poly-f5-fglm-complete-square-decision.md)（总 issue / Phase C 优先级）、[giac-poly-f5-fglm-ideal-valuation-proof](giac-poly-f5-fglm-ideal-valuation-proof.md)（(A) 赋值公式证明）、`giac-rs/crates/giac-core/src/algebra/number_field_arith.rs` + `poly_roots.rs::sqrt_fmodule`
 **快照:** 2026-06-30
 
@@ -13,7 +13,7 @@
 | 条件 | 含义 | 状态 |
 |---|---|---|
 | **(A_fin)** | 所有有限素理想 `v_𝔭(u)` 为偶 | 部分（good/tame/wild 已落地；缺大素因子 + `p∣index` + tower） |
-| **(A_inf)** | u **全正**：每个实嵌入 `σ(u) > 0` | **Step 1（待实现）** |
+| **(A_inf)** | u **全正**：每个实嵌入 `σ(u) > 0` | ✅ Step 1（`archimedean::is_totally_positive`） |
 | **(C)** | `J = ∏𝔭^{v_𝔭/2}` 在 `Cl(K)` 中主 | 缺（需类群 2-挠，Step 7） |
 | **(B)** | `η = u/γ² ∈ (𝔬_K×)²`（γ 是 J 的生成元） | 缺（需基本单位系 + 挠群 + mod-2，Step 5-6） |
 
@@ -31,7 +31,7 @@
 | `field_arith::generator_coords(n)` vs `ExtensionField::generator_coords()` | `field_arith.rs:162` / `ext_tower.rs:466` | 同名不同物不同序：free fn 返 low-first `CoordsQ` 幂基单位向量（建乘阵用）；method 返 high-first `HighFirstQ` 字段生成元 α。两侧 doc 互指 + 显式转换路径 `LowFirstQ::from_high`/`HighFirstQ::new` | ✅ 已标注 |
 | `krylov_minpoly_coords -> CoordsQ` | `poly_roots.rs:1103` | 输入 high-first `HighFirstQ`，输出 low-first monic `CoordsQ`；无标签 `CoordsQ` 隐藏方向翻转（foot-gun）。doc 注明 + 显式转换路径 | ✅ 已标注 |
 | `clear_denoms_low` (private) | `number_field_arith.rs:371` | (B) 需 `u_int = d_u·u ∈ ℤ[α]`；私有，Step 2 一并暴露 | 待 Step 2 |
-| **缺失** | — | archimedean 嵌入 / signature / LLL / 数值根 / 高精度 log / 类群 —— P4 全部子系统均缺 | Step 3–7 |
+| **缺失** | — | signature / LLL / 高精度 log / 类群 —— Step 4–7 缺（archimedean 嵌入已由 Step 3 落地） | Step 4–7 |
 
 ---
 
@@ -92,11 +92,13 @@ if !super::super::number_field_arith::archimedean::is_totally_positive(field, u_
 - **实现偏离**：`signature`/`totally_positive` **未并入** scan —— 留在 `archimedean`（Step 1）解耦，避免 `sqrt_fmodule` 热路径双重计算 (A_inf)。完整 pre-(B)/(C) bundle 在 Step 5+ 组装。`all_processed` 含义标注为"所有*被检*素数 Processed"（`v_p(N)=0` 素数未检 —— Step 7 (C) 完备性前的已知限制，已写入 struct doc）。
 - **文件**：`number_field_arith.rs`。**工作量**：中。**依赖**：Step 1。**PARI**：`nfeltval` 逐素数。
 
-### Step 3 —— 数值嵌入（f64）
+### Step 3 —— 数值嵌入（f64）【✅ 已实现】
 
-- **做什么**：`archimedean::embeddings(field) -> Vec<Complex<f64>>`（r1 实根 + r2 复对，共 d_k 个共轭 σ_i(α)）。实根用 Step 1 的 Sturm 二分隔离 → f64 中点；**复根用 companion matrix + nalgebra `Eigen`**（nalgebra 已是依赖，~40 行，比手写 Durand-Kerner 简单稳）。`eval_at_embedding(u_high, σ_α) -> Complex<f64>`：u_poly 的 Horner。
-- **约束**：f64 ~15 位精度；d≤12 + 有界系数下根精度足够判符号 + 粗 log。**verify-and-skip**：`|m_α(σ_α)| > tol`（根未收敛）→ 标记该嵌入不可靠，下游 skip。
-- **文件**：`archimedean.rs`。**工作量**：中。**依赖**：Step 1。**PARI**：`polroots(m_α)` 对照。
+- **做什么**：`archimedean::embeddings(field) -> Option<Embeddings>`（r1 实根 + 2·r2 复共轭，共 d_k 个 `σ_i(α)` as `nalgebra::Complex<f64>`）。实根用 Step 1 的 Sturm 二分隔离 → `RealRootCtx::real_roots_f64` 精化到 f64 端点重合（自然 f64 精度极限）；**复根用 companion matrix + `nalgebra::complex_eigenvalues`**（`nalgebra` 升为 `giac-core` 直接依赖，~30 行）。`eval_at_embedding(u_high, σ_α) -> Complex<f64>`：u_low 的 Horner。
+- **约束**：f64 ~15 位精度；d≤12 + 有界系数下根精度足够判符号 + 粗 log。**verify-and-skip**：`|m_α(σ_α)| > ROOT_RESID_TOL(1e-6)` 或 `real+complex ≠ d_k` → `Embeddings.reliable=false`，下游 skip（sound）。复根过滤 `|im|>COMPLEX_IM_TOL(1e-7)` —— 实根权威归 Sturm，companion 对实根的数值噪声被丢弃；genuinely-near-real 复根被误滤会触发 count 不匹配 → reliable=false → skip（sound，已写 `ponytail:` 上限+升级路径）。
+- **接口形态**：`Embeddings { sig, roots, reliable }` —— 把"共轭 + 是否可信"打包，避免调用方各自重算 sig 或漏检 reliable。`embeddings` 对 d_k≤1/tower 返 `None`（ℚ 无生成元可嵌，归 base case）。`eval_at_embedding` 接 `HighFirstQ`（与 (A_inf)/(A_fin) 入口一致），内部 `from_high` 转 low-first Horner。
+- **文件**：`archimedean.rs`（+ `giac-core/Cargo.toml` 增 `nalgebra`）。**工作量**：中。**依赖**：Step 1。**PARI**：`polroots(m_α)` 对照（√2 / t³+t+1 / t⁴+t+1 三例全过，tol 1e-7~1e-9）。
+- **测试**：5 个新增 —— `embeddings_{q_sqrt2,cubic,quartic}_match_pari`（实/混合/全复三类签名）、`embeddings_eval_at_embedding_recovers_generator`（u=α ⟹ σ(u)=σ(α)）、`embeddings_eval_at_embedding_constant_is_rational`（u=5 ⟹ σ=5）。全 14 archimedean 测试通过；340 giac-core lib release 全过（11.11s）；#7 bar `quartic_a4_galois_dim_le_12` 0.11s 无回归；clippy 干净。
 
 ### Step 4 —— 朴素 LLL（f64，dim ≤ 5）
 
