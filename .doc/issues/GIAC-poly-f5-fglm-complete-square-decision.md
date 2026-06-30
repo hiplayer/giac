@@ -1,6 +1,6 @@
 # GIAC — F5 FGLM / F-module √-reduction 完备平方判定算法
 
-**状态:** open（Phase A 已落地 2026-06-30；Phase B 已落地 2026-06-30（good-prime 路径完整：inert + split-prime Hensel，bad prime / 单位群待 Phase C）；Phase C-D 待立项实现）
+**状态:** open（Phase A 已落地 2026-06-30；Phase B 已落地 2026-06-30（good-prime 路径完整：inert + split-prime Hensel）；Phase C C4 已落地 2026-06-30（tame bad-prime Dedekind-Kummer，`p ∤ index` 且 `e_i < p`）；wild / `p | index` / 单位群 / 大素因子待 Phase C+）
 **类型:** 算法升级 / 完备性闭环
 **来源:** [GIAC-poly-f5-fglm-debug-postmortem](GIAC-poly-f5-fglm-debug-postmortem.md) §3.3 follow-up 范畴之外、[GIAC-poly-f5-fglm-fullchain-fuel-audit](GIAC-poly-f5-fglm-fullchain-fuel-audit.md)（fuel 是封顶，本 issue 是替换算法）
 **根因:** 当前 `sqrt_base_case` 是「fast path + 8 次 lift 截断」的启发式；soundness 由 ℚ 验证保证，completeness 由 fuel=8 / `nf>3` 跳过 / `target_bits=320` / `small_primes(60)` 四个工程封顶兜底，无完备性定理
@@ -106,7 +106,7 @@ Dirichlet 单位定理：𝔬_K× ≅ μ(K) × ℤ^{r₁+r₂−1}，r₁/r₂ �
 | **C1** trial division 素因子分解（BigInt → Vec<i64>） | 算 disc 的素因子 | 小（~30 行） | 无 |
 | **C2** 素理想分解（good prime 路径） | (A) 的输入 | 中（~150 行） | C1 + `factor_mod_irreducibles` |
 | **C3** 素理想赋值 v_𝔭(u)（norm 形式公式） | (A) 判定 | 中（~80 行） | C2 |
-| **C4** bad prime ramification（p ∣ disc） | 补全 (A) | 中大（~200 行，需 Kummer/Dedekind） | C1 |
+| **C4** bad prime ramification（p ∣ disc） — **tame 部分已落地 2026-06-30**（`p ∤ index` 且 `e_i < p`：SFF 预处理 + Dedekind 判据 + ramified Hensel；wild / `p ∣ index` 待续） | 补全 (A) | 中大（~200 行，需 Kummer/Dedekind） | C1 |
 | **C5** K 的 signature (r₁, r₂)（实根计数） | (B) 的预备 | 小（~50 行，已有实根隔离算法可复用） | 无 |
 | **C6** LLL 实现（或引入 `nalgebra` 已有） | (B) 基本单位系 | 中大（~400 行 或 引入 crate） | `nalgebra`（已允许） |
 | **C7** 基本单位系求取 | (B) 核心 | 大（~600 行） | C5 + C6 |
@@ -165,7 +165,7 @@ giac-rs 工程规范（`giac-rust-engineering.mdc`）允许 `nalgebra`，禁止 
   - **split 路径**（`facs.len()>1`）：对每个 `g_i`，**二次 Hensel 提升** `g_i → G_i mod p^N`（Zassenhaus quadruple `(G,H,A,B)`，reduced corrections 保持 `G,H` monic；精度 `N = v_p(N(u_int))+1` 足够，因 `f_i·v_{𝔭_i}(u_int) ≤ v_p(N(u_int)) < N`），再算 **局部范数** `N_{K_{𝔭_i}/ℚ_p}(u_int) = det(乘 u_int 在 (ℤ/p^N)[t]/(G_i))`（Bareiss over ℤ，mod p^N），`v_{𝔭_i}(u) = v_p(local_norm)/f_i − v_p(d_u)`，奇 ⟹ `false`。
   - **PARI/GP oracle 交叉验证**（`/home/kanli.hu/upstream/pari/gp`）：`u=187+102√2`（`N(u)=119²`，norm filter 放行），split `p=17`（2 是 QR mod 17，`t²−2=(t−6)(t+6)`），`nfeltval` 给 `v_{𝔭_1}=v_{𝔭_2}=1`（均奇，`nfeltissquare=0`）—— split 路径抓住，`sqrt_base_case` 不调用（`sqrt_fmodule_b6_split_non_square_skips_base_case` 计数器验证 DoD）。`factorpadic` 交叉验证 Hensel 单元测试（`√2 mod 17³ = 4290`）。
 - **B6 测试**：inert 例 `u=3`（`v_𝔭=1` 奇）+ split 例 `u=187+102√2`（`v_{𝔭_1}=v_{𝔭_2}=1` 均奇）；另加 split 真平方 `u=(7(1+√2))²=147+98√2`（split `p=7`，`v_{𝔭_i}=2` 偶 ⟹ (A) 放行，**不误拒真平方**）。
-- **明确不实现 / 推迟 Phase C**：bad / ramified prime（`p|disc` 或 `m_α mod p` 非平方自由，需 Kummer；**实现用 squarefree guard `gcd(m_α mod p, (m_α mod p)') ≠ 1` 显式跳过**——此 guard 必要：`factor_mod_irreducibles` 的 Yun 在 tame perfect square（如 `(x²+1)² mod 3`）上挂死、在 wild p-次幂上给错因子会 false-reject）、大素因子（`small_primes(60)` 上界外的 `N(u)` 因子）、`v_p(N(u_int)) > PREC_CAP(60)` 的素数（Hensel 代价过高，跳过——sound）。三处跳过都是 negative filter 的 *安全失败*（false-pass，不 false-reject），soundness 由末端 ℚ 验证兜底。详见证明 sketch §5。
+- **明确不实现 / 推迟 Phase C+**：wild prime（`(m_α mod p)'=0` p-次幂，需 char-p p-次根技巧）、wild-ish（`e_i ≥ p`）、`p | index`（需 Montes/Round 4）、大素因子（`small_primes(60)` 上界外的 `N(u)` 因子）、`v_p(N(u_int)) > PREC_CAP(60)` 的素数（Hensel 代价过高，跳过——sound）。**tame bad-prime（`p ∤ index` 且 `e_i < p`）已于 Phase C C4 落地**（SFF 预处理 `b = f/gcd(f,f')` 绕过 `factor_mod_irreducibles` 的 Yun 在非平方自由输入上的挂死，重复除法恢复 `e_i`，Dedekind 指数判据，ramified Hensel 提升 `g_i^{e_i}`）。所有跳过都是 negative filter 的 *安全失败*（false-pass，不 false-reject），soundness 由末端 ℚ 验证兜底。详见证明 sketch §5。
 
 **DoD**：
 - (A) 不通过 ⟹ `sqrt_base_case` 不被调用（用计数器或 `#[cfg(test)]` hook 验证）✅ `sqrt_fmodule_b6_inert_non_square_skips_base_case` + `sqrt_fmodule_b6_split_non_square_skips_base_case`

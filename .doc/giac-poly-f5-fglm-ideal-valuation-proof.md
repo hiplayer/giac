@@ -1,6 +1,6 @@
 # GIAC — Phase B (A) 素理想赋值公式证明 sketch
 
-**状态:** Phase B 落地配套（good-prime 完整路径：inert + split-prime Hensel）
+**状态:** Phase B 落地配套（good-prime 完整路径：inert + split-prime Hensel）+ Phase C C4（tame bad-prime Dedekind-Kummer，`p ∤ index` 且 `e_i < p`）；wild / `p | index` / 单位群待 Phase C+
 **关联:** [GIAC-poly-f5-fglm-complete-square-decision](GIAC-poly-f5-fglm-complete-square-decision.md) §1.2（条件 (A)）、`giac-rs/crates/giac-core/src/algebra/number_field_arith.rs`
 **快照:** 2026-06-30
 
@@ -111,8 +111,11 @@ v_p(N(u)) 偶  ⇏  v_𝔭(u) 偶
 
 Phase B 的 (A) **不完备**，有二处 sound-but-not-complete 的跳过：
 
-1. **bad / ramified prime**（`p | disc(m_α)` 或 `p | lc(m_α)` 或 `p | denom(m_α)` 或 `m_α mod p` 非平方自由）：`m_α mod p` 非平方自由 / 次数降 / 约化未定义，Dedekind 单步分解不适用，需 Kummer/Dedekind ramification 分析（Phase C C6）。**实现用 squarefree guard 显式跳过**：`gcd(m_α mod p, (m_α mod p)') ≠ 1`（含 wild `f'=0` p-次幂）即跳过该素数。此 guard 是 *必要* 的：`factor_mod_irreducibles` 的 Yun squarefree 分解在 tame perfect square（如 `(x²+1)² mod 3`）上**挂死**、在 wild p-次幂上给错因子（后者会 false-reject 真平方，破坏 soundness），故必须在调用前跳过所有非平方自由 mod-p 输入。跳过 = 可能漏判（false-pass），但永不 false-reject。
-2. **大素数 / 高赋值素数**：只扫 `small_primes(60)` 中整除 `N(u)` 的素数；且对 `v_p(N(u_int)) > PREC_CAP(60)` 的素数跳过（Hensel 代价过高）。`N(u)` 的 *大* 素因子不被 trial-division 发现，或 Hensel 精度超 cap ⟹ 跳过。对大系数 `u`（如 A1 测试 `N(u) ~ 2^{13000}`），大素因子无法分解或超 cap，(A) 退化为 vacuous-pass，回退到现有 `sqrt_base_case` fast path（由 ℚ 验证保 soundness）。
+1. **wild prime**（`(m_α mod p)' = 0`，即 `m_α mod p` 是 p-次幂；或更一般地某 `e_i ≥ p` wild-ish ramification）：`factor_mod_irreducibles` 的 Yun squarefree 分解在 char-p 不能做 p-次根抽取，给错因子（会 false-reject 真平方）。`factor_with_multiplicities_tame` 检测 `(m_α mod p)' = 0` 或恢复出的 `e_i ≥ p` 即返回 `None` → 跳过（sound false-pass）。对 `f=1` wild prime，全局 norm filter 已能抓 `v_𝔭` 奇（`v_p(N) = v_𝔭`），跳过不损完备性；`f` 偶的 wild prime 需 char-p p-次根技巧 + Montes/Round 4，延后至 Phase C+。
+2. **`p | [𝔬_K : ℤ[α]]`（index）的 bad prime**：Dedekind 单步分解不适用（`g_i` 不直接给素理想结构），`dedekind_index_ok` 判据检测 `p | index` 即跳过（sound false-pass；需 Montes/Round 4，延后）。
+3. **大素数 / 高赋值素数**：只扫 `small_primes(60)` 中整除 `N(u)` 的素数；且对 `v_p(N(u_int)) > PREC_CAP(60)` 的素数跳过（Hensel 代价过高）。`N(u)` 的 *大* 素因子不被 trial-division 发现，或 Hensel 精度超 cap ⟹ 跳过。对大系数 `u`（如 A1 测试 `N(u) ~ 2^{13000}`），大素因子无法分解或超 cap，(A) 退化为 vacuous-pass，回退到现有 `sqrt_base_case` fast path（由 ℚ 验证保 soundness）。
+
+> **tame bad-prime 已补全（Phase C C4，2026-06-30）**：`p ∤ index` 且所有 `e_i < p`（tame ramification）的 bad prime 现由 Dedekind-Kummer 路径处理 —— `factor_with_multiplicities_tame` 用 `b = f/gcd(f,f')` 取平方自由部分（避免对非平方自由输入调用 `factor_mod_irreducibles` 而挂死），重复除法恢复 `e_i`；`dedekind_index_ok` 判 `p ∤ index`；ramified Hensel 提升 `g_i^{e_i} → G_i`（首一，次数 `e_i·f_i`，`ℚ_p`-不可约），局部范数 `det(乘 u_int mod G_i)`，`v_{𝔭_i}(u) = v_p(local_norm)/f_i − v_p(d_u)`。r=1 ramified-single 用 fast path `v_𝔭 = v_p(N)/f_1`（对任意 `e_1` 成立）。PARI 交叉验证 `m=t⁴+2t²+4` at `p=3`（`e=2, f=2`）：`v_p3(α²+1)=1` 奇、`N=9` ℚ-平方 ⟹ (A) 拒；`−3=(α²+1)²` 真平方 ⟹ (A) 放行。
 
 二处跳过都是 *negative filter 的安全失败*：跳过一个可能失败的判定只能导致「本可 bail 却进入搜索」（false-pass，浪费 fuel），不会导致「误拒真平方」（false-reject，破坏 soundness）。最终的 ℚ 等式验证 `δ²=u`（`poly_roots.rs:1559`）是兜底 certificate，保证整体 soundness 不被任何 (A) 缺口破坏。
 
@@ -127,7 +130,7 @@ Phase B 的 (A) **不完备**，有二处 sound-but-not-complete 的跳过：
 
 ## 7. 待办（Phase C）
 
-- **C6 bad-prime Kummer**：squarefree guard 已就位（跳过所有 ramified/wild prime，sound）。待补：`p | disc` 但 `p ∤ [𝔬_K:ℤ[α]]`（index）时，`m_α mod p = ∏ g_i^{e_i}`，`e_i` 取自重复度，`v_{𝔭_i}(u)` 用 `(p, g_i(α))^{e_i}`-adic 赋值（Dedekind 的 ramified 扩展）；`p | index` 时需 Montes/Round 4。落地前需先修复 `giac-poly::factor_mod_irreducibles` 的 Yun 在 tame perfect square 上的挂死（或绕过：对非平方自由输入先用 `gcd(f, f')` 取平方自由部分再分解，重复度单独跟踪）。
+- **C6 bad-prime Kummer**：**tame 部分（`p ∤ index`，所有 `e_i < p`）已落地 2026-06-30**（见 §5 注）。剩余：wild prime（`(m_α mod p)'=0` p-次幂，需 char-p p-次根技巧）、wild-ish（`e_i ≥ p`）、`p | index`（需 Montes/Round 4）。落地 wild 前需先修复 `giac-poly::factor_mod_irreducibles` 的 Yun 在 tame perfect square 上的挂死（当前用 `b = f/gcd(f,f')` 平方自由预处理绕过；wild 需 p-次根，Yun 本身不支持）。ramified-multi（`r>1` 且某 `e_i>1`）路径已实现但缺直接单测（r=1 ramified + split r>1 已覆盖）。
 - **大素因子 / 高精度 cap**：trial-division 上界外的 `N(u)` 素因子（需 `N(u)` 的完整素分解或 ECM）；`v_p(N(u_int)) > 60` 的素数（提高 cap 或改用迭代赋值法降低 Hensel 精度需求）。
 - **(B) 单位群**：即使 (A) 全完备，单位部分 `η = u/∏𝔭^{v_𝔭(u)/2}` 是否在 `𝔬_K×/(𝔬_K×)²` 平凡仍需 Dirichlet 单位群 + LLL（C5-C8）。
 - 完备性测试 `N=1000` 随机用例 vs PARI `nfeltissquare(bnfinit(f), u)`（C7）。
