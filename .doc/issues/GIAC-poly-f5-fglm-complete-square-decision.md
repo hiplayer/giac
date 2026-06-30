@@ -177,20 +177,39 @@ giac-rs 工程规范（`giac-rust-engineering.mdc`）允许 `nalgebra`，禁止 
 
 ### Phase C — (B) 单位群 mod-2 求解（完备性闭环）
 
-| ID | 内容 | 工作量 | 价值 |
-|---|---|---|---|
-| **C1** | C5 K 的 signature | 小 | (B) 预备 |
-| **C2** | 朴素 LLL（d ≤ POLY_ROOTS_DIM_HARD） | 中大 | (B) 工具 |
-| **C3** | C7 基本单位系求取 | 大 | (B) 核心 |
-| **C4** | C8 单位部分 mod-2 线性求解 | 小 | (B) 判定 |
-| **C5** | C9 接线：(A) ∧ (B) 联合判定；通过才进 p-adic 构造 | 小 | 落地 |
-| **C6** | C4 bad prime ramification 补全 (A) | 中大 | (A) 完整 |
-| **C7** | 完备性测试：随机生成 K（d ≤ 8），随机 u ∈ K，对比完备算法 vs brute-force（Gröbner 求解 x²=u in K） | 中 | 完备性证据 |
+| ID | 内容 | 工作量 | 价值 | 状态 |
+|---|---|---|---|---|
+| **C1** | C5 K 的 signature（Sturm 实根计数 → r₁, r₂） | 小 | (B) 预备 | 待办 |
+| **C2** | 朴素 LLL（d ≤ POLY_ROOTS_DIM_HARD） | 中大 | (B) 工具 | 待办 |
+| **C3** | C7 基本单位系求取（Dirichlet + LLL） | 大 | (B) 核心 | 待办 |
+| **C4** | C8 单位部分 mod-2 线性求解 | 小 | (B) 判定 | 待办 |
+| **C5** | C9 接线：(A) ∧ (B) 联合判定；通过才进 p-adic 构造 | 小 | 落地 | 待办 |
+| **C6** | bad prime ramification 补全 (A) | 中大 | (A) 完整 | **tame + wild 已落地 2026-06-30**（`p ∤ index`）；`p ∣ index` 待续（Montes/Round 4） |
+| **C6a** | ramified-multi（`r>1` 且某 `e_i>1`，含 wild `e_i` 被 `p` 整除）直接单测 | 小 | 去风险 | 待办（路径已实现，仅缺直接单测） |
+| **C6b** | 大素因子 / 高精度 cap：`small_primes(60)` 上界外的 `N(u)` 素因子；`v_p(N(u_int)) > PREC_CAP(60)` | 中-大 | (A) 完备性 | 待办（需 Pollard-rho 分解 `|N(u)|` 或迭代赋值法降 Hensel 精度） |
+| **C7** | 完备性测试：随机生成 K（d ≤ 8），随机 u ∈ K，对比完备算法 vs PARI `nfeltissquare(bnfinit(f), u)` | 中 | 完备性证据 | 待办（需 (A)+(B) 先就绪） |
 
 **DoD**：
 - 完备性测试 N=1000 随机用例 100% 一致
 - paper proof sketch：(A) ∧ (B) ⟺ u 平方的 Hasse 论证写到 `.doc/giac-poly-f5-fglm-hasse-proof.md`
 - 任意非平方 u 进入 `sqrt_fmodule` 一定在 (A)+(B) 阶段 None，不进 fuel 搜索（计数器验证）
+
+### Phase C 剩余优先级（2026-06-30 复盘）
+
+按「价值 × 可行性 / 依赖」排序，单轮可交付优先：
+
+| 优先级 | 项 | 工作量 | 价值 / 理由 | 依赖 |
+|---|---|---|---|---|
+| **P1** | **C6a ramified-multi 直接单测** | 小 | 已实现的 `r>1` + `e_i>1` Hensel 路径（含 wild `e_i` 被 `p` 整除）目前仅由 r=1 ramified + split r>1 间接覆盖；找一个 tame ramified `r>1` 且某 `e_i>1` 的域（PARI `idealprimedec` 搜），PARI `nfeltval` 交叉验证后加非平方拒 + 真平方过两测。**去风险现有代码，零新算法**（ponytail：先验证再建新）。 | 无 |
+| **P2** | **C1 K-signature (r₁, r₂)** | 小（~50 行 Sturm） | 本身不增完备性，但**解锁 (B) 全链**：Dirichlet 单位秩 `r₁+r₂−1`、挠群、基本单位系都依赖 signature。`poly_alg_sturm` 已有实根计数工具，接线即可。 | 无（启用 C2-C5） |
+| **P3** | **C6b 大素因子 / cap** | 中-大 | (A) 完备性的**广覆盖缺口**：当前 `N(u)` 含 `> 281`（第 60 个素数）素因子时 (A) 退化为 vacuous-pass（如 A1 测试 `N(u) ~ 2^{13000}`）。方案 A：Pollard-rho 分解 `|N(u)|`，对每个素因子跑现有赋值逻辑；方案 B：迭代赋值法（不依赖高精度 Hensel，避开 `PREC_CAP`）。对 negative filter 的 perf 收益直接（更多非平方早 bail）。 | 无 |
+| **P4** | **(B) 单位群 C2-C5（LLL → 基本单位系 → mod-2 求解 → 接线）** | 大（~950 行） | **完备性的最大缺口**：(B) 完全未实现。即使 (A) 全完备，单位部分 `η = u/∏𝔭^{v_𝔭(u)/2}` 是否在 `𝔬_K×/(𝔬_K×)²` 平凡仍需 Dirichlet 单位群 + LLL。建议拆成 C2（LLL）→ C3（基本单位系）→ C4（mod-2）→ C5（接线）多轮交付。 | C1（signature） |
+| **P5** | **C6 `p ∣ index`（Montes/Round 4）** | 大（多轮） | (A) 的**最后缺口**：`p ∣ [𝔬_K:ℤ[α]]` 时 Dedekind 单步分解不适用，需 Montes/Round 4 算 p-adic 结构。稀有（仅 index > 1 的域），但算法最重。排后是因为 P3（大素因子）覆盖面更广、P4（(B)）缺口更大。 | 无 |
+| **P6** | **C7 完备性批量测试 vs PARI** | 中 | (A)+(B) 全就绪后才有意义：`gp -q` 跑 `nfeltissquare(bnfinit(f), u)` 对 N=1000 随机 (K, u) 对比 Rust 输出。是 DoD 的最终证据。 | C6（含 P5）+ (B) 全链 |
+
+**推荐单轮增量**：P1（ramified-multi 单测）→ P2（K-signature）。两者皆小、无依赖、可独立测试提交，且 P2 为后续 (B) 铺路。P3/P4/P5 各需独立排期（P3、P5 闭合 (A)；P4 闭合 (B)）。
+
+**注（tower 字段）**：`ideal_valuations_parity_ok` 对 tower 字段（`generator_minpoly_low() = None`）整段跳过 (A)——`sqrt_fmodule_non_square_bails_within_4s`（A₄ dim-12 tower，非平方）因此落到 fuel 搜索 19.5s > 4s DoD（**预存回归**，clean HEAD 同样失败，与 C4-wild 改动无关）。tower-aware (A)（取 tower 的合成极小多项式或逐层赋值）是独立缺口，未列入上表，归 (B) 之后或独立工单。
 
 ### Phase D — 形式化（可选，独立排期）
 
