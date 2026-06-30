@@ -1,6 +1,6 @@
 # GIAC — Hasse 平方判定：完整 Scholz 设计与实施路线
 
-**状态:** 跟踪文档（Step 1/2/3 已实现；步骤 4-7 路线图）。完整 Scholz ≈ 重写 PARI `bnfinit`，按 7 步推进，每步独立可测、sound-false-pass-on-skip（与 (A) 同架构）。
+**状态:** 跟踪文档（Step 1-4 已实现；步骤 5-7 路线图）。完整 Scholz ≈ 重写 PARI `bnfinit`，按 7 步推进，每步独立可测、sound-false-pass-on-skip（与 (A) 同架构）。
 **关联:** [GIAC-poly-f5-fglm-complete-square-decision](issues/GIAC-poly-f5-fglm-complete-square-decision.md)（总 issue / Phase C 优先级）、[giac-poly-f5-fglm-ideal-valuation-proof](giac-poly-f5-fglm-ideal-valuation-proof.md)（(A) 赋值公式证明）、`giac-rs/crates/giac-core/src/algebra/number_field_arith.rs` + `poly_roots.rs::sqrt_fmodule`
 **快照:** 2026-06-30
 
@@ -31,7 +31,7 @@
 | `field_arith::generator_coords(n)` vs `ExtensionField::generator_coords()` | `field_arith.rs:162` / `ext_tower.rs:466` | 同名不同物不同序：free fn 返 low-first `CoordsQ` 幂基单位向量（建乘阵用）；method 返 high-first `HighFirstQ` 字段生成元 α。两侧 doc 互指 + 显式转换路径 `LowFirstQ::from_high`/`HighFirstQ::new` | ✅ 已标注 |
 | `krylov_minpoly_coords -> CoordsQ` | `poly_roots.rs:1103` | 输入 high-first `HighFirstQ`，输出 low-first monic `CoordsQ`；无标签 `CoordsQ` 隐藏方向翻转（foot-gun）。doc 注明 + 显式转换路径 | ✅ 已标注 |
 | `clear_denoms_low` (private) | `number_field_arith.rs:371` | (B) 需 `u_int = d_u·u ∈ ℤ[α]`；私有，Step 2 一并暴露 | 待 Step 2 |
-| **缺失** | — | signature / LLL / 高精度 log / 类群 —— Step 4–7 缺（archimedean 嵌入已由 Step 3 落地） | Step 4–7 |
+| **缺失** | — | 高精度 log / 类群 —— Step 5–7 缺（archimedean 嵌入 Step 3、LLL Step 4 已落地） | Step 5–7 |
 
 ---
 
@@ -100,11 +100,13 @@ if !super::super::number_field_arith::archimedean::is_totally_positive(field, u_
 - **文件**：`archimedean.rs`（+ `giac-core/Cargo.toml` 增 `nalgebra`）。**工作量**：中。**依赖**：Step 1。**PARI**：`polroots(m_α)` 对照（√2 / t³+t+1 / t⁴+t+1 三例全过，tol 1e-7~1e-9）。
 - **测试**：5 个新增 —— `embeddings_{q_sqrt2,cubic,quartic}_match_pari`（实/混合/全复三类签名）、`embeddings_eval_at_embedding_recovers_generator`（u=α ⟹ σ(u)=σ(α)）、`embeddings_eval_at_embedding_constant_is_rational`（u=5 ⟹ σ=5）。全 14 archimedean 测试通过；340 giac-core lib release 全过（11.11s）；#7 bar `quartic_a4_galois_dim_le_12` 0.11s 无回归；clippy 干净。
 
-### Step 4 —— 朴素 LLL（f64，dim ≤ 5）
+### Step 4 —— 朴素 LLL（f64，dim ≤ 5）【✅ 已实现】
 
-- **做什么**：`archimedean::lll(basis: Vec<Vec<f64>>) -> (Vec<Vec<f64>>, bool)` —— 实格 LLL 规约，dim ≤ `r1+r2-1 ≤ 5`。标准 LLL + f64 Gram-Schmidt，~100 行。
-- **约束**：f64 LLL 对近退化基数值脆弱 —— `ponytail:` 注明上限（全局：bigfloat/dashu）；sanity check：规约基须在容差内满足 Lovász 条件，否则返原基 + `false` 标志（下游 skip）。
-- **文件**：`archimedean.rs`（或新 `lattice.rs`）。**工作量**：中。**依赖**：无（纯 f64）。**PARI**：`qflll`/`matkerint`（可选对照）。
+- **做什么**：`lattice::lll(basis: Vec<Vec<f64>>) -> Option<Vec<Vec<f64>>>` —— 实格 LLL 规约（δ=3/4, η=1/2），dim ≤ `r1+r2-1 ≤ 5`。标准 LLL + f64 Gram-Schmidt（`gso` 给 μ/b*/||b*ᵢ||²），~90 行。每轮：找最深的 `|μ_{i,j}|>η` 做一次 size-reduction（`b_i -= round(μ)·b_j`）后重算 GSO；无 size-reduction 时扫 Lovász 找首个违反并 `swap(b_i,b_{i-1})`；两者皆无 → 规约完成。
+- **接口偏离**：spec 写 `(Vec<Vec<f64>>, bool)`；实际用 `Option<Vec<Vec<f64>>>`（None=skip）—— 与 `field_signature`/`embeddings` 的 sound-skip `Option` 模式一致，Step 5 失败即 skip，bool 的"返原基"语义对消费者无额外价值（调用方持有原基）。
+- **约束**：f64 LLL 对近退化基数值脆弱 —— `ponytail:` 注明上限（bigfloat/dashu）；**post-reduction sanity** `lovasz_ok`：所有 GSO 范数 finite-positive AND `|μ_{i,j}|≤η+tol` AND Lovász within tol，否则返 `None`（下游 skip，sound）。`LLL_MAX_ITERS=1000` 兜底（精确算术 LLL 必终止，触顶即数值失败信号）。ragged/NaN 输入直接 None。
+- **文件**：新 `lattice.rs` 子模块（纯 f64 泛用格规约，与 `archimedean` 的 field→嵌入解耦）。**工作量**：中。**依赖**：无（纯 f64）。**PARI**：`qflll` 对照（2D `[[1,2],[3,4]]→[[1,0],[0,±2]]` 对齐；3D 用 |det| 保持 + Lovász 不变量，δ 不同不强求逐向量一致）。
+- **测试**：8 个新增 —— 2D/3D PARI 对照、already-reduced、single/empty、degenerate→None、NaN→None、ragged→None。全 348 giac-core lib release 11.12s；#7 bar 0.11s 无回归；clippy 干净。
 
 ### Step 5 —— 基本单位系 + 挠群（f64+verify）
 
