@@ -76,7 +76,7 @@ if !super::super::number_field_arith::archimedean::is_totally_positive(field, u_
 
 ## 步骤 2–7（路线图）
 
-### Step 2 —— 重构 (A) 为 `IdealValuationScan`
+### Step 2 —— 重构 (A) 为 `IdealValuationScan`【✅ 已实现】
 
 - **做什么**：`ideal_valuations_parity_ok` 拆成 `compute_ideal_valuations(field, u_high, norm) -> IdealValuationScan`，返回结构体：
   ```
@@ -89,6 +89,7 @@ if !super::super::number_field_arith::archimedean::is_totally_positive(field, u_
   ```
   `ideal_valuations_parity_ok` 保留为薄包装（向后兼容）。
 - **约束**：skip 语义保留（sound false-pass）；Skipped 素数标记 —— (C)/(B) 仅在所有素数 Processed 时才有意义，否则 skip。
+- **实现偏离**：`signature`/`totally_positive` **未并入** scan —— 留在 `archimedean`（Step 1）解耦，避免 `sqrt_fmodule` 热路径双重计算 (A_inf)。完整 pre-(B)/(C) bundle 在 Step 5+ 组装。`all_processed` 含义标注为"所有*被检*素数 Processed"（`v_p(N)=0` 素数未检 —— Step 7 (C) 完备性前的已知限制，已写入 struct doc）。
 - **文件**：`number_field_arith.rs`。**工作量**：中。**依赖**：Step 1。**PARI**：`nfeltval` 逐素数。
 
 ### Step 3 —— 数值嵌入（f64）
@@ -145,7 +146,7 @@ flowchart TD
 | 步骤 | 状态 | 备注 |
 |---|---|---|
 | Step 1 signature + (A_inf) | ✅ 已实现 | `algebra/archimedean.rs`：`field_signature` + `is_totally_positive`（自洽稠密有理 Sturm + 有理 Horner 二分）；接线 `poly_roots.rs` (A_fin) 之后；PARI 交叉验证 9 测试全绿；#7 bar 0.63s |
-| Step 2 IdealValuationScan | 待实现 | 重构 (A)，(B)/(C) 前置 |
+| Step 2 IdealValuationScan | ✅ 已实现 | `compute_ideal_valuations -> IdealValuationScan`（暴露 entries (p,g_i,e_i,f_i,v_𝔭), u_int_low, d_u, parity_ok, all_processed）；`ideal_valuations_parity_ok` 薄包装向后兼容；4 scan 测试全绿；signature/totally_positive 解耦留 archimedean |
 | Step 3 数值嵌入 | 待实现 | f64 + nalgebra companion-Eigen |
 | Step 4 朴素 LLL | 待实现 | f64，dim≤5，verify-and-skip |
 | Step 5 基本单位系 + 挠群 | 待实现 | 最难算法件；f64+verify 精确重建 |
