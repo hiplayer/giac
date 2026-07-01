@@ -1,6 +1,6 @@
 # GIAC — Hasse 平方判定：完整 Scholz 设计与实施路线
 
-**状态:** 跟踪文档（Step 1-7a 已实现；Step 7a = `(C)` 直接主性（生成元搜索）+ Scholz 管线 `hasse_is_square`；剩余 = Step 5 复域 torsion/log-map + r≥2 index-1 证书 + Step 7b 完整类群（Buchmann，证非主性 `Some(false)`）+ `hasse_is_square` 接入 `sqrt_fmodule`）。完整 Scholz ≈ 重写 PARI `bnfinit`，按 7 步推进，每步独立可测、sound-false-pass-on-skip（与 (A) 同架构）。
+**状态:** 跟踪文档（Step 1-7a + Step 7b(部分) 已实现；Step 7b(部分) = 定域（虚二次极大序）非主性认证 `Some((false,None))`（正定范型特征值界证搜索穷尽 ⟹ 无生成元 ⟹ 非主）+ `hasse_is_square` 输出 `Some(false)`；剩余 = Step 5 复域 torsion/log-map + r≥2 index-1 证书 + Step 7b 完整类群（Buchmann，不定域/高次非主性 + 大范数 LLL 短向量）+ `hasse_is_square` 接入 `sqrt_fmodule`）。完整 Scholz ≈ 重写 PARI `bnfinit`，按 7 步推进，每步独立可测、sound-false-pass-on-skip（与 (A) 同架构）。
 **关联:** [GIAC-poly-f5-fglm-complete-square-decision](issues/GIAC-poly-f5-fglm-complete-square-decision.md)（总 issue / Phase C 优先级）、[giac-poly-f5-fglm-ideal-valuation-proof](giac-poly-f5-fglm-ideal-valuation-proof.md)（(A) 赋值公式证明）、`giac-rs/crates/giac-core/src/algebra/number_field_arith.rs` + `poly_roots.rs::sqrt_fmodule`
 **快照:** 2026-06-30
 
@@ -14,7 +14,7 @@
 |---|---|---|
 | **(A_fin)** | 所有有限素理想 `v_𝔭(u)` 为偶 | 部分（good/tame/wild 已落地 + dedekind 分支素数 bug 已修；缺大素因子 + `p∣index`(Montes) + tower） |
 | **(A_inf)** | u **全正**：每个实嵌入 `σ(u) > 0` | ✅ Step 1（`archimedean::is_totally_positive`） |
-| **(C)** | `J = ∏𝔭^{v_𝔭/2}` 在 `Cl(K)` 中主 | ✅ Step 7a（`ideal_is_principal` 直接主性：生成元搜索 `|N(γ)|=N(J)` + 赋值成员校验；小范数 `J` 全过，大范数/非主 `None` sound-skip。缺 Step 7b 完整类群 → 证非主性 `Some(false)` + 大范数 LLL 短向量） |
+| **(C)** | `J = ∏𝔭^{v_𝔭/2}` 在 `Cl(K)` 中主 | ✅ Step 7a + 7b(部分)（`ideal_is_principal` 直接主性：生成元搜索 `|N(γ)|=N(J)` + 赋值成员校验 → `Some((true,Some(γ)))`；**Step 7b**：定域（虚二次极大序）正定范型 `a²−c₁ab+c₀b²` 特征值界 `√(N(J)/λ_min) ≤ 界` ⟹ 搜索穷尽 ⟹ 无生成元 ⟹ `Some((false,None))` 证非主）。小范数主 `J` 全过，定域非主 `Some(false)`；不定域/高次非主 + 大范数仍 `None` sound-skip → 完整 Buchmann 类群（Step 7b 余）解锁） |
 | **(B)** | `η = u/γ² ∈ (𝔬_K×)²`（γ 是 J 的生成元） | ✅ Step 6（`unit_is_square`：Dirichlet 分解 + mod-2 指数 + torsion 平方；certified 域类型 r=0 虚二次 / r=1 全实二次 全过；r≥2/复域 sound-false-pass） |
 
 > **关键修正**：[总 issue](issues/GIAC-poly-f5-fglm-complete-square-decision.md) 原 P4 范围（"LLL + 基本单位 + mod-2"）**漏了 (C) 类群主性 + (A_inf) 全正**。完整 Scholz ≈ 重写 PARI `bnfinit`。本路线按 7 步推进，每步独立可测、sound-false-pass-on-skip（与 (A) 同架构：任一 skip → 续走 `sqrt_base_case`，ℚ 验证兜底，永不 false-reject）。
@@ -135,12 +135,13 @@ if !super::super::number_field_arith::archimedean::is_totally_positive(field, u_
 - **文件**：`unit_group.rs`。**工作量**：中。**依赖**：Step 3（嵌入）、Step 5（单位系 + torsion）。**PARI**：`nfeltissquare(B,η)`。
 - **测试**：4 个新增（ℚ(√2) / ℚ(√3) / ℚ(i) / ℚ(√-3) 各一，覆盖 r=0/r=1 × torsion 阶 2/4/6 × square/non-square）。全 374 giac-core lib release 21.45s；clippy 干净。
 
-### Step 7 —— 类群 2-挠 + J 主性（C）【✅ Step 7a 直接主性已实现；Step 7b 完整类群剩余】
+### Step 7 —— 类群 2-挠 + J 主性（C）【✅ Step 7a 直接主性 + Step 7b(部分) 定域非主性认证；完整 Buchmann 剩余】
 
-- **Step 7a（已实现）—— 直接主性 via 生成元搜索**：`class_group::ideal_is_principal(field, &scan) -> Option<HighFirstQ>`。核心等价：`J = ∏𝔭^{v_𝔭/2}` 主 ⟺ ∃ `γ ∈ J` with `|N(γ)| = N(J)`（`(γ) ⊆ J` + 等范数 ⟹ `(γ)=J`）。实现：bounded `ℤ[α]` 枚举（`IDEAL_GEN_COORD_BOUND` 按度 2/3/4 = 256/32/12；`(2B+1)^d ≲ 3·10⁵`）+ f64 `|N|` 预滤 + 精确 Krylov `|N(γ)|=N(J)` + 成员校验 `γ ∈ J`（复用 (A_fin) `compute_ideal_valuations` 算 `v_𝔭(γ) ≥ e_𝔭`，按 `(p, g_i)` 匹配素理想）。门限 `power_order_is_maximal`（`𝔬_K=ℤ[α]` 使枚举覆盖 𝔬_K）+ `scan.parity_ok && all_processed` + `N(J) ≤ 10⁷`。`N(J)=1` ⟹ `J=𝔬_K` 平凡主。**sound-skip**：生成元不在搜索界内 / `J` 真非主 / 大范数 → `None`（不可区分，均 defer `sqrt_base_case`）。
-- **Step 7a 管线 `class_group::hasse_is_square(field, u) -> Option<bool>`**：Scholz √-判定 `Some(true)`=认证平方 / `Some(false)`=认证非平方 / `None`=skip。链：`(A_fin)` parity → `(A_inf)` 全正 → `(C)` J 主+γ → `(B)` `η=u/γ²` 单位平方（Step 6 `unit_is_square` 改 `Option<bool>` 认证版）。各 `Some(false)` = 平方 obstruction（奇赋值 / 非全正 / η 非单位平方），均 exact 认证 → sound。
-- **Step 7a 测试（PARI `nfeltissquare` 交叉验证，13 个）**：ℚ(√2) u=2/6+4√2 yes、u=2+2√2/-1 no（(A_inf)）；ℚ(√3) u=3 yes、u=6-3√3 no（(B) ε=2-√3 全正非平方）；ℚ(i) -1 yes、i no；ℚ(√-5) u=2 → `None`（类数 2，𝔭/2 非主，sound skip；PARI 0）；`ideal_is_principal` 隔离测试（(√2) 主 / 𝔭 非主 skip / 平凡 J）；0=0²。全 387 giac-core lib release 21.77s；clippy 干净。
-- **Step 7b（剩余）—— 完整 Buchmann 类群**：`class_group_2torsion` + `bnfisprincipal`-式 J 主性。Minkowski 界 `B_M = (4/π)^{r2}·d!/d^d·√|disc|`；枚举 `norm ≤ B_M` 素理想 → 收集关系（小范理想 LLL 短向量找主生成元）→ HNF/SNF → 类群结构 → Sylow-2。**解锁**：证非主性 `Some(false)`（当前只能 `None` skip）；大范数 `J` 的 LLL 短向量生成元搜索（lift `N_J_MAX=10⁷` ceiling）；r≥2 index-1 单位证书（接类群）。需 `disc(m_α)` + (A) 完备（P3 大素因子 + P5 `p∣index` Montes）。~400-600 行，多轮。
+- **Step 7a（已实现）—— 直接主性 via 生成元搜索**：`class_group::ideal_is_principal(field, &scan) -> Option<(bool, Option<HighFirstQ>)>`。核心等价：`J = ∏𝔭^{v_𝔭/2}` 主 ⟺ ∃ `γ ∈ J` with `|N(γ)| = N(J)`（`(γ) ⊆ J` + 等范数 ⟹ `(γ)=J`）。实现：bounded `ℤ[α]` 枚举（`IDEAL_GEN_COORD_BOUND` 按度 2/3/4 = 256/32/12；`(2B+1)^d ≲ 3·10⁵`）+ f64 `|N|` 预滤 + 精确 Krylov `|N(γ)|=N(J)` + 成员校验 `γ ∈ J`（复用 (A_fin) `compute_ideal_valuations` 算 `v_𝔭(γ) ≥ e_𝔭`，按 `(p, g_i)` 匹配素理想）。门限 `power_order_is_maximal`（`𝔬_K=ℤ[α]` 使枚举覆盖 𝔬_K）+ `scan.parity_ok && all_processed` + `N(J) ≤ 10⁷`。`N(J)=1` ⟹ `J=𝔬_K` 平凡主 → `Some((true, Some(1)))`。生成元找到 → `Some((true, Some(γ)))`。
+- **Step 7b(部分)（已实现）—— 定域非主性认证**：生成元搜索未中（`found=None`）时，对**虚二次极大序**（`d_k=2`, `disc(m_α)<0`）可**证非主性** `Some((false,None))`：范型 `N(a+bα)=a²−c₁ab+c₀b²` 正定，最小特征值 `λ_min = ((1+c₀)−√((1−c₀)²+c₁²))/2 > 0`，故每个 `|N(γ)|=N(J)` 的生成元满足 `|(a,b)| ≤ √(N(J)/λ_min)`；若该**严格界** ≤ 枚举界（`coord_bound(2)=256`）⟹ 搜索穷尽 ⟹ 无生成元 ⟹ `J` 非主 ⟹ `(C)` 输出 `Some(false)`（`hasse_is_square` 经 `!is_principal` 转化）。**不定域**（实二次 `r=1`，范型不定 ⟹ 生成元轨迹无界 ⟹ 盒内缺失非缺失之证）+ **高次域**（范型 degree≥3，特征值法不适用）仍 `None` sound-skip —— 完整 Buchmann（Step 7b 余）解锁。**soundness**：`Some((false,None))` 永不错（正定 ⟹ 界严格覆盖全部生成元 ⟹ 盒内无 ⟹ 全空间无）。
+- **Step 7a 管线 `class_group::hasse_is_square(field, u) -> Option<bool>`**：Scholz √-判定 `Some(true)`=认证平方 / `Some(false)`=认证非平方 / `None`=skip。链：`(A_fin)` parity → `(A_inf)` 全正 → `(C)` J 主+γ（`Some((true,Some(γ)))` 续 (B)；`Some((false,_))` → `Some(false)` 认证非平方；`None` skip）→ `(B)` `η=u/γ²` 单位平方（Step 6 `unit_is_square` 改 `Option<bool>` 认证版）。各 `Some(false)` = 平方 obstruction（奇赋值 / 非全正 / J 非主 / η 非单位平方），均 exact 认证 → sound。
+- **Step 7a+7b(部分) 测试（PARI `nfeltissquare` 交叉验证，18 个）**：ℚ(√2) u=2/6+4√2 yes、u=2+2√2/-1 no（(A_inf)）；ℚ(√3) u=3 yes、u=6-3√3 no（(B) ε=2-√3 全正非平方）；ℚ(i) -1 yes、i no；ℚ(√-5) u=2 → **`Some(false)`**（Step 7b：类数 2，𝔭 非主，范型 a²+5b² λ_min=1 界 √2+1=2≤256 穷尽 ⟹ 证非主）；ℚ(√-6) u=2 → **`Some(false)`**（同形，λ_min=1）；ℚ(√-5)/ℚ(√-6) u=4 → **`Some(true)`**（J=𝔭²=(2) 主 γ=±2，定域主性 + (B) η=1）；`ideal_is_principal` 隔离测试（(√2) 主 / 𝔭 非主 `Some((false,None))` / ℚ(√-6) 𝔭 非主 / ℚ(√-5) 𝔭² 主 γ=±2 / 平凡 J）；0=0²。全 392 giac-core lib release 21.85s；clippy 干净。
+- **Step 7b（剩余）—— 完整 Buchmann 类群**：`class_group_2torsion` + `bnfisprincipal`-式 J 主性。Minkowski 界 `B_M = (4/π)^{r2}·d!/d^d·√|disc|`；枚举 `norm ≤ B_M` 素理想 → 收集关系（小范理想 LLL 短向量找主生成元）→ HNF/SNF → 类群结构 → Sylow-2。**解锁**：**不定域/高次非主性** `Some(false)`（当前定域已解锁，其余仍 `None` skip）；大范数 `J` 的 LLL 短向量生成元搜索（lift `N_J_MAX=10⁷` ceiling）；r≥2 index-1 单位证书（接类群）。需 `disc(m_α)` + (A) 完备（P3 大素因子 + P5 `p∣index` Montes）。~300-500 行，多轮。
 - **文件**：`class_group.rs`（Step 7a 已建）。**依赖**：Step 1-6。**PARI**：`bnfinit(f).clgp` + `bnfisprincipal(B,J)` + `nfeltissquare(B,u)`。
 
 ### 终态接线（Step 7 完成后）
@@ -173,7 +174,8 @@ flowchart TD
 | Step 5 基本单位系 + 挠群 | ✅ 已实现（剩余 sound-skip） | r=0 虚二次 torsion（D_K 分类）+ r=1 全实二次 fund_units + r≥2 全实内部 `fundamental_units_real_multi`（incremental LLL，PARI regulator 对照）；公开 API r≥2 仍 None（缺 index-1 证书）；复域 rank≥1 + 非极大虚二次 None |
 | Step 6 单位 mod-2 (B) | ✅ 已实现 | `unit_group::unit_is_square`（Dirichlet 分解 + mod-2 指数 + torsion 平方，sound false-pass）；certified 域类型 r=0/r=1 PARI `nfeltissquare` 对照 4 测试；r≥2 待 Step 5 解锁 |
 | Step 7a (C) 直接主性 + Scholz 管线 | ✅ 已实现 | `class_group::ideal_is_principal`（生成元搜索 `|N(γ)|=N(J)`+赋值成员校验，sound-skip）+ `hasse_is_square`（A_fin→A_inf→C→B 管线，`Option<bool>` 认证）；PARI `nfeltissquare` 交叉验证 13 测试；ℚ(√-5) 非主 J sound-skip |
-| Step 7b (C) 完整类群 (Buchmann) | 待实现 | `class_group_2torsion` + `bnfisprincipal` 式主性；证非主性 `Some(false)` + 大范数 LLL 短向量 + r≥2 index-1 证书；需 (A) 完备 |
+| Step 7b (C) 定域非主性认证 | ✅ 已实现（部分） | 虚二次极大序正定范型特征值界 `√(N(J)/λ_min) ≤ 界` ⟹ 搜索穷尽 ⟹ `Some((false,None))` 证非主；`ideal_is_principal` 返 `Option<(bool,Option<γ>)>`；`hasse_is_square` 经 `!is_principal` → `Some(false)`；ℚ(√-5)/ℚ(√-6) u=2 由 `None`→`Some(false)`；+5 测试（392 全过） |
+| Step 7b (C) 完整类群 (Buchmann) | 待实现 | `class_group_2torsion` + `bnfisprincipal` 式主性；**不定域/高次非主性** `Some(false)` + 大范数 LLL 短向量 + r≥2 index-1 证书；需 (A) 完备 |
 
 ## 参考
 
