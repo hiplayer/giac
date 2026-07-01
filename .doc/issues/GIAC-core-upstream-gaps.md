@@ -102,9 +102,9 @@
 
 | ID | 能力 | 现状 | 上游 | 阻塞 |
 |----|------|------|------|------|
-| **C-5** | `Poly<AlgExtC>` deg≥5 factor | `poly_roots.rs:117` `NotImplemented("PolyAlgExt::roots")`；deg≤4 ✅ | `ext_factor` 高次 → `rootof(α,P)` 一支 | 通用 `solve`/`factor` 代数系数 + 高次退回符号 |
+| **C-5** | `Poly<AlgExtC>` deg≥5 factor | solve 路径已走 `irreducible_rootof_branch_algext`（`rootof(α,P)` 一支）；`poly_algext_roots` deg≥5 `NotImplemented` **按设计保留**（Abel–Ruffini） | `ext_factor` 高次 → `rootof(α,P)` 一支 | —（已落地） |
 | **C-6** | T3+ `adjoin(K, u²−α)` 不 flatten | `common_minimal.rs` 多处 `NotImplemented`（T5 nested embed / flat primitive / compositum embed） | `common_EXT` 嵌套路径 | 一般四次求根走 flatten fallback，维度爆 |
-| **C-7** | partfrac over K 非线性 / 重根 | `poly_alg_partfrac.rs:108/112` `NotImplemented("partfrac over K: nonlinear/repeated"/"unsplit denominator")` | `sym2poly.cc` partfrac + `ext_factor` | `integrate` K 路径只处理线性因子链；混合 sqff 卡 |
+| **C-7** | partfrac over K 重根 / 非线性 | **重根 ✅**（C-7a：`partfrac_affine_power_system_over_k` K-线性系统，cover-up 不处理 multiplicity>1）；**非线性 ☐**（C-7b：irreducible-over-K degree≥2 因子，K 未充分扩张时） | `sym2poly.cc` partfrac + `ext_factor` | `integrate` K 路径线性因子链；C-7b 非线性因子卡 |
 | **C-8** | quartic Euler resolvent √-决策边界 | `poly_roots.rs` 多处 `NotImplemented("quartic euler"/"quartic resolvent")`；A4 Galois dim>12 触发 `diag_a4_sqrt_probe_gap` | `gausspol.cc` 不走此路径（upstream 用 `proot` 数值） | 部分四次（A4 群）求根失败 |
 
 **跟踪：** [GIAC-poly-algext-backlog](GIAC-poly-algext-backlog.md) P3-5 / F4′、[GIAC-poly-f5-fglm-hasse-lean4-verification](GIAC-poly-f5-fglm-hasse-lean4-verification.md)。
@@ -184,9 +184,10 @@ P3  C-13..C-17    simplify 真化简链 / tlin / proot / 参数化 / 显示稳�
 
 ### Phase D — P1 K 上管线收尾
 
-- [ ] C-5 `Poly<AlgExtC>` deg≥5 factor → `rootof(α,P)` 一支
+- [x] C-5 `Poly<AlgExtC>` deg≥5 factor → `rootof(α,P)` 一支（solve 路径 `irreducible_rootof_branch_algext` 已落地；`poly_algext_roots` deg≥5 按设计 NotImplemented）
 - [ ] C-6 T3+ `adjoin(K, u²−α)` 不 flatten
-- [ ] C-7 partfrac over K 非线性 / 重根
+- [x] C-7a partfrac over K **重根**（`partfrac_affine_power_system_over_k` K-线性系统）
+- [ ] C-7b partfrac over K **非线性**（irreducible-over-K degree≥2 因子）
 - [ ] C-8 quartic Euler √-决策边界（A4 Galois dim>12）
 
 ### Phase E — P2 代数数论深化
