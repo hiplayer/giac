@@ -1,6 +1,6 @@
 # GIAC — Hasse 平方判定：完整 Scholz 设计与实施路线
 
-**状态:** 跟踪文档（Step 1-7a + Step 7b(部分) 已实现；Step 7b(部分) = 定域（虚二次极大序）非主性认证 `Some((false,None))`（正定范型特征值界证搜索穷尽 ⟹ 无生成元 ⟹ 非主）+ `hasse_is_square` 输出 `Some(false)`；剩余 = Step 5 复域 torsion/log-map + r≥2 index-1 证书 + Step 7b 完整类群（Buchmann，不定域/高次非主性 + 大范数 LLL 短向量）+ `hasse_is_square` 接入 `sqrt_fmodule`）。完整 Scholz ≈ 重写 PARI `bnfinit`，按 7 步推进，每步独立可测、sound-false-pass-on-skip（与 (A) 同架构）。
+**状态:** 跟踪文档（Step 1-7a + Step 7b(部分) + 端到端接线 已实现；`hasse_sqrt` 已接入 `sqrt_fmodule`（Top 模式，norm/A_fin/A_inf 滤子后、base-case/F-module 前）：认证平方 ⟹ 重建 `δ=γ·√η` 返回；认证非平方 ⟹ `None` 短路；skip ⟹ 续走 F-module。ℚ(√2)/ℚ(√3)/ℚ(i)/ℚ(√-5) u=正方形 端到端 `δ²=u` 全过）；剩余 = Step 5 复域 torsion/log-map + r≥2 index-1 证书 + Step 7b 完整类群（Buchmann，不定域/高次非主性 + 大范数 LLL 短向量）。完整 Scholz ≈ 重写 PARI `bnfinit`，按 7 步推进，每步独立可测、sound-false-pass-on-skip（与 (A) 同架构）。
 **关联:** [GIAC-poly-f5-fglm-complete-square-decision](issues/GIAC-poly-f5-fglm-complete-square-decision.md)（总 issue / Phase C 优先级）、[giac-poly-f5-fglm-ideal-valuation-proof](giac-poly-f5-fglm-ideal-valuation-proof.md)（(A) 赋值公式证明）、`giac-rs/crates/giac-core/src/algebra/number_field_arith.rs` + `poly_roots.rs::sqrt_fmodule`
 **快照:** 2026-06-30
 
@@ -144,9 +144,16 @@ if !super::super::number_field_arith::archimedean::is_totally_positive(field, u_
 - **Step 7b（剩余）—— 完整 Buchmann 类群**：`class_group_2torsion` + `bnfisprincipal`-式 J 主性。Minkowski 界 `B_M = (4/π)^{r2}·d!/d^d·√|disc|`；枚举 `norm ≤ B_M` 素理想 → 收集关系（小范理想 LLL 短向量找主生成元）→ HNF/SNF → 类群结构 → Sylow-2。**解锁**：**不定域/高次非主性** `Some(false)`（当前定域已解锁，其余仍 `None` skip）；大范数 `J` 的 LLL 短向量生成元搜索（lift `N_J_MAX=10⁷` ceiling）；r≥2 index-1 单位证书（接类群）。需 `disc(m_α)` + (A) 完备（P3 大素因子 + P5 `p∣index` Montes）。~300-500 行，多轮。
 - **文件**：`class_group.rs`（Step 7a 已建）。**依赖**：Step 1-6。**PARI**：`bnfinit(f).clgp` + `bnfisprincipal(B,J)` + `nfeltissquare(B,u)`。
 
-### 终态接线（Step 7 完成后）
+### 终态接线（Step 7 端到端已接入 `sqrt_fmodule`）【✅ 已实现】
 
-`sqrt_fmodule` 调用链：norm-square → **(A_fin)** → **(A_inf)**[Step 1] → **(C)** J 主性 + 取 γ[Step 7] → η=u/γ² → **(B)** 单位 mod-2[Step 6]。任一失败 `return None`；任一 skip → 续走 `sqrt_base_case`（ℚ 验证兜底，sound）。
+`sqrt_fmodule`（Top 模式）在 norm/(A_fin)/(A_inf) 滤子后、base-case/F-module 前，调用 `class_group::hasse_sqrt(field, u)`：
+- `Some((true, Some(δ)))` ⟹ 返回 `Some(δ)`（认证平方 + 重建 `δ = γ·√η`，exact `δ²=u`）。覆盖 d_f==d_k（Top base-case bail）**及** d_f<d_k（F-module step 因 `w` 选择不良而 miss 的真平方，如 ℚ(√-5) u=4：u 有理 ⟹ d_f=1 ⟹ F-module，`w=α` 使 `disc_w<0` ⟹ 归约到 ℚ 中 √(负) 非平方 ⟹ miss；Scholz 直接 (C) J=𝔭²=(2) 主 γ=±2 + (B) η=1 ⟹ δ=±2）。
+- `Some((false,_))` ⟹ 返回 `None`（认证非平方，**短路** fuel-bounded base-case 搜索 — 亦是一致性胜利）。
+- `None`（skip：tower `generator_minpoly_low()=None` / r≥2 公开单位 None / (A) skip / 数值不稳）⟹ 续走 base-case / F-module（既有机制照旧，sound）。
+
+`sqrt_fmodule` 调用链：norm-square → **(A_fin)** → **(A_inf)**[Step 1] → **hasse_sqrt**[Step 7: (A_fin)+(A_inf)+(C)+(B) 认证+重建 δ] →（skip 则）base-case / **F-module**[P3] → 任一失败 `return None`；任一 skip → 续走 `try_sqrt_pairwise_fallback`（ℚ 验证兜底，sound）。Recurse 模式不接 `hasse_sqrt`（base-case 读 `field.generator_minpoly_low()`，已有 m_gen）。
+
+**端到端测试（6 个，δ²=u exact 校验）**：ℚ(√2) u=2 → δ=√2 / u=6+4√2 → δ=2+√2；ℚ(√3) u=3 → δ=√3；ℚ(i) u=-1 → δ=i；ℚ(√-5) u=4 → δ=±2（F-module-miss 由 Scholz 救回）；ℚ(√-5) u=2 → None（Step 7b 认证非平方）。全 398 giac-core lib release 21.88s；clippy 干净。
 
 ```mermaid
 flowchart TD
@@ -175,6 +182,7 @@ flowchart TD
 | Step 6 单位 mod-2 (B) | ✅ 已实现 | `unit_group::unit_is_square`（Dirichlet 分解 + mod-2 指数 + torsion 平方，sound false-pass）；certified 域类型 r=0/r=1 PARI `nfeltissquare` 对照 4 测试；r≥2 待 Step 5 解锁 |
 | Step 7a (C) 直接主性 + Scholz 管线 | ✅ 已实现 | `class_group::ideal_is_principal`（生成元搜索 `|N(γ)|=N(J)`+赋值成员校验，sound-skip）+ `hasse_is_square`（A_fin→A_inf→C→B 管线，`Option<bool>` 认证）；PARI `nfeltissquare` 交叉验证 13 测试；ℚ(√-5) 非主 J sound-skip |
 | Step 7b (C) 定域非主性认证 | ✅ 已实现（部分） | 虚二次极大序正定范型特征值界 `√(N(J)/λ_min) ≤ 界` ⟹ 搜索穷尽 ⟹ `Some((false,None))` 证非主；`ideal_is_principal` 返 `Option<(bool,Option<γ>)>`；`hasse_is_square` 经 `!is_principal` → `Some(false)`；ℚ(√-5)/ℚ(√-6) u=2 由 `None`→`Some(false)`；+5 测试（392 全过） |
+| Step 7 端到端接线 `hasse_sqrt` → `sqrt_fmodule` | ✅ 已实现 | `hasse_sqrt`（认证+重建 `δ=γ·√η`）接入 `sqrt_fmodule` Top 模式（滤子后/base-case 前）；`unit_sqrt`/`torsion_sqrt` 重建 √η；ℚ(√2)/ℚ(√3)/ℚ(i)/ℚ(√-5) u=平方 端到端 `δ²=u`；ℚ(√-5) u=4 由 F-module-miss 救回；ℚ(√-5) u=2 认证非平方短路；+6 测试（398 全过） |
 | Step 7b (C) 完整类群 (Buchmann) | 待实现 | `class_group_2torsion` + `bnfisprincipal` 式主性；**不定域/高次非主性** `Some(false)` + 大范数 LLL 短向量 + r≥2 index-1 证书；需 (A) 完备 |
 
 ## 参考
