@@ -103,7 +103,7 @@
 | ID | 能力 | 现状 | 上游 | 阻塞 |
 |----|------|------|------|------|
 | **C-5** | `Poly<AlgExtC>` deg≥5 factor | solve 路径已走 `irreducible_rootof_branch_algext`（`rootof(α,P)` 一支）；`poly_algext_roots` deg≥5 `NotImplemented` **按设计保留**（Abel–Ruffini） | `ext_factor` 高次 → `rootof(α,P)` 一支 | —（已落地） |
-| **C-6** | T3+ `adjoin(K, u²−α)` 不 flatten | `common_minimal.rs` 多处 `NotImplemented`（T5 nested embed / flat primitive / compositum embed） | `common_EXT` 嵌套路径 | 一般四次求根走 flatten fallback，维度爆 |
+| **C-6** | T3+ `adjoin(K, u²−α)` parent 域系数层 | **主体 ✅**（T3+a `adjoin(K₁,u²−√2)` 登记 + `element_*` parent-coeff 算术 + flatten + `solve(t⁴+t+1)` conformance 全过；`min_poly_parent_blocks: Vec<CoordsQ>` 存 parent 域 op 坐标，对齐 upstream `_EXT` minpoly 系数=gen）；**残留 compositum-of-two-parent-block-towers ✅**（`is_embedded_rational` 蕴含方向修正——识别 parent-block 塔的嵌套有理常数位；`verify_embedded_generator` ParentBlocks 分支复合 `try_subfield_embedding(parent,operand) ∘ embedding_for(operand,pair)`——共享父非直接 operand 时；`build_adjoin_parent_coeffs` 形态校验 monic/block-len/degree；测试 `compositum_two_parent_block_towers_over_shared_parent`）；**类型诚实度 P2**（`min_poly_parent_blocks` 裸 `CoordsQ` 靠运行时校验，升 `ParentBlock`/`FieldElement` 绑定型见 [GIAC-field-element-bound-model](GIAC-field-element-bound-model.md)） | `common_EXT` 嵌套路径（minpoly 系数=gen，原生支持任意嵌套深度） | —（已落地；原 gap doc "多处 NotImplemented / 维度爆" 描述过时，2026-07 校正） |
 | **C-7** | partfrac over K 重根 / 非线性 | **重根 ✅**（C-7a：`partfrac_affine_power_system_over_k` K-线性系统，cover-up 不处理 multiplicity>1）；**非线性 ✅**（C-7b：irreducible-over-K degree≥2 因子 → degree-(d−1) 多项式分子，同一 K-线性系统泛化，d≤3；与 upstream `gausspol.cc` `pf` deg≤2 闭式 / `Tpartfrac` Taylor 数学等价，按项目规则绑数学语义非行级实现） | `sym2poly.cc` partfrac + `ext_factor` | `integrate` K 路径因子链已通 |
 | **C-8** | quartic Euler resolvent √-决策边界 | `poly_roots.rs` 多处 `NotImplemented("quartic euler"/"quartic resolvent")`；A4 Galois dim>12 触发 `diag_a4_sqrt_probe_gap` | `gausspol.cc` 不走此路径（upstream 用 `proot` 数值） | 部分四次（A4 群）求根失败 |
 
@@ -149,7 +149,7 @@ P0  C-1/C-2/C-3   AlgExtC eval fold + frac + i 进塔
                    → 砍 fold_complex_* / rootof.rs / try_factor_quadratic_rootof
 P0  C-4           assume/purge 语句级 + 关系假设 + symbol_roles + check_assume
                    → 解锁 CK-INT-50/54、CAL-G4、SOL-G5
-P1  C-5/C-6/C-7   K 上 deg≥5 factor / T3+ adjoin / partfrac 重根+非线性（C-5/C-7 ✅，C-6 ☐）
+P1  C-5/C-6/C-7   K 上 deg≥5 factor / T3+ adjoin / partfrac 重根+非线性（C-5/C-6/C-7 ✅）
 P1  C-8           quartic Euler √-决策边界（Hasse lean4 验证线）
 P2  C-9..C-12     类群 / LLL / evalf（代数数论深化，非 conformance 硬阻塞）
 P3  C-13..C-17    simplify 真化简链 / tlin / proot / 参数化 / 显示稳定
@@ -185,7 +185,7 @@ P3  C-13..C-17    simplify 真化简链 / tlin / proot / 参数化 / 显示稳�
 ### Phase D — P1 K 上管线收尾
 
 - [x] C-5 `Poly<AlgExtC>` deg≥5 factor → `rootof(α,P)` 一支（solve 路径 `irreducible_rootof_branch_algext` 已落地；`poly_algext_roots` deg≥5 按设计 NotImplemented）
-- [ ] C-6 T3+ `adjoin(K, u²−α)` 不 flatten
+- [x] C-6 T3+ `adjoin(K, u²−α)` parent 域系数层（主体已实现：登记 + `element_*` + flatten + `solve(t⁴+t+1)` 全过；残留 compositum-of-two-parent-block-towers 已补：`is_embedded_rational` 蕴含修正 + `verify_embedded_generator` 父嵌入复合 + `build_adjoin_parent_coeffs` 校验 + 测试 `compositum_two_parent_block_towers_over_shared_parent`；类型诚实度 P2 跟踪 [GIAC-field-element-bound-model](GIAC-field-element-bound-model.md)）
 - [x] C-7a partfrac over K **重根**（`partfrac_affine_power_system_over_k` K-线性系统）
 - [x] C-7b partfrac over K **非线性**（irreducible-over-K degree≥2 → degree-(d−1) 多项式分子；K-线性系统泛化 d≤3；测试 `partfrac_nonlinear_quadratic_over_k` `x/((x²−2)(x²−3)) → −x/(x²−2)+x/(x²−3)`）
 - [ ] C-8 quartic Euler √-决策边界（A4 Galois dim>12）
