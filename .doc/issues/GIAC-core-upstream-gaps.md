@@ -104,7 +104,7 @@
 |----|------|------|------|------|
 | **C-5** | `Poly<AlgExtC>` deg≥5 factor | solve 路径已走 `irreducible_rootof_branch_algext`（`rootof(α,P)` 一支）；`poly_algext_roots` deg≥5 `NotImplemented` **按设计保留**（Abel–Ruffini） | `ext_factor` 高次 → `rootof(α,P)` 一支 | —（已落地） |
 | **C-6** | T3+ `adjoin(K, u²−α)` 不 flatten | `common_minimal.rs` 多处 `NotImplemented`（T5 nested embed / flat primitive / compositum embed） | `common_EXT` 嵌套路径 | 一般四次求根走 flatten fallback，维度爆 |
-| **C-7** | partfrac over K 重根 / 非线性 | **重根 ✅**（C-7a：`partfrac_affine_power_system_over_k` K-线性系统，cover-up 不处理 multiplicity>1）；**非线性 ☐**（C-7b：irreducible-over-K degree≥2 因子，K 未充分扩张时） | `sym2poly.cc` partfrac + `ext_factor` | `integrate` K 路径线性因子链；C-7b 非线性因子卡 |
+| **C-7** | partfrac over K 重根 / 非线性 | **重根 ✅**（C-7a：`partfrac_affine_power_system_over_k` K-线性系统，cover-up 不处理 multiplicity>1）；**非线性 ✅**（C-7b：irreducible-over-K degree≥2 因子 → degree-(d−1) 多项式分子，同一 K-线性系统泛化，d≤3；与 upstream `gausspol.cc` `pf` deg≤2 闭式 / `Tpartfrac` Taylor 数学等价，按项目规则绑数学语义非行级实现） | `sym2poly.cc` partfrac + `ext_factor` | `integrate` K 路径因子链已通 |
 | **C-8** | quartic Euler resolvent √-决策边界 | `poly_roots.rs` 多处 `NotImplemented("quartic euler"/"quartic resolvent")`；A4 Galois dim>12 触发 `diag_a4_sqrt_probe_gap` | `gausspol.cc` 不走此路径（upstream 用 `proot` 数值） | 部分四次（A4 群）求根失败 |
 
 **跟踪：** [GIAC-poly-algext-backlog](GIAC-poly-algext-backlog.md) P3-5 / F4′、[GIAC-poly-f5-fglm-hasse-lean4-verification](GIAC-poly-f5-fglm-hasse-lean4-verification.md)。
@@ -149,7 +149,7 @@ P0  C-1/C-2/C-3   AlgExtC eval fold + frac + i 进塔
                    → 砍 fold_complex_* / rootof.rs / try_factor_quadratic_rootof
 P0  C-4           assume/purge 语句级 + 关系假设 + symbol_roles + check_assume
                    → 解锁 CK-INT-50/54、CAL-G4、SOL-G5
-P1  C-5/C-6/C-7   K 上 deg≥5 factor / T3+ adjoin / partfrac 非线性
+P1  C-5/C-6/C-7   K 上 deg≥5 factor / T3+ adjoin / partfrac 重根+非线性（C-5/C-7 ✅，C-6 ☐）
 P1  C-8           quartic Euler √-决策边界（Hasse lean4 验证线）
 P2  C-9..C-12     类群 / LLL / evalf（代数数论深化，非 conformance 硬阻塞）
 P3  C-13..C-17    simplify 真化简链 / tlin / proot / 参数化 / 显示稳定
@@ -187,7 +187,7 @@ P3  C-13..C-17    simplify 真化简链 / tlin / proot / 参数化 / 显示稳�
 - [x] C-5 `Poly<AlgExtC>` deg≥5 factor → `rootof(α,P)` 一支（solve 路径 `irreducible_rootof_branch_algext` 已落地；`poly_algext_roots` deg≥5 按设计 NotImplemented）
 - [ ] C-6 T3+ `adjoin(K, u²−α)` 不 flatten
 - [x] C-7a partfrac over K **重根**（`partfrac_affine_power_system_over_k` K-线性系统）
-- [ ] C-7b partfrac over K **非线性**（irreducible-over-K degree≥2 因子）
+- [x] C-7b partfrac over K **非线性**（irreducible-over-K degree≥2 → degree-(d−1) 多项式分子；K-线性系统泛化 d≤3；测试 `partfrac_nonlinear_quadratic_over_k` `x/((x²−2)(x²−3)) → −x/(x²−2)+x/(x²−3)`）
 - [ ] C-8 quartic Euler √-决策边界（A4 Galois dim>12）
 
 ### Phase E — P2 代数数论深化
