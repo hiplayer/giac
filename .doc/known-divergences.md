@@ -25,6 +25,17 @@ Rust 实现与 giac C++ golden **字面不一致**但可能数学等价，或 **
 
 ## 已记录条目
 
+### DIV-100: hensel_lift_factor 高精度(n_prec≥3)取错共轭根
+
+- **状态:** open-bug（Rust 侧，待修）
+- **触发:** `compute_ideal_valuations(_full)` 对**分裂**素数 `p`、`n_prec = v_p(N(u))+1 ≥ 3` 时，`hensel_lift_factor` 二次提升后返回的 `G` 取到**共轭**根（如 ℚ(√-14) `p=3`，`x-1` 应提升到 `x-16 mod 27`，实际取到 `x-11` 一支），导致 `local_norm_mod_pk` 给出错误 `v_𝔭(γ)`（如 ℚ(√-14) `γ=2+√-14` 应 `v_𝔭₃=2`，实得 `3`），进而生成**虚假关系向量**（`[1,3,0]` 等无对应 `γ`）。
+- **影响范围:** `hasse_sqrt` 的 parity scan 因遇首个奇赋值即 `break 'primes`，对 `v_𝔭` 奇的 `γ` 永远到不了分裂素数的 Hensel 步，故**未触发**该 bug（潜在）。Buchmann `enumerate_relations_deg2` 用 `_full`（不 break），枚举大范数 `γ`（高 `n_prec`）时**触发**。
+- **Rust 当前行为:** `class_number_general` 的 Buchmann 全格用**虚二次 forms 交叉校验**作完备性闸门；Hensel bug 致 `h_buchmann` 偏小（如 ℚ(√-14) 得 1 而非 4），交叉校验不通过 ⟹ **sound-skip（返回 `None`）**。虚二次用户命令由 forms 路径（2a-S1）正确服务，**用户可见结果正确**。
+- **归类:** 算法 bug（Rust 实现缺陷，非 giac 偏离）
+- **修复方向:** `padic.rs::hensel_lift_factor` 的二次提升中 `g`/`h` 更新或 witness 更新符号/取模有误，需对照标准 quadratic Hensel（`g' = g + m·δg`，`δg = -b·e rem g`）逐位复核；修复后 ℚ(√-14)→4、ℚ(√-23)→3 的 Buchmann 交叉校验应通过。
+- **测试锚:** `class_group::tests::class_number_buchmann_imag_quad_crosscheck_currently_deferred`（断言 `None`，修复后翻为 `Some(4)`）。
+- **验证:** forms 路径独立给出 `count_reduced_forms(-56)=4`、`count_reduced_forms(-23)=3`，与 Pari golden 一致。
+
 ### DIV-001: factor 大指数有理式 segfault
 
 - **状态:** wontfix-giac
