@@ -22,6 +22,7 @@
 | [conformance-testing.md](conformance-testing.md) | Golden / assert_equiv；**`cargo test-timeout` 推荐用法** |
 | [GIAC-limit-layered-pipeline](issues/GIAC-limit-layered-pipeline.md) | limit 四层管线落地缺口 |
 | [GIAC-algorithm-gaps-open](issues/GIAC-algorithm-gaps-open.md) | **giac-rs 算法未实现总览**（`#[ignore]` 中 4 项 + NotImplemented 索引） |
+| [GIAC-core-upstream-gaps](issues/GIAC-core-upstream-gaps.md) | **giac-core crate** vs upstream 主要功能缺口（AlgExtC eval / assume / K 上管线 / 类群 / simplify） |
 | [external-test-resources.md](external-test-resources.md) | Maxima / SymPy / Rubi 外部 fixture 与抽取脚本 |
 | [known-divergences.md](known-divergences.md) | Rust 与 giac 已知偏离登记 |
 

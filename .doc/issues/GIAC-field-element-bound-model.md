@@ -139,6 +139,17 @@ P3c 落地后 `AlgExtData`/`AlgExtC` 的算术已 delegate 到 `FieldElement`（
 - **未采用理由**：收益（省 rationalize + 路径缩短）是性能边际 + 架构整洁度；代价是 60 处改动 + into_expr 重建潜在热路径回退 + 大回归面。P3c 桥接已让两层协同（Expr 层保 Expr 互转 + 计算层保绑定 align），融合的边际收益不抵代价。
 - **采用条件**：若 profile 显示 `rationalize_poly1`（`coords_q`/`re_q`/`im_q`）成瓶颈，或 Expr round-trip 性能不敏感（conformance 实测无回退），再按 PR 切分推进：PR1 `AlgExtData`（~7 处，小）→ PR2 `AlgExtC`（~50 处，大，分文件）。
 
+### 7.6 PR1 落地（AlgExtData.coords → HighFirstQ）
+
+**已落地**（2026-07）。`AlgExtData.coords` 从 `Vec<ExprArc>` 改存 `HighFirstQ`（`Vec<Ratio>`，存时 `pad_to_len` 到 dim）。
+
+- `alg_ext.rs`：结构体字段 `coords: HighFirstQ`；`from_coords_q` 存 `HighFirstQ::new(pad_to_len(...))`（省 `coords_to_expr`）；`coords_q` 返 `self.coords.0.clone()`（省 `rationalize_poly1`，O(1)）；`as_field_element` 用 `self.coords.clone()`（省 `coords_q` + `HighFirstQ::new` 包装）；`is_zero`/`is_one` 读 `Ratio`；`to_rootof_expr` 内联 trim leading zeros + `ratio_to_expr_arc` 逐系数重建（infallible，保持 `-> ExprArc` 签名）；移除 `coords_to_expr` import。
+- `alg_ext_c.rs` 3 处外部 `rationalize_poly1(&a.coords)` → `a.coords.0.clone()`/`a.coords.clone()`（存时已 pad，长度与原 `rationalize_poly1` 保持一致，无行为变化）。
+- `giac-calculus/expr_util.rs` `depends_on_var` 的 `Expr::AlgExt` arm 删 `a.coords.iter().any(...)` 子句（coords 现为 `Ratio`，绝不含变量；原 `rationalize` 后 `Int/Rat` 该检查亦恒 false，无行为变化）。
+- 验证：nextest release --workspace 1211 passed + clippy 干净。
+- 未简化：`mul_rational`/`inv`/`common_ext`/`algext_square_roots`/`algext_cube_root`/`fold_algext_sum` 内 `HighFirstQ::new(self.coords_q()?)` 模式保留（`coords_q` 现已 O(1)，等价开销，改动面 vs 收益不抵）。
+- 待 PR2：`AlgExtCData.re`/`.im` `Vec<ExprArc>` → `HighFirstQ`（~50 处跨 6 文件）。
+
 ## 8. 不在本 issue 范围
 
 - 新 embedding 入口的 ring-hom 测试 + stability 登记（归档 issue §2 长期规则，随 PR 走）。

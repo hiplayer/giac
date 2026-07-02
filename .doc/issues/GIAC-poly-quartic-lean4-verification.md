@@ -410,6 +410,7 @@ job registry-audit:      可选；yaml ↔ 注释一致性
 | 主题 | 文档 |
 |------|------|
 | **giac-proofs 说明（depression / Euler 定理 / lake build）** | [giac-proofs/.doc/README.md](../../giac-proofs/.doc/README.md) |
+| **Hasse-Scholz 平方判定 Lean 4 验证（同套证书约定）** | [GIAC-poly-f5-fglm-hasse-lean4-verification.md](GIAC-poly-f5-fglm-hasse-lean4-verification.md) |
 | 工程实施 F1–F5 | [GIAC-poly-quartic-roots-F1-F5](GIAC-poly-quartic-roots-F1-F5.md) |
 | 塔 L0–L7 分层 | [giac-tower-common-math.md](../giac-tower-common-math.md) §3 |
 | 符号偏离 | [known-divergences.md](../known-divergences.md) DIV-076–083 |

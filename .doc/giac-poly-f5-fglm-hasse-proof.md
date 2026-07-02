@@ -192,3 +192,7 @@ flowchart TD
 - Buchmann, *A subexponential algorithm for the determination of class groups and regulators of algebraic number fields* (1990) — Step 7 类群算法
 - Pohst / Zassenhaus, *Algorithmic Algebraic Number Theory* — 单位搜索 / LLL 应用
 - PARI/GP `bnfinit` / `bnfisprincipal` / `bnfissunit` / `nfeltissquare` — 完备 oracle（首选）
+
+## 未来形式化
+
+- **Lean 4 验证方案（Scholz 管线）：** [GIAC-poly-f5-fglm-hasse-lean4-verification.md](issues/GIAC-poly-f5-fglm-hasse-lean4-verification.md) — 三层证书 + `ScholzCert` 证书机制（f64/搜索当 oracle，exact 检查当证书，Lean 验 checker）；要证 S0 (Hasse iff) + S1 (TRUE/FALSE soundness) + O1-O4 (4 个 obstruction) + C-suff/C-exh/B-recon；r=0/r=1 域为第一版范围，r≥2 index-1 证书 / 完整 Buchmann / Montes 为远期。同套约定见 [quartic Lean4 方案](issues/GIAC-poly-quartic-lean4-verification.md)。
