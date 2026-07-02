@@ -90,7 +90,7 @@
 | **C-4a** | 语句级 `assume` / `purge` 栈 | ✅ `stmt.rs::exec_stmt`/`exec_script` 已落地（`eval.rs` 裸 `eval()` 调用保留 guard） | CK-INT-50/54、CAL-G4、SOL-G5（阻塞于 C-4d） |
 | **C-4b** | 关系假设 `A≠0`、`A>B` | ✅ `ParsedRelation` + `Context::is_assumed_{nonzero,positive,negative}` | `solve(A*x+B=0,x)` 需 `assume(A≠0)`（阻塞于 C-4d） |
 | **C-4c** | `symbol_roles`（Parameter vs Variable） | ✅ `Context::symbol_roles` + `assume(sym,"parameter"\|"variable")` + `role_of`/`is_parameter` | `diff(...,x)` 时 A,B 视为常数（阻塞于 C-4d） |
-| **C-4d** | 算法侧 `check_assume`（e2r / factor / solve 前） | ❌ 未接（跨 crate，分 PR） | `sym2poly.cc::check_assume` 对标 |
+| **C-4d** | 算法侧 `check_assume`（e2r / factor / solve 前） | **PR1 ✅**（`eval_integrate` 入口 `infer_var_sign` + `simplify_abs_with_sign`：从 `ctx.is_assumed_{positive,negative}` 或定积分 bounds+assume 推 var 符号，简化 `abs(var)`；不定积分 assume(x>0)+integrate(abs(x))→x²/2、定积分常数正/负区间全绿）；**残留**：`abs(arg)` arg≠var（如 `abs(ln(x²))` 需 arg 符号判定，PR1.5）、`exp(c*ln(x))→x^c` 真化简（C-13 slice）、integrate product/frac 简化后路径——CK-INT-50/54 完整解锁需这些；e2r/factor/solve 侧 `check_assume` 接入待后续 PR | `sym2poly.cc::check_assume` 对标 |
 
 **跟踪：** [GIAC-algext-adoption](GIAC-algext-adoption.md) §8.9、[parser-token-map.md](../parser-token-map.md) §6、GIAC-204b。
 
@@ -179,8 +179,8 @@ P3  C-13..C-17    simplify 真化简链 / tlin / proot / 参数化 / 显示稳�
 - [x] C-4a 语句级 `assume`/`purge` 栈（`stmt.rs` — `exec_stmt`/`exec_script` 已落地；`eval.rs` 裸调用 guard 保留）
 - [x] C-4b 关系假设 `A≠0`、`A>B`（`ParsedRelation` + `Context::is_assumed_{nonzero,positive,negative}`）
 - [x] C-4c `symbol_roles`（Parameter vs Variable；`assume(sym, "parameter"|"variable")`）
-- [ ] C-4d `check_assume` 接 e2r / factor / solve（跨 crate，分 PR）
-- [ ] CK-INT-50/54 enabled（阻塞于 C-4d — `integrate` crate 读 Context 查询 API）
+- [~] C-4d `check_assume` 接 e2r / factor / solve（跨 crate，分 PR）— **PR1 ✅** `eval_integrate` abs(var) 区间简化；PR1.5 abs(arg) arg 符号 / C-13 exp-log 真化简 / integrate product-frac / e2r·factor·solve 侧接入待续
+- [ ] CK-INT-50/54 enabled（C-4d PR1 已落地 abs(var)；完整解锁还需 PR1.5 + C-13 slice + integrate product/frac）
 
 ### Phase D — P1 K 上管线收尾
 
