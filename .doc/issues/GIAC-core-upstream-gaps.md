@@ -180,7 +180,7 @@ P3  C-13..C-17    simplify 真化简链 / tlin / proot / 参数化 / 显示稳�
 - [x] C-4b 关系假设 `A≠0`、`A>B`（`ParsedRelation` + `Context::is_assumed_{nonzero,positive,negative}`）
 - [x] C-4c `symbol_roles`（Parameter vs Variable；`assume(sym, "parameter"|"variable")`）
 - [~] C-4d `check_assume` 接 e2r / factor / solve（跨 crate，分 PR）— **PR1 ✅** abs(var)；**PR1.5 ✅** abs(arg) arg 符号；**C-13 slice ✅** exp(c*ln(u))→u^c + sqrt(var²)→var + fold_ratio；**CK-INT-50 ✅ enabled**；CK-INT-54 integrate frac ln / e2r·factor·solve 侧接入待续
-- [~] CK-INT-50/54 enabled — **CK-INT-50 ✅**（conformance 绿）；CK-INT-54 `integrate(ln(x²+t²)/(1+t²),t,0,∞)` 阻塞于 integrate frac ln（待评估 Risch/特殊技巧）
+- [~] CK-INT-50/54 enabled — **CK-INT-50 ✅**（conformance 绿）；**CK-INT-54 暂缓**（`integrate(ln(x²+t²)/(1+t²),t,0,∞)`=π·ln(1+x) 阻塞于 `integrate_frac` ln-numerator + 无穷限特殊积分，非 C-4d scope；通用 Risch transcendental 是大工程，特化 hack 不雅，待后续评估）
 
 ### Phase D — P1 K 上管线收尾
 
