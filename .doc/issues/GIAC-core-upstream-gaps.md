@@ -41,12 +41,12 @@
 
 | 域 | giac-2.0.0 源 | ~行数 | giac-core 对应 | ~行数 | 对照结论 |
 |----|--------------|-------|---------------|-------|----------|
-| 代数扩域 | `alg_ext.cc` | 2124 | `algebra/{alg_ext,alg_ext_c,ext_tower,field_arith,field_session,common_minimal,compositum_session}` | ~7700 | 塔式 `_EXT` + `AlgExtC` **中期基座已落地**；eval fold / `i` 进塔 ✅；evalf 未完 |
+| 代数扩域 | `alg_ext.cc` | 2124 | `algebra/{alg_ext,alg_ext_c,ext_tower,field_arith,field_session,common_minimal,compositum_session}` | ~7700 | 塔式 `_EXT` + `AlgExtC` **中期基座已落地**；eval fold / `i` 进塔 ✅；evalf ✅（C-12，`evalf(AlgExt/AlgExtC)`→decimal `Rat`/`Complex`） |
 | K 上多项式 | `gausspol.cc`（`_EXT` 系数段） | — | `algebra/poly_alg_*`、`poly_roots` | ~6100 | deg≤4 roots ✅；gcd/factor T0–T3 ✅；deg≥5 / partfrac 非线性 / quartic Euler 边界 ☐ |
 | 化简 | `subst.cc::simplify`、`usual.cc` `tlin`/`halftan`/`lin` | — | `simplify.rs` | 299 | **仅 AST flatten**；`tlin` NotImplemented |
 | assume/purge | `usual.cc::giac_assume`、`prog.cc::_purge` | — | `context.rs`、`stmt.rs` | 195+109 | 语句级栈 ✅；关系假设 `ParsedRelation` + 查询 API ✅；`symbol_roles` ✅；`check_assume` 跨 crate 接线 ☐ |
 | 数值求根 | `misc.cc::proot` | — | `eval.rs:eval_proot` | — | `NotImplemented("proot")` |
-| 代数数论 | upstream **无对应**（Pari 才有） | — | `class_group` / `unit_group` / `padic` / `lattice` / `archimedean` / `number_field_arith` / `galois_automorphism` | ~4400 | **Rust 侧扩展**，非 upstream 对齐；Hasse √-判定用；sound-skip，非完整 Buchmann |
+| 代数数论 | upstream **无对应**（Pari 才有） | — | `class_group` / `unit_group` / `padic` / `lattice` / `archimedean` / `number_field_arith` / `galois_automorphism` | ~4400 | **Rust 侧扩展**，非 upstream 对齐；Hasse √-判定用；sound-skip，非完整 Buchmann；`evalf(AlgExt)`/`lll(matrix)` 命令已暴露（C-12/C-11，见 [GIAC-p2-algebraic-number-theory-api](GIAC-p2-algebraic-number-theory-api.md)） |
 
 **结论：** `giac-core` 的 upstream 对齐缺口集中在 **(1) AlgExtC eval 接线**、**(2) assume/purge 语句级**、**(3) simplify 真化简链**、**(4) proot**；代数数论基础设施是 Rust 侧为四次 √-判定做的扩展，upstream 无对标，按 Hasse lean4 验证线单独跟踪。
 
@@ -113,14 +113,14 @@
 
 ## 4. 代数数论基础设施深化（P2）
 
-**注：** upstream giac-2.0.0 **无对应实现**（Pari/GP 才有完整类群 / 单位群 / LLL）；本节是 Rust 侧为 **Hasse √-判定** 做的扩展，非 upstream 对齐。按 [GIAC-poly-f5-fglm-hasse-lean4-verification](GIAC-poly-f5-fglm-hasse-lean4-verification.md) 数学正确性线跟踪。
+**注：** upstream giac-2.0.0 **无对应实现**（Pari/GP 才有完整类群 / 单位群 / LLL）；本节是 Rust 侧为 **Hasse √-判定** 做的扩展，非 upstream 对齐。按 [GIAC-poly-f5-fglm-hasse-lean4-verification](GIAC-poly-f5-fglm-hasse-lean4-verification.md) 数学正确性线跟踪。**做完整后可暴露的 giac 命令级 API / 功能清单见 [GIAC-p2-algebraic-number-theory-api](GIAC-p2-algebraic-number-theory-api.md)。**
 
 | ID | 能力 | 现状 | upgrade path |
 |----|------|------|--------------|
 | **C-9** | 完整 Buchmann 类群计算 | `class_group.rs` 有界生成元搜索 + sound-skip（`N_J_MAX=10⁷` + `IDEAL_GEN_COORD_BOUND` 封顶） | Buchmann 亚指数类群 + LLL 短向量生成元搜索 |
 | **C-10** | 不定域 / 高次非主性认证 | 仅 deg-2 虚二次有穷举证书；实二次 `r=1, d≥3` `None`-on-not-found | 完整 Step 7b：Buchmann 类群 |
-| **C-11** | LLL 短向量生成元搜索 | `lattice.rs` 在，未接类群 / 单位群搜索 | LLL 接入 `class_group` / `unit_group` |
-| **C-12** | `AlgExtC::evalf`（代数数 → 浮点） | ❌ 完全未做 | `horner_rootof` / `proot` 浮点逼近；解锁 `approx_rootof` / D-03 |
+| **C-11** | LLL 短向量生成元搜索 | `lattice.rs` 在，**`eval_lll` 已接 eval（`lll(matrix)` 命令）**；未接类群 / 单位群搜索 | LLL 接入 `class_group` / `unit_group` |
+| **C-12** | `AlgExtC::evalf`（代数数 → 浮点） | **✅ 已落地**：`archimedean::algext_evalf`/`algextc_evalf` + `eval_evalf` dispatch；`evalf(AlgExt/AlgExtC/sqrt(numeric))` → decimal `Rat`/`Complex`；`ponytail:` 无 `Float` variant、embedding-0=最小实根 | `horner_rootof` / `proot` 浮点逼近；解锁 `approx_rootof` / D-03（已部分解锁） |
 
 **`ponytail:` 现状边界：** `IDEAL_GEN_COORD_BOUND`（per degree）+ `N_J_MAX = 10⁷`；超过 → `None`（sound，不区分「非主」vs「界太小」）。
 
@@ -194,8 +194,8 @@ P3  C-13..C-17    simplify 真化简链 / tlin / proot / 参数化 / 显示稳�
 
 - [ ] C-9 完整 Buchmann 类群
 - [ ] C-10 不定域 / 高次非主性认证
-- [ ] C-11 LLL 短向量生成元搜索
-- [ ] C-12 `AlgExtC::evalf`
+- [x] C-11 LLL 短向量生成元搜索 — **slice ✅**（`eval_lll` 接 eval：`lll(matrix)` 命令；未接类群/单位群搜索，待 C-9）
+- [x] C-12 `AlgExtC::evalf` — **已落地**（`archimedean::algext_evalf`/`algextc_evalf` + `eval_evalf` dispatch；`evalf(AlgExt/AlgExtC/sqrt(numeric))`→decimal `Rat`/`Complex`；`ponytail:` 无 `Float` variant、embedding-0=最小实根；详见 [GIAC-p2-algebraic-number-theory-api](GIAC-p2-algebraic-number-theory-api.md)）
 
 ### Phase F — P3 simplify / 数值 / 参数化
 
