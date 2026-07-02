@@ -90,7 +90,7 @@
 | **C-4a** | 语句级 `assume` / `purge` 栈 | ✅ `stmt.rs::exec_stmt`/`exec_script` 已落地（`eval.rs` 裸 `eval()` 调用保留 guard） | CK-INT-50/54、CAL-G4、SOL-G5（阻塞于 C-4d） |
 | **C-4b** | 关系假设 `A≠0`、`A>B` | ✅ `ParsedRelation` + `Context::is_assumed_{nonzero,positive,negative}` | `solve(A*x+B=0,x)` 需 `assume(A≠0)`（阻塞于 C-4d） |
 | **C-4c** | `symbol_roles`（Parameter vs Variable） | ✅ `Context::symbol_roles` + `assume(sym,"parameter"\|"variable")` + `role_of`/`is_parameter` | `diff(...,x)` 时 A,B 视为常数（阻塞于 C-4d） |
-| **C-4d** | 算法侧 `check_assume`（e2r / factor / solve 前） | **PR1 ✅**（`abs(var)` 区间简化）；**PR1.5 ✅**（`abs(arg)` arg 符号推理：var/var^k/ln(u)，`abs(ln(var²))` from `|var|>1`）；**C-13 slice ✅**（`exp(c*ln(u))→u^c` + `sqrt(var²)→var` + `fold_ratio` 常数折叠 `1*2^-1→1/2`；`exp_arg_to_pow` 聚合多 const factor）；**CK-INT-50 ✅ enabled**（`assume(t>2),integrate(x*exp(1/2*abs(ln(x²))),x,2,t)` e2e：abs→ln(x²)、exp(1/2*ln(x²))→(x²)^(1/2)→x、x*x→x²→t³/3−8/3，conformance 绿）；**残留**：CK-INT-54 `integrate frac ln(x²+t²)/(1+t²)`、e2r/factor/solve 侧 `check_assume` 接入待后续 PR | `sym2poly.cc::check_assume` 对标 |
+| **C-4d** | 算法侧 `check_assume`（e2r / factor / solve 前） | **PR1 ✅**（`abs(var)` 区间简化）；**PR1.5 ✅**（`abs(arg)` arg 符号推理：var/var^k/ln(u)，`abs(ln(var²))` from `|var|>1`）；**C-13 slice ✅**（`exp(c*ln(u))→u^c` + `sqrt(var²)→var` + `fold_ratio`）；**CK-INT-50 ✅ enabled**；**solve 侧 ✅**（`filter_roots_by_var_sign`：`solve(x²=4,x)`+`assume(x>0)`→`[2]`，按 `ctx.is_assumed_{positive,negative}(var)` 过滤常数根，代数/rootof 根未知符号则保留）；**残留**：e2r/factor 侧参数系数 `check_assume` 阻塞于 C-16（`PolyCoeff`，符号 A,B 当系数；`solve(A*x+B=0,x)+assume(A≠0)` 现 `expr_to_poly` 把 A,B 当变量→factor fail）、AlgExt/rootof 根符号过滤需 C-12 `evalf` | `sym2poly.cc::check_assume` 对标 |
 
 **跟踪：** [GIAC-algext-adoption](GIAC-algext-adoption.md) §8.9、[parser-token-map.md](../parser-token-map.md) §6、GIAC-204b。
 
@@ -179,7 +179,7 @@ P3  C-13..C-17    simplify 真化简链 / tlin / proot / 参数化 / 显示稳�
 - [x] C-4a 语句级 `assume`/`purge` 栈（`stmt.rs` — `exec_stmt`/`exec_script` 已落地；`eval.rs` 裸调用 guard 保留）
 - [x] C-4b 关系假设 `A≠0`、`A>B`（`ParsedRelation` + `Context::is_assumed_{nonzero,positive,negative}`）
 - [x] C-4c `symbol_roles`（Parameter vs Variable；`assume(sym, "parameter"|"variable")`）
-- [~] C-4d `check_assume` 接 e2r / factor / solve（跨 crate，分 PR）— **PR1 ✅** abs(var)；**PR1.5 ✅** abs(arg) arg 符号；**C-13 slice ✅** exp(c*ln(u))→u^c + sqrt(var²)→var + fold_ratio；**CK-INT-50 ✅ enabled**；CK-INT-54 integrate frac ln / e2r·factor·solve 侧接入待续
+- [~] C-4d `check_assume` 接 e2r / factor / solve（跨 crate，分 PR）— **PR1 ✅** abs(var)；**PR1.5 ✅** abs(arg) arg 符号；**C-13 slice ✅** exp(c*ln(u))→u^c + sqrt(var²)→var + fold_ratio；**CK-INT-50 ✅ enabled**；**solve 侧 ✅** filter_roots_by_var_sign（assume(var sign) 过滤常数根）；e2r/factor 参数系数侧阻塞于 C-16、AlgExt/rootof 根符号过滤阻塞于 C-12，待续
 - [~] CK-INT-50/54 enabled — **CK-INT-50 ✅**（conformance 绿）；**CK-INT-54 暂缓**（`integrate(ln(x²+t²)/(1+t²),t,0,∞)`=π·ln(1+x) 阻塞于 `integrate_frac` ln-numerator + 无穷限特殊积分，非 C-4d scope；通用 Risch transcendental 是大工程，特化 hack 不雅，待后续评估）
 
 ### Phase D — P1 K 上管线收尾
