@@ -132,7 +132,7 @@
 
 | ID | 能力 | 现状 | 上游 |
 |----|------|------|------|
-| **C-13** | `simplify` 真化简链 | `simplify.rs`（299 行）仅 flatten Add/Mul + 合并数字系数 | `subst.cc::simplify`（`reorder`/`canonical_form`/`evalf` 化简） |
+| **C-13** | `simplify` 真化简链 | `simplify.rs`（299 行）仅 flatten Add/Mul + 合并数字系数；**C-13 slice ✅**（C-4d 路径局部 `exp(c*ln(u))→u^c` + `sqrt(var²)→var` + `fold_ratio`，`eval_integrate` 入口用，非全局 simplify 链） | `subst.cc::simplify`（`reorder`/`canonical_form`/`evalf` 化简） |
 | **C-14** | `tlin` | `eval.rs:324` `NotImplemented("tlin")` | `usual.cc::tlin` 三角线性化 |
 | **C-15** | `proot` 数值求根 | `eval.rs:818` `NotImplemented("proot")` | `misc.cc::proot` |
 | **C-16** | 参数系数 A,B（`PolyCoeff`） | `min_poly`/`coords` 不能含符号参数 | 阶段 3 / Phase C；与 C-4 协同 |
@@ -199,7 +199,7 @@ P3  C-13..C-17    simplify 真化简链 / tlin / proot / 参数化 / 显示稳�
 
 ### Phase F — P3 simplify / 数值 / 参数化
 
-- [ ] C-13 `simplify` 真化简链
+- [~] C-13 `simplify` 真化简链 — **slice ✅**（C-4d 路径局部 exp/log/sqrt，`eval_integrate` 入口用）；完整 `subst.cc::simplify` 链（reorder/canonical_form/evalf 化简）仍 P3 未做
 - [ ] C-14 `tlin`
 - [ ] C-15 `proot`
 - [ ] C-16 参数系数 A,B（`PolyCoeff` + Phase C）
