@@ -183,7 +183,8 @@ P3c 落地后 `AlgExtData`/`AlgExtC` 的算术已 delegate 到 `FieldElement`（
 
 1. **GAP-1 `adjoin` reducible minpoly 漏拦 → 已拦截**（`ext_tower.rs` `build_adjoin_irreducible`）。
    - 加 `ensure_minpoly_irreducible(parent, min_poly_q)`：`parent==ℚ` 时 `minpoly_coords_to_poly` → `factor_into`（ℚ 上完全），过滤 degree-0 content factor（`factor_into` 对 `x²−1/2` 返 `[1/2, 2x²−1]`，常数 content 非 reducible 证据），非常数 factor 数 >1 → `Err`。`degree<2` 放行（trivially irreducible）。
-   - `parent` 非 Base **跳过**：`factor_into_algext` 当前误判 `u²+3 over Q(√2)` 为 reducible（factorer 不健全），若启用会破坏所有合法嵌塔 adjoin（实测 9+ test 失败）。ceil：非 Base reducible adjoin 仍为潜在风险，待 algext factorer 健全后启用；realroot 的 `x²−4 over ℚ` bug 由 ℚ 检查全覆盖。
+   - `parent` 非 Base **跳过**：`factor_into_algext` 不是 over-K factorer 而是 **splitting-field 完全分解**（`split_quadratic_factor` 用 `poly_algext_roots` 返扩域 roots，含 formal i；如 `u²+3 over Q(√2)` 返 `[(u−√3 i),(u+√3 i)]` len 2——这是 over Q(√2,√3,i) 的完全分解，非 over Q(√2)）。用它判 over-K reducible 在语义上错误。ceil：非 Base reducible adjoin 仍为潜在风险，需真正的 over-K factorer（roots ∈ K 才算 K[var] linear factor）；realroot 的 `x²−4 over ℚ` 由 ℚ 检查全覆盖。
+   - **`is_negative_rational` 副发现**（独立 follow-up，非 GAP-1 修复）：`is_negative_rational` 要求 `dim==1`，扩域中纯有理负数（如 `[-12,0]` in Q(√2)）被判 false → `sqrt_disc`/`sqrt_principal` 走 real-adjoin（`adjoin u²=-12` 生成虚根当实的伪域）而非 `mul_formal_i`。试放宽（`re[1:]==0` 检查）语义更对，但破坏 A4 quartic `x⁴+8x+12` splitting field dim 约束（formal-i 路径使 [K:Q] 12→24，超 `POLY_ROOTS_DIM_QUARTIC_OUT`）——quartic 路径对 formal-i 复根会额外 adjoin i-layer。已回退保留 `dim==1`，待 quartic 路径学会不 adjoin i-layer 处理 formal-i 复根后再放宽。`field_session.rs` 已加注释登记。
    - 测试 `adjoin_irreducible_rejects_reducible_over_q`：`x²−4` 拒、`x²−2` 放。
 2. **GAP-2 `to_rootof_expr` 嵌套 `poly1` → 用 ℚ-flatten minpoly**（`alg_ext.rs` `to_rootof_expr`）。
    - minpoly 从 `self.min_poly()`（layer，parent 域 `Poly1` 系数 → 嵌套）改 `self.field.top_min_poly_exprs()`（ℚ-flatten，纯 `Int/Rat` 系数，符合 giac `rootof` over-ℚ 语法）。
