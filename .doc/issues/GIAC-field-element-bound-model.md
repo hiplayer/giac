@@ -101,7 +101,45 @@ impl FieldElement {
     - `poly_roots::embed_real_coords_for_parent` 跨域 align 经 `FieldElement::align_into_with_session`。
     - nextest --workspace 1211 passed（AlgExtData/AlgExtC 算术被 poly_alg_*/conformance 重度覆盖，无回归）；clippy 干净。
 
-## 7. 不在本 issue 范围
+## 7. 候选路径：AlgExt\* 薄包装融合（评估，未采用）
+
+P3c 落地后 `AlgExtData`/`AlgExtC` 的算术已 delegate 到 `FieldElement`（桥接）。进一步"融合"= 让 `AlgExt*` 退成 `FieldElement` 的薄包装：存储从 `Vec<ExprArc>` 换成 `HighFirstQ`（`Vec<Ratio>`），Expr 互转 API 保留为视图。评估如下（2026-07，未采用——收益边际、代价中等、回归面大）。
+
+### 7.1 目标形态
+
+- `AlgExtData = { field: Arc<ExtensionField>, coords: HighFirstQ, root_index: Option<u32> }`（`coords` 从 `Vec<ExprArc>` → `HighFirstQ`）≈ `FieldElement` + `root_index`。
+- `AlgExtCData = { field, re: HighFirstQ, im: HighFirstQ, root_index }`（`re`/`im` 从 `Vec<ExprArc>` → `HighFirstQ`）= 两个 `FieldElement` + 共享 field。
+- `AlgExtCPolyCoeff(pub AlgExtCData)` 薄 newtype，自动跟进。
+- 算术已 delegate（P3c）；Expr 互转 API（`into_expr`/`from_rootof`/`from_field_coords`）保留，内部改 `coords_to_expr` 按需重建。
+
+### 7.2 改动点统计（grep 实测）
+
+- **`AlgExtData.coords` 直接访问 ~7 处**（`alg_ext.rs` 内 4：`is_zero`/`is_one`/`canonical_poly1_expr`/`coords_q`；`alg_ext_c.rs` 3：`rationalize_poly1(&a.coords)`）+ 构造 `from_coords_q`/`from_field_coords`/`into_expr`。
+- **`AlgExtCData.re`/`.im` 直接访问 ~50 处跨 6 文件**（`poly_roots.rs` ~13、`alg_ext_c.rs` ~20 内部、`field_session.rs` ~13、`common_minimal.rs` 2、`poly_alg_factor.rs` 2、`eval.rs` 1、`alg_ext.rs` 2）。
+- 模式集中为 3 种：(a) `rationalize_poly1(&x.re)` → 改 `x.re.0.clone()`（**省一次 rationalize，收益**）；(b) `x.im.iter().all(|c| c.is_zero())` → `x.im.as_slice().iter().all(...)`；(c) `x.re.clone()` 塞回 `Expr::Add`/`from_field_coords` → 改 `coords_to_expr(&x.re)` 重建。
+- **`Expr::AlgExt`/`Expr::AlgExtC` 消费面**（eval/normal/显示读 `.coords`/`.re`/`.im` 渲染）：尚未 grep，需单独摸。
+
+### 7.3 收益
+
+1. 消除存储冗余：存 `Ratio`，省每次运算的 `rationalize_poly1`（`coords_q`/`re_q`/`im_q` 从"rationalize 存的 ExprArc"变成"clone 已是 Ratio 的 HighFirstQ"）。
+2. `as_field_element()` 路径更短：从"rationalize + 构造 FieldElement"变成"clone HighFirstQ + 包 FieldElement"。
+3. 融合度：`AlgExtData ≈ FieldElement + root_index`，双轨收窄为视图层。
+
+### 7.4 代价
+
+1. **`into_expr` 重建**：从 O(1) 包 `Arc`（复用存的 `ExprArc`）→ 每次 `coords_to_expr`（`Ratio→Expr::int/rat`，每系数一次 `Expr` 构造 + `Arc`）。eval/normal 把代数数塞回 Expr 树时调用，可能热——需 profile。
+2. **`into_expr` fallback 语义变**：`AlgExtC` 的 `into_expr` 现有 `Err(_) => Expr::Add(self.re.clone())` fallback 保留原始符号 `ExprArc`；改存 `HighFirstQ` 后 fallback 要 `coords_to_expr` 重建，且重建出的是有理 `Expr`（丢失"原始符号形式"——但实测 `rationalize_poly1` 要求有理系数，原始本就只是有理包装，无真正符号损失）。
+3. **~60 处机械改动跨 6+ 文件**，量大、易错。
+4. **回归面大**：`AlgExtC` 算术被 `poly_alg_*`/conformance 重度覆盖，50 处改动任一处错都炸。
+
+### 7.5 风险与决策
+
+- `root_index` **非阻碍**：实测全 crate 无 `Some(_)` 赋值、无读取消费、无 consistency 校验——纯透传预留字段（全 `None`），融合加个透传字段即可。
+- 真正阻碍已消除（coords 实际只是有理包装、root_index 无逻辑），**剩代价 = into_expr 重建 + 60 处机械改动 + 回归面**。
+- **未采用理由**：收益（省 rationalize + 路径缩短）是性能边际 + 架构整洁度；代价是 60 处改动 + into_expr 重建潜在热路径回退 + 大回归面。P3c 桥接已让两层协同（Expr 层保 Expr 互转 + 计算层保绑定 align），融合的边际收益不抵代价。
+- **采用条件**：若 profile 显示 `rationalize_poly1`（`coords_q`/`re_q`/`im_q`）成瓶颈，或 Expr round-trip 性能不敏感（conformance 实测无回退），再按 PR 切分推进：PR1 `AlgExtData`（~7 处，小）→ PR2 `AlgExtC`（~50 处，大，分文件）。
+
+## 8. 不在本 issue 范围
 
 - 新 embedding 入口的 ring-hom 测试 + stability 登记（归档 issue §2 长期规则，随 PR 走）。
 - 嵌套环类型清理（见 [GIAC-poly-nested-ring-types.md](GIAC-poly-nested-ring-types.md)）。
