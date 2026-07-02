@@ -161,16 +161,17 @@ graph TD
   - `class_group.rs::class_number_from_relations(relations, k) -> BigInt`：关系向量集 over k 素理想基 → `h = ∏ d_i`（SNF 不变因子积）。`m < k` 或秩亏 → 返回 0（关系不全信号，调用方继续枚举）。**调用方保证关系格完备**（Buchmann 完备性认证）。
   - 单测（12 个）：SNF(I)=全 1、SNF(diag(2,3))=[1,6]、SNF(diag(2,4))=[2,4]、单元素含符号归一、非对角 [[0,2],[2,0]]=[2,2]；class_number_from_relations：ℤ/2→h=2、平凡→1、ℤ/2×ℤ/2→4、ℤ/4→4、ℤ/6→6、秩亏(m<k)→0、k=0→1。
   - `ponytail:` 关系查找 + 完备性认证（2a-S2b-full 主体）留。本切片是必要件，独立可测。
-- **2a-S2b-full 主体 ◐ 关系查找 + 完备性认证（部分落地，Hensel bug 阻塞虚二次认证）**：
+- **2a-S2b-full 主体 ◑ 关系查找 + 完备性认证（基础设施完备；DIV-100 已修，虚二次 ℚ(√-14) Buchmann 认证解锁；DIV-101 snf bug 仍阻塞 ℚ(√-23)）**：
   - `number_field_arith.rs::compute_ideal_valuations_full`：`compute_ideal_valuations` 的「不在首个奇赋值处 break」变体（Buchmann 需要全 `v_𝔭(γ)`，奇/偶都要）。原 `_` 的 break 是 `hasse_sqrt` parity scan 的早退（首个奇 ⟹ (A_fin) 失败 ⟹ 无需后续），对 Buchmann 是误退。
   - `class_group.rs::enumerate_relations_deg2(field, basis, bound)`：deg-2 闭式 norm `N=a²−c₁ab+c₀b²`（精确 BigInt），枚举 `|coord|≤bound` 的 γ，`all_prime_factors_in_set` 拒绝含界外素数的范数，`_full` 分解 (γ) 入素理想基（按 `PolyMod` 相等匹配 `g_i`）→ 关系向量，去重。
   - `class_group.rs::ramification_relations(basis)`：`(p)=∏𝔭_j^{e_j}` 主 ⟹ 关系 `[e_j]`（锚定分歧结构，恒可用）。
   - `class_group.rs::all_basis_primes_principal(field, basis)`：**SOUND h=1** —— 每个基素理想 𝔭 经 `ideal_is_principal`（J=𝔭, v_p_u=2）判主，全主 ⟹ 由 Minkowski 每类有 norm≤M_K 代表 ⟹ h=1。**多素理想基 h=1 的 sound 推广**（2a-S2b-partial 仅单 ramified）。
   - `class_group.rs::class_number_general` 重构：`k=0`→1；`all_basis_primes_principal`→1（SOUND）；否则全格 → **仅 deg-2 虚二次认证**（forms 交叉校验 `count_reduced_forms==h_buchmann`）；实二次 h>1 无完备性证书（关系格可能真关系格的真子格 ⟹ h_buchmann 仅上界）⟹ sound-skip `None`。
-  - **新解锁（sound）**：`class_number(ℚ(√19))=1`（3 素理想基，𝔭₂←13+3√19, 𝔭₃←4+√19, 𝔭₃'←4−√19 全主）、`class_number(ℚ(∛2))=1`（(2)=𝔭³, 𝔭=(α) 主）。
-  - **阻塞（DIV-100）**：`hensel_lift_factor` 在 n_prec≥3 取错共轭根 ⟹ 虚二次 Buchmann 全格产生虚假关系（ℚ(√-14) 得 h=1 而非 4）⟹ forms 交叉校验不通过 ⟹ sound-skip `None`。**用户可见结果正确**（虚二次仍由 forms 路径服务）。修复 `padic.rs::hensel_lift_factor` 后 ℚ(√-14)→4、ℚ(√-23)→3 的 Buchmann 路径将解锁（测试锚 `class_number_buchmann_imag_quad_crosscheck_currently_deferred` 翻 `Some(4)`）。
-  - 单测（7 个）：`all_basis_primes_principal(ℚ(√19))=true`/`(ℚ(√10))=false`、`ramification_relations(ℚ(√-14))` sanity、`class_number(ℚ(√19))=1`、`class_number(ℚ(√10))=None`（实二次 h=2 无证书 sound-skip）、`class_number(ℚ(∛2))=1`、`class_number_general(ℚ(√-14))=None`（Hensel bug 延后，forms=4）。
-  - `ponytail:` 全格关系查找 + ramification + SNF + `_full` 赋值 = **完备基础设施**，待 Hensel bug 修复（虚二次交叉校验通过）+ 实二次单位约化完备性证书（`bnfunits` 已有基本单位 → fundamental domain 枚举 norm≤M_K 的主理想）即可解锁实二次 h>1 与 `class_group(P)`/`is_principal(ideal)`/2c。`x²-163→1`：M_K≈12.77 多素理想，𝔭 主需大坐标 Pell 解（超 `ideal_is_principal` 256 bound）⟹ 当前 sound-skip，待单位约化或调高 bound。
+  - **新解锁（sound）**：`class_number(ℚ(√19))=1`（3 素理想基，𝔭₂←13+3√19, 𝔭₃←4+√19, 𝔭₃'←4−√19 全主）、`class_number(ℚ(∛2))=1`（(2)=𝔭³, 𝔭=(α) 主）、**`class_number_general(ℚ(√-14))=Some(4)`（Buchmann 全格 + forms 交叉校验通过；DIV-100 修复后解锁）**。
+  - **DIV-100 已修复**：`padic.rs::hensel_lift_factor` 的 witness 提升由「交叉耦合+rem」改为「自耦合、不取 rem」（`δa=a·q, δb=b·q`），witness 精确满足 `≡1 mod m²`，分裂素数高 `n_prec` 不再取错共轭根。ℚ(√-14) `p=3 g=x−1`→`x−16 mod 27`、ℚ(√-23) 两共轭不坍缩。
+  - **遗留阻塞（DIV-101）**：`snf_bigint` 对 rows≫cols 关系矩阵（如 ℚ(√-23) 53×4）误降不变因子（得 `[1,1,1,1]`，真值 `[1,1,1,3]`，4×4 子式 gcd=3）⟹ ℚ(√-23) Buchmann 得 h=1≠forms=3 ⟹ forms 交叉校验不通过 ⟹ sound-skip `None`。**用户可见结果仍正确**（forms 路径给 3）。修复 `snf_bigint` 后 ℚ(√-23)→3 解锁。
+  - 单测：`all_basis_primes_principal(ℚ(√19))=true`/`(ℚ(√10))=false`、`ramification_relations(ℚ(√-14))` sanity、`class_number(ℚ(√19))=1`、`class_number(ℚ(√10))=None`（实二次 h=2 无证书 sound-skip）、`class_number(ℚ(∛2))=1`、`class_number_general(ℚ(√-14))=Some(4)`（DIV-100 修复）、`class_number_general(ℚ(√-23))=None`（DIV-101 snf bug，forms=3）；`padic::tests` 2 个 Hensel 共轭回归锚。
+  - `ponytail:` 全格关系查找 + ramification + SNF + `_full` 赋值 = **完备基础设施**，待 DIV-101 snf 修复（虚二次 ℚ(√-23) 交叉校验通过）+ 实二次单位约化完备性证书（`bnfunits` 已有基本单位 → fundamental domain 枚举 norm≤M_K 的主理想）即可解锁虚二次全类 + 实二次 h>1 与 `class_group(P)`/`is_principal(ideal)`/2c。`x²-163→1`：M_K≈12.77 多素理想，𝔭 主需大坐标 Pell 解（超 `ideal_is_principal` 256 bound）⟹ 当前 sound-skip，待单位约化或调高 bound。
 
 **2b-S1 `bnfunits(P)` / `bnfregulator(P)` — 实二次极大序（单位秩 1）✅**
 

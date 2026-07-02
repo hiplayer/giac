@@ -113,7 +113,7 @@
 
 ## 4. 代数数论基础设施深化（P2）
 
-**注：** upstream giac-2.0.0 **无对应实现**（Pari/GP 才有完整类群 / 单位群 / LLL）；本节是 Rust 侧为 **Hasse √-判定** 做的扩展，非 upstream 对齐。按 [GIAC-poly-f5-fglm-hasse-lean4-verification](GIAC-poly-f5-fglm-hasse-lean4-verification.md) 数学正确性线跟踪。**做完整后可暴露的 giac 命令级 API / 功能清单见 [GIAC-p2-algebraic-number-theory-api](GIAC-p2-algebraic-number-theory-api.md)。**
+**注：** upstream giac-2.0.0 **无对应实现**（Pari/GP 才有完整类群 / 单位群 / LLL）；本节是 Rust 侧为 **Hasse √-判定** 做的扩展，非 upstream 对齐。按 [GIAC-poly-f5-fglm-hasse-lean4-verification](GIAC-poly-f5-fglm-hasse-lean4-verification.md) 数学正确性线跟踪。**做完整后可暴露的 giac 命令级 API / 功能清单见 [GIAC-p2-algebraic-number-theory-api](GIAC-p2-algebraic-number-theory-api.md)；Pari `bnf*` 系列对标的主线方案 + 优先级见 [GIAC-p2-bnf-pari-alignment](GIAC-p2-bnf-pari-alignment.md)。**
 
 | ID | 能力 | 现状 | upgrade path |
 |----|------|------|--------------|

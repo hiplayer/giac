@@ -27,14 +27,24 @@ Rust 实现与 giac C++ golden **字面不一致**但可能数学等价，或 **
 
 ### DIV-100: hensel_lift_factor 高精度(n_prec≥3)取错共轭根
 
-- **状态:** open-bug（Rust 侧，待修）
-- **触发:** `compute_ideal_valuations(_full)` 对**分裂**素数 `p`、`n_prec = v_p(N(u))+1 ≥ 3` 时，`hensel_lift_factor` 二次提升后返回的 `G` 取到**共轭**根（如 ℚ(√-14) `p=3`，`x-1` 应提升到 `x-16 mod 27`，实际取到 `x-11` 一支），导致 `local_norm_mod_pk` 给出错误 `v_𝔭(γ)`（如 ℚ(√-14) `γ=2+√-14` 应 `v_𝔭₃=2`，实得 `3`），进而生成**虚假关系向量**（`[1,3,0]` 等无对应 `γ`）。
-- **影响范围:** `hasse_sqrt` 的 parity scan 因遇首个奇赋值即 `break 'primes`，对 `v_𝔭` 奇的 `γ` 永远到不了分裂素数的 Hensel 步，故**未触发**该 bug（潜在）。Buchmann `enumerate_relations_deg2` 用 `_full`（不 break），枚举大范数 `γ`（高 `n_prec`）时**触发**。
-- **Rust 当前行为:** `class_number_general` 的 Buchmann 全格用**虚二次 forms 交叉校验**作完备性闸门；Hensel bug 致 `h_buchmann` 偏小（如 ℚ(√-14) 得 1 而非 4），交叉校验不通过 ⟹ **sound-skip（返回 `None`）**。虚二次用户命令由 forms 路径（2a-S1）正确服务，**用户可见结果正确**。
+- **状态:** **fixed**（Rust 侧，已修复）
+- **根因:** `padic.rs::hensel_lift_factor` 的二次 Hensel **witness 提升公式错误**。因子提升 `g' = g + m·δg`（`δg = rem(b·e, g)`，**交叉耦合** b↔g）是正确的；但 witness 提升照搬了同一交叉耦合（`δa = rem(b·q, g)`、`δb = rem(a·q, h)`），而 witness 恒等式 `a·g + b·h ≡ 1` 要求的是**自耦合**：需 `α·g + β·h ≡ c`，由 `α = a·c, β = b·c`（自耦合，非交叉）给出 `α·g + β·h = c·(a·g + b·h) = c`。错误公式给出 `c·(b·g + a·h) ≠ c`，且 `rem` 引入残差 `−g²·Q1 − h²·Q2`，使 witness 每步只满足 `≡ 1 mod m`（而非 `mod m²`），逐步退化并污染后续因子提升 → 高 `n_prec` 取到共轭根。
+- **触发:** `compute_ideal_valuations(_full)` 对**分裂**素数 `p`、`n_prec ≥ 3` 时，提升后的 `G` 取到**共轭**根（如 ℚ(√-14) `p=3`，`x-1` 应提升到 `x-16 mod 27`，实际取到 `x-11` 一支），导致 `local_norm_mod_pk` 给出错误 `v_𝔭(γ)`（如 ℚ(√-14) `γ=2+√-14` 应 `v_𝔭₃=2`，实得 `3`），进而生成**虚假关系向量**。`hasse_sqrt` 的 parity scan 因遇首个奇赋值即 `break`，对 `v_𝔭` 奇的 `γ` 永远到不了分裂素数的 Hensel 步，故**未触发**（潜在）；Buchmann `enumerate_relations_deg2` 用 `_full`（不 break）枚举大范数 `γ` 时触发。
+- **修复:** witness 提升改为**自耦合、不取 rem**：`δa = a·q`、`δb = b·q`（`q = (1 − a·g' − b·h')/m`，用**新** `g',h'`）。代数验证 `a'·g' + b'·h' ≡ 1 mod m²` 精确成立（残差落在 `m²`，二次收敛）。witness 度数随步数 `~deg·log₂(target_exp)` 增长，对 `n_prec ≤ 60` 可接受（因子提升的 `rem(·,g)` 仍把 `g,h` 度数约束在 `f`）。
+- **验证:** ℚ(√-14) `p=3 g=x−1` 现提升到 `[11,1]=x−16 mod 27`（根 16，≡1 mod 3 ✓）；ℚ(√-23) `p=2` 两共轭 `g=x→[6,1]`(根 2)、`g=x+1→[1,1]`(根 7) **不坍缩**；`class_number_buchmann_imag_quad_crosscheck` 现返回 `Some(4)`（forms=4 一致）。
 - **归类:** 算法 bug（Rust 实现缺陷，非 giac 偏离）
-- **修复方向:** `padic.rs::hensel_lift_factor` 的二次提升中 `g`/`h` 更新或 witness 更新符号/取模有误，需对照标准 quadratic Hensel（`g' = g + m·δg`，`δg = -b·e rem g`）逐位复核；修复后 ℚ(√-14)→4、ℚ(√-23)→3 的 Buchmann 交叉校验应通过。
-- **测试锚:** `class_group::tests::class_number_buchmann_imag_quad_crosscheck_currently_deferred`（断言 `None`，修复后翻为 `Some(4)`）。
-- **验证:** forms 路径独立给出 `count_reduced_forms(-56)=4`、`count_reduced_forms(-23)=3`，与 Pari golden 一致。
+- **测试锚:** `padic::tests::hensel_lift_factor_split_prime_correct_conjugate_sqrt_minus_14`、`padic::tests::hensel_lift_factor_split_prime_conjugates_distinct_sqrt_minus_23`、`class_group::tests::class_number_buchmann_imag_quad_crosscheck`（断言 `Some(4)`）。
+- **遗留:** ℚ(√-23) Buchmann 仍 sound-skip（`None`），但原因转为 **DIV-101**（`snf_bigint` 非方阵 bug），非 Hensel。
+
+### DIV-101: snf_bigint 非方阵(rows≫cols)误降不变因子
+
+- **状态:** open-bug（Rust 侧，待修；sound-skip 已隔离）
+- **触发:** `snf_bigint` 对**行数远大于列数**的关系矩阵（如 ℚ(√-23) Buchmann 的 53×4）返回错误不变因子：实测 `SNF = [1,1,1,1]`，而真值 `SNF = [1,1,1,3]`（所有 4×4 子式的 gcd = 3，即关系格 index = 3 = 类数）。4×4 与 5×4 输入正确，bug 随行数增多显现——某步行/列操作序列未保持 4×4 子式 gcd（疑似 truncating 除法 `q` 与 `rem` 残差在多行场景下交互错误，或 divisibility fix-up 未覆盖左子矩阵）。
+- **影响范围:** `class_number_from_relations`（Buchmann 类数）。`all_basis_primes_principal` 的 h=1 路径、虚二次 forms 路径**不依赖** snf。虚二次 h>1 走 forms 交叉校验闸门：snf 给出错误 `h_buchmann`（如 ℚ(√-23) 得 1 ≠ forms=3）⟹ 交叉校验不通过 ⟹ **sound-skip（`None`）**，**用户可见结果仍由 forms 正确服务**。实二次 h>1 本就 sound-skip。故**无错误结果外泄**。
+- **Rust 当前行为:** ℚ(√-23) `class_number_general` 返回 `None`（forms 路径给 3）。
+- **归类:** 算法 bug（Rust 实现缺陷，非 giac 偏离）
+- **修复方向:** 重写 `snf_bigint` 为标准整数 SNF（逐步 gcd 消元 + 完备性校验：终态须 diag 整除全矩阵，且对 rows>cols 的余行清零校验）；或对类数路径改用「所有 k×k 子式 gcd」定义（小矩阵可行）。修复后 ℚ(√-23) Buchmann 交叉校验应通过 ⟹ `Some(3)`。
+- **测试锚:** `class_group::tests::class_number_buchmann_imag_quad_q_sqrt_minus_23_sound_skip`（断言 `None`，修复后翻为 `Some(3)`）。
 
 ### DIV-001: factor 大指数有理式 segfault
 
