@@ -1,6 +1,6 @@
 # GIAC field-element bound model — 代数数绑定型表示演进
 
-**状态:** open（P2a/P2b/P3a ✅ 落地 2026-07；P3b/P3c 候选；P1 使用点硬化已落地，见 §1）
+**状态:** open（P2a/P2b/P3a/P3b-1 ✅ 落地 2026-07；P3b-2/P3b-3/P3c 候选；P1 使用点硬化已落地，见 §1）
 **类型:** architecture / correctness hardening
 **相关:** [issues_resolved/GIAC-algebra-coordinate-context-hardening.md](../issues_resolved/GIAC-algebra-coordinate-context-hardening.md) §5、[giac-core-algebra-api-stability.md](../giac-core-algebra-api-stability.md)、[GIAC-algext-adoption.md](GIAC-algext-adoption.md) §7（flatten bisect fallback）
 **落点:** `giac-core::algebra::{ext_tower,field_arith,common_minimal,field_session,poly_roots,alg_ext,alg_ext_c}`
@@ -90,7 +90,10 @@ impl FieldElement {
 - **P2b**：`MonicLayerMinPoly::new` 挡 monic + 长度 + degree；`build_adjoin_parent_coeffs` 退一行；现有测试全绿。
 - **P3**：`FieldElement` 作为运算单元；`a.mul(b)` 异域自动 align；无裸 `CoordsQ` 业务参数（L2/L3）；`element_*` API 稳定性登记更新；全 workspace + conformance 全绿。
   - ~~**P3a**~~ ✅（2026-07）：`FieldElement { field, coords }` 类型 + 核心运算（`add/sub/neg/mul/inv/div/eq_mod/is_zero/is_one`），异域 `align_pair` 内化（同域 ptr-eq/语义 eq 快路径），构造挡长度错配；`element_*` 保留不删（增量非破坏）；`field_element_new_rejects_wrong_length` + `field_element_same_field_ring_hom` + `field_element_cross_field_mul_aligns` 单测；nextest --workspace 1210 passed；clippy 干净。
-  - **P3b**（pending）：~285 处 `element_*` 调用点逐文件迁移到 `FieldElement` 方法；`element_*` API 稳定性登记更新。
+  - **P3b**（in progress）：~285 处 `element_*` 调用点逐文件迁移到 `FieldElement` 方法；`element_*` API 稳定性登记更新。
+    - ~~**P3b-1**~~ ✅（2026-07）：`FieldElement` session-aware 运算族（`add/sub/mul/div/eq_mod_with_session(&FieldSession)`）——经 `FieldSession::align_pair` 走 session `common_cache`（dedup），补齐 P3a 静态 `align_pair`（ephemeral cache 无 dedup）的缺口，为迁移 session-using 消费者铺路；`field_element_session_aware_mul_matches_static_and_dedups` 单测（结果等价 + 重复 align 命中 cache）；nextest --workspace 1211 passed；clippy 干净。
+    - **P3b-2**（pending）：第一个消费者迁移试点（同域绑定 API 试点 + 跨域 align 受益点）。
+    - **P3b-3**（pending）：剩余 ~285 调用点逐文件迁移。
   - **P3c**（pending）：`AlgExtCPolyCoeff` 系数类型对齐到 `FieldElement`。
 
 ## 7. 不在本 issue 范围
