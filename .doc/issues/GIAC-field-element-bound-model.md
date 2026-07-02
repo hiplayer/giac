@@ -1,6 +1,6 @@
 # GIAC field-element bound model — 代数数绑定型表示演进
 
-**状态:** open（P2a ✅ 落地 2026-07；P2b/P3 候选；P1 使用点硬化已落地，见 §1）
+**状态:** open（P2a/P2b ✅ 落地 2026-07；P3 候选；P1 使用点硬化已落地，见 §1）
 **类型:** architecture / correctness hardening
 **相关:** [issues_resolved/GIAC-algebra-coordinate-context-hardening.md](../issues_resolved/GIAC-algebra-coordinate-context-hardening.md) §5、[giac-core-algebra-api-stability.md](../giac-core-algebra-api-stability.md)、[GIAC-algext-adoption.md](GIAC-algext-adoption.md) §7（flatten bisect fallback）
 **落点:** `giac-core::algebra::{ext_tower,field_arith,common_minimal,field_session,poly_roots,alg_ext,alg_ext_c}`
@@ -58,7 +58,7 @@ impl FieldElement {
 | 优先级 | 项 | 内容 | 代价 | 阻塞 conformance? |
 |--------|----|------|------|-------------------|
 | ~~**P2a**~~ ✅ | `ParentBlock` newtype（存储层先行） | `min_poly_parent_blocks: Option<Vec<ParentBlock>>`，构造时绑 parent + 校验 `len == parent.dim`；字段私有，唯一构造路径。**不动运行时元素表示**，只把"配对"从 `build_adjoin_parent_coeffs` 一个函数提到类型构造器，覆盖全路径（`factor_to_parent_blocks`、`common_adjoin_sibling_over`、test fixtures 等）。 | 局部类型重构，无 API 大改 | 否 — 2026-07 落地 |
-| **P2b** | `MonicLayerMinPoly` newtype | 在 P2a 上再加一层：把层 minpoly 全部不变量（长度 + monic + degree≥1）集中到 `MonicLayerMinPoly::new(parent, blocks)`；`build_adjoin_parent_coeffs` 退化成一行。 | 局部 | 否 |
+| ~~**P2b**~~ ✅ | `MonicLayerMinPoly` newtype | 在 P2a 上再加一层：把层 minpoly 全部不变量（长度 + monic + degree≥1）集中到 `MonicLayerMinPoly::new(parent, blocks)`；`build_adjoin_parent_coeffs` 退化成一行。塔字段 `Option<Vec<ParentBlock>>` → `Option<MonicLayerMinPoly>`。 | 局部 | 否 — 2026-07 落地 |
 | **P3** | `FieldElement` 运行时全栈 | `FieldElement { field, coords }` 作为运算单元；`ExtensionField::element_*` 方法族重构成 `FieldElement` 方法，align 内化；`AlgExtCPolyCoeff` 等系数类型对齐。消除所有裸坐标流动。 | **大改**（algebra 层入口换型）+ Arc 引用计数开销（upstream 同样接受）+ 与现有分离表示桥接 | 否 |
 
 **建议次序：** P2a → P2b → P3。P2a/P2b 是存储层局部硬化，可独立 PR；P3 是全栈架构演进，依赖 P2a/P2b 的类型基建。
@@ -83,6 +83,7 @@ impl FieldElement {
 ## 6. 验收（按优先级）
 
 - ~~**P2a**~~ ✅（2026-07）：`min_poly_parent_blocks` 类型升 `Vec<ParentBlock>`；持久存储唯一写入门 `build_adjoin_parent_coeffs` 经 `ParentBlock::new(parent, coords)`；构造时挡长度错配；`LayerMinPolyForAdjoin::ParentBlocks` 升 `&[ParentBlock]` 零分配借存储；瞬态 compositum blocks 保持 `&[CoordsQ]` 由消费方把守；全 workspace 1205 测试全绿；新增 `parent_block_new_rejects_wrong_length` + `build_adjoin_parent_coeffs_rejects_wrong_length_block` 单测；clippy 干净。
+- ~~**P2b**~~ ✅（2026-07）：塔字段 `Option<Vec<ParentBlock>>` → `Option<MonicLayerMinPoly>`；`MonicLayerMinPoly::new(parent, blocks)` 集中全部不变量（degree≥1 + monic + per-block 长度经 `ParentBlock::new`）；`build_adjoin_parent_coeffs` 退一行（`let layer = MonicLayerMinPoly::new(parent, layer_blocks)?;`）；读取点（`semantic_key_bytes`/`layer_min_poly_exprs`/`layer_minpoly_parent_coeffs`/`flatten_min_poly_over_q_cold`/`layer_minpoly_coords_for_adjoin`）经 `.as_blocks()`；`LayerMinPolyForAdjoin::ParentBlocks` 仍 `&[ParentBlock]`；全 workspace 1207 测试全绿；新增 `monic_layer_min_poly_rejects_non_monic` + `monic_layer_min_poly_rejects_degree_zero` 单测；clippy 干净。
 - **P2b**：`MonicLayerMinPoly::new` 挡 monic + 长度 + degree；`build_adjoin_parent_coeffs` 退一行；现有测试全绿。
 - **P3**：`FieldElement` 作为运算单元；`a.mul(b)` 异域自动 align；无裸 `CoordsQ` 业务参数（L2/L3）；`element_*` API 稳定性登记更新；全 workspace + conformance 全绿。
 
