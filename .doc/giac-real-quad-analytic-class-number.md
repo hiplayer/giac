@@ -154,10 +154,11 @@ B^* = \left\lceil\sqrt{M_K \cdot \sigma_1(\varepsilon_0)}\,\right\rceil
 
 ## 6. 边界（`ponytail:`，证书**不**覆盖的）
 
-- **大 regulator**：`\varepsilon_0` 超 `fundamental_units` 的 256 坐标界（如 ℚ(√163) 的 `\varepsilon \sim 10^{37}`）⟹ 找不到单位 ⟹ 无 `R` ⟹ `None`。待 Pell / 连分数单位求解器。
+- **大 regulator — d ≡ 2,3 mod 4 已解锁（Pell/CF 求解器）**：`fundamental_units` 暴力 256-bound 找不到单位时，对 `𝓞_K = ℤ[√d]`（minpoly `x²−d`，`d ≡ 2,3 mod 4`）走 `unit_group.rs::fundamental_unit_via_cf_sqrt_d(d)` —— 连分数展开 `√d`，首个满足 `p_n² − d·q_n² = ±1` 的渐近分数 `(p_n, q_n)` 即极小 Pell 解 = 基本单位。BigInt 渐近分数（坐标可超 i128，如 ℚ(√163) `ε ~ 1.27×10⁸`，`R ≈ 18.669`）；CF 状态 `(m, dd, a)` 留 i128（界 `2√d`，无溢出）。**解锁 `class_number(ℚ(√163)) = 1`**（Pari `bnfinit(x^2-163).no` = 1），`bnfregulator`/`bnfunits` 同步受益。
+- **大 regulator — d ≡ 1 mod 4（仍 sound-skip）**：`𝓞_K = ℤ[(1+√d)/2]`，基本单位形如 `(x+y√d)/2`（`x²−dy² = ±4`，`x ≡ y mod 2`），可能小于任何 `ℤ[√d]` 单位（如 ℚ(√5) `(1+√5)/2 < 2+√5`）。`√d` 的连分数不直接给 `±4` 解 ⟹ 需 `(1+√d)/2` 的连分数或 reduced-ideal 主循环（Shanks infrastructure）。当前 `fundamental_unit_via_cf_sqrt_d` 的 `c1 == 0` 门不触发 ⟹ `fundamental_units` 返 `None` ⟹ 证书 `None`。小 regulator 的 `d ≡ 1 mod 4` 仍由暴力 256-bound 覆盖。
 - **`D > 10^6`**：求和可行性 cap（10⁶ 次迭代），**非 soundness 缺口**，纯算力。可升级为 Poisson 求和 / baby-step giant-step 求 `L(1,χ)`。
 - **`deg ≥ 3`**：无解析闭式（高次 Dedekind L 函数）⟹ `None`，仍需完整 Buchmann 完备性证书（C 路径）。
-- **f64 精度**：舍入歧义 ⟹ `None`（已验证 `D ≤ 10^6` 下精度远够）。
+- **f64 精度**：舍入歧义 ⟹ `None`（已验证 `D ≤ 10^6` 下精度远够；大 regulator 的 `R` 用 f64 表达 `ε ~ 10^8` 仍只有 `~10⁻¹⁶` 相对误差 ⟹ `h` 误差 `~10⁻¹⁴`，舍入无歧义）。
 
 ---
 
