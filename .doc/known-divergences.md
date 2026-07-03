@@ -43,9 +43,12 @@ Rust 实现与 giac C++ golden **字面不一致**但可能数学等价，或 **
 - **触发:** 当某主元的“最小绝对值非零元”恰好为负时即触发。ℚ(√-23) Buchmann 的 139×4 关系矩阵在第 3 个主元（`(ro,co)=(2,2)`）命中：前两个主元（1,1）为正未触发，gcd_4x4 保持 3；第 3 主元取负 ⟹ 单格取负 ⟹ gcd_4x4 由 3 **跌至 1** ⟹ 最终 `SNF=[1,1,1,1]`（h=1），而真值 `SNF=[1,1,1,3]`（h=3）。4×4、5×4 输入因主元符号恰好为正而“碰巧正确”。
 - **影响范围:** `class_number_from_relations`（Buchmann 类数）。虚二次 h>1 走 forms 交叉校验闸门：错误 `h_buchmann` ≠ forms ⟹ sound-skip（`None`），**无错误结果外泄**。
 - **修复:** 单格取负改为**整行取负** `R_ro ← −R_ro`（幺模行操作，det=−1），保持格不变性；主元随之归正。其余行/列消元（截断除法 `q`、divisibility fix-up）本就是幺模，无需改动。
-- **验证:** ℚ(√-23) `class_number_general` 现 `Some(3)`（与 forms=3 一致）；新增合成回归 `snf_bigint_non_square_many_rows_preserves_invariants`（8×4 核关系矩阵，断言 `SNF=[1,1,1,3]`、h=3）。
+- **防御纵深（封闭该 bug 类，非仅修此例）:**
+  1. **类型化幺模 API**：`snf_bigint` 的矩阵改为 `mod unimod::UnimodMat`，其 backing `Vec<Vec<BigInt>>` 对父作用域**私有**，只暴露幺模行/列操作（`swap_rows`/`swap_cols`/`negate_row`/`eliminate_col`/`eliminate_row`/`row_add`，均 det=±1）。非幺模的裸 `m[i][j]=…` cell 赋值**无法通过该 API 表达**——DIV-101 这类 bug 从类型层不再可写。
+  2. **独立证书交叉校验**：`class_number_from_relations` 在 `C(n,k) ≤ MINORS_CERT_CAP`（含 ℚ(√-23) 的 13.6M 个 4×4 子式）时，用**所有 k×k 子式 gcd**（= 关系格 index 的*定义*，不依赖 snf）交叉校验 snf 乘积，`debug_assert_eq!` 不一致即报。i64 快路径使 13.6M 子式 < 5s。未来 snf 再出任何幺模性 bug 会被这个不依赖 snf 的定义当场拦下。
+- **验证:** ℚ(√-23) `class_number_general` 现 `Some(3)`（与 forms=3 一致）；新增合成回归 `snf_bigint_non_square_many_rows_preserves_invariants`（8×4 核关系矩阵，断言 `SNF=[1,1,1,3]`、h=3）、`minors_gcd_matches_snf_index`/`minors_gcd_rank_deficient_is_zero`/`minors_gcd_early_exit_on_one`（minors 证书路径单测）。
 - **归类:** 算法 bug（Rust 实现缺陷，非 giac 偏离）
-- **测试锚:** `class_group::tests::snf_bigint_non_square_many_rows_preserves_invariants`、`class_group::tests::class_number_buchmann_imag_quad_q_sqrt_minus_23`（断言 `Some(3)`）。
+- **测试锚:** `class_group::tests::snf_bigint_non_square_many_rows_preserves_invariants`、`class_group::tests::class_number_buchmann_imag_quad_q_sqrt_minus_23`（断言 `Some(3)`）、`minors_gcd_*`（3 个）。
 
 ### DIV-001: factor 大指数有理式 segfault
 
