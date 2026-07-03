@@ -34,17 +34,18 @@ Rust 实现与 giac C++ golden **字面不一致**但可能数学等价，或 **
 - **验证:** ℚ(√-14) `p=3 g=x−1` 现提升到 `[11,1]=x−16 mod 27`（根 16，≡1 mod 3 ✓）；ℚ(√-23) `p=2` 两共轭 `g=x→[6,1]`(根 2)、`g=x+1→[1,1]`(根 7) **不坍缩**；`class_number_buchmann_imag_quad_crosscheck` 现返回 `Some(4)`（forms=4 一致）。
 - **归类:** 算法 bug（Rust 实现缺陷，非 giac 偏离）
 - **测试锚:** `padic::tests::hensel_lift_factor_split_prime_correct_conjugate_sqrt_minus_14`、`padic::tests::hensel_lift_factor_split_prime_conjugates_distinct_sqrt_minus_23`、`class_group::tests::class_number_buchmann_imag_quad_crosscheck`（断言 `Some(4)`）。
-- **遗留:** ℚ(√-23) Buchmann 仍 sound-skip（`None`），但原因转为 **DIV-101**（`snf_bigint` 非方阵 bug），非 Hensel。
+- **遗留:** ~~ℚ(√-23) Buchmann 仍 sound-skip（`None`），但原因转为 **DIV-101**（`snf_bigint` 非方阵 bug），非 Hensel。~~ **DIV-101 已修复**（见下），ℚ(√-23) Buchmann 现认证 `Some(3)`。
 
-### DIV-101: snf_bigint 非方阵(rows≫cols)误降不变因子
+### DIV-101: snf_bigint 单格取负破坏格不变性
 
-- **状态:** open-bug（Rust 侧，待修；sound-skip 已隔离）
-- **触发:** `snf_bigint` 对**行数远大于列数**的关系矩阵（如 ℚ(√-23) Buchmann 的 53×4）返回错误不变因子：实测 `SNF = [1,1,1,1]`，而真值 `SNF = [1,1,1,3]`（所有 4×4 子式的 gcd = 3，即关系格 index = 3 = 类数）。4×4 与 5×4 输入正确，bug 随行数增多显现——某步行/列操作序列未保持 4×4 子式 gcd（疑似 truncating 除法 `q` 与 `rem` 残差在多行场景下交互错误，或 divisibility fix-up 未覆盖左子矩阵）。
-- **影响范围:** `class_number_from_relations`（Buchmann 类数）。`all_basis_primes_principal` 的 h=1 路径、虚二次 forms 路径**不依赖** snf。虚二次 h>1 走 forms 交叉校验闸门：snf 给出错误 `h_buchmann`（如 ℚ(√-23) 得 1 ≠ forms=3）⟹ 交叉校验不通过 ⟹ **sound-skip（`None`）**，**用户可见结果仍由 forms 正确服务**。实二次 h>1 本就 sound-skip。故**无错误结果外泄**。
-- **Rust 当前行为:** ℚ(√-23) `class_number_general` 返回 `None`（forms 路径给 3）。
+- **状态:** **fixed**（Rust 侧，已修复）
+- **根因:** `class_group.rs::snf_bigint` 在选出最小非零主元 `(ro,co)` 后，若主元为负，**只对该单格**执行 `m[ro][co] = -m[ro][co]` 以“归正符号”。这不是合法的幺模行/列操作——它等价于 `R_ro ← R_ro − 2·m[ro][co]·e_co`（对单一坐标减去非单位倍数），破坏关系格的幺模等价性，使 **k×k 子式 gcd（= 关系格 index = 类数）不再保持不变**。
+- **触发:** 当某主元的“最小绝对值非零元”恰好为负时即触发。ℚ(√-23) Buchmann 的 139×4 关系矩阵在第 3 个主元（`(ro,co)=(2,2)`）命中：前两个主元（1,1）为正未触发，gcd_4x4 保持 3；第 3 主元取负 ⟹ 单格取负 ⟹ gcd_4x4 由 3 **跌至 1** ⟹ 最终 `SNF=[1,1,1,1]`（h=1），而真值 `SNF=[1,1,1,3]`（h=3）。4×4、5×4 输入因主元符号恰好为正而“碰巧正确”。
+- **影响范围:** `class_number_from_relations`（Buchmann 类数）。虚二次 h>1 走 forms 交叉校验闸门：错误 `h_buchmann` ≠ forms ⟹ sound-skip（`None`），**无错误结果外泄**。
+- **修复:** 单格取负改为**整行取负** `R_ro ← −R_ro`（幺模行操作，det=−1），保持格不变性；主元随之归正。其余行/列消元（截断除法 `q`、divisibility fix-up）本就是幺模，无需改动。
+- **验证:** ℚ(√-23) `class_number_general` 现 `Some(3)`（与 forms=3 一致）；新增合成回归 `snf_bigint_non_square_many_rows_preserves_invariants`（8×4 核关系矩阵，断言 `SNF=[1,1,1,3]`、h=3）。
 - **归类:** 算法 bug（Rust 实现缺陷，非 giac 偏离）
-- **修复方向:** 重写 `snf_bigint` 为标准整数 SNF（逐步 gcd 消元 + 完备性校验：终态须 diag 整除全矩阵，且对 rows>cols 的余行清零校验）；或对类数路径改用「所有 k×k 子式 gcd」定义（小矩阵可行）。修复后 ℚ(√-23) Buchmann 交叉校验应通过 ⟹ `Some(3)`。
-- **测试锚:** `class_group::tests::class_number_buchmann_imag_quad_q_sqrt_minus_23_sound_skip`（断言 `None`，修复后翻为 `Some(3)`）。
+- **测试锚:** `class_group::tests::snf_bigint_non_square_many_rows_preserves_invariants`、`class_group::tests::class_number_buchmann_imag_quad_q_sqrt_minus_23`（断言 `Some(3)`）。
 
 ### DIV-001: factor 大指数有理式 segfault
 
