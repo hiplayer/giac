@@ -518,7 +518,9 @@ graph TD
 - **7a ✅**：`enumerate_relations_lli`（deg-agnostic LLL 关系生成，infra）。
 - **7b-i ✅ / 7b-ii ✅**：`analytic_inv_hr` + `certify_hr_product`（GRH 解析侧 + 联合证书谓词，见 R9/R11）。
 - **7c ✅（fallback）**：`fundamental_units_certified` / `regulator_covolume` —— **单测锚 + 无关系时的旁路**；upstream 主路径单位来自关系 arch（砖 7d），见「下一砖」。
-- **7d–7h（待做，upstream 对齐砖序）**：7d 关系 arch+getfu → 7e LIMC+关系循环 → 7f GRHchk/START → 7g `Bnf` 缓存+用户命令 → 7h 复签名 arch。详见 R11 后「下一砖」段。
+- **7d ✅ / 7g ✅**：关系 arch+getfu + `Bnf` 缓存 + eval 读缓存（见 R12）。
+- **7e ✅**：LIMC 因子基 + 关系 exp_bound 重试循环（见 R13）。
+- **7f–7h（待做）**：7f GRHchk/START → 7h 复签名 arch。详见 R11 后「下一砖」段。
 
 **sound 边界（`ponytail:`）：**
 - 每条 emitted 关系精确（`(γ)=J` 由 `γ∈J` + `|N(γ)|=N(J)` 双证）；**完备性**由 7b-ii `certify_hr_product` 证（GRH，`h'·R'·invhr≈1`）⟹ deg≥3 h=1 已解锁（见 R11）；deg≥3 h>1 在关系枚举充分时解锁，否则 sound-skip。
@@ -636,7 +638,41 @@ graph TD
 
 **验证：** `cargo test -p giac-poly --lib fpx_quartic` + `cargo test -p giac-core --lib class_number_general_cert_grh` + quartic 7c cert。
 
-**与 upstream 的结构差距（R11 后登记）：** 7b-ii 用 `candidate_regulator_buchmann`（独立 `fundamental_units_real_multi` 搜索）+ 事后 `certify_hr_product`；Pari **单位来自关系 γ 的 arch 列**（`rel_embed`→`A`→`getfu`），与 `compute_R(λ, h·invhr)` **同一次** DONE。见下「下一砖」。
+**与 upstream 的结构差距（R11 后登记）：** ~~7b-ii 用 `candidate_regulator_buchmann`~~ → R12 改 `regulator_from_relation_arch` + `getfu`；Pari 关系循环 + LIMC 因子基 → R13 部分对齐（无 `rnd_rel`/GRHchk）。见下「下一砖」。
+
+---
+
+## R12 ✅ #7 砖 7d–7g：`Bnf`、logfu/getfu、eval 读缓存
+
+（giac-rs `843b09a`；摘要登记，细节见 `algebra/bnf.rs` / `class_group.rs` / `eval.rs`。）
+
+- **7d**：`arch_log_of_element` / `logfu_from_relations` / `regulator_from_relation_arch`；GRH 路径 `R'` 来自关系 arch 列。
+- **getfu**：`getfu_algebraic_lift` + `getfu_analytic_fallback`；`Bnf::try_from_grh_relations` → `CertClassData.bnf`。
+- **7g**：`recover_exponents_from_logfu` / `unit_discrete_log_from_bnf`；`bnf_for_field`；`bnfunits` / `bnfregulator` / `bnfisunit` 优先读 `Bnf` 缓存。
+
+---
+
+## R13 ✅ #7 砖 7e：LIMC 因子基 + Buchmann 关系重试循环
+
+**目标：** deg≥3 GRH 路径对标 Pari `FBgen(LIMC)` + `RELAT`/`need=1`：因子基界从仅 Minkowski 扩到 Bach `LIMC`；`certify_hr_product` 失败时递增 `exp_bound` 重试，而非单次 sound-skip。
+
+**数学管线：**
+1. `factor_base_norm_bounds` → `[M_K, LIMC]`（`LIMC = bach_limc(ln|D|)`，仅当 `LIMC > M_K` 追加）。
+2. `prime_ideals_below_norm_bound(field, bound)` 参数化因子基枚举。
+3. `buchmann_grh_certified_data`：对每个界 × `BUCH_LLL_EXP_BOUNDS = [4,6,8]` 调用 `certified_class_data_grh_attempt`（SNF + `regulator_from_relation_arch` + `certify_hr_product` + 可选 `Bnf`）。
+4. `class_number_general_cert` / `certified_class_data_with_gens` deg≥3 走上述循环。
+
+**边界（仍待 7f）：**
+- 无 `rnd_rel`、无 `GRHchk` 二分、无 `goto START` LIMC 倍增；`x⁴−17` h=2 probe 仍允许 `None`。
+- 非极大序（`power_order_is_maximal ≠ true`）→ `None`。
+
+**接线点：** `class_group.rs`：`buchmann_limc_bound` / `factor_base_norm_bounds` / `buchmann_grh_certified_data`；`grh.rs`：`bach_limc`（已有）。
+
+**单测：**
+- `factor_base_norm_bounds_includes_limc_when_exceeds_minkowski`（ℚ(√23)）
+- 既有 `class_number_general_cert_grh_*` 回归（cubic/quartic h=1、`x⁴−17` probe）
+
+**验证：** `cargo test -p giac-core --lib` 654 passed；`cargo clippy -p giac-core` 绿。
 
 ---
 
@@ -649,9 +685,9 @@ graph TD
 ```
 GRHchk → LIMC/LIMC2 + primeneeded → invhr
     ↓
-START: FBgen(因子基 ≤ LIMC)          ← giac: 仅 Minkowski 基，无 LIMC
+START: FBgen(因子基 ≤ LIMC)          ← giac: M_K + LIMC（7e ✅）；无 GRHchk 倍增
     ↓
-small_norm + rnd_rel → 关系 (γ)      ← giac: enumerate_relations_lli 有界枚举；无 rnd_rel 循环
+small_norm + rnd_rel → 关系 (γ)      ← giac: enumerate_relations_lli + exp_bound 重试（7e ✅）；无 rnd_rel
     ↓
 HNF → W (类群) + C (arch 矩阵)       ← giac: SNF 有；arch 矩阵 C 无
     ↓
@@ -673,7 +709,7 @@ bnfisunit / bnfregulator / bnfunits  读 logfu/fu/R/h/cyc   ← giac: r≥2 未�
 | 序 | 砖 | 对标 Pari | giac-rs 落点 | 解锁 |
 |----|-----|-----------|--------------|------|
 | **1** | **7d 关系 arch 单位** | `rel_embed` / `fixarch` → `A` → `getfu` | 关系 γ 的 arch log 列；`R'=|det A|`；与 `certify_hr_product` 同源 | 单位与类群**联合**证书（对齐 `compute_R`） |
-| **2** | **7e Buchmann 关系循环 + LIMC 因子基** | `small_norm`/`rnd_rel` + `FBgen(LIMC)` + `need=1` | `prime_ideals_below_bound(bach_limc)`；关系不足**重试**非 sound-skip | deg≥3 **h>1**（如 `x⁴−17`） |
+| **2** | **7e Buchmann 关系循环 + LIMC 因子基** ✅ | `small_norm`/`rnd_rel` + `FBgen(LIMC)` + `need=1` | `factor_base_norm_bounds` + `prime_ideals_below_norm_bound`；`BUCH_LLL_EXP_BOUNDS` 重试 | deg≥3 **h>1** 部分（`x⁴−17` 仍可能 skip） |
 | **3** | **7f GRHchk + START/LIMC 倍增** | `GRHchk` 二分 + `goto START` | `grh.rs` 扩：`GRHchk`/`GRHok`；嵌在 7e 启动与 stuck 重试 | 因子基规模正确、大域不卡死 |
 | **4** | **7g `Bnf` 缓存 + 用户命令** | `buchall_end` → `bnf_get_logfu` | `Bnf` 结构体；`bnfisunit`/`bnfregulator`/`bnfunits` **读缓存** | r≥2 用户面（#6 最终解锁） |
 | **5** | **7h 复签名 arch** | `fixarch`/`cleanarchunit`（`r₂>0`） | 扩展 7d `rel_embed`；非单独 `regulator_covolume` | 复数域 GRH 证书 |
@@ -700,14 +736,14 @@ bnfisunit / bnfregulator / bnfunits  读 logfu/fu/R/h/cyc   ← giac: r≥2 未�
 | 数学对象 | 含义 | giac-rs 现状 |
 |----------|------|--------------|
 | 数域 `K` | `K=ℚ(α)`，极大序 `𝓞_K` | `ExtensionField` ✅ |
-| 因子基 `FB` | `{𝔭 : N(𝔭)≤B}`，Bach/Minkowski 界 | `prime_ideals_below_minkowski` ✅；`bach_limc` 有，未接因子基 |
+| 因子基 `FB` | `{𝔭 : N(𝔭)≤B}`，Bach/Minkowski 界 | `prime_ideals_below_norm_bound` ✅；`factor_base_norm_bounds`（M_K + LIMC）✅ |
 | 关系 `ρ` | `(γ)` 主，`v_𝔭(γ)` 为指数向量 | `CertClassData.relations: (Vec<BigInt>, γ)` ✅ |
 | 类群证书 | `Cl(K) ≅ ℤ/d₁⊕…`，`h=∏d_i` | `CertClassData { h, invariants }` ✅ |
 | 解析侧 `1/(hR)` | GRH Euler 积 + 尾修正 | `analytic_inv_hr` ✅ |
 
 #### 2. 建议新增（砖 7d–7g 的 API 边界）
 
-**落点：** `algebra/bnf.rs`（✅ `logfu` + `getfu` + `Bnf::try_from_grh_relations`；GRH 路径 `CertClassData.bnf: Option<Bnf>`；Buchmann 循环待 7e）。
+**落点：** `algebra/bnf.rs`（✅ `logfu` + `getfu` + `Bnf::try_from_grh_relations`；GRH 路径 `CertClassData.bnf: Option<Bnf>`）；`class_group.rs`（✅ 7e `buchmann_grh_certified_data` 循环）。
 
 ```text
 /// 对标 Pari bnf 的「可查询证书包」—— Buchmann DONE 之后方可构造。
@@ -771,7 +807,7 @@ pub(crate) struct ArchLogMatrix { /* cols: ArchLogVector */ }
 | 独立 `CompletenessCert` | 不要 | 一个 `f64` 比值 + `Option` 即可；`certify_hr_product` 已够 |
 | `RelationLattice` 类型 | 延后 | SNF 输入是 `Vec<Vec<BigInt>>`；关系多了再包 |
 
-**最小下一步（砖 7d ✅，7g 部分 ✅）：** `getfu` + `Bnf::try_from_grh_relations` → `CertClassData.bnf`；`bnfisunit`/`bnfregulator`/`bnfunits` 优先读 `bnf_for_field` 缓存。待做：砖 7e Buchmann 循环；`RgM_solve` 精确 `getfu`。
+**最小下一步（砖 7d–7g ✅，7e ✅）：** 砖 **7f** `GRHchk` + LIMC 倍增 / `goto START`；`RgM_solve` 精确 `getfu`；砖 **7h** 复签名 arch。
 
 ---
 
