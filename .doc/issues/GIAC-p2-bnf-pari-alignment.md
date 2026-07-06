@@ -701,7 +701,22 @@ graph TD
 
 **单测：** `bnfisprincipal_q_cbrt2_p_principal` / `certified_class_data_cache_returns_same_bnf`
 
-**仍缺：** `Context` 级 session 缓存（当前进程 Mutex）。
+**仍缺：** deg≥3 h>1 Bach 完备性。
+
+---
+
+## R19 ✅ Pari 路径：`Context` session 级 `CertClassData` 缓存
+
+**依据：** R5 `FieldSession` 契约；取代 R17 进程级 `Mutex<CERT_CLASS_CACHE>`。
+
+**落点：**
+- `field_session.rs`：`cert_class_cache: Rc<RefCell<HashMap<minpoly, Arc<CertClassData>>>>`；`fork_ambient` / `Clone` 共享
+- `class_group.rs`：`certified_class_data_with_gens(field, session: Option<&FieldSession>)`；无 session → 不缓存
+- `eval.rs`：`bnfisprincipal` / `bnfunits` / `bnfregulator` / `bnfisunit` 经 `ctx.session()` 传缓存
+
+**单测：** `context_new_has_independent_cert_class_cache` / `context_clone_shares_cert_class_cache` / `certified_class_data_cache_returns_same_bnf`
+
+**验证：** `cargo test -p giac-core --lib`；clippy 绿。
 
 ---
 
@@ -880,7 +895,7 @@ pub(crate) struct ArchLogMatrix { /* cols: ArchLogVector */ }
 | 独立 `CompletenessCert` | 不要 | 一个 `f64` 比值 + `Option` 即可；`certify_hr_product` 已够 |
 | `RelationLattice` 类型 | 延后 | SNF 输入是 `Vec<Vec<BigInt>>`；关系多了再包 |
 
-**最小下一步（砖 7d–7g ✅，7e ✅，7f ✅，7h ✅，RgM_solve ✅，缓存+bnfisprincipal deg≥3 ✅，chinese_unit CRT ✅）：** eval session 级 `Context` 缓存（可选）；deg≥3 h>1 Bach 完备性。
+**最小下一步（砖 7d–7g ✅，7e ✅，7f ✅，7h ✅，RgM_solve ✅，缓存+bnfisprincipal deg≥3 ✅，chinese_unit CRT ✅，Context session 缓存 ✅）：** deg≥3 h>1 Bach 完备性。
 
 ---
 
