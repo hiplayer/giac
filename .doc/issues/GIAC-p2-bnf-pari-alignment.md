@@ -692,6 +692,19 @@ graph TD
 
 ---
 
+## R17 ✅ Pari 路径：`CertClassData` 缓存 + `bnfisprincipal` deg≥3
+
+**落点：**
+- `class_group.rs`：`CERT_CLASS_CACHE` memo `certified_class_data_with_gens`
+- `ideal.rs`：`ideal_lattice_contains` + deg-agnostic `ideal_valuation_vector`
+- `bnfisprincipal` 接 GRH 证书域（如 ℚ(∛2) h=1）
+
+**单测：** `bnfisprincipal_q_cbrt2_p_principal` / `certified_class_data_cache_returns_same_bnf`
+
+**仍缺：** `chinese_unit` CRT；`Context` 级 session 缓存（当前进程 Mutex）。
+
+---
+
 ## R15 ✅ #7 砖 7h：复签名 `fixarch` / `rel_embed`
 
 **依据：** Pari `buch2.c` `get_log_embed`（复槽 `2·log|τ|`）+ `fixarch`（复槽 `s − x`）。
@@ -851,7 +864,7 @@ pub(crate) struct ArchLogMatrix { /* cols: ArchLogVector */ }
 | 独立 `CompletenessCert` | 不要 | 一个 `f64` 比值 + `Option` 即可；`certify_hr_product` 已够 |
 | `RelationLattice` 类型 | 延后 | SNF 输入是 `Vec<Vec<BigInt>>`；关系多了再包 |
 
-**最小下一步（砖 7d–7g ✅，7e ✅，7f ✅，7h ✅，RgM_solve ✅）：** `bnf` session 缓存；`bnfisprincipal` deg≥3。
+**最小下一步（砖 7d–7g ✅，7e ✅，7f ✅，7h ✅，RgM_solve ✅，缓存+bnfisprincipal deg≥3 ✅）：** `chinese_unit` CRT；eval session 级 `Context` 缓存（可选）。
 
 ---
 

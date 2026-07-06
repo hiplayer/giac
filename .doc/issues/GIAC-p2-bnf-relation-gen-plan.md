@@ -99,7 +99,7 @@ GRH deg≥3 主路径:
 | **r₂>0 无 arch** | ~~7h 未做~~ → ✅ `arch_log_of_element` + `relation_arch_work` |
 | **非极大序** | `power_order_is_maximal` 门控 |
 | **`bnf_for_field` 无缓存** | 每次重算 `certified_class_data_with_gens` |
-| **`bnfisprincipal` deg-2 only** | deg≥3 用户面未接 |
+| **`bnfisprincipal` deg-2 only** | ~~deg≥3 未接~~ → ✅ `ideal_valuation_vector` + GRH 证书 |
 | **getfu 非精确** | ~~f64 solve + fallback~~ → ✅ `getfu_rgm_solve_lift`（`chinese_unit` 仍缺） |
 
 ### 对照总表
@@ -230,7 +230,7 @@ GRH deg≥3 主路径:
 |----|------|
 | 7h ✅ | `arch_log_of_element` 支持 r₂>0 |
 | getfu ✅ | `RgM_solve_realimag` f64 + 取整（`chinese_unit` CRT 仍缺） |
-| API | `bnf` session 缓存；`bnfisprincipal` deg≥3 |
+| API | `bnf` 缓存 ✅（进程级）；`bnfisprincipal` deg≥3 ✅；`chinese_unit` 仍缺 |
 
 ---
 
@@ -264,7 +264,7 @@ GRH deg≥3 主路径:
         ↓ 若因子基不够
 7f (GRHchk/LIMC)       →  大域
         ↓ 并行
-bnf 缓存 / bnfisprincipal
+chinese_unit CRT
 ```
 
 **第一刀最小 diff：** 只改 `buchmann_grh_certified_data` 控制流 + `rnd_rel_batch`（~150 行），不动 SNF/arch/getfu。
