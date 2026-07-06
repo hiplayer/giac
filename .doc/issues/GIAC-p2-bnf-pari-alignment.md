@@ -515,9 +515,10 @@ graph TD
 **决策背景**：#6（r≥2 单位 index-1 证书）经 upstream 分析改投**路径 A 内禀**（见上「#6 决策」段）—— Pari `getfu` 从关系生成元 arch 分量 LLL 提取单位，index-1 = `get_regulator(A)≈R`（关系格 SNF regulator），由 Bach 界关系格完备性保证。**#6 并入 #7**，不单独做。放弃路径 B（per-field 穷举，无 upstream 先例，witness 界 `~exp(r·R)` 使穷举不可行）。
 
 **#7 砖序（A 内禀，依 upstream Pari `pari/src/basemath/buch2.c`）：**
-- **7a ✅（本砖，infra + 测试，不解锁用户面）**：`enumerate_relations_lli(field, ideals, exp_bound)` —— deg-agnostic LLL 关系生成。枚举非负指数向量 `a=(a_i)`（按 `Σa_i` 递增，小 `J` 优先），构 `J=∏𝔭_i^{a_i}`（复用 R7 `ideal_from_prime_factors`），LLL 找短 `γ∈J` 验 `|N(γ)|=N(J)`（复用 R7 `lll_principal_generator`）⟹ `(γ)=J`（`γ∈J` ⟹ `(γ)⊇J`；`|N(γ)|=N(J)` ⟹ `[(γ)/J]` 范数 1 ⟹ 平凡 ⟹ `(γ)=J`）⟹ `(a,γ)` 是精确关系。**关键：绕开 deg-agnostic ideal valuation**（关系向量 = 构 `J` 的指数，非从 `γ` 反算；`bnfisprincipal` deg≥3 的 valuation-vector 缺口是单独子任务）。
-- **7b**（7b-i ✅ 见 R9；**7b-ii ✅** 见 R11）：Bach 界 `B≈12(log|D|)²`（GRH）→ 关系格完备性内禀证书 → 解锁 deg≥3 h>1 类数/结构。7b-i 落 `analytic_inv_hr`；7b-ii 接 `class_number_general_cert` 匹配 `h'·R'·invhr≈1`。
-- **7c**（7c ✅ 见 R10；用户面 r≥2 接线随 7b-ii）：arch regulator + analytic index-1 证书（给定 h）。7b-ii 接线 `candidate_regulator_buchmann` + `certify_hr_product`。
+- **7a ✅**：`enumerate_relations_lli`（deg-agnostic LLL 关系生成，infra）。
+- **7b-i ✅ / 7b-ii ✅**：`analytic_inv_hr` + `certify_hr_product`（GRH 解析侧 + 联合证书谓词，见 R9/R11）。
+- **7c ✅（fallback）**：`fundamental_units_certified` / `regulator_covolume` —— **单测锚 + 无关系时的旁路**；upstream 主路径单位来自关系 arch（砖 7d），见「下一砖」。
+- **7d–7h（待做，upstream 对齐砖序）**：7d 关系 arch+getfu → 7e LIMC+关系循环 → 7f GRHchk/START → 7g `Bnf` 缓存+用户命令 → 7h 复签名 arch。详见 R11 后「下一砖」段。
 
 **sound 边界（`ponytail:`）：**
 - 每条 emitted 关系精确（`(γ)=J` 由 `γ∈J` + `|N(γ)|=N(J)` 双证）；**完备性**由 7b-ii `certify_hr_product` 证（GRH，`h'·R'·invhr≈1`）⟹ deg≥3 h=1 已解锁（见 R11）；deg≥3 h>1 在关系枚举充分时解锁，否则 sound-skip。
@@ -553,7 +554,7 @@ graph TD
 - 不调因子基界 `LIMC`（Pari `GRHchk`/`GRHok` 的 cD/cN/SA/SB，7b-i 跳过，用保守固定 Bach 界即可——`GRHok` 仅影响 `LIMC2` 大小，不影响 `compute_invres` 本身）。
 - 大 `|D|` 下 f64 精度损失（`√|D|`、`p^limp`）——7b-ii 接线时需评估是否升 `f64`→`BigFloat`。
 
-**接线点：** `algebra/grh.rs`（新模块）`pub(crate) fn analytic_inv_hr(field) -> Option<f64>` + `primeneeded`（pub(crate)，7b-ii 复用）+ `compute_invres`/`tailres`/`tailresback`（私有）。未接入 `class_number_general_cert`（待 7b-ii）。
+**接线点：** `algebra/grh.rs`：`analytic_inv_hr` / `primeneeded` / `certify_hr_product` / `bach_limc`（后两者 R11 接入 `class_number_general_cert_grh`）。
 
 **单测（4）：**
 - `analytic_inv_hr_q_sqrt2_matches_class_formula` —— ℚ(√2) h=1, R=ln(1+√2)≈0.88137 ⟹ `1/(hR)≈1.1346`；估计在 25% 内匹配（`invhr = 0.7071·(1/Res)`，`1/Res≈1.6046`）。
@@ -585,7 +586,7 @@ graph TD
 - **`h` 必须由调用方提供已证类数**（契约）；错 `h` 令证书无效但非 unsound（仅当错 `h` 且 ratio 偶落入区间才误证 —— 调用方传已证 `h` 即免）。
 
 **边界（7c 不解锁用户面）：**
-- **`h` 作参数传入**：避免 `unit_group → class_group` 依赖循环（`class_group` 已 `use unit_group`）。7b-ii 在 `class_group` 接线：`certified_class_data_with_gens().h` → `fundamental_units_certified(field, &h)` → 传 `(units, h)` 给 `unit_discrete_log` 的 r≥2 路径。本砖只供 `R'` + 证书原语，不解锁 `bnfisunit`/`bnfregulator`/`bnfunits` r≥2（待 7b-ii）。
+- **`h` 作参数传入**（7c 设计债）：避免 `unit_group → class_group` 循环；upstream 无此分步——`Bnf` 一次构造后 `bnfisunit` 读 `logfu`（砖 7g，见「下一砖」）。
 - 仅 totally-real r≥2（`fundamental_units_real_multi` 作用域）；复签名延后。
 - ~~quartic DIV-086~~ **fixed**（见 R11 / `known-divergences.md` §DIV-086）。
 
@@ -634,6 +635,143 @@ graph TD
 - `class_number_general_cert_grh_x4_minus_17_h2_probe`（h>1 探测，允许 `None`）
 
 **验证：** `cargo test -p giac-poly --lib fpx_quartic` + `cargo test -p giac-core --lib class_number_general_cert_grh` + quartic 7c cert。
+
+**与 upstream 的结构差距（R11 后登记）：** 7b-ii 用 `candidate_regulator_buchmann`（独立 `fundamental_units_real_multi` 搜索）+ 事后 `certify_hr_product`；Pari **单位来自关系 γ 的 arch 列**（`rel_embed`→`A`→`getfu`），与 `compute_R(λ, h·invhr)` **同一次** DONE。见下「下一砖」。
+
+---
+
+## 下一砖（upstream 对齐优先级 + 数学对象抽象）
+
+**依据：** Pari `pari/src/basemath/buch2.c` `Buchall_param` 单循环；`bnfunits.c` `bnfisunit` 读 `bnf_get_logfu`；非 giac C++（giac 无原生 bnf）。
+
+### Upstream 总流程（对照 giac-rs 缺口）
+
+```
+GRHchk → LIMC/LIMC2 + primeneeded → invhr
+    ↓
+START: FBgen(因子基 ≤ LIMC)          ← giac: 仅 Minkowski 基，无 LIMC
+    ↓
+small_norm + rnd_rel → 关系 (γ)      ← giac: enumerate_relations_lli 有界枚举；无 rnd_rel 循环
+    ↓
+HNF → W (类群) + C (arch 矩阵)       ← giac: SNF 有；arch 矩阵 C 无
+    ↓
+A = C 的单位列 (rel_embed(γ))        ← giac: 7c 旁路搜单位，非关系 arch 列
+    ↓
+compute_R(λ, h·invhr)                ← giac: certify_hr_product ✅（但 R' 来源不对齐）
+    ↓  RELAT → need 更多关系
+    ↓  PRECI → 提精度
+DONE: LLL + getfu → fu + logfu       ← giac: 无 getfu；无 bnf 缓存
+    ↓
+buchall_end → bnf 对象
+bnfisunit / bnfregulator / bnfunits  读 logfu/fu/R/h/cyc   ← giac: r≥2 未接
+```
+
+**核心结论：** upstream **不分**「先证 h → 再 `fundamental_units_certified(h)` → 再接线用户命令」；**一次** `bnfinit` 产出可查询数学对象，用户命令只读缓存。
+
+### 砖序（upstream 对齐，取代旧 P0–P3 排序）
+
+| 序 | 砖 | 对标 Pari | giac-rs 落点 | 解锁 |
+|----|-----|-----------|--------------|------|
+| **1** | **7d 关系 arch 单位** | `rel_embed` / `fixarch` → `A` → `getfu` | 关系 γ 的 arch log 列；`R'=|det A|`；与 `certify_hr_product` 同源 | 单位与类群**联合**证书（对齐 `compute_R`） |
+| **2** | **7e Buchmann 关系循环 + LIMC 因子基** | `small_norm`/`rnd_rel` + `FBgen(LIMC)` + `need=1` | `prime_ideals_below_bound(bach_limc)`；关系不足**重试**非 sound-skip | deg≥3 **h>1**（如 `x⁴−17`） |
+| **3** | **7f GRHchk + START/LIMC 倍增** | `GRHchk` 二分 + `goto START` | `grh.rs` 扩：`GRHchk`/`GRHok`；嵌在 7e 启动与 stuck 重试 | 因子基规模正确、大域不卡死 |
+| **4** | **7g `Bnf` 缓存 + 用户命令** | `buchall_end` → `bnf_get_logfu` | `Bnf` 结构体；`bnfisunit`/`bnfregulator`/`bnfunits` **读缓存** | r≥2 用户面（#6 最终解锁） |
+| **5** | **7h 复签名 arch** | `fixarch`/`cleanarchunit`（`r₂>0`） | 扩展 7d `rel_embed`；非单独 `regulator_covolume` | 复数域 GRH 证书 |
+
+**相对旧排序的修正：**
+
+| 旧（内部分析） | upstream 修正 |
+|----------------|---------------|
+| P0 先接线 `unit_discrete_log(h)` | **降为砖 4**：须先有 `Bnf.logfu`；查询时重算单位 ≠ Pari |
+| P1 加关系 / 调 `exp_bound` | **升为砖 2**：要 **LIMC 因子基 + 关系循环**，非仅放大枚举界 |
+| P2 GRHchk 独立阶段 | **并入砖 2/3**，非后置 |
+| P3 复签名 `regulator_covolume` | **仍为砖 5**，但走 **关系 arch 管线** |
+
+**7c 定位调整：** `fundamental_units_real_multi` + `certify_unit_index_1(h)` 保留为 **fallback / 单测锚**（已知 R 的域上验证 arch 算术），**不作** Buchmann 主路径单位源（与 Pari 一致）。
+
+---
+
+### 数学对象抽象（可否抽出、如何抽）
+
+**可以抽象，且应对标 Pari `bnf` 组件而非再拆函数。** 下列对象把「证书」与「查询 API」分开，避免 `class_group` ↔ `unit_group` 循环依赖。
+
+#### 1. 已有 / 半成品
+
+| 数学对象 | 含义 | giac-rs 现状 |
+|----------|------|--------------|
+| 数域 `K` | `K=ℚ(α)`，极大序 `𝓞_K` | `ExtensionField` ✅ |
+| 因子基 `FB` | `{𝔭 : N(𝔭)≤B}`，Bach/Minkowski 界 | `prime_ideals_below_minkowski` ✅；`bach_limc` 有，未接因子基 |
+| 关系 `ρ` | `(γ)` 主，`v_𝔭(γ)` 为指数向量 | `CertClassData.relations: (Vec<BigInt>, γ)` ✅ |
+| 类群证书 | `Cl(K) ≅ ℤ/d₁⊕…`，`h=∏d_i` | `CertClassData { h, invariants }` ✅ |
+| 解析侧 `1/(hR)` | GRH Euler 积 + 尾修正 | `analytic_inv_hr` ✅ |
+
+#### 2. 建议新增（砖 7d–7g 的 API 边界）
+
+**落点：** `algebra/bnf.rs`（✅ `logfu` + `getfu` + `Bnf::try_from_grh_relations`；GRH 路径 `CertClassData.bnf: Option<Bnf>`；Buchmann 循环待 7e）。
+
+```text
+/// 对标 Pari bnf 的「可查询证书包」—— Buchmann DONE 之后方可构造。
+pub(crate) struct Bnf {
+    pub field: Arc<ExtensionField>,
+    /// 因子基素理想（生成元列表），对标 Vbase/LP
+    pub factor_base: Vec<(i64, PrimeIdealRec)>,
+    /// 类群：h + SNF 循环因子（对标 clg1 / W）
+    pub class: ClassGroupCert,          // { h, cyc: Vec<BigInt> }
+    /// _regulator_ R = covolume(unit log lattice)
+    pub regulator: f64,
+    /// arch log 矩阵列 = 基本单位（对标 logfu = A）
+    /// totally-real: r×r 实矩阵；复域延后 7h
+    pub logfu: ArchLogMatrix,
+    /// 代数基本单位 ε_i ∈ 𝓞_K×（对标 fu；getfu 产出）
+    pub units: Vec<HighFirstQ>,
+    /// 关系格（含 γ），供 bnfisprincipal / 审计
+    pub relations: Vec<(Vec<BigInt>, HighFirstQ)>,
+    /// torsion μ(K)
+    pub torsion: Torsion,
+}
+
+/// 关系生成元 γ 在 arch 侧的 log 向量（对标 rel_embed + fixarch）
+/// σ ↦ log|σ(γ)| − (1/n) log|N(γ)|
+pub(crate) struct ArchLogVector(/* per embedding */);
+
+/// r 个单位的 arch log 列拼成的矩阵；regulator = |det(top r×r)|
+pub(crate) struct ArchLogMatrix { /* cols: ArchLogVector */ }
+```
+
+**构造契约（数学，非实现细节）：**
+
+1. `Bnf::try_from_buchmann(field)` 跑完整 Buchmann 循环（7e+7f），**仅当** `certify_hr_product(h', R')` 通过（或 upstream 等价 `0.75 < h·R·invhr < 1.3`）返回 `Some`。
+2. `R'` **必须**来自 `ArchLogMatrix`（关系 arch 列），非 `fundamental_units_real_multi` 旁路（砖 7d）。
+3. `bnfisunit(bnf, u)` = `solve(logfu, log_embed(u))` + torsion 最后一维；**不接收**外部 `h`。
+4. `bnfregulator(bnf)` = `bnf.regulator`（或 `det(logfu)` 刷新）。
+5. `CertClassData` 可视为 `Bnf` 的子视图或 `Bnf::into_cert_class_data()`；长期 **合并** 为同一类型，避免双份 `h/relations/basis`。
+
+#### 3. 联合完备性证书（一个谓词，两个格）
+
+数学上只有**一个**证书谓词（Pari `compute_R`）：
+
+\[
+\mathcal{C}(K) \iff 0.75 < h' \cdot R' \cdot \widehat{(hR)^{-1}} < 1.3
+\]
+
+其中 `h'` = 关系 SNF 行列式积，`R'` = 单位 arch 格 covolume，`invhr` = `analytic_inv_hr`。通过 ⟺
+
+- 关系格 = 完整主理想关系格 ⟹ SNF = `Cl(K)`；
+- 单位 arch 格 = 全单位群 ⟹ index 1。
+
+**不应**拆成 `certify_unit_index_1(h)` 与 `certify_hr_product` 两条用户可见路径；后者是联合谓词，`certify_unit_index_1` 降级为 **已知 h 时的单测/helper**（7c 现状）。
+
+#### 4. 抽象是否值得（lazy senior 判断）
+
+| 抽象 | 要否 | 理由 |
+|------|------|------|
+| `Bnf` 一体对象 | **要** | 对标 Pari；消灭「传 h 防循环」；用户命令自然只读缓存 |
+| `ArchLogMatrix` | **要** | 7d/7h 共用；`bnfisunit` 与 `regulator` 同一数据源 |
+| `FactorBase` type alias | 可选 | `Vec<(i64, PrimeIdealRec)>` 已够用；`bach_limc` 作界参数 |
+| 独立 `CompletenessCert` | 不要 | 一个 `f64` 比值 + `Option` 即可；`certify_hr_product` 已够 |
+| `RelationLattice` 类型 | 延后 | SNF 输入是 `Vec<Vec<BigInt>>`；关系多了再包 |
+
+**最小下一步（砖 7d ✅，7g 部分 ✅）：** `getfu` + `Bnf::try_from_grh_relations` → `CertClassData.bnf`；`bnfisunit`/`bnfregulator`/`bnfunits` 优先读 `bnf_for_field` 缓存。待做：砖 7e Buchmann 循环；`RgM_solve` 精确 `getfu`。
 
 ---
 
