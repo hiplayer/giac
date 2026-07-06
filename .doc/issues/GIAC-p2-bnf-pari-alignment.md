@@ -516,7 +516,7 @@ graph TD
 
 **#7 砖序（A 内禀，依 upstream Pari `pari/src/basemath/buch2.c`）：**
 - **7a ✅（本砖，infra + 测试，不解锁用户面）**：`enumerate_relations_lli(field, ideals, exp_bound)` —— deg-agnostic LLL 关系生成。枚举非负指数向量 `a=(a_i)`（按 `Σa_i` 递增，小 `J` 优先），构 `J=∏𝔭_i^{a_i}`（复用 R7 `ideal_from_prime_factors`），LLL 找短 `γ∈J` 验 `|N(γ)|=N(J)`（复用 R7 `lll_principal_generator`）⟹ `(γ)=J`（`γ∈J` ⟹ `(γ)⊇J`；`|N(γ)|=N(J)` ⟹ `[(γ)/J]` 范数 1 ⟹ 平凡 ⟹ `(γ)=J`）⟹ `(a,γ)` 是精确关系。**关键：绕开 deg-agnostic ideal valuation**（关系向量 = 构 `J` 的指数，非从 `γ` 反算；`bnfisprincipal` deg≥3 的 valuation-vector 缺口是单独子任务）。
-- **7b**（待做）：Bach 界 `B≈12(log|D|)²`（GRH）→ 关系格完备性内禀证书 → 解锁 deg≥3 h>1 类数/结构。
+- **7b**（部分：7b-i ✅ 解析侧 infra + 测试，见 R9；7b-ii 待做）：Bach 界 `B≈12(log|D|)²`（GRH）→ 关系格完备性内禀证书 → 解锁 deg≥3 h>1 类数/结构。7b-i 落 `analytic_inv_hr`（GRH 解析 `1/(h·R)` 估计）；7b-ii 接 `class_number_general_cert` 匹配 `h'·R'`。
 - **7c**（待做）：关系生成元 `γ_j` 的 arch 对数分量（`embeddings` 下 `log|σ_i(γ_j)| − log|N(γ_j)|/n`，即 Pari `fixarch`）构 arch 分量矩阵 `A`，LLL 提取基本单位基（Pari `getfu` 流），regulator = `|det(real_i(A) 顶行)|`，与关系格 SNF 给的 `R` 匹配 ⟹ index-1 ⟹ `fundamental_units` r≥2 返 `Some` → 解锁 #6（`bnfisunit`/`bnfregulator`/`bnfunits` r≥2）。
 
 **sound 边界（`ponytail:`）：**
@@ -530,6 +530,44 @@ graph TD
 **单测（1）：** `enumerate_relations_lli_q_cbrt2_finds_p_alpha_powers` —— ℚ(∛2) deg-3，basis={𝔭 above 2}（2 全分歧，𝔭=(2,α), f=1, e=3, N(𝔭)=2），h=1 ⟹ 𝔭^a 主、生成元 α^a；7a 找到 a=1,2,3 三条关系，每条 `|N(γ)|=2^a`。锚定 deg-agnostic LLL 关系生成正确性。**不**证类群（h=1，完备性 = 7b Bach）。
 
 **验证：** `cargo test -p giac-core --lib` 630 passed / 3 ignored；`cargo clippy -p giac-core --lib` 绿。
+
+---
+
+## R9 ✅ #7 砖 7b-i：GRH 解析 `1/(h·R)` 估计（infra，依据 upstream Pari `buch2.c`）
+
+**目标：** Buchmann 关系格完备性内禀证书的**解析侧**——GRH 下类数公式给 `h·R`，关系格给 `h'·R'`，匹配 ⟹ 完备 ⟹ SNF=类群 AND 单位格 index-1（= #6 内禀证）。本砖只落解析估计 `1/(h·R)` 的**基础设施**（pure f64 函数 + 测试），不接用户面、不证完备性（完备匹配 = 7b-ii，需 7c 的 `R'`）。
+
+**数学管线（upstream Pari `pari/src/basemath/buch2.c`，忠实移植）：**
+1. `primeneeded(N, R1, R2, log|D|)` → 素数界 `LIMres`：二分找最小 `C` 使 `tailres(…) ≤ 0.25`（Pari 的 0.25 相对误差预算）。
+2. `tailres` / `tailresback`：GRH 尾残差（Belabas 论文经验常数 + `eint1(log(3·2^i)/2)` 的 31 项 tab）。
+3. `compute_invres(field, LIMres)` → `1/Res(ζ_K,1)`：素理想 Euler 乘积 `Σ_p Σ_{k≥1} 1/(k·p^k) − Σ_𝔭 Σ_{k≥1} 1/(k·N(𝔭)^k)` + GRH 尾修正 `c0/c1/c2`（仅用分裂型 `(f, nb)`，分歧 `e` 不入 ζ_K Euler 乘积）。
+4. `analytic_inv_hr(field)` = 驱动：`invhr = (2^{r1+r2}·π^{r2})/(√|D|·w)·(1/Res) = 1/(h·R)`（类数公式 `Res = 2^{r1}(2π)^{r2}·h·R/(√|D|·w)`）。要求**极大 power order**（`D_K = disc(m_α)`），否则 `None`（sound-skip）。
+
+**Soundness：**
+- 全部纯函数；错常数 → 估计错 → 测试挂（不产生假证书）。
+- 经验常数（Belabas）**逐字转录**，**不许调**——调错会令完备证书 UNSOUND。
+- `limres` 截断 → 估计是**近似值**（GRH 条件 + 0.25 相对误差预算），非精确；完备匹配（7b-ii）据此做整数/格判别，非精确等式。
+
+**边界（7b-i 不解锁用户面）：**
+- 不证完备性（需 7b-ii 匹配 `h'·R'`，而 `R'` 来自 7c 的 arch 分量 LLL）。
+- 不调因子基界 `LIMC`（Pari `GRHchk`/`GRHok` 的 cD/cN/SA/SB，7b-i 跳过，用保守固定 Bach 界即可——`GRHok` 仅影响 `LIMC2` 大小，不影响 `compute_invres` 本身）。
+- 大 `|D|` 下 f64 精度损失（`√|D|`、`p^limp`）——7b-ii 接线时需评估是否升 `f64`→`BigFloat`。
+
+**接线点：** `algebra/grh.rs`（新模块）`pub(crate) fn analytic_inv_hr(field) -> Option<f64>` + `primeneeded`（pub(crate)，7b-ii 复用）+ `compute_invres`/`tailres`/`tailresback`（私有）。未接入 `class_number_general_cert`（待 7b-ii）。
+
+**单测（4）：**
+- `analytic_inv_hr_q_sqrt2_matches_class_formula` —— ℚ(√2) h=1, R=ln(1+√2)≈0.88137 ⟹ `1/(hR)≈1.1346`；估计在 25% 内匹配（`invhr = 0.7071·(1/Res)`，`1/Res≈1.6046`）。
+- `analytic_inv_hr_q_sqrt3_matches_class_formula` —— ℚ(√3) h=1, R=ln(2+√3)≈1.317 ⟹ `1/(hR)≈0.7593`；25% 内匹配。
+- `analytic_inv_hr_q_i_matches_one` —— ℚ(i) h=1, R=1（rank 0）⟹ `1/(hR)=1`；D=−4, r1=0, r2=1, w=4，`invhr=(π/4)·(4/π)=1`；25% 内匹配。
+- `primeneeded_small_field_is_modest` —— `primeneeded(2,2,0,ln8)=303`（Pari 经验常数保守，小域亦需数百素数达 0.25 预算）。
+
+**交叉验证：** Pari `bnfinit(x^2-2,1).cyc = []`（ℚ(√2) h=1）✓。三域解析测试通过即锚定 `compute_invres`+`primeneeded`+`tailres` 整链正确（任一环节错则估计偏 >25%）。
+
+**验证：** `cargo test -p giac-core --lib algebra::grh::` 4 passed；`cargo build -p giac-core` 绿。
+
+**下一砖：**
+- **7b-ii**（待做）：`class_number_general_cert` 接 `analytic_inv_hr`，关系格 `h'·R'`（`h'=|SNF|`，`R'` 来自 7c）与解析 `hR=1/invhr` 匹配判据 + `LIMC` Bach 界 + 递增 `LIMres` 消歧 → 解锁 deg≥3 h>1。
+- **7c**（待做）：arch 分量 LLL 提取单位 + regulator → 供 7b-ii 的 `R'`，并解锁 #6 r≥2。
 
 ---
 
