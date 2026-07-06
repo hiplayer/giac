@@ -895,7 +895,22 @@ pub(crate) struct ArchLogMatrix { /* cols: ArchLogVector */ }
 | 独立 `CompletenessCert` | 不要 | 一个 `f64` 比值 + `Option` 即可；`certify_hr_product` 已够 |
 | `RelationLattice` 类型 | 延后 | SNF 输入是 `Vec<Vec<BigInt>>`；关系多了再包 |
 
-**最小下一步（砖 7d–7g ✅，7e ✅，7f ✅，7h ✅，RgM_solve ✅，缓存+bnfisprincipal deg≥3 ✅，chinese_unit CRT ✅，Context session 缓存 ✅）：** deg≥3 h>1 Bach 完备性。
+**最小下一步（砖 7d–7g ✅，7e ✅，7f ✅，7h ✅，RgM_solve ✅，缓存+bnfisprincipal deg≥3 ✅，chinese_unit CRT ✅，Context session 缓存 ✅）：** deg≥3 h>1 GRH RELAT 完备性（锚域 ℚ(∛11) h=2）；`bnfisprincipal` 端到端。
+
+---
+
+## R20 ◐ deg≥3 h>1：`bnfisprincipal` + GRH RELAT 增量
+
+**阻塞厘清：**
+- `x⁴−17`（PARI h=2）在 giac-rs 为 **`power_order_is_maximal = false`** → GRH 路径 sound-skip（非 bug）。
+- 锚域改为 **ℚ(∛11)**：`x³−11` maximal，`h=2`，`cyc=[2]`（PARI / OEIS A246457）。
+
+**本砖（RELAT 性能 + 探测）：**
+- `buchmann_grh_grow_relations`：逐条 `lli` 早停 + `rnd_rel` 批后认证 + `k≥4` 宽因子基预算（`LLL_SCAN_BUDGET_WIDE_FB` / `RND_REL_TRIALS_WIDE_FB`）
+- `each_relation_lli` 回调式枚举（避免 `exp_bound^k` 一次性物化）
+- 单测：`class_number_general_cert_grh_x3_11_h2_probe`（允许 `None` 直至关系格完备）
+
+**仍缺：** `certify_hr_product` 在 ℚ(∛11) 上 `Some`；`bnfisprincipal` 非主理想 `[0,[1]]` 金值。
 
 ---
 
