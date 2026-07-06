@@ -130,9 +130,30 @@ deg-2 极大序下三处退化都「恰好够用」（闭式范数 + 有界枚�
 **升级三件套（解锁任意域 h>1 的关键工程）：**
 1. **deg≥3 关系生成器**：deg-agnostic 范数形式（`Resultant(m_α, a+bα+cα²+…)` 或 `Norm(γ)=∏σ_i(γ)`）+ LLL 短向量关系搜索（取代有界坐标枚举）。解锁 deg≥3 h>1 的第一砖。
 2. **内禀完备性证书**：Bach 界 `B≈12(log|D|)²`（GRH 下）保证关系格完备 ⟹ 砍对外禀 forms/analytic 交叉校验的依赖 ⟹ deg≥3 h>1 可证。**核心工程，量级大。**
-3. **r≥2 单位 index-1 证书**：依赖 R1 `class_group` 结构 + R2 `ideal*` + R3 `bnfisprincipal` 做 saturation（「基素理想积是否 p 次幂」），或新颖 per-field 穷举 saturation（small-regulator 域可行）。喂主理想判定 saturation 步。
+3. **r≥2 单位 index-1 证书**：~~依赖 R1 `class_group` 结构 + R2 `ideal*` + R3 `bnfisprincipal` 做 saturation（「基素理想积是否 p 次幂」），或新颖 per-field 穷举 saturation（small-regulator 域可行）。喂主理想判定 saturation 步。~~ **改投路径 A 内禀（依据 upstream Pari，2026-07-06 决策，见下「#6 决策」段）：#6 并入 #7，单位从关系生成元 arch 分量 LLL 提取，index-1 = `get_regulator(A)≈R`（关系格 SNF regulator），由 Bach 界关系格完备性保证。**
 
 **依赖链：** R2 `ideal*`（用户命令 + `Ideal↔Expr`）→ R3 `bnfisprincipal`（saturation）↔ r≥2 单位证书 ↔ deg≥3 关系生成 ↔ Bach 内禀界。互相耦合，R2 是共同前置。
+
+---
+
+## #6 决策：改投路径 A 内禀（依据 upstream Pari，2026-07-06）
+
+**背景**：r≥2 单位 index-1 证书原列两条路径——A（saturation 经类群）/ B（per-field 穷举 + witness 界）。经 upstream 分析后改投 **A 内禀**。
+
+**upstream 证据（`pari/src/basemath/buch2.c`）：**
+- giac C++ 无原生 bnf（`prog.cc` 注释 "used by PARI in bnfinit" + `pari.cc` 桥接；`is_unit` 是多项式么元、`*_axis_unit` 是图形轴）⟹ **giac 非 #6 参考**。
+- Pari `getfu(nf, &A, ...)`（L1126）：单位从**关系生成元 arch 对数分量矩阵 `A`** LLL 提取（`matep=fixarch(Aj) → lll(real_i(matep)) → RgM_solve_realimag(M, gexp(y))` 提升回精确单位），**不独立搜索**。
+- `get_regulator(A)=|det(real_i(A) 顶行)|`（L3527）= 同批 arch 分量的格 covolume = 单位格 regulator。
+- **index-1 = regulator 匹配**（L4388-4389）：`get_regulator(A) ≈ R`（`R` = 关系格 SNF 给的 regulator）⟹ 单位格 index-1；不匹配 ⟹ 加 prec 重试（非 saturation 补单位）。
+- **完备性凭证 = Bach 界（GRH）**：`GRHcheck`（L354）/`LIMC`/`compute_invres`（L545）/`GRHchk`（L719）—— 关系生成到 `B≈12(log|D|)²` ⟹ 关系格完备 ⟹ **类群结构 AND 单位 index-1 同时得证**。
+- **无后置 saturation、无 per-field 穷举**：buch*.c 全树搜 `saturat|add_unit|missing_unit|sublattice` 仅命中 torsion index（`itu`，buch4.c:204）。`bnfsaturate` 不存在。单位与类群是**同一次 Buchmann 计算**的两产物。
+
+**结论**：upstream 把 #6 和 #7 当**同一个 Buchmann 计算**——单位 index-1 是关系格完备性的副产品，不是独立证书。故：
+- **路径 A 内禀 = #7 本体**：做 #7（deg-agnostic 关系生成 + Bach 内禀完备性界）自然带出 #6（单位从关系生成元 arch 分量 LLL 提取，index-1 = `get_regulator(A)≈R`）。#6 不单独做。
+- **路径 A 后置 saturation**（Cohen ATCNT Alg 7.5.4 理论拆分）= retrofit，仍需 #7 类群，Pari 不走。
+- **路径 B（per-field 穷举 + witness 界）放弃**：无 upstream 先例，witness 坐标界 `~exp(r·R)` 使穷举不可行（r=2 小 regulator 域已 ~10⁴–10⁶ ⟹ `(2B+1)^n` 不可行）。
+
+**#6 并入 #7 的工程含义**：`unit_group::fundamental_units` r≥2 不再独立求证书；改为在 #7 的 Buchmann 关系搜索中，从关系生成元 γ_j 的 arch 对数分量（`embeddings` 下 `log|σ_i(γ_j)|`，减 `log|N(γ_j)|/n` 归一化，即 Pari `fixarch`）构 arch 分量矩阵 `A`，LLL 提取基本单位基，`|det(real_i(A) 顶行)|` = regulator；与关系格 SNF 给的 `R` 匹配 ⟹ index-1 ⟹ `fundamental_units` 返 `Some`。Bach 界保证关系格完备 ⟹ 匹配即证书。`bnfisunit` r≥2 / `bnfregulator` r≥2 / `bnfunits` r≥2 随之解锁。
 
 ---
 
@@ -486,6 +507,29 @@ graph TD
 - `ideal_from_prime_factors_q_cbrt2_split_5_degree2_factor_norm_25`：**deg-3 split 素数 5（`x³−2 ≡ (x+2)(x²+3x+4) mod 5`，二次因子 `g_i` 次数 2，介于 deg-1 与 deg-n 之间）→ 𝔭₂=(5, α²+3α+4) 范数 25**。锚定 `ideal_from_generators` 对中间次数 `g_i`（`degree < n`，直传不折叠）的构造正确性。（p=3 不是 split：`x³−2 ≡ (x+1)³ mod 3` 完全分歧。）
 
 **验证：** `cargo test -p giac-core --lib` 629 passed / 3 ignored；`cargo clippy -p giac-core --lib` 绿。
+
+---
+
+## R8 ✅ #7 砖 7a：deg-agnostic LLL 关系生成（infra，依据 upstream Pari）
+
+**决策背景**：#6（r≥2 单位 index-1 证书）经 upstream 分析改投**路径 A 内禀**（见上「#6 决策」段）—— Pari `getfu` 从关系生成元 arch 分量 LLL 提取单位，index-1 = `get_regulator(A)≈R`（关系格 SNF regulator），由 Bach 界关系格完备性保证。**#6 并入 #7**，不单独做。放弃路径 B（per-field 穷举，无 upstream 先例，witness 界 `~exp(r·R)` 使穷举不可行）。
+
+**#7 砖序（A 内禀，依 upstream Pari `pari/src/basemath/buch2.c`）：**
+- **7a ✅（本砖，infra + 测试，不解锁用户面）**：`enumerate_relations_lli(field, ideals, exp_bound)` —— deg-agnostic LLL 关系生成。枚举非负指数向量 `a=(a_i)`（按 `Σa_i` 递增，小 `J` 优先），构 `J=∏𝔭_i^{a_i}`（复用 R7 `ideal_from_prime_factors`），LLL 找短 `γ∈J` 验 `|N(γ)|=N(J)`（复用 R7 `lll_principal_generator`）⟹ `(γ)=J`（`γ∈J` ⟹ `(γ)⊇J`；`|N(γ)|=N(J)` ⟹ `[(γ)/J]` 范数 1 ⟹ 平凡 ⟹ `(γ)=J`）⟹ `(a,γ)` 是精确关系。**关键：绕开 deg-agnostic ideal valuation**（关系向量 = 构 `J` 的指数，非从 `γ` 反算；`bnfisprincipal` deg≥3 的 valuation-vector 缺口是单独子任务）。
+- **7b**（待做）：Bach 界 `B≈12(log|D|)²`（GRH）→ 关系格完备性内禀证书 → 解锁 deg≥3 h>1 类数/结构。
+- **7c**（待做）：关系生成元 `γ_j` 的 arch 对数分量（`embeddings` 下 `log|σ_i(γ_j)| − log|N(γ_j)|/n`，即 Pari `fixarch`）构 arch 分量矩阵 `A`，LLL 提取基本单位基（Pari `getfu` 流），regulator = `|det(real_i(A) 顶行)|`，与关系格 SNF 给的 `R` 匹配 ⟹ index-1 ⟹ `fundamental_units` r≥2 返 `Some` → 解锁 #6（`bnfisunit`/`bnfregulator`/`bnfunits` r≥2）。
+
+**sound 边界（`ponytail:`）：**
+- 每条 emitted 关系精确（`(γ)=J` 由 `γ∈J` + `|N(γ)|=N(J)` 双证）；**完备性未证**（SNF=类群 需 7b Bach）⟹ `class_number_general_cert` deg≥3 h>1 仍 sound-skip，7a 不接线用户面。
+- `lll_principal_generator` 只查 LLL 归约基的 `n` 个向量（非全格点）⟹ 短生成元不在基中则该 `J` 漏掉 → 漏关系（sound，非 unsound）；小 `J`（Minkowski 优先）几乎都在。
+- `N(J) ≤ N_J_MAX=10⁷` cap（复用 principality 界）：保 LLL 的 f64 HNF 转换有限；大 `N(J)` 关系漏掉（sound）。
+- 非负指数（分数 `J` 延后）：关系逆也是合法关系 ⟹ 非负关系的 ℤ-张成已生成全关系格，SNF over ℤ 不受影响。
+
+**接线点：** `class_group.rs::enumerate_relations_lli` + `enumerate_exp_vectors`（递归组合枚举器）。未接入 `class_number_general_cert`（待 7b）。
+
+**单测（1）：** `enumerate_relations_lli_q_cbrt2_finds_p_alpha_powers` —— ℚ(∛2) deg-3，basis={𝔭 above 2}（2 全分歧，𝔭=(2,α), f=1, e=3, N(𝔭)=2），h=1 ⟹ 𝔭^a 主、生成元 α^a；7a 找到 a=1,2,3 三条关系，每条 `|N(γ)|=2^a`。锚定 deg-agnostic LLL 关系生成正确性。**不**证类群（h=1，完备性 = 7b Bach）。
+
+**验证：** `cargo test -p giac-core --lib` 630 passed / 3 ignored；`cargo clippy -p giac-core --lib` 绿。
 
 ---
 
