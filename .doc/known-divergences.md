@@ -290,15 +290,13 @@ Rust 实现与 giac C++ golden **字面不一致**但可能数学等价，或 **
 
 ---
 
-### DIV-086: `prime_ideals_above_p` 对 quartic `t⁴−t³−3t²+t+1` 在 `p=11` hang
+### DIV-086: `extract_linear_factors` 将 degree-0 单位元误作因子 → `factor_tame_multiplicities` hang
 
-- **状态:** **open**（Rust 侧 bug，未修复）
-- **根因:** `number_field_arith::prime_ideals_above_p` 在对该 quartic minpoly `mod 11` 做因子分解时进入非终止循环（具体因子分解子路径未定位；`p=11` 不分歧，disc 725=5²·29，预期无重复因子）。
-- **触发:** `grh::compute_invres`（brick 7b-i）迭代素数 ≤ `primeneeded(4,4,0,ln725)≈343`，对每个素数调 `prime_ideals_above_p`；`p=11` 命中 hang。cubic 测试域（disc 49/81，素数 ≤ ~300）不触发。
-- **影响范围:** `analytic_inv_hr`（7b-i 解析 `1/(h·R)` 估计）对该 quartic 不可用 ⟹ `fundamental_units_certified`（brick 7c）对该 quartic 不能给 index-1 证书。**用户面无错误结果外泄**：`compute_invres` 返回 `None` 路径不存在（hang，非 clean None）——需在调用层加超时/迭代上限或将 `prime_ideals_above_p` 修为 clean `None`。当前 7c quartic 测试 `fundamental_units_certified_quartic_blocked_by_prime_ideals_bug` 只验单位提取（`fundamental_units_real_multi` 仍工作），不调 `analytic_inv_hr`。
-- **归类:** 算法 bug（Rust 实现缺陷，非 giac 偏离）
-- **待办:** 定位 `prime_ideals_above_p` 在 quartic `p=11` 的非终止子路径（疑似 `poly_alg_factor` mod-p 分支对某类首一 quartic 的循环），修为 clean 返回；解锁 quartic 7c 证书。
-- **测试锚:** `unit_group::tests::fundamental_units_certified_quartic_blocked_by_prime_ideals_bug`（标记 blocker，不调 `analytic_inv_hr`）
+- **状态:** **fixed**（`giac-poly` `fpx::extract_linear_factors` + `number_field_arith` 防御性 skip）
+- **根因:** `giac-poly::factor::fpx::extract_linear_factors` 在提取全部线性因子后，`rest` 为 degree-0 常数（单位元，≠1）。旧代码 `!rest.is_zero() && !is_poly_one(&rest)` 将其当作不可约因子 push（`factor_mod_irreducibles` 返回 len=4 而非 3）。`factor_tame_multiplicities` 的 `e_i` 恢复循环对常数因子做 `poly_divmod_p` 时余数恒 0，永不 break → 死循环（~90s+，表现为 hang）。
+- **触发:** quartic `t⁴−t³−3t²+t+1` 在 `p=11`（`f mod 11 = (x−6)(x−9)·(irred quad)`）经 `prime_ideals_above_p` → `factor_with_multiplicities` → `factor_mod_irreducibles` → `extract_linear_factors`。
+- **修复:** `extract_linear_factors` 仅 push `degree(rest) > 0` 的剩余多项式；`factor_tame_multiplicities` 跳过 `ff_degree(g)==0` 因子（防御性）。
+- **测试锚:** `giac-poly::factor::fpx::tests::fpx_quartic_split_mod_11_no_unit_factor`；`grh::diag2::prime_ideals_above_p_quartic_p11_no_hang`；`unit_group::tests::fundamental_units_certified_quartic_t4_t3_3t2_t1_h1_matches_pari`（7c 端到端）。
 
 ---
 
