@@ -517,7 +517,7 @@ graph TD
 **#7 砖序（A 内禀，依 upstream Pari `pari/src/basemath/buch2.c`）：**
 - **7a ✅（本砖，infra + 测试，不解锁用户面）**：`enumerate_relations_lli(field, ideals, exp_bound)` —— deg-agnostic LLL 关系生成。枚举非负指数向量 `a=(a_i)`（按 `Σa_i` 递增，小 `J` 优先），构 `J=∏𝔭_i^{a_i}`（复用 R7 `ideal_from_prime_factors`），LLL 找短 `γ∈J` 验 `|N(γ)|=N(J)`（复用 R7 `lll_principal_generator`）⟹ `(γ)=J`（`γ∈J` ⟹ `(γ)⊇J`；`|N(γ)|=N(J)` ⟹ `[(γ)/J]` 范数 1 ⟹ 平凡 ⟹ `(γ)=J`）⟹ `(a,γ)` 是精确关系。**关键：绕开 deg-agnostic ideal valuation**（关系向量 = 构 `J` 的指数，非从 `γ` 反算；`bnfisprincipal` deg≥3 的 valuation-vector 缺口是单独子任务）。
 - **7b**（部分：7b-i ✅ 解析侧 infra + 测试，见 R9；7b-ii 待做）：Bach 界 `B≈12(log|D|)²`（GRH）→ 关系格完备性内禀证书 → 解锁 deg≥3 h>1 类数/结构。7b-i 落 `analytic_inv_hr`（GRH 解析 `1/(h·R)` 估计）；7b-ii 接 `class_number_general_cert` 匹配 `h'·R'`。
-- **7c**（待做）：关系生成元 `γ_j` 的 arch 对数分量（`embeddings` 下 `log|σ_i(γ_j)| − log|N(γ_j)|/n`，即 Pari `fixarch`）构 arch 分量矩阵 `A`，LLL 提取基本单位基（Pari `getfu` 流），regulator = `|det(real_i(A) 顶行)|`，与关系格 SNF 给的 `R` 匹配 ⟹ index-1 ⟹ `fundamental_units` r≥2 返 `Some` → 解锁 #6（`bnfisunit`/`bnfregulator`/`bnfunits` r≥2）。
+- **7c**（部分：7c ✅ arch regulator + analytic index-1 证书（给定 h），见 R10；用户面接线待 7b-ii）：arch 对数分量 regulator `R' = |det(log|σ_j(ε_i)|)|` + analytic 匹配证书。`R' = index·R`，`R_analytic = (h·R)/h = 1/(invhr·h)`（7b-i），`R'/R_analytic = index/h`，给定 h 证 `R' ≈ R_analytic` ⟹ index=1。7c 落 `regulator_covolume` + `certify_unit_index_1(field, units, h)` + `fundamental_units_certified(field, h)`（totally-real r≥2，复用 `fundamental_units_real_multi` 候选基）；**h 作参数传入**（避免 `unit_group→class_group` 循环；7b-ii 在 class_group 接线传 `certified_class_data_with_gens().h`）。解锁 `#6` r≥2 待 7b-ii 接线（h=1 totally-real 域已可证，见 R10 cubic 测试）。
 
 **sound 边界（`ponytail:`）：**
 - 每条 emitted 关系精确（`(γ)=J` 由 `γ∈J` + `|N(γ)|=N(J)` 双证）；**完备性未证**（SNF=类群 需 7b Bach）⟹ `class_number_general_cert` deg≥3 h>1 仍 sound-skip，7a 不接线用户面。
@@ -566,8 +566,43 @@ graph TD
 **验证：** `cargo test -p giac-core --lib algebra::grh::` 4 passed；`cargo build -p giac-core` 绿。
 
 **下一砖：**
-- **7b-ii**（待做）：`class_number_general_cert` 接 `analytic_inv_hr`，关系格 `h'·R'`（`h'=|SNF|`，`R'` 来自 7c）与解析 `hR=1/invhr` 匹配判据 + `LIMC` Bach 界 + 递增 `LIMres` 消歧 → 解锁 deg≥3 h>1。
-- **7c**（待做）：arch 分量 LLL 提取单位 + regulator → 供 7b-ii 的 `R'`，并解锁 #6 r≥2。
+- **7b-ii**（待做）：`class_number_general_cert` 接 `analytic_inv_hr` + 7c 的 `fundamental_units_certified(field, &h)`，关系格 `h'·R'`（`h'=|SNF|`，`R'` 来自 7c）与解析 `hR=1/invhr` 匹配判据 + `LIMC` Bach 界 + 递增 `LIMres` 消歧 → 解锁 deg≥3 h>1 + #6 r≥2 用户面（`bnfisunit`/`bnfregulator`/`bnfunits`）。
+
+---
+
+## R10 ✅ #7 砖 7c：arch regulator + analytic index-1 证书（给定 h，供 7b-ii）
+
+**目标：** 给候选单位基 `U`（来自 `fundamental_units_real_multi`）一个 **analytic index-1 证书**：`R' = [𝔬_K×:⟨U⟩]·R`，`R_analytic = (h·R)/h = 1/(invhr·h)`（7b-i），`R'/R_analytic = index/h`。给定已证 `h`，`R' ≈ R_analytic` ⟹ `index = 1` ⟹ `U` 是全单位基 ⟹ regulator `R'` 认证 ⟹ 供 7b-ii 的 `R'`，并解锁 #6 r≥2（待 7b-ii 接线传 `h`）。
+
+**数学管线：**
+1. `regulator_covolume(field, units) -> Option<f64>`：`|det|` of `r×r` 实嵌入 log-小阵（trace-zero ⟹ 所有 `r×r` 小阵等模）。**仅 totally-real**（`r₂=0`）；复嵌入的 `2·log|τ|` 配对加权延后（`None` sound-skip）。
+2. `certify_unit_index_1(field, units, h) -> Option<f64>`：`R' = regulator_covolume`，`R_analytic = 1/(invhr·h)`，`ratio = R'/R_analytic`。证书 `0.5 < ratio < 1.5` ⟹ index-1。
+3. `fundamental_units_certified(field, h) -> Option<(Vec<HighFirstQ>, f64)>`：`fundamental_units_real_multi(field, r)` 候选基 + `certify_unit_index_1` ⟹ `(U, R)`。
+
+**Soundness（GRH `0.25` 相对误差预算下）：**
+- `R_analytic ∈ [0.8·R, 1.25·R]`（7b-i 的 `compute_invres` 预算）。
+- `R' = index·R ≥ R`。`index=1` ⟹ `ratio ∈ [0.8, 1.25]`；`index≥2` ⟹ `ratio ≥ 1.6`。
+- 阈值 `0.5 < ratio < 1.5`：纳入所有 `index=1`（`[0.8,1.25] ⊂ (0.5,1.5)`），排除所有 `index≥2`（`≥1.6 > 1.5`）⟹ `Some(R')` 证 index-1；`None` = 不可证（sound-skip，真全基永不被拒）。
+- **`h` 必须由调用方提供已证类数**（契约）；错 `h` 令证书无效但非 unsound（仅当错 `h` 且 ratio 偶落入区间才误证 —— 调用方传已证 `h` 即免）。
+
+**边界（7c 不解锁用户面）：**
+- **`h` 作参数传入**：避免 `unit_group → class_group` 依赖循环（`class_group` 已 `use unit_group`）。7b-ii 在 `class_group` 接线：`certified_class_data_with_gens().h` → `fundamental_units_certified(field, &h)` → 传 `(units, h)` 给 `unit_discrete_log` 的 r≥2 路径。本砖只供 `R'` + 证书原语，不解锁 `bnfisunit`/`bnfregulator`/`bnfunits` r≥2（待 7b-ii）。
+- 仅 totally-real r≥2（`fundamental_units_real_multi` 作用域）；复签名延后。
+- **quartic 阻断**（DIV-086）：`analytic_inv_hr` 对 quartic `t⁴−t³−3t²+t+1` 调 `prime_ideals_above_p(field, 11)` hang（预存 mod-p 因子分解 bug，非 7c 缺陷）。cubic 测试域不触发。quartic 7c 证书待 DIV-086 修复。
+
+**接线点：** `unit_group.rs`：`pub(crate) fn regulator_covolume` / `certify_unit_index_1` / `fundamental_units_certified`。未接入 `unit_discrete_log`（待 7b-ii）。
+
+**单测（6）：**
+- `fundamental_units_certified_cubic_t3_t2_2t_1_h1_matches_pari` —— `t³−t²−2t+1` h=1（Pari `.no=1`），r=2，R=0.5254546821；`fundamental_units_certified(&k, &1)` 返 2 单位 + R 匹配 Pari。
+- `fundamental_units_certified_cubic_t3_3t_1_h1_matches_pari` —— `t³−3t+1` h=1，r=2，R=0.8492874506。
+- `fundamental_units_certified_quartic_blocked_by_prime_ideals_bug` —— quartic 单位提取仍工作（`fundamental_units_real_multi` 找到 3 单位，R=0.8250688479 匹配 Pari），但**不调** `analytic_inv_hr`（DIV-086 hang）；标记 blocker。
+- `certify_unit_index_1_rejects_wrong_h` —— 同 cubic 传错 `h=2`：`ratio = R'/(R/2) = 2.0 > 1.5` ⟹ `None`；`h=1` 证 `Some`。锚定 h-依赖。
+- `fundamental_units_certified_real_quad_r1_returns_none` —— ℚ(√2) r=1 ⟹ `None`（r≥2 专用）。
+- `regulator_covolume` 经现有 `fundamental_units_real_multi_*` 测试复用（test-local 副本删，用 pub(crate) super::）。
+
+**交叉验证：** Pari `bnfinit(f,1).no/.reg` 对三域 h=1 + R 真值（cubic R=0.5254/0.8493，quartic R=0.8251）✓。cubic 7c 测试端到端验证整条证书链（`regulator_covolume` + `certify_unit_index_1` + `fundamental_units_certified`）。
+
+**验证：** `cargo test -p giac-core --lib algebra::unit_group::` 41 passed（含 6 新 7c）；`cargo test -p giac-core --lib` 639 passed / 0 failed / 3 ignored；`cargo clippy -p giac-core --lib` 绿。
 
 ---
 
