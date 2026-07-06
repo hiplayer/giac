@@ -30,7 +30,7 @@ GRH deg≥3 主路径:
   rnd_rel（随机补关系）
   增量 RELAT（need=1，非整批重跑）
   7f GRHchk / LIMC 倍增 / goto START
-  7h 复签名 arch
+  7h ✅ 复签名 arch
 ```
 
 **7e 本质：** 外层对 `(因子基界 × exp_bound)` 做笛卡尔积重试，仍是 **批处理**，不是 Pari 的 **边加关系边验**。
@@ -96,7 +96,7 @@ GRH deg≥3 主路径:
 
 | 劣势 | 影响 |
 |------|------|
-| **r₂>0 无 arch** | 7h 未做；含复嵌入的 GRH 全线 skip |
+| **r₂>0 无 arch** | ~~7h 未做~~ → ✅ `arch_log_of_element` + `relation_arch_work` |
 | **非极大序** | `power_order_is_maximal` 门控 |
 | **`bnf_for_field` 无缓存** | 每次重算 `certified_class_data_with_gens` |
 | **`bnfisprincipal` deg-2 only** | deg≥3 用户面未接 |
@@ -224,11 +224,11 @@ GRH deg≥3 主路径:
 
 ---
 
-### 并行后续（7h / 精确化 / API）
+### 并行后续（RgM_solve / API）
 
 | 砖 | 内容 |
 |----|------|
-| 7h | `arch_log_of_element` 支持 r₂>0 |
+| 7h ✅ | `arch_log_of_element` 支持 r₂>0 |
 | getfu | `RgM_solve` 或有理精确解 |
 | API | `bnf` session 缓存；`bnfisprincipal` deg≥3 |
 
@@ -264,7 +264,7 @@ GRH deg≥3 主路径:
         ↓ 若因子基不够
 7f (GRHchk/LIMC)       →  大域
         ↓ 并行
-7h / RgM_solve / bnf 缓存
+RgM_solve / bnf 缓存
 ```
 
 **第一刀最小 diff：** 只改 `buchmann_grh_certified_data` 控制流 + `rnd_rel_batch`（~150 行），不动 SNF/arch/getfu。

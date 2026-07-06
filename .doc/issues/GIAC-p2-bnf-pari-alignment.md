@@ -521,7 +521,8 @@ graph TD
 - **7d ✅ / 7g ✅**：关系 arch+getfu + `Bnf` 缓存 + eval 读缓存（见 R12）。
 - **7e ✅**：LIMC 因子基 + 关系 exp_bound 重试循环（见 R13）。
 - **7f ✅**：`GRHchk`/`GRHok` + `LIMC2` 二分 + `goto START` `increase_limc` 倍增（见 R14）。
-- **7h（待做）**：复签名 arch。详见 R11 后「下一砖」段。
+- **7h ✅**：复签名 arch（`fixarch` r₂>0：`2·log|τ|` + `relation_arch_work`）。
+- **RgM_solve（待做）**：精确 getfu 代数提升（`chinese_unit` / `RgM_solve_realimag`）。
 
 **sound 边界（`ponytail:`）：**
 - 每条 emitted 关系精确（`(γ)=J` 由 `γ∈J` + `|N(γ)|=N(J)` 双证）；**完备性**由 7b-ii `certify_hr_product` 证（GRH，`h'·R'·invhr≈1`）⟹ deg≥3 h=1 已解锁（见 R11）；deg≥3 h>1 在关系枚举充分时解锁，否则 sound-skip。
@@ -677,7 +678,21 @@ graph TD
 
 **验证：** `cargo test -p giac-core --lib` 656 passed；`cargo clippy -p giac-core` 绿。
 
-**下一子计划：** [GIAC-p2-bnf-relation-gen-plan](GIAC-p2-bnf-relation-gen-plan.md) — 砖 **7h** 复签名 arch；`RgM_solve` 精确 getfu。
+**下一子计划：** [GIAC-p2-bnf-relation-gen-plan](GIAC-p2-bnf-relation-gen-plan.md) — `RgM_solve` 精确 getfu；`bnf` session 缓存。
+
+---
+
+## R15 ✅ #7 砖 7h：复签名 `fixarch` / `rel_embed`
+
+**依据：** Pari `buch2.c` `get_log_embed`（复槽 `2·log|τ|`）+ `fixarch`（复槽 `s − x`）。
+
+**落点：**
+- `bnf.rs`：`arch_log_of_element` 支持 `r₂ > 0`；`relation_arch_work` 不再 sound-skip
+- `unit_group.rs`：`regulator_covolume` 经 `fixarch` 列（非裸 `log|σ|`）
+
+**单测：** `arch_log_imag_quad_i_unit_trace_zero` / `arch_log_cubic_unit_regulator_matches_pari` / `logfu_from_relations_cubic_unit_gamma`
+
+**验证：** `cargo test -p giac-core --lib`；clippy 绿。
 
 ---
 
@@ -731,7 +746,7 @@ bnfisunit / bnfregulator / bnfunits  读 logfu/fu/R/h/cyc   ← giac: r≥2 未�
 | **2** | **7e Buchmann 关系循环 + LIMC 因子基** ✅ | `small_norm`/`rnd_rel` + `FBgen(LIMC)` + `need=1` | `factor_base_norm_bounds` + `prime_ideals_below_norm_bound`；`BUCH_LLL_EXP_BOUNDS` 重试 | deg≥3 **h>1** 部分（`x⁴−17` 仍可能 skip） |
 | **3** | **7f GRHchk + START/LIMC 倍增** ✅ | `GRHchk` 二分 + `goto START` | `grh_limc2_bound` + `increase_limc` in `factor_base_norm_bounds` | 因子基规模正确、大域 retry |
 | **4** | **7g `Bnf` 缓存 + 用户命令** | `buchall_end` → `bnf_get_logfu` | `Bnf` 结构体；`bnfisunit`/`bnfregulator`/`bnfunits` **读缓存** | r≥2 用户面（#6 最终解锁） |
-| **5** | **7h 复签名 arch** | `fixarch`/`cleanarchunit`（`r₂>0`） | 扩展 7d `rel_embed`；非单独 `regulator_covolume` | 复数域 GRH 证书 |
+| **5** | **7h 复签名 arch** ✅ | `fixarch`/`cleanarchunit`（`r₂>0`） | `arch_log_of_element` + `regulator_covolume` | 复数域 GRH 证书 |
 
 **相对旧排序的修正：**
 
@@ -826,7 +841,7 @@ pub(crate) struct ArchLogMatrix { /* cols: ArchLogVector */ }
 | 独立 `CompletenessCert` | 不要 | 一个 `f64` 比值 + `Option` 即可；`certify_hr_product` 已够 |
 | `RelationLattice` 类型 | 延后 | SNF 输入是 `Vec<Vec<BigInt>>`；关系多了再包 |
 
-**最小下一步（砖 7d–7g ✅，7e ✅，7f ✅）：** 砖 **7h** 复签名 arch；`RgM_solve` 精确 `getfu`；`bnf` session 缓存。
+**最小下一步（砖 7d–7g ✅，7e ✅，7f ✅，7h ✅）：** `RgM_solve` 精确 `getfu`；`bnf` session 缓存。
 
 ---
 
