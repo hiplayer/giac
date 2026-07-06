@@ -3,7 +3,7 @@
 **状态:** open（方案 / 跟踪）
 **类型:** 扩展功能规划（非 upstream giac 对齐）
 **上游基线:** **Pari/GP `bnf*` / `bnr*` / `ideal*` / `nf*` / `galois*` 函数族**（giac-2.0.0 无对标）
-**相关:** [GIAC-core-upstream-gaps](GIAC-core-upstream-gaps.md) §4 Phase E（C-9..C-12）、[GIAC-p2-algebraic-number-theory-api](GIAC-p2-algebraic-number-theory-api.md)（已落地 C-11/C-12）、[GIAC-poly-f5-fglm-hasse-lean4-verification](GIAC-poly-f5-fglm-hasse-lean4-verification.md)（数学正确性线）
+**相关:** [GIAC-core-upstream-gaps](GIAC-core-upstream-gaps.md) §4 Phase E（C-9..C-12）、[GIAC-p2-algebraic-number-theory-api](GIAC-p2-algebraic-number-theory-api.md)（已落地 C-11/C-12）、[GIAC-poly-f5-fglm-hasse-lean4-verification](GIAC-poly-f5-fglm-hasse-lean4-verification.md)（数学正确性线）、[GIAC-p2-bnf-relation-gen-plan](GIAC-p2-bnf-relation-gen-plan.md)（关系生成对齐子计划：7e-i/7e-ii）
 **Rust 落点:** `giac-rs/crates/giac-core/src/algebra/{ideal(新),class_group,unit_group,lattice,archimedean,number_field_arith,padic,galois_automorphism}.rs` + `eval.rs`
 **快照:** 2026-07-03
 
@@ -663,16 +663,20 @@ graph TD
 4. `class_number_general_cert` / `certified_class_data_with_gens` deg≥3 走上述循环。
 
 **边界（仍待 7f）：**
-- 无 `rnd_rel`、无 `GRHchk` 二分、无 `goto START` LIMC 倍增；`x⁴−17` h=2 probe 仍允许 `None`。
+- 无 `GRHchk` 二分、无 `goto START` LIMC 倍增；`x⁴−17` h=2 probe 仍允许 `None`。
 - 非极大序（`power_order_is_maximal ≠ true`）→ `None`。
 
-**接线点：** `class_group.rs`：`buchmann_limc_bound` / `factor_base_norm_bounds` / `buchmann_grh_certified_data`；`grh.rs`：`bach_limc`（已有）。
+**接线点：** `class_group.rs`：`buchmann_limc_bound` / `factor_base_norm_bounds` / `buchmann_grh_certified_data` / `buchmann_grh_grow_relations`（7e-i `rnd_rel` + 7e-ii `small_norm`）；`grh.rs`：`bach_limc`（已有）。
 
 **单测：**
 - `factor_base_norm_bounds_includes_limc_when_exceeds_minkowski`（ℚ(√23)）
+- `rnd_rel_one_q_cbrt2_finds_principal_relation`（7e-i）
+- `enumerate_relations_small_norm_q_cbrt2_finds_alpha_powers`（7e-ii）
 - 既有 `class_number_general_cert_grh_*` 回归（cubic/quartic h=1、`x⁴−17` probe）
 
-**验证：** `cargo test -p giac-core --lib` 654 passed；`cargo clippy -p giac-core` 绿。
+**验证：** `cargo test -p giac-core --lib` 656 passed；`cargo clippy -p giac-core` 绿。
+
+**下一子计划：** [GIAC-p2-bnf-relation-gen-plan](GIAC-p2-bnf-relation-gen-plan.md) — 砖 **7f** `GRHchk`/LIMC 倍增；**7h** 复签名 arch。
 
 ---
 
@@ -807,7 +811,7 @@ pub(crate) struct ArchLogMatrix { /* cols: ArchLogVector */ }
 | 独立 `CompletenessCert` | 不要 | 一个 `f64` 比值 + `Option` 即可；`certify_hr_product` 已够 |
 | `RelationLattice` 类型 | 延后 | SNF 输入是 `Vec<Vec<BigInt>>`；关系多了再包 |
 
-**最小下一步（砖 7d–7g ✅，7e ✅）：** 砖 **7f** `GRHchk` + LIMC 倍增 / `goto START`；`RgM_solve` 精确 `getfu`；砖 **7h** 复签名 arch。
+**最小下一步（砖 7d–7g ✅，7e ✅）：** 见 [GIAC-p2-bnf-relation-gen-plan](GIAC-p2-bnf-relation-gen-plan.md) — **7e-i** 增量 RELAT + `rnd_rel` → **7e-ii** deg≥3 `small_norm` → **7f** `GRHchk`/LIMC 倍增；并行 **7h** / `RgM_solve`。
 
 ---
 
