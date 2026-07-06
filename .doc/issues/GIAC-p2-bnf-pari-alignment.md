@@ -522,7 +522,7 @@ graph TD
 - **7e ✅**：LIMC 因子基 + 关系 exp_bound 重试循环（见 R13）。
 - **7f ✅**：`GRHchk`/`GRHok` + `LIMC2` 二分 + `goto START` `increase_limc` 倍增（见 R14）。
 - **7h ✅**：复签名 arch（`fixarch` r₂>0：`2·log|τ|` + `relation_arch_work`）。
-- **RgM_solve（待做）**：精确 getfu 代数提升（`chinese_unit` / `RgM_solve_realimag`）。
+- **RgM_solve ✅**：`getfu_rgm_solve_lift`（`nf_arch_embedding_matrix` + `RgM_solve_realimag` f64 解 + 取整）。
 
 **sound 边界（`ponytail:`）：**
 - 每条 emitted 关系精确（`(γ)=J` 由 `γ∈J` + `|N(γ)|=N(J)` 双证）；**完备性**由 7b-ii `certify_hr_product` 证（GRH，`h'·R'·invhr≈1`）⟹ deg≥3 h=1 已解锁（见 R11）；deg≥3 h>1 在关系枚举充分时解锁，否则 sound-skip。
@@ -678,7 +678,17 @@ graph TD
 
 **验证：** `cargo test -p giac-core --lib` 656 passed；`cargo clippy -p giac-core` 绿。
 
-**下一子计划：** [GIAC-p2-bnf-relation-gen-plan](GIAC-p2-bnf-relation-gen-plan.md) — `RgM_solve` 精确 getfu；`bnf` session 缓存。
+**下一子计划：** [GIAC-p2-bnf-relation-gen-plan](GIAC-p2-bnf-relation-gen-plan.md) — `bnf` session 缓存；`bnfisprincipal` deg≥3。
+
+---
+
+## R16 ✅ #7 RgM_solve 精确 getfu
+
+**依据：** Pari `buch2.c` `getfu`：`RgM_solve_realimag(nf_get_M, gexp(y))` + `grndtoi`。
+
+**落点：** `bnf.rs`：`nf_arch_embedding_matrix` / `rgm_solve_realimag_f64` / `getfu_rgm_solve_lift`（`getfu_lift` 第二回退，在代数 `∏γ^T` 之后、`fundamental_units_real_multi` 之前）。
+
+**单测：** `getfu_rgm_solve_recovers_unit_when_gamma_has_rational_factor`（`2·(1+√2)` 关系，fixarch 同 `1+√2` 但代数积非单位）。
 
 ---
 
@@ -841,7 +851,7 @@ pub(crate) struct ArchLogMatrix { /* cols: ArchLogVector */ }
 | 独立 `CompletenessCert` | 不要 | 一个 `f64` 比值 + `Option` 即可；`certify_hr_product` 已够 |
 | `RelationLattice` 类型 | 延后 | SNF 输入是 `Vec<Vec<BigInt>>`；关系多了再包 |
 
-**最小下一步（砖 7d–7g ✅，7e ✅，7f ✅，7h ✅）：** `RgM_solve` 精确 `getfu`；`bnf` session 缓存。
+**最小下一步（砖 7d–7g ✅，7e ✅，7f ✅，7h ✅，RgM_solve ✅）：** `bnf` session 缓存；`bnfisprincipal` deg≥3。
 
 ---
 
