@@ -107,7 +107,7 @@ class_number_general ─────┤  1. ramification + enumerate_relations_d
 | 解析证书主体 | `class_group.rs::class_number_real_quad_analytic` |
 | Kronecker 符号（i128 快路径） | `class_group.rs::kronecker_symbol` |
 | Kronecker 符号（BigInt 兜底，复用原语） | `class_group.rs::kronecker_symbol_bigint` |
-| 基本单位 | `unit_group.rs::fundamental_units`（256-bound 暴力 `|N|=1` 搜索） |
+| 基本单位 | `unit_group.rs::fundamental_units` — 实二次全经连分数（**无坐标枚举**）：`√d`-CF ±1 Pell（`d≡2,3mod4`）/ `(1+√d)/2`-CF ±4 半整数（`d≡1mod4`），`cf_period_cap=4√d+8` 可证界（Lagrange 周期 `≤2√d`） |
 | Regulator 计算 | 复用 `embeddings` + `σ_max` 模式（同 `eval.rs::eval_bnfregulator`） |
 | Buchmann 交叉校验 | `class_group.rs::class_number_general`（real-quad 分支） |
 | dispatcher | `class_group.rs::class_number` |
@@ -154,8 +154,12 @@ B^* = \left\lceil\sqrt{M_K \cdot \sigma_1(\varepsilon_0)}\,\right\rceil
 
 ## 6. 边界（`ponytail:`，证书**不**覆盖的）
 
-- **大 regulator — d ≡ 2,3 mod 4 已解锁（Pell/CF 求解器）**：`fundamental_units` 暴力 256-bound 找不到单位时，对 `𝓞_K = ℤ[√d]`（minpoly `x²−d`，`d ≡ 2,3 mod 4`）走 `unit_group.rs::fundamental_unit_via_cf_sqrt_d(d)` —— 连分数展开 `√d`，首个满足 `p_n² − d·q_n² = ±1` 的渐近分数 `(p_n, q_n)` 即极小 Pell 解 = 基本单位。BigInt 渐近分数（坐标可超 i128，如 ℚ(√163) `ε ~ 1.27×10⁸`，`R ≈ 18.669`）；CF 状态 `(m, dd, a)` 留 i128（界 `2√d`，无溢出）。**解锁 `class_number(ℚ(√163)) = 1`**（Pari `bnfinit(x^2-163).no` = 1），`bnfregulator`/`bnfunits` 同步受益。
-- **大 regulator — d ≡ 1 mod 4（仍 sound-skip）**：`𝓞_K = ℤ[(1+√d)/2]`，基本单位形如 `(x+y√d)/2`（`x²−dy² = ±4`，`x ≡ y mod 2`），可能小于任何 `ℤ[√d]` 单位（如 ℚ(√5) `(1+√5)/2 < 2+√5`）。`√d` 的连分数不直接给 `±4` 解 ⟹ 需 `(1+√d)/2` 的连分数或 reduced-ideal 主循环（Shanks infrastructure）。当前 `fundamental_unit_via_cf_sqrt_d` 的 `c1 == 0` 门不触发 ⟹ `fundamental_units` 返 `None` ⟹ 证书 `None`。小 regulator 的 `d ≡ 1 mod 4` 仍由暴力 256-bound 覆盖。
+- **基本单位求解——全经连分数，无坐标枚举（`ponytail:` 架构升级）**：基本单位的坐标上界是 `exp(Θ(√D))`（大 regulator 的字面含义，如 ℚ(√163) `ε~10⁸`、ℚ(√d) `ε~10³⁵`），**任何多项式坐标界都覆盖不了**——这正是旧的 256-bound 暴力枚举的根本缺陷（要么太小漏大 regulator，要么取指数界不可行）。连分数把**工作量**与**输出大小**解耦：CF 周期 `ℓ ≤ 2√d`（Lagrange）⟹ `O(√d)` 渐近分数即找到单位，与单位大小无关。`unit_group.rs` 现按 `c1` 奇偶分派两条 CF：
+  - `c1` 偶（`d≡2,3mod4`，`𝓞_K=ℤ[√d]`）：`fundamental_unit_via_cf_sqrt_d(d)` —— `√d`-CF，首 `p_n²−d·q_n²=±1` 渐近分数 = 极小 Pell 解 = 基本单位。
+  - `c1` 奇（`d≡1mod4`，`𝓞_K=ℤ[(1+√d)/2]`）：`fundamental_unit_via_cf_half(d)` —— `(1+√d)/2`-CF，首 `(2p_n−q_n)²−d·q_n²=±4` 渐近分数 = 基本单位。**关键**：`(1+√d)/2`-CF 的 Legendre 判据是 `d>4`（覆盖**所有** squarefree `d≡1mod4`，`d≥5`，含 `d=5`——`√d`-CF±4 方案 `d>16` 门漏掉的唯一例外）；且所有 `𝓞_K` 单位在该 CF 下统一是 `±4`（整数单位 `(x,y)` 偶 ↔ `(2x,2y)` 仍 `±4`）⟹ 首 `±4` 渐近分数 = 基本单位（无 `±1`/`±4` 混合、无 min-|ε| 追踪、无 `d>16` 门、无 `d=5` 特例）。
+  - `cf_period_cap = 4√d+8`（≥4× 余量，可证界，取代旧 `2·10⁶` 安全网）；BigInt 渐近分数（坐标可超 i128），CF 状态 `(m,dd,a)` 留 i128（界 `2√d`）。
+  - **解锁** `class_number(ℚ(√163))=1`（`d≡3mod4`，R≈18.669）、`class_number(ℚ(√265))=2`（`d≡1mod4` 大 regulator，R≈9.4046）、`class_number(ℚ(√5))=1`（`d=5` 极大序，R≈0.4812，原 sound-skip）、`class_number(ℚ(√409))=1`（`d≡1mod4` 大 regulator，素数 disc 409 > 281，ε 坐标 ~10¹⁰，R≈26.1342，原认证侧 sound-skip）；`bnfregulator`/`bnfunits` 同步受益。
+- **`power_order_is_maximal` 极大性认证——`disc` 完全分解（`ponytail:` 架构升级）**：原实现用 `small_primes(60)`（前 60 个素数，到 281）+ 「remainder>1 → `Some(false)`」，对 `disc` 含 `>281` 素因子的域（如 ℚ(√409)，disc=409 素数）在**认证侧** sound-skip——即便 Dedekind 判据本身对任意大素数成立、CF 也能找到单位。现 `number_field_arith.rs::distinct_prime_factors_i64(disc)` 把 `|disc|` 完全分解为素因子（试除到 `min(√|disc|, 10^7)` + Miller-Rabin `is_prime_i64` 收尾），对**每个**素因子跑 Dedekind。`ponytail:` 上界 `|disc| > 10^14` 且剩余 composite > 试除上限 → `None` → `Some(false)` sound-skip；升级路径 = Pollard-rho。覆盖范围内（`|disc| ≤ 10^14`，含所有在域二次 `disc`）任意大素数 `disc` 均可证。
 - **`D > 10^6`**：求和可行性 cap（10⁶ 次迭代），**非 soundness 缺口**，纯算力。可升级为 Poisson 求和 / baby-step giant-step 求 `L(1,χ)`。
 - **`deg ≥ 3`**：无解析闭式（高次 Dedekind L 函数）⟹ `None`，仍需完整 Buchmann 完备性证书（C 路径）。
 - **f64 精度**：舍入歧义 ⟹ `None`（已验证 `D ≤ 10^6` 下精度远够；大 regulator 的 `R` 用 f64 表达 `ε ~ 10^8` 仍只有 `~10⁻¹⁶` 相对误差 ⟹ `h` 误差 `~10⁻¹⁴`，舍入无歧义）。
