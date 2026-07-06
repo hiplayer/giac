@@ -701,7 +701,23 @@ graph TD
 
 **单测：** `bnfisprincipal_q_cbrt2_p_principal` / `certified_class_data_cache_returns_same_bnf`
 
-**仍缺：** `chinese_unit` CRT；`Context` 级 session 缓存（当前进程 Mutex）。
+**仍缺：** `Context` 级 session 缓存（当前进程 Mutex）。
+
+---
+
+## R18 ✅ Pari 路径：`chinese_unit` CRT 单位提升
+
+**依据：** Pari `buch2.c` `chinese_unit` / `FlxqX_chinese_unit`（`getfu` 在 `RgM_solve` 前用模素数 CRT 重建 `∏ γ^T`）。
+
+**落点：**
+- `bnf.rs`：`getfu_chinese_unit_lift` 接入 `getfu_lift` 链（代数 → CRT → RgM → 解析）
+- `chinese_unit_coords_crt` / `compose_gamma_powers_mod_p` / `mul_coords_mod_p` / `pow_coords_mod_p` / `inv_coords_mod_p`
+- 首素数直接赋值残基（`modulus=1` 时 `crt_combine` 无效）
+- `ℤ[α]=𝔬_K` + 整数 γ 坐标；`chinese_unit_bit_bound` ponytail
+
+**单测：** `compose_gamma_powers_mod_p_matches_exact_mod_prime` / `chinese_unit_coords_crt_matches_compose_sqrt2` / `getfu_chinese_unit_lift_sqrt2_unit_gamma`
+
+**验证：** `cargo test -p giac-core --lib` 666 passed；clippy 绿。
 
 ---
 
@@ -864,7 +880,7 @@ pub(crate) struct ArchLogMatrix { /* cols: ArchLogVector */ }
 | 独立 `CompletenessCert` | 不要 | 一个 `f64` 比值 + `Option` 即可；`certify_hr_product` 已够 |
 | `RelationLattice` 类型 | 延后 | SNF 输入是 `Vec<Vec<BigInt>>`；关系多了再包 |
 
-**最小下一步（砖 7d–7g ✅，7e ✅，7f ✅，7h ✅，RgM_solve ✅，缓存+bnfisprincipal deg≥3 ✅）：** `chinese_unit` CRT；eval session 级 `Context` 缓存（可选）。
+**最小下一步（砖 7d–7g ✅，7e ✅，7f ✅，7h ✅，RgM_solve ✅，缓存+bnfisprincipal deg≥3 ✅，chinese_unit CRT ✅）：** eval session 级 `Context` 缓存（可选）；deg≥3 h>1 Bach 完备性。
 
 ---
 
