@@ -205,7 +205,9 @@ GRH deg≥3 主路径:
 
 ---
 
-### 砖 7f：GRHchk + LIMC 倍增
+### 砖 7f：GRHchk + LIMC 倍增 ✅
+
+**状态：** giac-rs 已落地（`grh.rs` + `factor_base_norm_bounds` 扩展）。
 
 **估时：** ~2–4 天 · **落点：** `grh.rs` + `class_group.rs`
 

@@ -520,7 +520,8 @@ graph TD
 - **7c ✅（fallback）**：`fundamental_units_certified` / `regulator_covolume` —— **单测锚 + 无关系时的旁路**；upstream 主路径单位来自关系 arch（砖 7d），见「下一砖」。
 - **7d ✅ / 7g ✅**：关系 arch+getfu + `Bnf` 缓存 + eval 读缓存（见 R12）。
 - **7e ✅**：LIMC 因子基 + 关系 exp_bound 重试循环（见 R13）。
-- **7f–7h（待做）**：7f GRHchk/START → 7h 复签名 arch。详见 R11 后「下一砖」段。
+- **7f ✅**：`GRHchk`/`GRHok` + `LIMC2` 二分 + `goto START` `increase_limc` 倍增（见 R14）。
+- **7h（待做）**：复签名 arch。详见 R11 后「下一砖」段。
 
 **sound 边界（`ponytail:`）：**
 - 每条 emitted 关系精确（`(γ)=J` 由 `γ∈J` + `|N(γ)|=N(J)` 双证）；**完备性**由 7b-ii `certify_hr_product` 证（GRH，`h'·R'·invhr≈1`）⟹ deg≥3 h=1 已解锁（见 R11）；deg≥3 h>1 在关系枚举充分时解锁，否则 sound-skip。
@@ -676,7 +677,21 @@ graph TD
 
 **验证：** `cargo test -p giac-core --lib` 656 passed；`cargo clippy -p giac-core` 绿。
 
-**下一子计划：** [GIAC-p2-bnf-relation-gen-plan](GIAC-p2-bnf-relation-gen-plan.md) — 砖 **7f** `GRHchk`/LIMC 倍增；**7h** 复签名 arch。
+**下一子计划：** [GIAC-p2-bnf-relation-gen-plan](GIAC-p2-bnf-relation-gen-plan.md) — 砖 **7h** 复签名 arch；`RgM_solve` 精确 getfu。
+
+---
+
+## R14 ✅ #7 砖 7f：`GRHchk` + `LIMC2` + `goto START` 倍增
+
+**依据：** Pari `pari/src/basemath/buch2.c`：`init_GRHcheck` / `GRHchk` / `GRHok` / `bnf_increase_LIMC` / `Buchall_param` LIMC2 二分。
+
+**落点：**
+- `grh.rs`：`init_grh_check` / `grhok` / `grhchk` / `grhchk_sa_sb` / `grh_limc2_bound` / `increase_limc` / `grh_limc_max`
+- `class_group.rs`：`factor_base_norm_bounds` → `[M_K, LIMC, LIMC2, …increase_limc×8]`；`buchmann_grh_certified_data` 逐界 `goto START` 等价重试
+
+**单测：** `grhchk_q_sqrt23_passes_at_large_limc` / `increase_limc_doubles_when_small` / `factor_base_norm_bounds_includes_limc_and_grh_escalation`
+
+**验证：** `cargo test -p giac-core --lib` 658 passed；clippy 绿。
 
 ---
 
@@ -689,7 +704,7 @@ graph TD
 ```
 GRHchk → LIMC/LIMC2 + primeneeded → invhr
     ↓
-START: FBgen(因子基 ≤ LIMC)          ← giac: M_K + LIMC（7e ✅）；无 GRHchk 倍增
+START: FBgen(因子基 ≤ LIMC)          ← giac: GRHchk LIMC2 + increase_limc 倍增（7f ✅）
     ↓
 small_norm + rnd_rel → 关系 (γ)      ← giac: enumerate_relations_lli + exp_bound 重试（7e ✅）；无 rnd_rel
     ↓
@@ -714,7 +729,7 @@ bnfisunit / bnfregulator / bnfunits  读 logfu/fu/R/h/cyc   ← giac: r≥2 未�
 |----|-----|-----------|--------------|------|
 | **1** | **7d 关系 arch 单位** | `rel_embed` / `fixarch` → `A` → `getfu` | 关系 γ 的 arch log 列；`R'=|det A|`；与 `certify_hr_product` 同源 | 单位与类群**联合**证书（对齐 `compute_R`） |
 | **2** | **7e Buchmann 关系循环 + LIMC 因子基** ✅ | `small_norm`/`rnd_rel` + `FBgen(LIMC)` + `need=1` | `factor_base_norm_bounds` + `prime_ideals_below_norm_bound`；`BUCH_LLL_EXP_BOUNDS` 重试 | deg≥3 **h>1** 部分（`x⁴−17` 仍可能 skip） |
-| **3** | **7f GRHchk + START/LIMC 倍增** | `GRHchk` 二分 + `goto START` | `grh.rs` 扩：`GRHchk`/`GRHok`；嵌在 7e 启动与 stuck 重试 | 因子基规模正确、大域不卡死 |
+| **3** | **7f GRHchk + START/LIMC 倍增** ✅ | `GRHchk` 二分 + `goto START` | `grh_limc2_bound` + `increase_limc` in `factor_base_norm_bounds` | 因子基规模正确、大域 retry |
 | **4** | **7g `Bnf` 缓存 + 用户命令** | `buchall_end` → `bnf_get_logfu` | `Bnf` 结构体；`bnfisunit`/`bnfregulator`/`bnfunits` **读缓存** | r≥2 用户面（#6 最终解锁） |
 | **5** | **7h 复签名 arch** | `fixarch`/`cleanarchunit`（`r₂>0`） | 扩展 7d `rel_embed`；非单独 `regulator_covolume` | 复数域 GRH 证书 |
 
@@ -811,7 +826,7 @@ pub(crate) struct ArchLogMatrix { /* cols: ArchLogVector */ }
 | 独立 `CompletenessCert` | 不要 | 一个 `f64` 比值 + `Option` 即可；`certify_hr_product` 已够 |
 | `RelationLattice` 类型 | 延后 | SNF 输入是 `Vec<Vec<BigInt>>`；关系多了再包 |
 
-**最小下一步（砖 7d–7g ✅，7e ✅）：** 见 [GIAC-p2-bnf-relation-gen-plan](GIAC-p2-bnf-relation-gen-plan.md) — **7e-i** 增量 RELAT + `rnd_rel` → **7e-ii** deg≥3 `small_norm` → **7f** `GRHchk`/LIMC 倍增；并行 **7h** / `RgM_solve`。
+**最小下一步（砖 7d–7g ✅，7e ✅，7f ✅）：** 砖 **7h** 复签名 arch；`RgM_solve` 精确 `getfu`；`bnf` session 缓存。
 
 ---
 
