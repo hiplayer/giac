@@ -5,7 +5,7 @@
 **上游基线:** **Pari/GP `bnf*` / `bnr*` / `ideal*` / `nf*` / `galois*` 函数族**（giac-2.0.0 无对标）
 **相关:** [GIAC-core-upstream-gaps](GIAC-core-upstream-gaps.md) §4 Phase E（C-9..C-12）、[GIAC-p2-algebraic-number-theory-api](GIAC-p2-algebraic-number-theory-api.md)（已落地 C-11/C-12）、[GIAC-poly-f5-fglm-hasse-lean4-verification](GIAC-poly-f5-fglm-hasse-lean4-verification.md)（数学正确性线）、[GIAC-p2-bnf-relation-gen-plan](GIAC-p2-bnf-relation-gen-plan.md)（关系生成对齐子计划：7e-i/7e-ii）
 **Rust 落点:** `giac-rs/crates/giac-core/src/algebra/{ideal(新),class_group,unit_group,lattice,archimedean,number_field_arith,padic,galois_automorphism}.rs` + `eval.rs`
-**快照:** 2026-07-03
+**快照:** 2026-07-07（R25 `GrhRelCache` incremental add_rel + unit need）
 
 ---
 
@@ -313,16 +313,25 @@ EOF
 # → time_ms≈1, cyc=[2], no=2
 ```
 
-### giac-rs 对照（R20 缺口）
+### giac-rs 对照（R25，快照 2026-07-07）
 
 | Pari `buch2.c` | giac-rs 现状 |
 |----------------|--------------|
-| 启动 `GRHchk` → `LIMC2` | ✅ `factor_base_norm_bounds` / Bach 界 |
-| `while(need)` + `rnd_rel` | ✅ `grh_relation_need` + `rnd_rel_one_ljid`（R22） |
-| `compute_R` → `fupb_RELAT` → `need=1` | ✅ `grh_hr_check` 一次 + `need=1`（R22） |
-| `goto START` + `increase_LIMC` | ◐ 关系缓存 `extend_relations_for_larger_fb`（R22）；界仍多轮 |
+| 启动 `GRHchk` → `LIMC2` | ✅ `factor_base_norm_bounds` / `grh_limc2_bound`（R13；R23：`logd>45` 快路径 + `limc0.min(limc_max)`） |
+| `FBgen` + KC trim | ✅ `prime_ideals_fbgen(c1=nth, c2=LIMC)` + `nthideal_norm`（R23；x³−11：full k=56 → fbgen k≈3） |
+| `subFBgen` + `get_random_ideal` | ✅ `subfb_gen` + `rnd_rel_subfb_ljid`（R24；`MINSFB=3`，`RANDOM_BITS=4`；`bad_subFB` 简化） |
+| `small_norm` + `Fincke_Pohst_ideal` | ◐ `enumerate_relations_small_norm`（仅 `d_k<4`）；主理想搜索走 `fincke_pohst_principal_generator`（R23） |
+| `while(need)` + `rnd_rel` | ✅ `GrhRelCache::need` 驱动 `rnd_rel_subfb_ljid` → `rnd_rel_one_ljid`（R22–R25）；`each_relation_lli` 预算枚举 |
+| `add_rel` → `hnfspec`/`hnfadd` 增量 HNF | ◐ `GrhRelCache::add_relation` mod-p `add_rel_i`（R25，`p=2003`）；❌ 整数 HNF 降格 / 自同构复制 |
+| `compute_R` → `fupb_RELAT` → `need=1` | ✅ `grh_hr_check` 一次 + `need=1`（R22）；`need` 含单位秩缺口（R25，`RU−1−zc` via arch log rank） |
+| `goto START` + `increase_LIMC` | ◐ 关系缓存 `extend_relations_for_larger_fb`（R22）；界仍多轮，无 `increase_LIMC` |
+| `rnd_rel_par` 并行 FP worker | ❌ 仅串行 `rnd_rel_subfb_ljid` |
+| `be_honest` + `getfu` → `bnf` | ✅ `regulator_from_relation_arch` + `Bnf::try_from_grh_relations`（R12）；f64 arch，无动态提精度 |
+| deg≥3 h=1 快路 | ✅ `deg3_h1_cert` / 跳过重复 M_K preamble（R23） |
 
-**R20 下一砖：** `compute_R` → `fupb_RELAT` 统一 `need` 语义；`goto START` + `increase_LIMC` 外循环信号（`rnd_rel` certify 驱动 ✅，见 R21）。
+**锚域 ℚ(∛11)：** Pari ~3 ms，`cyc=[2]`；giac-rs release 探针 ~50 s（R25 后），`class_number_general_cert_grh_x3_11_h2_probe` 仍多 `None`（关系格不完备，sound-skip 非挂死）。
+
+**R26 下一砖：** 整数 `hnfspec`/`hnfadd` 降格；`rnd_rel_par`；`increase_LIMC`；ℚ(∛11) h=2 稳定出证。
 
 ---
 
@@ -809,7 +818,7 @@ graph TD
 
 **验证：** `cargo test -p giac-poly --lib fpx_quartic` + `cargo test -p giac-core --lib class_number_general_cert_grh` + quartic 7c cert。
 
-**与 upstream 的结构差距（R11 后登记）：** ~~7b-ii 用 `candidate_regulator_buchmann`~~ → R12 改 `regulator_from_relation_arch` + `getfu`；Pari 关系循环 + LIMC 因子基 → R13 部分对齐（无 `rnd_rel`/GRHchk）。见下「下一砖」。
+**与 upstream 的结构差距（R25 后登记）：** Pari 关系循环 → R25 `GrhRelCache` mod-p `add_rel_i` + unit `need`；仍缺整数 `hnfspec`/`hnfadd`（见上「giac-rs 对照（R25）」表）。
 
 ---
 
@@ -833,8 +842,9 @@ graph TD
 3. `buchmann_grh_certified_data`：对每个界 × `BUCH_LLL_EXP_BOUNDS = [4,6,8]` 调用 `certified_class_data_grh_attempt`（SNF + `regulator_from_relation_arch` + `certify_hr_product` + 可选 `Bnf`）。
 4. `class_number_general_cert` / `certified_class_data_with_gens` deg≥3 走上述循环。
 
-**边界（仍待 7f）：**
-- 无 `GRHchk` 二分、无 `goto START` LIMC 倍增；`x⁴−17` h=2 probe 仍允许 `None`。
+**边界（R25 后仍待 R26）：**
+- mod-p `add_rel_i` ✅；整数 `hnfspec`/`hnfadd`、自同构复制未接。
+- 锚域 ℚ(∛11) h=2 探针仍多 `None`；`x⁴−17`（非极大序）GRH sound-skip。
 - 非极大序（`power_order_is_maximal ≠ true`）→ `None`。
 
 **接线点：** `class_group.rs`：`buchmann_limc_bound` / `factor_base_norm_bounds` / `buchmann_grh_certified_data` / `buchmann_grh_grow_relations`（7e-i `rnd_rel` + 7e-ii `small_norm`）；`grh.rs`：`bach_limc`（已有）。
@@ -944,7 +954,7 @@ GRHchk → LIMC/LIMC2 + primeneeded → invhr
     ↓
 START: FBgen(因子基 ≤ LIMC)          ← giac: GRHchk LIMC2 + increase_limc 倍增（7f ✅）
     ↓
-small_norm + rnd_rel → 关系 (γ)      ← giac: enumerate_relations_lli + exp_bound 重试（7e ✅）；无 rnd_rel
+small_norm + rnd_rel → 关系 (γ)      ← giac: small_norm + rnd_rel_subfb_ljid + rnd_rel_one_ljid + lli（R22–R24）；无 add_rel 增量 HNF
     ↓
 HNF → W (类群) + C (arch 矩阵)       ← giac: SNF 有；arch 矩阵 C 无
     ↓
@@ -966,7 +976,7 @@ bnfisunit / bnfregulator / bnfunits  读 logfu/fu/R/h/cyc   ← giac: r≥2 未�
 | 序 | 砖 | 对标 Pari | giac-rs 落点 | 解锁 |
 |----|-----|-----------|--------------|------|
 | **1** | **7d 关系 arch 单位** | `rel_embed` / `fixarch` → `A` → `getfu` | 关系 γ 的 arch log 列；`R'=|det A|`；与 `certify_hr_product` 同源 | 单位与类群**联合**证书（对齐 `compute_R`） |
-| **2** | **7e Buchmann 关系循环 + LIMC 因子基** ✅ | `small_norm`/`rnd_rel` + `FBgen(LIMC)` + `need=1` | `factor_base_norm_bounds` + `prime_ideals_below_norm_bound`；`BUCH_LLL_EXP_BOUNDS` 重试 | deg≥3 **h>1** 部分（`x⁴−17` 仍可能 skip） |
+| **2** | **7e Buchmann 关系循环 + LIMC 因子基** ✅ | `small_norm`/`rnd_rel` + `FBgen(LIMC)` + `need=1` | `factor_base_norm_bounds` + `prime_ideals_fbgen`（R23）；`subfb_gen`/`rnd_rel_subfb_ljid`（R24）；`BUCH_LLL_EXP_BOUNDS` 重试 | deg≥3 **h>1** 探针仍多 sound-skip（锚域 ℚ(∛11)） |
 | **3** | **7f GRHchk + START/LIMC 倍增** ✅ | `GRHchk` 二分 + `goto START` | `grh_limc2_bound` + `increase_limc` in `factor_base_norm_bounds` | 因子基规模正确、大域 retry |
 | **4** | **7g `Bnf` 缓存 + 用户命令** | `buchall_end` → `bnf_get_logfu` | `Bnf` 结构体；`bnfisunit`/`bnfregulator`/`bnfunits` **读缓存** | r≥2 用户面（#6 最终解锁） |
 | **5** | **7h 复签名 arch** ✅ | `fixarch`/`cleanarchunit`（`r₂>0`） | `arch_log_of_element` + `regulator_covolume` | 复数域 GRH 证书 |
@@ -1083,9 +1093,15 @@ pub(crate) struct ArchLogMatrix { /* cols: ArchLogVector */ }
 
 **R21 ✅（2026-07-07）：** `rnd_rel_until_cert_or_stall` — certify 驱动 `while` 循环，`RND_REL_STALL_{NARROW,WIDE_FB}` 作 ponytail 天花板。
 
-**R22 ✅（2026-07-07）：** Pari `while(need)` 路径 — `grh_relation_need` / `grh_hr_check`（`compute_R` 一次）/ `rnd_rel_one_ljid` / 关系缓存 `extend_relations_for_larger_fb`；ℚ(∛11) release ~14s 出证 h=2。
+**R22 ✅（2026-07-07）：** Pari `while(need)` 路径 — `grh_relation_need` / `grh_hr_check`（`compute_R` 一次）/ `rnd_rel_one_ljid` / 关系缓存 `extend_relations_for_larger_fb`。
 
-**仍缺：** `bnfisprincipal` 非主理想 `[0,[1]]` 金值端到端。
+**R23 ✅（2026-07-07，`5699ce6`）：** `prime_ideals_fbgen` KC trim + `nthideal_norm`；`fincke_pohst_principal_generator`（FP 优先，`lll_principal_generator` 回退）；`deg3_h1_cert` 快路；`grh_limc2_bound` 大 `logd` 快路径；大判别式 `distinct_prime_factors` BigInt。
+
+**R24 ✅（2026-07-07，`7b3cdc9`）：** `subfb_gen` + `rnd_rel_subfb_ljid`（Pari `subFBgen` + `get_random_ideal` + `rnd_rel_seq`）；`buchmann_grh_grow_relations` 优先 subFB smooth 理想再回退 `rnd_rel_one_ljid`；单测 `subfb_gen_x3_11` / `rnd_rel_subfb_q_cbrt2`。
+
+**仍缺（R26+）：** 整数 `hnfspec`/`hnfadd`；`rnd_rel_par`；`increase_LIMC`；ℚ(∛11) h=2 稳定出证；`bnfisprincipal` 非主理想 `[0,[1]]` 金值端到端。
+
+**R25 ✅（2026-07-07）：** `GrhRelCache` — Pari `add_rel_i` mod-p 增量 echelon（`REL_CACHE_MOD_P=2003`）；`GrhRelCache::need` = 类群秩缺口 + arch 单位秩缺口（`RU−1−zc`）；`buchmann_grh_grow_relations` 全线 `add_relation`；单测 `grh_rel_cache_*`。
 
 ---
 
