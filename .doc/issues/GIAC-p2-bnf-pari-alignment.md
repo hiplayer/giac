@@ -3,7 +3,7 @@
 **状态:** open（方案 / 跟踪）
 **类型:** 扩展功能规划（非 upstream giac 对齐）
 **上游基线:** **Pari/GP `bnf*` / `bnr*` / `ideal*` / `nf*` / `galois*` 函数族**（giac-2.0.0 无对标）
-**相关:** [GIAC-core-upstream-gaps](GIAC-core-upstream-gaps.md) §4 Phase E（C-9..C-12）、[GIAC-p2-algebraic-number-theory-api](GIAC-p2-algebraic-number-theory-api.md)（已落地 C-11/C-12）、[GIAC-poly-f5-fglm-hasse-lean4-verification](GIAC-poly-f5-fglm-hasse-lean4-verification.md)（数学正确性线）、[GIAC-p2-bnf-relation-gen-plan](GIAC-p2-bnf-relation-gen-plan.md)（关系生成对齐子计划：7e-i/7e-ii）
+**相关:** [GIAC-core-upstream-gaps](GIAC-core-upstream-gaps.md) §4 Phase E（C-9..C-12）、[GIAC-p2-algebraic-number-theory-api](GIAC-p2-algebraic-number-theory-api.md)（已落地 C-11/C-12）、[GIAC-poly-f5-fglm-hasse-lean4-verification](GIAC-poly-f5-fglm-hasse-lean4-verification.md)（数学正确性线）、[GIAC-p2-bnf-relation-gen-plan](GIAC-p2-bnf-relation-gen-plan.md)（关系生成对齐子计划：7e-i/7e-ii）、**[giac-buchmann-classical-vs-pari](../giac-buchmann-classical-vs-pari.md)**（经典算法 vs Pari 工程优化 + 原始文献）
 **Rust 落点:** `giac-rs/crates/giac-core/src/algebra/{ideal(新),class_group,unit_group,lattice,archimedean,number_field_arith,padic,galois_automorphism}.rs` + `eval.rs`
 **快照:** 2026-07-07（R25 `GrhRelCache` incremental add_rel + unit need）
 
@@ -158,6 +158,8 @@ deg-2 极大序下三处退化都「恰好够用」（闭式范数 + 有界枚�
 ---
 
 ## Pari `buch2.c`：GRH / `rnd_rel` 流程（upstream 摘录）
+
+> **背景阅读:** 经典 Buchmann 五步、原始论文与 Pari 工程优化分类见 **[giac-buchmann-classical-vs-pari](../giac-buchmann-classical-vs-pari.md)**。
 
 **来源：** `/home/kanli.hu/upstream/pari/src/basemath/buch2.c`（快照 `pari-2.18.0-1079-g7450a386b2`，2026-07-06）。`gp`：`/home/kanli.hu/upstream/pari/gp`。
 
@@ -322,7 +324,7 @@ EOF
 | `subFBgen` + `get_random_ideal` | ✅ `subfb_gen` + `rnd_rel_subfb_ljid`（R24；`MINSFB=3`，`RANDOM_BITS=4`；`bad_subFB` 简化） |
 | `small_norm` + `Fincke_Pohst_ideal` | ◐ `enumerate_relations_small_norm`（仅 `d_k<4`）；主理想搜索走 `fincke_pohst_principal_generator`（R23） |
 | `while(need)` + `rnd_rel` | ✅ `GrhRelCache::need` 驱动 `rnd_rel_subfb_ljid` → `rnd_rel_one_ljid`（R22–R25）；`each_relation_lli` 预算枚举 |
-| `add_rel` → `hnfspec`/`hnfadd` 增量 HNF | ◐ `GrhRelCache::add_relation` mod-p `add_rel_i`（R25，`p=2003`）；❌ 整数 HNF 降格 / 自同构复制 |
+| `add_rel` → `hnfspec`/`hnfadd` 增量 HNF | ◐ `GrhRelationHnf` 整数 ℤ 行 echelon（R26）；❌ arch 浮点列 `C` / `hnffinal` / 自同构复制 |
 | `compute_R` → `fupb_RELAT` → `need=1` | ✅ `grh_hr_check` 一次 + `need=1`（R22）；`need` 含单位秩缺口（R25，`RU−1−zc` via arch log rank） |
 | `goto START` + `increase_LIMC` | ◐ 关系缓存 `extend_relations_for_larger_fb`（R22）；界仍多轮，无 `increase_LIMC` |
 | `rnd_rel_par` 并行 FP worker | ❌ 仅串行 `rnd_rel_subfb_ljid` |
@@ -1132,6 +1134,7 @@ cargo clippy --workspace --all-targets                                      # cl
 
 ## 参考
 
+- **经典 Buchmann vs Pari 工程:** [giac-buchmann-classical-vs-pari](../giac-buchmann-classical-vs-pari.md)
 - 主缺口索引：[GIAC-core-upstream-gaps](GIAC-core-upstream-gaps.md) §4 Phase E
 - 已落地 API 暴露：[GIAC-p2-algebraic-number-theory-api](GIAC-p2-algebraic-number-theory-api.md)（C-11 LLL ✅、C-12 evalf ✅）
 - Hasse 数学正确性线：[GIAC-poly-f5-fglm-hasse-lean4-verification](GIAC-poly-f5-fglm-hasse-lean4-verification.md)
