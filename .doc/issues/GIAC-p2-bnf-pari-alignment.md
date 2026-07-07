@@ -140,7 +140,7 @@ deg-2 极大序下三处退化都「恰好够用」（闭式范数 + 有界枚�
 
 **背景**：r≥2 单位 index-1 证书原列两条路径——A（saturation 经类群）/ B（per-field 穷举 + witness 界）。经 upstream 分析后改投 **A 内禀**。
 
-**upstream 证据（`pari/src/basemath/buch2.c`）：**
+**upstream 证据（`pari/src/basemath/buch2.c`；流程图见 [Pari `buch2.c`：GRH / `rnd_rel` 流程](#pari-buch2cgrh--rnd_rel-流程upstream-摘录)）：**
 - giac C++ 无原生 bnf（`prog.cc` 注释 "used by PARI in bnfinit" + `pari.cc` 桥接；`is_unit` 是多项式么元、`*_axis_unit` 是图形轴）⟹ **giac 非 #6 参考**。
 - Pari `getfu(nf, &A, ...)`（L1126）：单位从**关系生成元 arch 对数分量矩阵 `A`** LLL 提取（`matep=fixarch(Aj) → lll(real_i(matep)) → RgM_solve_realimag(M, gexp(y))` 提升回精确单位），**不独立搜索**。
 - `get_regulator(A)=|det(real_i(A) 顶行)|`（L3527）= 同批 arch 分量的格 covolume = 单位格 regulator。
@@ -154,6 +154,175 @@ deg-2 极大序下三处退化都「恰好够用」（闭式范数 + 有界枚�
 - **路径 B（per-field 穷举 + witness 界）放弃**：无 upstream 先例，witness 坐标界 `~exp(r·R)` 使穷举不可行（r=2 小 regulator 域已 ~10⁴–10⁶ ⟹ `(2B+1)^n` 不可行）。
 
 **#6 并入 #7 的工程含义**：`unit_group::fundamental_units` r≥2 不再独立求证书；改为在 #7 的 Buchmann 关系搜索中，从关系生成元 γ_j 的 arch 对数分量（`embeddings` 下 `log|σ_i(γ_j)|`，减 `log|N(γ_j)|/n` 归一化，即 Pari `fixarch`）构 arch 分量矩阵 `A`，LLL 提取基本单位基，`|det(real_i(A) 顶行)|` = regulator；与关系格 SNF 给的 `R` 匹配 ⟹ index-1 ⟹ `fundamental_units` 返 `Some`。Bach 界保证关系格完备 ⟹ 匹配即证书。`bnfisunit` r≥2 / `bnfregulator` r≥2 / `bnfunits` r≥2 随之解锁。
+
+---
+
+## Pari `buch2.c`：GRH / `rnd_rel` 流程（upstream 摘录）
+
+**来源：** `/home/kanli.hu/upstream/pari/src/basemath/buch2.c`（快照 `pari-2.18.0-1079-g7450a386b2`，2026-07-06）。`gp`：`/home/kanli.hu/upstream/pari/gp`。
+
+**分层要点：** `GRHchk` **仅启动时**定因子基完备界 `LIMC2`；运行中内层靠 `need` 驱动 `small_norm` / `rnd_rel`，外层靠 `compute_R`（Bach 乘积 `check ≈ 1`）判关系是否够——**不再调 `GRHchk`**。
+
+### 总览：`Buchall` 中 GRH 与关系生成
+
+```mermaid
+flowchart TB
+  subgraph INIT["启动（~L4033–4055）"]
+    A[nfinit + LOGD] --> B["init_GRHcheck(S): cN, cD"]
+    B --> C["LIMC0 = max(cbach2·LOGD², 1)"]
+    C --> D{"GRHchk(nf,S, high)?"}
+    D -->|否| E["high *= 2"] --> D
+    D -->|是| F["二分 high/low → LIMC2"]
+    F --> G["LIMC = max(cbach·LOGD², nthideal)"]
+    G --> H["cache primes → invhr ≈ 1/hR"]
+  end
+
+  subgraph START["外层 START（~L4058+）"]
+    H --> I{"TRIES>0?"}
+    I -->|是| J["LIMC = increase_LIMC"]
+    I -->|否| K[FBgen + subFBgen]
+    J --> K
+    K --> L{"KC=0 或 subFB 空?"}
+    L -->|是| I
+    L -->|否| M["init_rel; need = 缺口"]
+  end
+
+  subgraph INNER["内层 do while(need)（~L4111–4321）"]
+    M --> N{need > 0?}
+    N -->|是| O["pre_allocate; L_jid = trim_list"]
+    O --> P{"small_norm 条件?"}
+    P -->|是| Q[small_norm 确定性搜]
+    P -->|否| R
+    Q --> R{仍 need>0?}
+    R -->|是| S[rnd_rel]
+    S --> T[hnfspec / hnfadd 降格]
+    T --> U["need = KC - rank(W) - rank(B) + 单位缺口"]
+    U --> N
+    N -->|否| V[退出内层]
+  end
+
+  subgraph CERT["证书（~L4323+）"]
+    V --> W[compute_multiple_of_R]
+    W --> X{"单位满秩?"}
+    X -->|否| Y["need←; continue"]
+    X -->|是| Z["h=det(W); compute_R(λ, h·invhr)"]
+    Z --> AA{结果}
+    AA -->|fupb_RELAT| AB["need=1 → 回内层"]
+    AA -->|fupb_PRECI| AC["加精度 / goto START"]
+    AA -->|OK| AD[be_honest + getfu → bnf]
+    AB --> INNER
+    AC --> START
+  end
+```
+
+### `GRHchk` / `GRHok`（Bach 完备界）
+
+```mermaid
+flowchart LR
+  subgraph GRHchk["GRHchk(nf, S, LIMC) ~L719"]
+    A[cache_prime_dec ≤ LIMC] --> B["对每个 p≤LIMC"]
+    B --> C["dec = 分裂型 fs, ns"]
+    C --> D["几何级数求和 → SA, SB"]
+    D --> E["GRHok(S, log LIMC, SA, SB)"]
+  end
+
+  subgraph GRHok["GRHok ~L382"]
+    F["cD + (cN+2·SB)/L − 2·SA < −1e−8"]
+  end
+
+  E --> F
+  G["init_GRHcheck ~L354"] --> H["cN = R1·c2 + N·c1"]
+  G --> I["cD = LOGD − N·c3 − R1·π/2"]
+  H --> GRHchk
+  I --> GRHchk
+```
+
+语义：在 GRH 下，范数 ≤ `LIMC2` 的素理想生成类群；`LIMC2` 由 `GRHchk` 倍增 + 二分得到（~L4034–4041）。
+
+### `rnd_rel` 细节
+
+```mermaid
+flowchart TB
+  A["rnd_rel(cache,F,nf,...) ~L2874"] --> B{nbthr==1?}
+  B -->|是| SEQ[rnd_rel_seq]
+  B -->|否| PAR[rnd_rel_par]
+
+  subgraph SEQ["rnd_rel_seq"]
+    S1["ex = random exponents"]
+    S1 --> S2["R = get_random_ideal(subFB)"]
+    S2 --> S3["NR = det(R)"]
+    S3 --> S4["对每个 j ∈ L_jid"]
+    S4 --> S5["P = LP[j]; I = R·P"]
+    S5 --> S6["Fincke_Pohst_ideal → 短元"]
+    S6 --> S7["add_rel → cache"]
+    S7 --> S8{"cache 满?"}
+    S8 -->|是| DONE[break]
+    S8 -->|否| S4
+  end
+
+  subgraph PAR["rnd_rel_par"]
+    P1["同上 R, ex"] --> P2["并行 _bnfinit_FP_worker"]
+    P2 --> P3["收集 smooth → add_rel"]
+  end
+
+  subgraph ADD["add_rel ~L2376"]
+    A1["add_rel_i: 模 p 线性相关检测"]
+    A1 --> A2["写入 REL_t {R, m}"]
+    A2 --> A3["自同构轨道复制关系"]
+  end
+
+  S7 --> ADD
+  P3 --> ADD
+```
+
+`L_jid`：当前还缺关系的素理想下标（`need` 决定长度）；`subFB`：随机乘积用的子因子基。
+
+### `need` 如何驱动 `small_norm` vs `rnd_rel`
+
+| 阶段 | 条件 | 动作 |
+|------|------|------|
+| 初始 | `cache.end - cache.last` | `need` = 预分配缺口 |
+| 内层每轮 | `need>0` 且 small_norm 启发式 | `small_norm`（Fincke–Pohst 扫 `L_jid`） |
+| 仍 `need>0` | subFB 退化 | `sfb_INCREASE` / `goto START` |
+| 仍 `need>0` | 默认 | **`rnd_rel`**（一次 batch ≈ `need` 条） |
+| HNF 后 | `need = KC − #(W) − #(B)` | 类群格秩缺口 |
+| 单位 | `RU−1−zc > 0` | `need +=` 单位秩缺口 |
+| `need==0` 但 lattice 太小 | `compute_R` → `check>1.3` | **`need=1`**，再跑一轮 rnd_rel（~L4304–4360） |
+
+`rnd_rel` 不是固定 trial 次数，而是 **`while(need)` 里按需调用**，直到 HNF 满秩 + `compute_R` 通过。
+
+### 关键源码锚点
+
+| 符号 | 行 | 作用 |
+|------|-----|------|
+| `GRHok` | L382 | `cD + (cN+2·SB)/L − 2·SA < −1e−8` |
+| `init_GRHcheck` | L354 | 预计算 `cN`, `cD` |
+| `GRHchk` | L719 | 对 `p≤LIMC` 求和 → `GRHok` |
+| `LIMC2` 二分 | L4034–4041 | 启动完备界 |
+| `rnd_rel` | L2874 | seq/par 分发 |
+| `add_rel` | L2376 | 写入关系 + 自同构复制 |
+| `fupb_RELAT` | L4359 | `need=1`，关系不够 |
+
+### Pari 基准（锚域 ℚ(∛11)）
+
+```bash
+/home/kanli.hu/upstream/pari/gp -q -s 100000000 <<'EOF'
+gettime(); bnf = bnfinit(x^3-11); print(gettime());
+print("cyc=", bnf.cyc); print("no=", bnf.no);
+EOF
+# → time_ms≈1, cyc=[2], no=2
+```
+
+### giac-rs 对照（R20 缺口）
+
+| Pari `buch2.c` | giac-rs 现状 |
+|----------------|--------------|
+| 启动 `GRHchk` → `LIMC2` | ✅ `factor_base_norm_bounds` / Bach 界 |
+| `while(need)` + `rnd_rel` | ✅ `grh_relation_need` + `rnd_rel_one_ljid`（R22） |
+| `compute_R` → `fupb_RELAT` → `need=1` | ✅ `grh_hr_check` 一次 + `need=1`（R22） |
+| `goto START` + `increase_LIMC` | ◐ 关系缓存 `extend_relations_for_larger_fb`（R22）；界仍多轮 |
+
+**R20 下一砖：** `compute_R` → `fupb_RELAT` 统一 `need` 语义；`goto START` + `increase_LIMC` 外循环信号（`rnd_rel` certify 驱动 ✅，见 R21）。
 
 ---
 
@@ -901,16 +1070,22 @@ pub(crate) struct ArchLogMatrix { /* cols: ArchLogVector */ }
 
 ## R20 ◐ deg≥3 h>1：`bnfisprincipal` + GRH RELAT 增量
 
+**上游对照：** [Pari `buch2.c`：GRH / `rnd_rel` 流程](#pari-buch2cgrh--rnd_rel-流程upstream-摘录)。
+
 **阻塞厘清：**
 - `x⁴−17`（PARI h=2）在 giac-rs 为 **`power_order_is_maximal = false`** → GRH 路径 sound-skip（非 bug）。
 - 锚域改为 **ℚ(∛11)**：`x³−11` maximal，`h=2`，`cyc=[2]`（PARI / OEIS A246457）。
 
 **本砖（RELAT 性能 + 探测）：**
-- `buchmann_grh_grow_relations`：逐条 `lli` 早停 + `rnd_rel` 批后认证 + `k≥4` 宽因子基预算（`LLL_SCAN_BUDGET_WIDE_FB` / `RND_REL_TRIALS_WIDE_FB`）
+- `buchmann_grh_grow_relations`：逐条 `lli` 早停 + Pari 式 `rnd_rel_until_cert_or_stall`（替换固定 64/256 trial）+ `fupb_RELAT` 后补一轮短 `rnd_rel`
 - `each_relation_lli` 回调式枚举（避免 `exp_bound^k` 一次性物化）
 - 单测：`class_number_general_cert_grh_x3_11_h2_probe`（允许 `None` 直至关系格完备）
 
-**仍缺：** `certify_hr_product` 在 ℚ(∛11) 上 `Some`；`bnfisprincipal` 非主理想 `[0,[1]]` 金值。
+**R21 ✅（2026-07-07）：** `rnd_rel_until_cert_or_stall` — certify 驱动 `while` 循环，`RND_REL_STALL_{NARROW,WIDE_FB}` 作 ponytail 天花板。
+
+**R22 ✅（2026-07-07）：** Pari `while(need)` 路径 — `grh_relation_need` / `grh_hr_check`（`compute_R` 一次）/ `rnd_rel_one_ljid` / 关系缓存 `extend_relations_for_larger_fb`；ℚ(∛11) release ~14s 出证 h=2。
+
+**仍缺：** `bnfisprincipal` 非主理想 `[0,[1]]` 金值端到端。
 
 ---
 
