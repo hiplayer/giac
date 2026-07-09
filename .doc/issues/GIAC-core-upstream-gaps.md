@@ -128,8 +128,8 @@
 
 | ID | 能力 | 现状 | upgrade path |
 |----|------|------|--------------|
-| **C-9** | 完整 Buchmann / `bnfinit` | **◐ R8–R37 已落地**：… + R37 LIMC 外环 `GrhRelCache` 跨 FB 扩展延续 | `bnfinit` 用户对象；非极大序；冷启动 perf（~5.7s vs Pari ~3ms） |
-| **C-10** | 非主性认证 / `bnfisprincipal` 完备 | **◐** deg-2 极大 + M_K-平滑理想 ✅（含 `[γ,[e_i]]`）；deg≥3 h=1 ✅；h>1 ℚ(∛11) `(2)→(None,[1])` ✅；`q>M_K` 理想 sound-skip ✅ | 更多 deg≥3 h>1 锚域；大素理想纳入关系库（非 skip） |
+| **C-9** | 完整 Buchmann / `bnfinit` | **◐ R8–R38 已落地**：… + R38 FP 幂基 Minkowski 行缓存 | `bnfinit` 用户对象；非极大序；冷启动 perf（~5.7s vs Pari ~3ms） |
+| **C-10** | 非主性认证 / `bnfisprincipal` 完备 | **◐** deg-2 极大 + M_K-smooth ✅；deg≥3 h=1 ✅；h>1 ℚ(∛11) `(2)→(None,[1])` / `(4)→γ` ✅；`q>M_K` sound-skip ✅ | 更多 deg≥3 h>1 锚域；大素理想纳入关系库 |
 | **C-11** | LLL 短向量 | **✅ slice + 类群接入**：`eval_lll`（`lll(matrix)`）；`idealred` / `ideal_is_principal` LLL 回退（R7）；`enumerate_relations_lli`（R8） | Minkowski 嵌入 LLL（Pari `idealred` 风格）；`qfminim` |
 | **C-12** | `AlgExtC::evalf` | **✅ 已落地**：`archimedean::algext_evalf`/`algextc_evalf` + `eval_evalf` dispatch | `horner_rootof` / `proot` 浮点逼近 |
 | **C-18** | `bnfinit` 用户对象 | 内部 `Bnf` + `CertClassData` + `Context` session 缓存；**无** `FuncKind::Bnfinit` | 对标 Pari `buchall_end` 可查询对象；`bnfisunit`/`bnfregulator` 只读缓存 |
