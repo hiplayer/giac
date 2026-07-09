@@ -71,6 +71,7 @@ giac-rs GRH 路径对标 **浮点 + fixarch**（`relation_fixarch_column`），�
 2. `hnffinal`：`zm_hnflll` 后若 `ncol > lnz`，只取**末尾** `lnz` 列；`zc = col - lnz`
 3. 证书仍用 `vecslice(C,1,zc)` → `compute_R`；**禁止**用 W 列冒充 `Ar`
 4. **GRH grow**（`GrhRelCache`）：`matbotid` / `matbotidembs` + `c_lift_embs`（对标 Pari `bnfinit(,1)`）
+5. **精度提升**：`c_refresh_embs_top` 只重算 `C` 顶 `RU` 行（对标 Pari `flag=1` + `myprecdbl`），不重跑 HNF
 
 ```text
 hnfadd_i / hnfspec
@@ -109,4 +110,4 @@ cargo test -p giac-core --release --lib class_number_general_cert_grh_x3_11_h2_p
 ## 后续（可选）
 
 - 类型化 `BuchmannRelation::{Ideal, UnitArch}` 替代 `(Vec<BigInt>, HighFirstQ)` 隐式约定  
-- 精度提升时只重算 `embs` 顶行、不重跑 HNF（Pari `flag=1` + `myprecdbl` 循环；`hnf_prec_snaps` 仍走全量 `fixarch` stub）
+- 精度提升时只重算 `embs` 顶行、不重跑 HNF（`c_refresh_embs_top` + `hnf_prec_snaps` 缓存）
