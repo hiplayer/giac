@@ -5,7 +5,7 @@
 **上游基线:** **Pari/GP `bnf*` / `bnr*` / `ideal*` / `nf*` / `galois*` 函数族**（giac-2.0.0 无对标）
 **相关:** [GIAC-core-upstream-gaps](GIAC-core-upstream-gaps.md) §4 Phase E（C-9..C-12）、[GIAC-p2-algebraic-number-theory-api](GIAC-p2-algebraic-number-theory-api.md)（已落地 C-11/C-12）、[GIAC-poly-f5-fglm-hasse-lean4-verification](GIAC-poly-f5-fglm-hasse-lean4-verification.md)（数学正确性线）、[GIAC-p2-bnf-relation-gen-plan](GIAC-p2-bnf-relation-gen-plan.md)（关系生成对齐子计划：7e-i/7e-ii）、**[giac-buchmann-classical-vs-pari](../giac-buchmann-classical-vs-pari.md)**（经典算法 vs Pari 工程优化 + 原始文献）
 **Rust 落点:** `giac-rs/crates/giac-core/src/algebra/{ideal(新),class_group,unit_group,lattice,archimedean,number_field_arith,padic,galois_automorphism}.rs` + `eval.rs`
-**快照:** 2026-07-07（R25 `GrhRelCache` incremental add_rel + unit need）
+**快照:** 2026-07-08（R26 typed HR cert：`AnalyticInvHr` → `RegulatorMultiple` → `RegulatorRefined` → `HrCertAttempt`；ℚ(∛11) h=2 探针出证）
 
 ---
 
@@ -325,15 +325,120 @@ EOF
 | `small_norm` + `Fincke_Pohst_ideal` | ◐ `enumerate_relations_small_norm`（仅 `d_k<4`）；主理想搜索走 `fincke_pohst_principal_generator`（R23） |
 | `while(need)` + `rnd_rel` | ✅ `GrhRelCache::need` 驱动 `rnd_rel_subfb_ljid` → `rnd_rel_one_ljid`（R22–R25）；`each_relation_lli` 预算枚举 |
 | `add_rel` → `hnfspec`/`hnfadd` 增量 HNF | ◐ `GrhRelationHnf` 整数 ℤ 行 echelon（R26）；❌ arch 浮点列 `C` / `hnffinal` / 自同构复制 |
-| `compute_R` → `fupb_RELAT` → `need=1` | ✅ `grh_hr_check` 一次 + `need=1`（R22）；`need` 含单位秩缺口（R25，`RU−1−zc` via arch log rank） |
+| `compute_R` → `fupb_RELAT` → `need=1` | ✅ `grh_hr_check` → `HrCertAttempt`（R26；见 [Pari 符号 ↔ Rust 类型](#pari-符号--giac-rs-rust-类型对照表)） |
 | `goto START` + `increase_LIMC` | ◐ 关系缓存 `extend_relations_for_larger_fb`（R22）；界仍多轮，无 `increase_LIMC` |
 | `rnd_rel_par` 并行 FP worker | ❌ 仅串行 `rnd_rel_subfb_ljid` |
 | `be_honest` + `getfu` → `bnf` | ✅ `regulator_from_relation_arch` + `Bnf::try_from_grh_relations`（R12）；f64 arch，无动态提精度 |
 | deg≥3 h=1 快路 | ✅ `deg3_h1_cert` / 跳过重复 M_K preamble（R23） |
 
-**锚域 ℚ(∛11)：** Pari ~3 ms，`cyc=[2]`；giac-rs release 探针 ~50 s（R25 后），`class_number_general_cert_grh_x3_11_h2_probe` 仍多 `None`（关系格不完备，sound-skip 非挂死）。
+**锚域 ℚ(∛11)：** Pari ~3 ms，`h=2`，`cyc=[2]`，`R≈5.59`；giac-rs release 探针 ~8 s，`class_number_general_cert_grh_x3_11_h2_probe` **出证**（R26：`RelationGamma` arch 列 + `RegulatorRefined.check≈1`）。
 
-**R26 下一砖：** 整数 `hnfspec`/`hnfadd` 降格；`rnd_rel_par`；`increase_LIMC`；ℚ(∛11) h=2 稳定出证。
+**R26 下一砖：** `fixarch` 尺度对齐 Pari `det=N·R`（去掉 `kR=det` ponytail）；`PREC` 倍增环；`logfu` LLL 在宽关系集上稳定。
+
+---
+
+## Pari 符号 ↔ giac-rs Rust 类型对照表
+
+**目的：** GRH 完备性证书在 Pari 里是一串**命名数学对象**（`invhr` ≠ `kR` ≠ `R` ≠ `R'`）；giac-rs R26 起用 Rust 类型显式标注，避免裸 `f64` 混用。上游：`pari/src/basemath/buch2.c`（`compute_invres` ~L3135，`compute_multiple_of_R` ~L3181，`compute_R` ~L3264，`bad_check` ~L3242）。
+
+**数据流（证书谓词）：**
+
+```text
+compute_invres(LIMres) → inv_res
+        ↓
+invhr = prefactor · inv_res          ← AnalyticInvHr
+        ↓
+h' = ∏ SNF 不变因子                  ← grh_hr_check 内 BigInt
+z = h' · invhr
+        ↓
+Ar = vecslice(C) 或关系 γ 的 fixarch  ← ArchColumnSource
+        ↓
+(kR, need, λ) = compute_multiple_of_R ← RegulatorMultiple
+        ↓
+R = compute_R(λ, z)                  ← RegulatorRefined.r
+c = R · z                              ← RegulatorRefined.check
+        ↓
+bad_check(c) ∈ {Ok, Preci, Relat}    ← BadCheck / HrCertAttempt.verdict
+```
+
+### 维数与记号（最易混）
+
+| Pari / 数学 | 含义 | giac-rs 类型 / 字段 | 文件 |
+|-------------|------|---------------------|------|
+| `N` | `[K:ℚ]` | `ArchDims::n` | `grh.rs` |
+| `R1`, `R2` | 实/复嵌入对数 | `ArchDims::r1`, `ArchDims::r2`；亦 `Signature` | `grh.rs` / `archimedean.rs` |
+| **`RU`** | **`R1+R2`**（fixarch 行数、`T=[1,2]` 列长） | `ArchDims::ru` | `grh.rs` |
+| **`r`** | **Dirichlet 单位秩 `R1+R2−1`** | `ArchDims::r` | `grh.rs` |
+| — | 勿把 `r=1` 当成 `R=1` | 三次域 `RU=2,r=1` 时证书看 **`h·R·invhr≈1`** | — |
+
+### 解析侧（brick 7b-i）
+
+| Pari | 数学对象 | giac-rs | 备注 |
+|------|----------|---------|------|
+| `LIMres` | `primeneeded` 素数界 | `AnalyticInvHr::limres` | Euler 积截断 |
+| `compute_invres` | `1/Res(ζ_K,1)` | `AnalyticInvHr::inv_res` | 内部 `compute_invres()` |
+| `invhr` | 解析 **`≈ 1/(h·R)`**（GRH 近似） | `AnalyticInvHr::invhr`；`analytic_inv_hr_detail()` | `analytic_inv_hr()` 仍返回裸 `f64` 便捷 API |
+| `GRHchk` / `LIMC2` | Bach 因子基界 | `GrhCheck` + `grh_limc2_bound()` | 启动时一次 |
+| `bach_limc` / `LIMC` | `12·(ln\|D\|)²` | `bach_limc()` | `factor_base_norm_bounds` |
+
+### 关系格 / HNF（brick 7e）
+
+| Pari | 数学对象 | giac-rs | 备注 |
+|------|----------|---------|------|
+| `KC` | 因子基大小 | `HnfSpecState::kc` | `hnf_spec.rs` |
+| `W` | 独立关系行 HNF | `HnfSpecState::h` (`ZMat`) | SNF → `h'` |
+| `B` | 冗余生成元块 | `HnfSpecState::b` | |
+| `C` | archimedean 列（fixarch） | `HnfSpecState::c` (`RgMat`) | |
+| `zc` | `\|C\|−\|B\|−\|W\|` 单位列数 | `HnfSpecState::unit_zc()` | |
+| `need` | 类群 + 单位秩缺口 | `HnfSpecState::pari_need(ru−1)`；`GrhRelCache::need_flushed` | `min(KC, class_need+unit_need)` |
+| `Ar` | `vecslice(C,1,zc)` 单位 arch 列 | `hnf_unit_arch_cols()` → `Vec<Vec<f64>>` | 来源标 `ArchColumnSource::HnfUnitCol` |
+| `add_rel` / `hnfadd` | 增量关系 | `GrhRelCache::add_relation` + `add_unit_arch_relation` + `flush_hnf_if_dirty` | `exp=0` 单位 arch → `hnf_merge_unit_arch_columns`（见 [giac-hnf-unit-arch-columns.md](../giac-hnf-unit-arch-columns.md)） |
+
+### 调节子链（brick 7b-ii，`compute_R` 路径）
+
+| Pari | 数学对象 | giac-rs | 备注 |
+|------|----------|---------|------|
+| `h`（证书内） | 试探类数 `h'` | `HrCertAttempt::h_prime`（`f64`）；精确值 `GrhHrVerdict::Ok.h` | 来自关系 SNF |
+| `kR` | **`R` 的整数倍** `det(Im_mdet)/N` | `RegulatorMultiple::k_r` | ponytail：`fixarch` 下暂 `k_r≈det`（缺 `N` 因子） |
+| `need`（单位） | 单位 arch 秩缺口 | `RegulatorMultiple::unit_need` | `>0` → `BadCheck::Relat` |
+| `λ` | `rowslice(inv(Im),2,RU)·Ar` | `RegulatorMultiple::lambda` | 喂 `compute_R` / `bestappr` |
+| **`R`** | **真调节子**（`compute_R` 输出） | `RegulatorRefined::r` | 与 `kR` 不同对象 |
+| `z` | `h·invhr` | `RegulatorRefined::z` | Pari 传入 `compute_R` 的第二参 |
+| **`c`** | **`R·z ≈ 1`** | `RegulatorRefined::check` | `bad_check_f64(c)` |
+| `bad_check` | `0.75 < c < 1.3` | `BadCheck` | `Preci` / `Relat` / `Ok` |
+| 一次完整尝试 | — | `HrCertAttempt` | 含 `source`, `multiple`, `refined`, `verdict` |
+| 端对端判定 | — | `GrhHrVerdict` | `Ok { h, invariants, cert: HrCertAttempt }` |
+
+### Arch 列来源（debug 用，非 Pari 符号）
+
+| giac-rs `ArchColumnSource` | 列从哪来 | 典型 ℚ(∛11) |
+|----------------------------|----------|-------------|
+| `HnfUnitCol` | HNF `C` 的单位列 | `kR≈3.3`，`c≈0.58` → **Preci** |
+| `LogfuLll` | `logfu_from_relations` LLL | 宽关系集常 `None` |
+| `RelationGamma` | `unit_arch_cols_from_relations` | **`R≈5.59`，出证路径** |
+| `RegulatorPrime` | brick 7d `R'=\|det(logfu_{r×r})\|` | 与 Pari `R` **不同**（秩 `r` 子式） |
+
+### brick 7d / `Bnf`（旁路，非 Pari `compute_R` 主路径）
+
+| Pari | giac-rs | 区别 |
+|------|---------|------|
+| `logfu` / `A` | `ArchLogMatrix` | `bnf.rs`；列 = 单位候选 fixarch |
+| `getfu` | `getfu_from_relations` | 代数提升 `∏γ^T` |
+| `R`（bnf.reg） | `ArchLogMatrix::regulator()` → **`R'`** | **`r×r` 子矩阵**，三次域 `r=1` 时 ≈ 单个 log |
+| `certify_hr_product` | `certify_hr_prime_attempt()` → `HrCertAttempt` | 显式标 `RegulatorPrime`；阈值 `0.5..1.5`（7d 宽窗） |
+| `Bnf` | `Bnf` + `CertClassData.bnf` | GRH 出证后可选组装 |
+
+### 入口函数对照
+
+| 用途 | Pari 流程 | giac-rs 函数 |
+|------|-----------|--------------|
+| 解析 `invhr` | `invhr` 驱动 | `analytic_inv_hr_detail(field)` |
+| Pari 式证书 | `compute_multiple_of_R` + `compute_R` | `certify_hr_buchmann(..., source)` → `HrCertAttempt` |
+| HR 检查（多源） | `Buchall` 内 `compute_R` | `grh_hr_check(...)` → `GrhHrVerdict` |
+| 7d 宽窗证书 | （简化） | `certify_hr_prime_attempt(field, h, r_prime)` |
+| 仅要 verdict | — | `attempt.verdict` / `attempt.is_ok()` |
+
+**相关文档：** [giac-buchmann-classical-vs-pari](../giac-buchmann-classical-vs-pari.md)（经典五步 vs Pari 工程层）；[giac-hnf-unit-arch-columns.md](../giac-hnf-unit-arch-columns.md)（`exp=0` 单位 arch → `zc`）；实现：`algebra/grh.rs`（类型 + 证书）、`algebra/class_group.rs`（`grh_hr_check`）、`algebra/hnf_spec.rs`（`W/B/C/need`）、`algebra/bnf.rs`（`ArchLogMatrix` / `R'`）。**Pari 源码：** `/home/kanli.hu/upstream/pari/src/basemath/{hnf_snf.c,buch2.c}`。
 
 ---
 
@@ -796,16 +901,16 @@ graph TD
 
 **DIV-086 修复（前置）：** `giac-poly::factor::fpx::extract_linear_factors` 不再将 degree-0 单位元当作不可约因子 push；`factor_tame_multiplicities` 防御性跳过 `ff_degree==0`。解锁 quartic `analytic_inv_hr` / 7c 端到端。
 
-**数学管线（upstream Pari `compute_R(lambda, h·invhr, …)` 简化版）：**
+**数学管线（upstream Pari `compute_R(lambda, h·invhr, …)`；R26 类型化见 [Pari 符号 ↔ Rust 类型](#pari-符号--giac-rs-rust-类型对照表)）：**
 1. Minkowski 素理想基 + `ramification_relations` + `enumerate_relations_lli`（`BUCH_LLL_EXP_BOUND=4`）。
 2. SNF → `h'`，不变因子。
-3. `candidate_regulator_buchmann` → `R'`（`fundamental_units_real_multi` + `regulator_covolume`，totally-real）。
-4. `certify_hr_product(field, &h', R')`：`invhr = analytic_inv_hr`（7b-i），`h'·R'·invhr ≈ 1`。
+3. **主路径（R26）：** `certify_hr_buchmann` → `RegulatorMultiple` (`kR`) → `RegulatorRefined` (`R`, `c=R·z`) → `bad_check`。
+4. **7d 回退：** `regulator_from_relation_arch` → `R'` + `certify_hr_prime_attempt`（宽窗 `0.5..1.5`）。
 
 **Soundness：** 与 7c 相同 `0.5/1.5` 阈值；关系格/单位格任一真子格 ⟹ 乘积偏离 `1`（≥1.6 或 ≤0.4）⟹ `None`。
 
 **边界：**
-- deg≥3 h=1 totally-real 已解锁（cubic/quartic 测试）；deg≥3 h>1 在关系枚举充分时解锁（`x⁴−17` h=2 probe 允许 sound-skip）。
+- deg≥3 h=1 totally-real 已解锁（cubic/quartic 测试）；**deg≥3 h>1：** ℚ(∛11) `h=2` 已出证（R26）；`x⁴−17` 非极大序仍 sound-skip。
 - 复签名 / r≤1 单位：`regulator_covolume` 仍 `None` sound-skip。
 - Bach `LIMC` 界 / `GRHchk` 二分 / 递增 `LIMC` 重试（Pari `START:` 循环）未移植——当前用 Minkowski 基 + 有界 LLL 枚举；大域 h>1 可能 sound-skip。
 
@@ -1059,7 +1164,7 @@ pub(crate) struct ArchLogMatrix { /* cols: ArchLogVector */ }
 \mathcal{C}(K) \iff 0.75 < h' \cdot R' \cdot \widehat{(hR)^{-1}} < 1.3
 \]
 
-其中 `h'` = 关系 SNF 行列式积，`R'` = 单位 arch 格 covolume，`invhr` = `analytic_inv_hr`。通过 ⟺
+其中 `h'` = 关系 SNF 行列式积，**`R`** = Pari `compute_R` 真调节子（`RegulatorRefined::r`），**`R'`** = brick 7d `ArchLogMatrix::regulator()`（秩 `r` 子式，≠ `R`），`invhr` = `AnalyticInvHr::invhr`。通过 ⟺
 
 - 关系格 = 完整主理想关系格 ⟹ SNF = `Cl(K)`；
 - 单位 arch 格 = 全单位群 ⟹ index 1。
@@ -1091,7 +1196,7 @@ pub(crate) struct ArchLogMatrix { /* cols: ArchLogVector */ }
 **本砖（RELAT 性能 + 探测）：**
 - `buchmann_grh_grow_relations`：逐条 `lli` 早停 + Pari 式 `rnd_rel_until_cert_or_stall`（替换固定 64/256 trial）+ `fupb_RELAT` 后补一轮短 `rnd_rel`
 - `each_relation_lli` 回调式枚举（避免 `exp_bound^k` 一次性物化）
-- 单测：`class_number_general_cert_grh_x3_11_h2_probe`（允许 `None` 直至关系格完备）
+- 单测：`class_number_general_cert_grh_x3_11_h2_probe`（**expect `h=2`**，R26）
 
 **R21 ✅（2026-07-07）：** `rnd_rel_until_cert_or_stall` — certify 驱动 `while` 循环，`RND_REL_STALL_{NARROW,WIDE_FB}` 作 ponytail 天花板。
 
@@ -1101,7 +1206,7 @@ pub(crate) struct ArchLogMatrix { /* cols: ArchLogVector */ }
 
 **R24 ✅（2026-07-07，`7b3cdc9`）：** `subfb_gen` + `rnd_rel_subfb_ljid`（Pari `subFBgen` + `get_random_ideal` + `rnd_rel_seq`）；`buchmann_grh_grow_relations` 优先 subFB smooth 理想再回退 `rnd_rel_one_ljid`；单测 `subfb_gen_x3_11` / `rnd_rel_subfb_q_cbrt2`。
 
-**仍缺（R26+）：** 整数 `hnfspec`/`hnfadd`；`rnd_rel_par`；`increase_LIMC`；ℚ(∛11) h=2 稳定出证；`bnfisprincipal` 非主理想 `[0,[1]]` 金值端到端。
+**仍缺（R27+）：** `PREC` 倍增环；`fixarch`/`kR` 尺度对齐 Pari `/N`；`logfu` LLL 宽关系集；`rnd_rel_par`；`increase_LIMC`；`bnfisprincipal` 非主理想 `[0,[1]]` 金值端到端。
 
 **R25 ✅（2026-07-07）：** `GrhRelCache` — Pari `add_rel_i` mod-p 增量 echelon（`REL_CACHE_MOD_P=2003`）；`GrhRelCache::need` = 类群秩缺口 + arch 单位秩缺口（`RU−1−zc`）；`buchmann_grh_grow_relations` 全线 `add_relation`；单测 `grh_rel_cache_*`。
 

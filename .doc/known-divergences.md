@@ -300,6 +300,16 @@ Rust 实现与 giac C++ golden **字面不一致**但可能数学等价，或 **
 
 ---
 
+### DIV-102: HNF `exp=0` 单位 arch 列 — 显式 merge 进 `zc`（非 W）
+
+- **状态:** **closed**（路径已与 Pari 对齐）
+- **根因:** `hnffinal` 漏做 Pari `H += lg(H)-1-lnz`（丢掉 `ZM_hnflll` 前导零列）→ 零列 arch 落在 W 尾；曾用 `hnf_merge_unit_arch_columns` 兜底
+- **Rust 现行为:** `hnffinal` 切片末尾 `lnz` 列，`zc = col - lnz`；`hnfadd_i`/`hnfspec` 零列走完整 `rowrankprofile`+`hnffinal`（已删 merge）
+- **验证:** `hnfadd_zero_exp_arch_fills_unit_slot`、`x3_11_unit_arch_relation_fills_hnf_unit_slot`、`class_number_general_cert_grh_x3_11_h2_probe`
+- **文档:** [giac-hnf-unit-arch-columns.md](giac-hnf-unit-arch-columns.md)
+
+---
+
 ## 维护规则
 
 1. conformance 失败时先归类，再决定修 Rust / 更新 golden / 记本条。
