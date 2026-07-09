@@ -2,10 +2,10 @@
 
 **状态:** open
 **类型:** 索引 / AFK 跟踪
-**上游基线:** **`giac/giac-2.0.0`**（`src/alg_ext.cc`、`gausspol.cc`、`usual.cc`、`subst.cc`、`misc.cc`、`sym2poly.cc`、`prog.cc`）
-**相关:** [GIAC-algext-adoption](GIAC-algext-adoption.md)、[GIAC-poly-algext-backlog](GIAC-poly-algext-backlog.md)、[GIAC-poly-f5-fglm-hasse-lean4-verification](GIAC-poly-f5-fglm-hasse-lean4-verification.md)、[GIAC-algorithm-gaps-open](GIAC-algorithm-gaps-open.md)、[giac-core-algebra-api-stability](../giac-core-algebra-api-stability.md)
-**Rust 落点:** `giac-rs/crates/giac-core/src/{eval,expr,simplify,context,stmt,display}.rs` + `algebra/*`（22 文件）
-**快照:** 2026-07-01
+**上游基线:** **`giac/giac-2.0.0`**（`src/alg_ext.cc`、`gausspol.cc`、`usual.cc`、`subst.cc`、`misc.cc`、`sym2poly.cc`、`prog.cc`）；**§4 数论另对标 Pari/GP**（`pari/src/basemath/{buch2,hnf_snf,bnfunits}.c` 等，giac-2.0.0 无对标）
+**相关:** [GIAC-algext-adoption](GIAC-algext-adoption.md)、[GIAC-poly-algext-backlog](GIAC-poly-algext-backlog.md)、[GIAC-poly-f5-fglm-hasse-lean4-verification](GIAC-poly-f5-fglm-hasse-lean4-verification.md)、[GIAC-algorithm-gaps-open](GIAC-algorithm-gaps-open.md)、[GIAC-p2-bnf-pari-alignment](GIAC-p2-bnf-pari-alignment.md)、[giac-core-algebra-api-stability](../giac-core-algebra-api-stability.md)
+**Rust 落点:** `giac-rs/crates/giac-core/src/{eval,expr,simplify,context,stmt,display}.rs` + `algebra/*`（29 文件，~35k 行）
+**快照:** 2026-07-09
 
 ---
 
@@ -16,7 +16,7 @@
 - **Expr / eval / display / context / stmt** — 表达式树、求值分发、显示、上下文、语句执行
 - **代数数类型系统** — `AlgExt` / `AlgExtC` / `ExtensionTower` / `FieldSession`（对标 upstream `ref_algext` / `_EXT`）
 - **K 上多项式算法** — `poly_alg_*`、`poly_roots`（系数为代数数时的 gcd / factor / partfrac / sturm / resultant / 求根）
-- **代数数论基础设施** — `class_group` / `unit_group` / `padic` / `lattice` / `archimedean` / `number_field_arith` / `galois_automorphism`（服务于 Hasse √-判定）
+- **代数数论基础设施** — `class_group` / `bnf` / `grh` / `hnf_spec` / `ideal` / `unit_group` / `padic` / `lattice` / `archimedean` / `number_field_arith` / `galois_automorphism`（Hasse √-判定 + **Pari `bnf*` 对标线**，详见 [GIAC-p2-bnf-pari-alignment](GIAC-p2-bnf-pari-alignment.md)）
 - **`simplify`** — 目前仅 AST flatten，**非** upstream `subst.cc` 化简链
 - **plugin trait** — algebra / calculus / linalg / ode / solve（实际算法在其它 crate）
 
@@ -42,13 +42,13 @@
 | 域 | giac-2.0.0 源 | ~行数 | giac-core 对应 | ~行数 | 对照结论 |
 |----|--------------|-------|---------------|-------|----------|
 | 代数扩域 | `alg_ext.cc` | 2124 | `algebra/{alg_ext,alg_ext_c,ext_tower,field_arith,field_session,common_minimal,compositum_session}` | ~7700 | 塔式 `_EXT` + `AlgExtC` **中期基座已落地**；eval fold / `i` 进塔 ✅；evalf ✅（C-12，`evalf(AlgExt/AlgExtC)`→decimal `Rat`/`Complex`） |
-| K 上多项式 | `gausspol.cc`（`_EXT` 系数段） | — | `algebra/poly_alg_*`、`poly_roots` | ~6100 | deg≤4 roots ✅；gcd/factor T0–T3 ✅；deg≥5 / partfrac 非线性 / quartic Euler 边界 ☐ |
+| K 上多项式 | `gausspol.cc`（`_EXT` 系数段） | — | `algebra/poly_alg_*`、`poly_roots` | ~6100 | deg≤4 roots ✅；gcd/factor T0–T3 ✅；deg≥5 solve 路径 `rootof` 一支 ✅；partfrac 重根+非线性 ✅；quartic Euler √-决策 ✅ |
 | 化简 | `subst.cc::simplify`、`usual.cc` `tlin`/`halftan`/`lin` | — | `simplify.rs` | 299 | **仅 AST flatten**；`tlin` NotImplemented |
-| assume/purge | `usual.cc::giac_assume`、`prog.cc::_purge` | — | `context.rs`、`stmt.rs` | 195+109 | 语句级栈 ✅；关系假设 `ParsedRelation` + 查询 API ✅；`symbol_roles` ✅；`check_assume` 跨 crate 接线 ☐ |
+| assume/purge | `usual.cc::giac_assume`、`prog.cc::_purge` | — | `context.rs`、`stmt.rs` | ~710 | 语句级栈 ✅；关系假设 + `symbol_roles` ✅；`check_assume` solve 侧 ✅；e2r/factor 参数系数阻塞于 C-16 |
 | 数值求根 | `misc.cc::proot` | — | `eval.rs:eval_proot` | — | `NotImplemented("proot")` |
-| 代数数论 | upstream **无对应**（Pari 才有） | — | `class_group` / `unit_group` / `padic` / `lattice` / `archimedean` / `number_field_arith` / `galois_automorphism` | ~4400 | **Rust 侧扩展**，非 upstream 对齐；Hasse √-判定用；sound-skip，非完整 Buchmann；`evalf(AlgExt)`/`lll(matrix)` 命令已暴露（C-12/C-11，见 [GIAC-p2-algebraic-number-theory-api](GIAC-p2-algebraic-number-theory-api.md)） |
+| 代数数论 | upstream giac **无对应**；**Pari/GP 有完整 `nf*`/`ideal*`/`bnf*`/`bnr*`** | — | `class_group`（~6800）/ `hnf_spec`（~2530，移植 `hnf_snf.c`）/ `bnf` / `grh` / `ideal` / `unit_group` / `padic` / `lattice` / `archimedean` / `number_field_arith` / `galois_automorphism` | ~17k+ | **giac 无对标；Pari 对标 ◐**：Buchmann 主线 R8–R26 已落地（GRH `LIMC2` + `rnd_rel` + `HnfSpecState` + `grh_hr_check`）；deg-2 极大序类群 100% sound；deg≥3 h=1 + 锚域 ℚ(∛11) h=2 已出证；**用户命令** `class_number`/`class_group`/`ideal*`/`bnfisprincipal`/`bnfunits`/`bnfregulator`/`bnfisunit`/`nfdisc`/`nfbasis` 等已暴露；仍缺 `bnfinit` 一体对象、`bnr*` 整层、非极大序、大域 h>1 普遍覆盖（见 [GIAC-p2-bnf-pari-alignment](GIAC-p2-bnf-pari-alignment.md)） |
 
-**结论：** `giac-core` 的 upstream 对齐缺口集中在 **(1) AlgExtC eval 接线**、**(2) assume/purge 语句级**、**(3) simplify 真化简链**、**(4) proot**；代数数论基础设施是 Rust 侧为四次 √-判定做的扩展，upstream 无对标，按 Hasse lean4 验证线单独跟踪。
+**结论：** 相对 **giac-2.0.0**，对齐缺口集中在 **(1) simplify 真化简链**、**(2) proot**、**(3) C-4d/C-16 参数系数 `check_assume`**（AlgExtC eval / assume 语句级 / K 上多项式主体已 ✅）。**§4 数论**单独对标 **Pari**（非 giac upstream），按 [GIAC-p2-bnf-pari-alignment](GIAC-p2-bnf-pari-alignment.md) 跟踪。
 
 ### 0.2 已对齐 upstream 的代表性能力（非缺口）
 
@@ -62,6 +62,9 @@
 - `poly_algext_roots` deg 1–4 + `solve_poly` deg≤4（P3-6 ✅）
 - K 上 resultant / sturm 计数（P3-4 部分 ✅）
 - partfrac disc>0 二次分裂 + integrate K 回落（P4-2/3 ✅）
+- partfrac over K 重根 + 非线性（C-7 ✅）
+- quartic Euler √-决策 / A₄ dim≤12（C-8 ✅）
+- Pari 对标：`class_number`/`class_group`/`ideal*`/`bnfisprincipal` 等用户命令（§4.1 ✅）
 
 ---
 
@@ -113,16 +116,27 @@
 
 ## 4. 代数数论基础设施深化（P2）
 
-**注：** upstream giac-2.0.0 **无对应实现**（Pari/GP 才有完整类群 / 单位群 / LLL）；本节是 Rust 侧为 **Hasse √-判定** 做的扩展，非 upstream 对齐。按 [GIAC-poly-f5-fglm-hasse-lean4-verification](GIAC-poly-f5-fglm-hasse-lean4-verification.md) 数学正确性线跟踪。**做完整后可暴露的 giac 命令级 API / 功能清单见 [GIAC-p2-algebraic-number-theory-api](GIAC-p2-algebraic-number-theory-api.md)；Pari `bnf*` 系列对标的主线方案 + 优先级见 [GIAC-p2-bnf-pari-alignment](GIAC-p2-bnf-pari-alignment.md)。**
+**注：** upstream giac-2.0.0 **无对应实现**；本节 **upstream 对标 = Pari/GP**（`nf*` / `ideal*` / `bnf*` / `bnr*`）。起源为 Hasse √-判定扩展，现按 [GIAC-p2-bnf-pari-alignment](GIAC-p2-bnf-pari-alignment.md) 主线推进 Buchmann。**数学正确性**见 [GIAC-poly-f5-fglm-hasse-lean4-verification](GIAC-poly-f5-fglm-hasse-lean4-verification.md)；**已暴露命令清单**见 [GIAC-p2-algebraic-number-theory-api](GIAC-p2-algebraic-number-theory-api.md)。
+
+### 4.1 已暴露 Pari 对标命令（eval，2026-07-09）
+
+`nfdisc` / `nfrootsof1` / `nfsign` / `nfbasis` · `class_number` / `class_group` · `bnfunits` / `bnfregulator` / `bnfisunit` · `idealhnf` / `idealmul` / `idealnorm` / `idealred` / `idealinv` / `idealpow` · `bnfisprincipal` · `lll` / `evalf`
+
+**仍无用户命令：** `bnfinit`（一体缓存对象）、`bnfcond`、`idealaddtoone` / `idealchinese`、整个 `bnr*` / `galois*` 族。
+
+### 4.2 缺口表（对标 Pari）
 
 | ID | 能力 | 现状 | upgrade path |
 |----|------|------|--------------|
-| **C-9** | 完整 Buchmann 类群计算 | `class_group.rs` 有界生成元搜索 + sound-skip（`N_J_MAX=10⁷` + `IDEAL_GEN_COORD_BOUND` 封顶） | Buchmann 亚指数类群 + LLL 短向量生成元搜索 |
-| **C-10** | 不定域 / 高次非主性认证 | 仅 deg-2 虚二次有穷举证书；实二次 `r=1, d≥3` `None`-on-not-found | 完整 Step 7b：Buchmann 类群 |
-| **C-11** | LLL 短向量生成元搜索 | `lattice.rs` 在，**`eval_lll` 已接 eval（`lll(matrix)` 命令）**；未接类群 / 单位群搜索 | LLL 接入 `class_group` / `unit_group` |
-| **C-12** | `AlgExtC::evalf`（代数数 → 浮点） | **✅ 已落地**：`archimedean::algext_evalf`/`algextc_evalf` + `eval_evalf` dispatch；`evalf(AlgExt/AlgExtC/sqrt(numeric))` → decimal `Rat`/`Complex`；`ponytail:` 无 `Float` variant、embedding-0=最小实根 | `horner_rootof` / `proot` 浮点逼近；解锁 `approx_rootof` / D-03（已部分解锁） |
+| **C-9** | 完整 Buchmann / `bnfinit` | **◐ R8–R26 已落地**：`grh.rs`（`GRHchk`/`LIMC2`/`analytic_inv_hr`/`grh_hr_check`）+ `hnf_spec.rs`（`hnfspec`/`hnfadd`/`hnffinal`）+ `class_group.rs`（`rnd_rel`/`subFB`/`enumerate_relations_lli`）+ 内部 `Bnf`（`bnf.rs`）；deg-2 极大序 h+结构 100% sound；deg≥3 h=1 + **ℚ(∛11) h=2** 已出证（`class_number_general_cert_grh_x3_11_h2_probe`） | `bnfinit` 用户对象；非极大序（Round-2）；大域 h>1 普遍出证；`PREC` 倍增环；`fixarch`/`kR` 尺度对齐 Pari `/N`；`rnd_rel_par` |
+| **C-10** | 非主性认证 / `bnfisprincipal` 完备 | **◐** deg-2 极大 + M_K-平滑理想 ✅（含 `[γ,[e_i]]`）；deg≥3 h=1 ✅；h>1 依赖 GRH 证书域；deg-2 虚二次穷尽 `(false)` 保留 | deg≥3 h>1 非主金值端到端；大素理想 `q>M_K` 关系库 |
+| **C-11** | LLL 短向量 | **✅ slice + 类群接入**：`eval_lll`（`lll(matrix)`）；`idealred` / `ideal_is_principal` LLL 回退（R7）；`enumerate_relations_lli`（R8） | Minkowski 嵌入 LLL（Pari `idealred` 风格）；`qfminim` |
+| **C-12** | `AlgExtC::evalf` | **✅ 已落地**：`archimedean::algext_evalf`/`algextc_evalf` + `eval_evalf` dispatch | `horner_rootof` / `proot` 浮点逼近 |
+| **C-18** | `bnfinit` 用户对象 | 内部 `Bnf` + `CertClassData` + `Context` session 缓存；**无** `FuncKind::Bnfinit` | 对标 Pari `buchall_end` 可查询对象；`bnfisunit`/`bnfregulator` 只读缓存 |
+| **C-19** | `bnr*` 射线类群 + 类域论 | ❌ 完全无 | 新 `ray_class.rs`；依赖 `idealaddtoone`/`idealchinese` |
+| **C-20** | Pari 工程残差 | ◐ 缺 `increase_LIMC` 完整环、`rnd_rel_par`、动态精度 `PREC` | 见 [GIAC-p2-bnf-pari-alignment](GIAC-p2-bnf-pari-alignment.md) R27+ |
 
-**`ponytail:` 现状边界：** `IDEAL_GEN_COORD_BOUND`（per degree）+ `N_J_MAX = 10⁷`；超过 → `None`（sound，不区分「非主」vs「界太小」）。
+**`ponytail:` 现状边界：** R7 已砍掉 deg≥5 / `N(J)>10⁷` 主性 sound-skip（LLL 回退）；现存 sound-skip 主因 = GRH 关系不足、非极大序、`power_order_is_maximal≠true`、无 `PREC` 环。deg-2 有界路径 `BUCH_COORD_BOUND=64` 仍约束大 regulator 实二次 h>1 **结构**（`class_number` 仍经解析公式返 h）。
 
 ---
 
@@ -133,8 +147,8 @@
 | ID | 能力 | 现状 | 上游 |
 |----|------|------|------|
 | **C-13** | `simplify` 真化简链 | `simplify.rs`（299 行）仅 flatten Add/Mul + 合并数字系数；**C-13 slice ✅**（C-4d 路径局部 `exp(c*ln(u))→u^c` + `sqrt(var²)→var` + `fold_ratio`，`eval_integrate` 入口用，非全局 simplify 链） | `subst.cc::simplify`（`reorder`/`canonical_form`/`evalf` 化简） |
-| **C-14** | `tlin` | `eval.rs:324` `NotImplemented("tlin")` | `usual.cc::tlin` 三角线性化 |
-| **C-15** | `proot` 数值求根 | `eval.rs:818` `NotImplemented("proot")` | `misc.cc::proot` |
+| **C-14** | `tlin` | `eval.rs` `NotImplemented("tlin")` | `usual.cc::tlin` 三角线性化 |
+| **C-15** | `proot` 数值求根 | `eval.rs` `NotImplemented("proot")` | `misc.cc::proot` |
 | **C-16** | 参数系数 A,B（`PolyCoeff`） | `min_poly`/`coords` 不能含符号参数 | 阶段 3 / Phase C；与 C-4 协同 |
 | **C-17** | `rootof` 显示稳定排序 | A-05 partial；golden 字符串顺序仍需稳定化 | `symb_rootof` |
 
@@ -151,7 +165,7 @@ P0  C-4           assume/purge 语句级 + 关系假设 + symbol_roles + check_a
                    → 解锁 CK-INT-50/54、CAL-G4、SOL-G5
 P1  C-5/C-6/C-7   K 上 deg≥5 factor / T3+ adjoin / partfrac 重根+非线性（C-5/C-6/C-7 ✅）
 P1  C-8           quartic Euler √-决策边界（Hasse lean4 验证线）
-P2  C-9..C-12     类群 / LLL / evalf（代数数论深化，非 conformance 硬阻塞）
+P2  C-9..C-12,C-18..C-20  Pari Buchmann / bnfinit / bnr*（非 conformance 硬阻塞；细节见 GIAC-p2-bnf-pari-alignment R27+）
 P3  C-13..C-17    simplify 真化简链 / tlin / proot / 参数化 / 显示稳定
 ```
 
@@ -190,12 +204,15 @@ P3  C-13..C-17    simplify 真化简链 / tlin / proot / 参数化 / 显示稳�
 - [x] C-7b partfrac over K **非线性**（irreducible-over-K degree≥2 → degree-(d−1) 多项式分子；K-线性系统泛化 d≤3；测试 `partfrac_nonlinear_quadratic_over_k` `x/((x²−2)(x²−3)) → −x/(x²−2)+x/(x²−3)`）
 - [x] C-8 quartic Euler √-决策边界（A4 Galois dim≤12）— **已落地**（2026-07 校正）：`try_sqrt_in_field` 在 dim-12 塔域 ℚ(α,β) 找到 √Δ_Q（`diag_a4_sqrt_probe_gap` 实测 dim-12 √Δ_Q probe = Some），`quartic_roots_by_adjoin_deflate` 不 adjoin、dim 稳定 12；`quartic_a4_galois_dim_le_12` ✅（非 ignore）；Euler path `euler_four_roots_vanish`/`roots_quartic_t4_plus_t_plus_1` ✅。过时注释（F4′.3b "probe MISSES"、reframe "currently None"）已清理。`try_galois_sqrt_second` 保留作 Euler fallback 子路径（adjoin-deflate 优先时不触达，但 Euler test 可达）。
 
-### Phase E — P2 代数数论深化
+### Phase E — P2 代数数论深化（对标 Pari）
 
-- [ ] C-9 完整 Buchmann 类群
-- [ ] C-10 不定域 / 高次非主性认证
-- [x] C-11 LLL 短向量生成元搜索 — **slice ✅**（`eval_lll` 接 eval：`lll(matrix)` 命令；未接类群/单位群搜索，待 C-9）
-- [x] C-12 `AlgExtC::evalf` — **已落地**（`archimedean::algext_evalf`/`algextc_evalf` + `eval_evalf` dispatch；`evalf(AlgExt/AlgExtC/sqrt(numeric))`→decimal `Rat`/`Complex`；`ponytail:` 无 `Float` variant、embedding-0=最小实根；详见 [GIAC-p2-algebraic-number-theory-api](GIAC-p2-algebraic-number-theory-api.md)）
+- [~] C-9 完整 Buchmann / `bnfinit` — **◐ R8–R26**：GRH 路径 + `HnfSpecState` + `rnd_rel`/`subFB`；deg-2 完备；deg≥3 h=1 + ℚ(∛11) h=2 ✅；仍缺用户 `bnfinit`、非极大序、大域 h>1 普遍覆盖、`PREC` 环（见 [GIAC-p2-bnf-pari-alignment](GIAC-p2-bnf-pari-alignment.md)）
+- [~] C-10 非主性认证 — **◐** `bnfisprincipal` deg-2 极大 + deg≥3 h=1 ✅；h>1 非主金值 / 大素理想待续
+- [x] C-11 LLL — **已接入类群**（`eval_lll` + `ideal_is_principal` LLL 回退 + `enumerate_relations_lli` + `idealred`）
+- [x] C-12 `AlgExtC::evalf` — **已落地**（详见 [GIAC-p2-algebraic-number-theory-api](GIAC-p2-algebraic-number-theory-api.md)）
+- [ ] C-18 `bnfinit` 用户对象
+- [ ] C-19 `bnr*` 射线类群 + 类域论
+- [~] C-20 Pari 工程残差（`PREC`/`fixarch`/`rnd_rel_par`/`increase_LIMC`）
 
 ### Phase F — P3 simplify / 数值 / 参数化
 
@@ -215,7 +232,11 @@ cargo test-timeout                                # 默认跳过 ignored
 cargo test -p giac-core alg_ext                   # AlgExt / AlgExtC 单元
 cargo test -p giac-core ext_tower                 # 塔 / common
 cargo test -p giac-core poly_roots                # K 上求根
-cargo test -p giac-core class_group -- --include-ignored   # 类群（sound-skip）
+cargo test -p giac-core class_group              # Buchmann / GRH / bnfisprincipal
+cargo test -p giac-core grh                     # GRHchk / HR 证书
+cargo test -p giac-core hnf_spec                # Pari hnfspec/hnfadd 移植
+cargo test -p giac-core ideal                   # 理想 HNF 算术
+cargo test -p giac-core class_number_general_cert_grh  # ℚ(∛11) h=2 等探针
 cargo test -p giac-conformance giac_check_cas     # 含 rootof / AlgExt conformance
 ```
 
@@ -223,8 +244,9 @@ cargo test -p giac-conformance giac_check_cas     # 含 rootof / AlgExt conforma
 
 ## 参考
 
-- 上游基线：**`giac/giac-2.0.0`** — `src/alg_ext.cc`（`ext_add`/`ext_mul`/`inv_EXT`/`common_EXT`）、`gausspol.cc`（`ext_factor`/`ext_factor_nodegck`）、`usual.cc`（`tlin`/`giac_assume`）、`subst.cc`（`simplify`）、`misc.cc`（`proot`）、`sym2poly.cc`（`check_assume`）、`prog.cc`（`_purge`）
+- 上游基线（giac）：**`giac/giac-2.0.0`** — `src/alg_ext.cc`、`gausspol.cc`、`usual.cc`、`subst.cc`、`misc.cc`、`sym2poly.cc`、`prog.cc`
+- 上游基线（§4 数论）：**Pari/GP** — `pari/src/basemath/buch2.c`、`hnf_snf.c`、`bnfunits.c`；对照 [giac-buchmann-classical-vs-pari](../giac-buchmann-classical-vs-pari.md)
 - check 黄金：`giac/giac-2.0.0/check/testcas`（`rootof` 用例）、`testintegrate` L51–55（assume/purge）
 - API 分层：[giac-core-algebra-api-stability.md](../giac-core-algebra-api-stability.md)
-- 子 issue：[GIAC-algext-adoption](GIAC-algext-adoption.md) §8、[GIAC-poly-algext-backlog](GIAC-poly-algext-backlog.md)、[GIAC-poly-f5-fglm-hasse-lean4-verification](GIAC-poly-f5-fglm-hasse-lean4-verification.md)
+- 子 issue：[GIAC-algext-adoption](GIAC-algext-adoption.md) §8、[GIAC-poly-algext-backlog](GIAC-poly-algext-backlog.md)、[GIAC-poly-f5-fglm-hasse-lean4-verification](GIAC-poly-f5-fglm-hasse-lean4-verification.md)、**[GIAC-p2-bnf-pari-alignment](GIAC-p2-bnf-pari-alignment.md)**（Pari Buchmann 主线，R8–R27+）
 - 已知偏离：[known-divergences.md](../known-divergences.md)
