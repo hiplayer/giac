@@ -1235,7 +1235,17 @@ cargo test -p giac-core bnfisprincipal --release -- --ignored  # ℚ(∛11) 锚�
 
 **R27 ✅（2026-07-09）：** `bnfisprincipal` Pari `isprincipalall`（`split_ideal` → `Ur` → `mod cyc`）；ℚ(∛11) `(2)` 非主金值 `[1]`；`unit_ideal` + `split_valuations_above_p`；快测 `pari_ideal_class_log_synthetic_z2_*`；锚域 `x3_11_anchor_cert` OnceLock。
 
-**仍缺（R39+）：** FP 格 LLL 增量（perf 主线）、锚域 release ~5.7s vs Pari ~3ms。
+**仍缺（R39+）：** 锚域 release ~5.7s vs Pari ~3ms（FP LLL 缓存已接 R39b，待实测）。
+
+---
+
+## R39b ✅（2026-07-09）— FP 格 LLL/Gram 预计算缓存（perf）
+
+**瓶颈：** 每次 `fincke_pohst_principal_generator_emb_tries` 重复 `lll_with_transform` + `gram_to_cholesky_q`。
+
+**落地：** `FpLatticeCache`（键 `(HNF, den)`，cap 4096）缓存 `FpLatticePrep`；grow 循环 `Arc<Mutex<…>>` 透传 `rnd_rel` / 并行 `rnd_rel_par`；`bound` 仍按 `N(J)` 即时算。
+
+**单测：** `fp_lattice_cache_reuses_prep_for_same_ideal`
 
 ---
 
