@@ -128,7 +128,7 @@
 
 | ID | 能力 | 现状 | upgrade path |
 |----|------|------|--------------|
-| **C-9** | 完整 Buchmann / `bnfinit` | **◐ R8–R28 已落地**：`grh.rs`（`GRHchk`/`LIMC2`/`analytic_inv_hr`/`grh_hr_check`/`RegulatorMultiple` Pari `kR=det/N`）+ `hnf_spec.rs`（`hnfspec`/`hnfadd`/`hnffinal`）+ `class_group.rs`（`rnd_rel`/`subFB`/`enumerate_relations_lli`）+ 内部 `Bnf`（`bnf.rs`）；deg-2 极大序 h+结构 100% sound；deg≥3 h=1 + **ℚ(∛11) h=2** 已出证（`class_number_general_cert_grh_x3_11_h2_probe`） | `bnfinit` 用户对象；非极大序（Round-2）；大域 h>1 普遍出证；`myprecdbl` 忠实度；`rnd_rel_par` |
+| **C-9** | 完整 Buchmann / `bnfinit` | **◐ R8–R29 已落地**：… + R29 `myprecdbl`/`PRECI→increase_LIMC` | `bnfinit` 用户对象；非极大序（Round-2）；大域 h>1 普遍出证；`rnd_rel_par` |
 | **C-10** | 非主性认证 / `bnfisprincipal` 完备 | **◐** deg-2 极大 + M_K-平滑理想 ✅（含 `[γ,[e_i]]`）；deg≥3 h=1 ✅；h>1 依赖 GRH 证书域；deg-2 虚二次穷尽 `(false)` 保留 | deg≥3 h>1 非主金值端到端；大素理想 `q>M_K` 关系库 |
 | **C-11** | LLL 短向量 | **✅ slice + 类群接入**：`eval_lll`（`lll(matrix)`）；`idealred` / `ideal_is_principal` LLL 回退（R7）；`enumerate_relations_lli`（R8） | Minkowski 嵌入 LLL（Pari `idealred` 风格）；`qfminim` |
 | **C-12** | `AlgExtC::evalf` | **✅ 已落地**：`archimedean::algext_evalf`/`algextc_evalf` + `eval_evalf` dispatch | `horner_rootof` / `proot` 浮点逼近 |
@@ -212,7 +212,7 @@ P3  C-13..C-17    simplify 真化简链 / tlin / proot / 参数化 / 显示稳�
 - [x] C-12 `AlgExtC::evalf` — **已落地**（详见 [GIAC-p2-algebraic-number-theory-api](GIAC-p2-algebraic-number-theory-api.md)）
 - [ ] C-18 `bnfinit` 用户对象
 - [ ] C-19 `bnr*` 射线类群 + 类域论
-- [~] C-20 Pari 工程残差（`myprecdbl`/`rnd_rel_par`/`increase_LIMC`）
+- [~] C-20 Pari 工程残差（`logfu` LLL / `rnd_rel_par` / Buchmann perf）
 
 ### Phase F — P3 simplify / 数值 / 参数化
 

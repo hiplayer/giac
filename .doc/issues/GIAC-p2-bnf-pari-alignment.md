@@ -1181,7 +1181,7 @@ pub(crate) struct ArchLogMatrix { /* cols: ArchLogVector */ }
 | 独立 `CompletenessCert` | 不要 | 一个 `f64` 比值 + `Option` 即可；`certify_hr_product` 已够 |
 | `RelationLattice` 类型 | 延后 | SNF 输入是 `Vec<Vec<BigInt>>`；关系多了再包 |
 
-**最小下一步（砖 7d–7g ✅，7e ✅，7f ✅，7h ✅，RgM_solve ✅，缓存+bnfisprincipal deg≥3 ✅，chinese_unit CRT ✅，Context session 缓存 ✅，R27 Ur/cyc ✅，R28 fixarch/kR ✅）：** `PREC` 倍增环（`myprecdbl` 忠实度）；`increase_LIMC`；`rnd_rel_par`。
+**最小下一步（… R28 fixarch/kR ✅，R29 myprecdbl/PRECI→LIMC ✅）：** `logfu` LLL 宽关系集；`rnd_rel_par`；Buchmann 冷启动性能。
 
 ---
 
@@ -1235,7 +1235,9 @@ cargo test -p giac-core bnfisprincipal --release -- --ignored  # ℚ(∛11) 锚�
 
 **R27 ✅（2026-07-09）：** `bnfisprincipal` Pari `isprincipalall`（`split_ideal` → `Ur` → `mod cyc`）；ℚ(∛11) `(2)` 非主金值 `[1]`；`unit_ideal` + `split_valuations_above_p`；快测 `pari_ideal_class_log_synthetic_z2_*`；锚域 `x3_11_anchor_cert` OnceLock。
 
-**仍缺（R29+）：** `myprecdbl` 忠实度（当前 `ArchPrecLevel` 线性步进）；`logfu` LLL 宽关系集；`rnd_rel_par`；`increase_LIMC`；Buchmann 冷启动性能（锚域 release ~16s vs Pari ~3ms）。
+**仍缺（R30+）：** `logfu` LLL 宽关系集；`rnd_rel_par`；Buchmann 冷启动性能（锚域 release ~16s vs Pari ~3ms）。
+
+**R29 ✅（2026-07-09）：** Pari `myprecdbl` — `arch_extraprec_bits`（`precdbl`/`1.5×` + `gexpo(C)` boost）驱动 embedding 细化；`HnfSpecState::c_max_expo`；`nf_embeddings_at_prec(step, c_expo)`；`fupb_PRECI` → `BuchmannGrowResult::PreciEscalateLimc` → 外层 `increase_LIMC` 重试（对标 Pari `goto START`）。
 
 **R25 ✅（2026-07-07）：** `GrhRelCache` — Pari `add_rel_i` mod-p 增量 echelon（`REL_CACHE_MOD_P=2003`）；`GrhRelCache::need` = 类群秩缺口 + arch 单位秩缺口（`RU−1−zc`）；`buchmann_grh_grow_relations` 全线 `add_relation`；单测 `grh_rel_cache_*`。
 
