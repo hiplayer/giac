@@ -1235,7 +1235,9 @@ cargo test -p giac-core bnfisprincipal --release -- --ignored  # ℚ(∛11) 锚�
 
 **R27 ✅（2026-07-09）：** `bnfisprincipal` Pari `isprincipalall`（`split_ideal` → `Ur` → `mod cyc`）；ℚ(∛11) `(2)` 非主金值 `[1]`；`unit_ideal` + `split_valuations_above_p`；快测 `pari_ideal_class_log_synthetic_z2_*`；锚域 `x3_11_anchor_cert` OnceLock。
 
-**仍缺（R36+）：** `hnfspec` 增量路径深化、FP/embedding 热路径剖析；锚域 release ~5.7s vs Pari ~3ms。
+**仍缺（R37+）：** FB 扩展时 `GrhRelCache`/`hnf` 增量延续、FP 热路径剖析；锚域 release ~5.7s vs Pari ~3ms。
+
+**R36 ✅（2026-07-09）：** grow 热路径去掉冗余 `embeddings()`（`rnd_rel_*_emb` 仅无 hint 时隔离）；去掉 `grow_emb.clone()`；`hnfspec_from_relations`/`grh_hr_check` 透传 `emb_hint`；`bnfisprincipal` hnfspec 回退复用 session embedding；删除死代码 `try_certify_grh_relations`/`grh_relation_need_full`。
 
 **R35 ✅（2026-07-09）：** `FieldSession::reliable_embeddings`（minpoly 键 session 缓存，根隔离一次）；`GrhRelCache.grow_emb` / `buchmann_grh_certified_data` 透传 `session`；`hnfspec_from_relations_prec` DEFAULT 精度复用 `emb_hint`。
 

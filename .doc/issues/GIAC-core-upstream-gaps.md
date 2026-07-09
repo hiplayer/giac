@@ -206,7 +206,7 @@ P3  C-13..C-17    simplify 真化简链 / tlin / proot / 参数化 / 显示稳�
 
 ### Phase E — P2 代数数论深化（对标 Pari）
 
-- [~] C-9 完整 Buchmann / `bnfinit` — **◐ R8–R34**：… + R34 session cert / rnd_rel 串行入库；锚域 release ~5.7s
+- [~] C-9 完整 Buchmann / `bnfinit` — **◐ R8–R36**：… + R36 grow 热路径 embedding 去重；锚域 release ~5.7s
 - [~] C-10 非主性认证 — **◐** `bnfisprincipal` deg-2 极大 + deg≥3 h=1 ✅；h>1 非主金值 / 大素理想待续
 - [x] C-11 LLL — **已接入类群**（`eval_lll` + `ideal_is_principal` LLL 回退 + `enumerate_relations_lli` + `idealred`）
 - [x] C-12 `AlgExtC::evalf` — **已落地**（详见 [GIAC-p2-algebraic-number-theory-api](GIAC-p2-algebraic-number-theory-api.md)）
