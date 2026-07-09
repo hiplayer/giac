@@ -1181,7 +1181,7 @@ pub(crate) struct ArchLogMatrix { /* cols: ArchLogVector */ }
 | 独立 `CompletenessCert` | 不要 | 一个 `f64` 比值 + `Option` 即可；`certify_hr_product` 已够 |
 | `RelationLattice` 类型 | 延后 | SNF 输入是 `Vec<Vec<BigInt>>`；关系多了再包 |
 
-**最小下一步（… R28 fixarch/kR ✅，R29 myprecdbl/PRECI→LIMC ✅）：** `logfu` LLL 宽关系集；`rnd_rel_par`；Buchmann 冷启动性能。
+**最小下一步（… R29 myprecdbl/PRECI→LIMC ✅，R30 logfu LLL ✅）：** `rnd_rel_par`；Buchmann 冷启动性能。
 
 ---
 
@@ -1206,7 +1206,7 @@ pub(crate) struct ArchLogMatrix { /* cols: ArchLogVector */ }
 
 **测试分层：**
 - **快（默认 CI）：** `pari_ideal_class_log_synthetic_z2_*` — 纯 `Ur/cyc` 数学，无 GRH grow（<1ms）。
-- **慢（`#[ignore]`）：** `class_number_general_cert_grh_x3_11_h2_probe`、`bnfisprincipal_q_x3_11_ideal_2_nonprincipal` — 冷缓存 Buchmann ~90s debug / ~16s release；进程内 `x3_11_anchor_cert` OnceLock 共享 cert，第二条 ignored 测近即时。
+- **慢（`#[ignore]`）：** `class_number_general_cert_grh_x3_11_h2_probe`、`bnfisprincipal_q_x3_11_ideal_2_nonprincipal` — 冷缓存 Buchmann ~90s debug / ~6s release（R31）；进程内 `x3_11_anchor_cert` OnceLock 共享 cert，第二条 ignored 测近即时。
 
 **验证：**
 ```bash
@@ -1235,7 +1235,11 @@ cargo test -p giac-core bnfisprincipal --release -- --ignored  # ℚ(∛11) 锚�
 
 **R27 ✅（2026-07-09）：** `bnfisprincipal` Pari `isprincipalall`（`split_ideal` → `Ur` → `mod cyc`）；ℚ(∛11) `(2)` 非主金值 `[1]`；`unit_ideal` + `split_valuations_above_p`；快测 `pari_ideal_class_log_synthetic_z2_*`；锚域 `x3_11_anchor_cert` OnceLock。
 
-**仍缺（R30+）：** `logfu` LLL 宽关系集；`rnd_rel_par`；Buchmann 冷启动性能（锚域 release ~16s vs Pari ~3ms）。
+**仍缺（R32+）：** Buchmann 冷启动进一步对齐 Pari ~3ms（当前 release ~6s）。
+
+**R31 ✅（2026-07-09）：** `rnd_rel_par` ponytail — `rnd_rel_subfb_ljid_par`（`std::thread::scope` 并行 FP，`|L_jid|≥2`）；`rnd_rel_subfb_ljid` 复用 `grow_emb` + 单次 `base_ideal`/`idealmul`（不再每 `j` 重建 `relation_from_exp_vector`）；`fincke_pohst_principal_generator_emb` / `principal_generator_with_emb`；锚域 ℚ(∛11) release ~6.2s（原 ~16s）。
+
+**R30 ✅（2026-07-09）：** `logfu` LLL 宽关系集 — `select_logfu_lll_pool`（`|N|=1` 优先、±平行 dedupe、cap 64）、`logfu_lll_transform`（incremental 先于 overcomplete）；`grh_hr_check_with_analytic` 缓存 `invhr` 于 grow 循环。
 
 **R29 ✅（2026-07-09）：** Pari `myprecdbl` — `arch_extraprec_bits`（`precdbl`/`1.5×` + `gexpo(C)` boost）驱动 embedding 细化；`HnfSpecState::c_max_expo`；`nf_embeddings_at_prec(step, c_expo)`；`fupb_PRECI` → `BuchmannGrowResult::PreciEscalateLimc` → 外层 `increase_LIMC` 重试（对标 Pari `goto START`）。
 

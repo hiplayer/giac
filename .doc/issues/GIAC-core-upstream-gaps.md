@@ -128,13 +128,13 @@
 
 | ID | 能力 | 现状 | upgrade path |
 |----|------|------|--------------|
-| **C-9** | 完整 Buchmann / `bnfinit` | **◐ R8–R29 已落地**：… + R29 `myprecdbl`/`PRECI→increase_LIMC` | `bnfinit` 用户对象；非极大序（Round-2）；大域 h>1 普遍出证；`rnd_rel_par` |
+| **C-9** | 完整 Buchmann / `bnfinit` | **◐ R8–R31 已落地**：… + R30 logfu LLL 宽池 + analytic 缓存 + R31 `rnd_rel_par` + FP 热路径复用 | `bnfinit` 用户对象；非极大序；冷启动 perf（~6s vs Pari ~3ms） |
 | **C-10** | 非主性认证 / `bnfisprincipal` 完备 | **◐** deg-2 极大 + M_K-平滑理想 ✅（含 `[γ,[e_i]]`）；deg≥3 h=1 ✅；h>1 依赖 GRH 证书域；deg-2 虚二次穷尽 `(false)` 保留 | deg≥3 h>1 非主金值端到端；大素理想 `q>M_K` 关系库 |
 | **C-11** | LLL 短向量 | **✅ slice + 类群接入**：`eval_lll`（`lll(matrix)`）；`idealred` / `ideal_is_principal` LLL 回退（R7）；`enumerate_relations_lli`（R8） | Minkowski 嵌入 LLL（Pari `idealred` 风格）；`qfminim` |
 | **C-12** | `AlgExtC::evalf` | **✅ 已落地**：`archimedean::algext_evalf`/`algextc_evalf` + `eval_evalf` dispatch | `horner_rootof` / `proot` 浮点逼近 |
 | **C-18** | `bnfinit` 用户对象 | 内部 `Bnf` + `CertClassData` + `Context` session 缓存；**无** `FuncKind::Bnfinit` | 对标 Pari `buchall_end` 可查询对象；`bnfisunit`/`bnfregulator` 只读缓存 |
 | **C-19** | `bnr*` 射线类群 + 类域论 | ❌ 完全无 | 新 `ray_class.rs`；依赖 `idealaddtoone`/`idealchinese` |
-| **C-20** | Pari 工程残差 | ◐ 缺 `increase_LIMC` 完整环、`rnd_rel_par`、动态精度 `PREC` | 见 [GIAC-p2-bnf-pari-alignment](GIAC-p2-bnf-pari-alignment.md) R27+ |
+| **C-20** | Pari 工程残差 | ◐ R31 `rnd_rel_par` + embedding/ideal 复用；仍缺冷启动 ~6s→~3ms | 见 [GIAC-p2-bnf-pari-alignment](GIAC-p2-bnf-pari-alignment.md) R32+ |
 
 **`ponytail:` 现状边界：** R7 已砍掉 deg≥5 / `N(J)>10⁷` 主性 sound-skip（LLL 回退）；现存 sound-skip 主因 = GRH 关系不足、非极大序、`power_order_is_maximal≠true`、无 `PREC` 环。deg-2 有界路径 `BUCH_COORD_BOUND=64` 仍约束大 regulator 实二次 h>1 **结构**（`class_number` 仍经解析公式返 h）。
 
@@ -206,13 +206,13 @@ P3  C-13..C-17    simplify 真化简链 / tlin / proot / 参数化 / 显示稳�
 
 ### Phase E — P2 代数数论深化（对标 Pari）
 
-- [~] C-9 完整 Buchmann / `bnfinit` — **◐ R8–R26**：GRH 路径 + `HnfSpecState` + `rnd_rel`/`subFB`；deg-2 完备；deg≥3 h=1 + ℚ(∛11) h=2 ✅；仍缺用户 `bnfinit`、非极大序、大域 h>1 普遍覆盖、`PREC` 环（见 [GIAC-p2-bnf-pari-alignment](GIAC-p2-bnf-pari-alignment.md)）
+- [~] C-9 完整 Buchmann / `bnfinit` — **◐ R8–R31**：GRH 路径 + `HnfSpecState` + `rnd_rel`/`subFB`/`rnd_rel_par`；deg-2 完备；deg≥3 h=1 + ℚ(∛11) h=2 ✅（release ~6s）；仍缺用户 `bnfinit`、非极大序、大域 h>1 普遍覆盖（见 [GIAC-p2-bnf-pari-alignment](GIAC-p2-bnf-pari-alignment.md)）
 - [~] C-10 非主性认证 — **◐** `bnfisprincipal` deg-2 极大 + deg≥3 h=1 ✅；h>1 非主金值 / 大素理想待续
 - [x] C-11 LLL — **已接入类群**（`eval_lll` + `ideal_is_principal` LLL 回退 + `enumerate_relations_lli` + `idealred`）
 - [x] C-12 `AlgExtC::evalf` — **已落地**（详见 [GIAC-p2-algebraic-number-theory-api](GIAC-p2-algebraic-number-theory-api.md)）
 - [ ] C-18 `bnfinit` 用户对象
 - [ ] C-19 `bnr*` 射线类群 + 类域论
-- [~] C-20 Pari 工程残差（`logfu` LLL / `rnd_rel_par` / Buchmann perf）
+- [~] C-20 Pari 工程残差（`rnd_rel_par` / Buchmann perf）
 
 ### Phase F — P3 simplify / 数值 / 参数化
 
