@@ -1235,7 +1235,72 @@ cargo test -p giac-core bnfisprincipal --release -- --ignored  # ℚ(∛11) 锚�
 
 **R27 ✅（2026-07-09）：** `bnfisprincipal` Pari `isprincipalall`（`split_ideal` → `Ur` → `mod cyc`）；ℚ(∛11) `(2)` 非主金值 `[1]`；`unit_ideal` + `split_valuations_above_p`；快测 `pari_ideal_class_log_synthetic_z2_*`；锚域 `x3_11_anchor_cert` OnceLock。
 
-**仍缺（R39+）：** FP 格 LLL 增量、锚域 release ~5.7s vs Pari ~3ms。
+**仍缺（R39+）：** FP 格 LLL 增量（perf 主线）、Galois `add_rel` 接线（R39a，见下）、锚域 release ~5.7s vs Pari ~3ms。
+
+---
+
+## R39a 计划 — Galois `add_rel` 自同构轨道复制（P1）
+
+**对标：** Pari `buch2.c` `add_rel` L2376–2404、`add_rel_i` L2285–2371、`FB_aut_perm` L197–237、`automorphism_perms` L2883–2921。
+
+**现状：** `emb_automorphism_perms` / `RelArchMeta` / `rel_embed_arch_column` 已在 `bnf.rs`（R18）；`GrhRelCache::add_relation` 恒 `RelArchMeta::DIRECT`，无 `idealperm`、无轨道复制。
+
+**Pari 语义摘要：**
+
+1. 主关系：`add_rel_i(R, γ, orig=0, aut=0)`。
+2. 若 `γ` 非有理整数（`typ(m) != t_INT`），对每个非平凡自同构 `l`：
+   - 用 `F->idealperm[l]` **置换指数向量** `R` → `Rl`；
+   - `add_rel_i(Rl, m=NULL, orig=reln, aut=l)` — arch 列经 `relorig`+`relaut`+`embperm` 恢复，**不克隆 γ**。
+
+**子任务（建议顺序）：**
+
+| ID | 任务 | 落点 | 估时 |
+|----|------|------|------|
+| **R39a-1** | `ideal_perm_under_galois` — 对标 `FB_aut_perm`：对因子基 `ideals[k]`，用自同构矩阵将 `pr_get_gen` 映到另一 `𝔭_j`，按 `(p,f)` 块匹配 | `class_group.rs` 或 `bnf.rs`；输入 `ideals`, `basis_prime_cache`, `field` | 1–2d |
+| **R39a-2** | `galois_automorphism_mats` ponytail — `n≤6` 用现有 `galois_root_perms`+幂基；升级路径 `galoisconj` 矩阵 | `bnf.rs` 扩 `emb_automorphism_perms` 旁路 | 0.5d |
+| **R39a-3** | `permute_relation_exponents(exp, ideal_perm_l) -> Vec<i64>` + `nz`（首非零下标） | `class_group.rs` | 0.5d |
+| **R39a-4** | `GrhRelCache::add_relation_galois_orbit` — 主关系成功后，对 `l=1..g-1` 调 `add_relation_i(Rl, None, orig, l)`；`rel_meta` 设 `{relorig, relaut}`；`seen` 对 `Rl` 去重 | `GrhRelCache` | 1d |
+| **R39a-5** | grow 循环 `cache.add_relation` → `add_relation_galois_orbit`；`grow_cache` 懒缓存 `ideal_perms` + `emb_perms` | `buchmann_grh_grow_relations` | 0.5d |
+| **R39a-6** | 确认 `flush_hnf_if_dirty` / `hnfspec_from_relations_prec` 在 `relaut≠0` 时走 `recompute_all_relation_embs`（R33 已有，加回归） | 测试 | 0.5d |
+
+**拟新增 API（草案）：**
+
+```rust
+// bnf.rs — 因子基在 σ 下的置换（1-indexed 块，对标 idealperm[l][j]）
+pub(crate) fn ideal_perm_under_galois(
+    field: &Arc<ExtensionField>,
+    ideals: &[(i64, PrimeIdealRec)],
+    prime_cache: &[Ideal],
+    emb: &Embeddings,
+) -> Option<Vec<Vec<usize>>>;  // [aut_idx][ideal_j] -> image_j (0-based)
+
+// class_group.rs — 置换指数，返回 (Rl, nz)
+fn permute_relation_exponents(
+    exp: &[i64],
+    perm: &[usize],
+) -> (Vec<i64>, usize);
+
+// GrhRelCache
+fn add_relation_galois_orbit(
+    &mut self,
+    field: &Arc<ExtensionField>,
+    rel: (Vec<BigInt>, HighFirstQ),
+) -> bool;  // true 若主关系为新 mod-p 独立
+```
+
+**测试清单：**
+
+| 测试 | 域 | 断言 |
+|------|-----|------|
+| `ideal_perm_under_galois_q_i` | ℚ(i)，因子基 above 2 | 非平凡 σ 置换 split 素理想下标 |
+| `permute_relation_exponents_identity` | 合成 | `perm=id` ⟹ `Rl==exp` |
+| `add_relation_galois_doubles_arch_rank` | ℚ(i) 人工 1 条关系 | `rel_meta` 含 `relaut>0`；`flush` 后 arch 秩 ≥ 直接路径 |
+| `rel_embed_galois_matches_direct` | 已有 `rel_embed_identity_perm_*` 扩 | 非平凡 `relaut` 列 = `apply_emb_aut_perm` |
+| `grow_fewer_rnd_stalls_q_i_h1` | ℚ(i) h=1（可选 ignore） | grow 迭代 / `rnd_stalls` ≤ 无 Galois 基线（记录 golden） |
+
+**ponytail 边界：** `n>6` 仅恒等 `idealperm`；非 Galois 域仍可用嵌入自同构，但 `idealperm` 块匹配可能不完整 → 复制失败时 **静默跳过**（sound）。ℚ(∛11) Gal 作用非平凡但域非正规 — 需用 ℚ(i) / `x^2+1` 作首测域。
+
+**验收：** R39a-1..6 全绿 + ℚ(i) 类群 h=1 冷启动关系条数 ≤ Pari 同界（不要求 ∛11 加速）。
 
 **R38 ✅（2026-07-09）：** grow 循环预计算幂基 Minkowski 行（`minkowski_power_rows` / `embed_minkowski_low_fast`），`fincke_pohst` FP 热路径线性组合替代逐行 Horner；单测 `embed_minkowski_low_fast_matches_horner`；C-10 `bnfisprincipal_q_x3_11_ideal_4_principal`（`(4)=(2)²` 主理想）。
 
