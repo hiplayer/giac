@@ -1206,7 +1206,7 @@ pub(crate) struct ArchLogMatrix { /* cols: ArchLogVector */ }
 
 **测试分层：**
 - **快（默认 CI）：** `pari_ideal_class_log_synthetic_z2_*` — 纯 `Ur/cyc` 数学，无 GRH grow（<1ms）。
-- **慢（`#[ignore]`）：** `class_number_general_cert_grh_x3_11_h2_probe`、`bnfisprincipal_q_x3_11_ideal_2_nonprincipal` — 冷缓存 Buchmann ~90s debug / ~6s release（R31）；进程内 `x3_11_anchor_cert` OnceLock 共享 cert，第二条 ignored 测近即时。
+- **慢（`#[ignore]`）：** `class_number_general_cert_grh_x3_11_h2_probe`、`bnfisprincipal_q_x3_11_ideal_2_nonprincipal` — 冷缓存 Buchmann ~90s debug / ~5.7s release；`x3_11_anchor_cert` OnceLock + `FieldSession::cert_class_cache` 共享 cert。
 
 **验证：**
 ```bash
@@ -1235,9 +1235,15 @@ cargo test -p giac-core bnfisprincipal --release -- --ignored  # ℚ(∛11) 锚�
 
 **R27 ✅（2026-07-09）：** `bnfisprincipal` Pari `isprincipalall`（`split_ideal` → `Ur` → `mod cyc`）；ℚ(∛11) `(2)` 非主金值 `[1]`；`unit_ideal` + `split_valuations_above_p`；快测 `pari_ideal_class_log_synthetic_z2_*`；锚域 `x3_11_anchor_cert` OnceLock。
 
-**仍缺（R32+）：** Buchmann 冷启动进一步对齐 Pari ~3ms（当前 release ~6s）。
+**仍缺（R35+）：** embedding 根隔离 session 缓存、`hnfspec` 增量路径深化；锚域 release ~5.7s vs Pari ~3ms。
 
-**R31 ✅（2026-07-09）：** `rnd_rel_par` ponytail — `rnd_rel_subfb_ljid_par`（`std::thread::scope` 并行 FP，`|L_jid|≥2`）；`rnd_rel_subfb_ljid` 复用 `grow_emb` + 单次 `base_ideal`/`idealmul`（不再每 `j` 重建 `relation_from_exp_vector`）；`fincke_pohst_principal_generator_emb` / `principal_generator_with_emb`；锚域 ℚ(∛11) release ~6.2s（原 ~16s）。
+**R34 ✅（2026-07-09）：** Pari `rnd_rel_par` 对齐 — 并行 FP 搜（`rnd_rel_subfb_ljid_par_search`）+ 主线程串行 `add_relation`；删除 `rnd_rel` Mutex；删除进程级 `cert_class_process_cache`，`class_number`/`class_group` eval 传 `FieldSession`；`certified_class_data_with_gens` 仅 session `RefCell` 缓存。
+
+**R33 ✅（2026-07-09）：** `hnfspec_from_relations_prec` DIRECT 快路径（单次 `relations_batch_i64_arch_emb`，跳过 `recompute_all_relation_embs`+`emb_automorphism_perms`）；`grh_build_cert_data` 延迟 `Bnf`（`bnf_for_field` 懒构建 `logfu_from_hnf`）；`class_number_general_cert` 复用 `certified_class_data_with_gens`。
+
+**R32 ✅（2026-07-09）：** `basis_prime_cache` + `ideal_and_norm_from_exps`（`idealmul`/`idealpow` 替代重复 `ideal_from_prime_factors`）；`GrhRelCache.grow_emb` 驱动 `hnfspec`/`fixarch` 批处理；`RndRelPrefilter` mod-p+seen 门控 FP；`fincke_pohst_rnd_rel`（Pari 式 FP-only，无 LLL 回退，`FP_RND_REL_MAX_TRIES=256`）；单元枚举 `*_emb`；grow 循环合并 `flush_hnf_if_dirty`。
+
+**R31 ✅（2026-07-09）：** `rnd_rel_par` ponytail — `rnd_rel_subfb_ljid_par_search`（`std::thread::scope` 并行 FP，`|L_jid|≥2`，主线程串行入库）；`rnd_rel_subfb_ljid` 复用 `grow_emb` + 单次 `base_ideal`/`idealmul`；锚域 ℚ(∛11) release ~6.2s（原 ~16s）。
 
 **R30 ✅（2026-07-09）：** `logfu` LLL 宽关系集 — `select_logfu_lll_pool`（`|N|=1` 优先、±平行 dedupe、cap 64）、`logfu_lll_transform`（incremental 先于 overcomplete）；`grh_hr_check_with_analytic` 缓存 `invhr` 于 grow 循环。
 
