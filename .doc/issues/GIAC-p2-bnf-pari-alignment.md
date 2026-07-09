@@ -1235,11 +1235,24 @@ cargo test -p giac-core bnfisprincipal --release -- --ignored  # ℚ(∛11) 锚�
 
 **R27 ✅（2026-07-09）：** `bnfisprincipal` Pari `isprincipalall`（`split_ideal` → `Ur` → `mod cyc`）；ℚ(∛11) `(2)` 非主金值 `[1]`；`unit_ideal` + `split_valuations_above_p`；快测 `pari_ideal_class_log_synthetic_z2_*`；锚域 `x3_11_anchor_cert` OnceLock。
 
-**仍缺（R39+）：** FP 格 LLL 增量（perf 主线）、Galois `add_rel` 接线（R39a，见下）、锚域 release ~5.7s vs Pari ~3ms。
+**仍缺（R39+）：** FP 格 LLL 增量（perf 主线）、锚域 release ~5.7s vs Pari ~3ms。
 
 ---
 
-## R39a 计划 — Galois `add_rel` 自同构轨道复制（P1）
+## R39a ✅（2026-07-09）— Galois `add_rel` 自同构轨道复制
+
+**对标：** Pari `buch2.c` `add_rel` / `FB_aut_perm` / `automorphism_perms`。
+
+**落地：**
+- `bnf.rs`：`ideal_perm_under_galois`（`FB_aut_perm`）、`permute_relation_exponents`、`gamma_is_rational_integer`、`sigma_alpha_from_root_perm`（`n≤6` ponytail）、`ideal_lattice_contains_element`
+- `GrhRelCache`：`ideal_perms`/`emb_perms` 懒缓存、`add_relation_galois_orbit`（Pari 1-based `relorig`/`relaut`）、`flush_hnf_if_dirty` 经 `relations_batch_i64_arch_emb_meta` 走 `rel_embed`
+- grow：`buchmann_grh_grow_relations` → `ensure_galois_perms`
+
+**单测：** `ideal_perm_under_galois_q_i_p5_split`、`add_relation_galois_orbit_copies_for_algebraic_gamma`、`flush_hnf_galois_copy_uses_rel_embed_arch`、`permute_relation_exponents_identity`、`gamma_is_rational_integer_detects_int_and_algebraic`
+
+---
+
+## R39a 计划（归档） — Galois `add_rel` 自同构轨道复制（P1）
 
 **对标：** Pari `buch2.c` `add_rel` L2376–2404、`add_rel_i` L2285–2371、`FB_aut_perm` L197–237、`automorphism_perms` L2883–2921。
 
