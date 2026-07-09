@@ -128,13 +128,13 @@
 
 | ID | 能力 | 现状 | upgrade path |
 |----|------|------|--------------|
-| **C-9** | 完整 Buchmann / `bnfinit` | **◐ R8–R33 已落地**：… + R33 lazy Bnf + cert 进程缓存 + hnfspec DIRECT 快路径 | `bnfinit` 用户对象；非极大序；冷启动 perf（~5.8s vs Pari ~3ms） |
-| **C-10** | 非主性认证 / `bnfisprincipal` 完备 | **◐** deg-2 极大 + M_K-平滑理想 ✅（含 `[γ,[e_i]]`）；deg≥3 h=1 ✅；h>1 依赖 GRH 证书域；deg-2 虚二次穷尽 `(false)` 保留 | deg≥3 h>1 非主金值端到端；大素理想 `q>M_K` 关系库 |
+| **C-9** | 完整 Buchmann / `bnfinit` | **◐ R8–R37 已落地**：… + R37 LIMC 外环 `GrhRelCache` 跨 FB 扩展延续 | `bnfinit` 用户对象；非极大序；冷启动 perf（~5.7s vs Pari ~3ms） |
+| **C-10** | 非主性认证 / `bnfisprincipal` 完备 | **◐** deg-2 极大 + M_K-平滑理想 ✅（含 `[γ,[e_i]]`）；deg≥3 h=1 ✅；h>1 ℚ(∛11) `(2)→(None,[1])` ✅；`q>M_K` 理想 sound-skip ✅ | 更多 deg≥3 h>1 锚域；大素理想纳入关系库（非 skip） |
 | **C-11** | LLL 短向量 | **✅ slice + 类群接入**：`eval_lll`（`lll(matrix)`）；`idealred` / `ideal_is_principal` LLL 回退（R7）；`enumerate_relations_lli`（R8） | Minkowski 嵌入 LLL（Pari `idealred` 风格）；`qfminim` |
 | **C-12** | `AlgExtC::evalf` | **✅ 已落地**：`archimedean::algext_evalf`/`algextc_evalf` + `eval_evalf` dispatch | `horner_rootof` / `proot` 浮点逼近 |
 | **C-18** | `bnfinit` 用户对象 | 内部 `Bnf` + `CertClassData` + `Context` session 缓存；**无** `FuncKind::Bnfinit` | 对标 Pari `buchall_end` 可查询对象；`bnfisunit`/`bnfregulator` 只读缓存 |
 | **C-19** | `bnr*` 射线类群 + 类域论 | ❌ 完全无 | 新 `ray_class.rs`；依赖 `idealaddtoone`/`idealchinese` |
-| **C-20** | Pari 工程残差 | ◐ R33 lazy Bnf + cert 缓存 + hnfspec 快路径；仍缺 ~5.8s→~3ms | 见 [GIAC-p2-bnf-pari-alignment](GIAC-p2-bnf-pari-alignment.md) R34+ |
+| **C-20** | Pari 工程残差 | ◐ R37 FB 扩展 `GrhRelCache` 延续 + session cert 缓存；仍缺 ~5.7s→~3ms | 见 [GIAC-p2-bnf-pari-alignment](GIAC-p2-bnf-pari-alignment.md) R38+ |
 
 **`ponytail:` 现状边界：** R7 已砍掉 deg≥5 / `N(J)>10⁷` 主性 sound-skip（LLL 回退）；现存 sound-skip 主因 = GRH 关系不足、非极大序、`power_order_is_maximal≠true`、无 `PREC` 环。deg-2 有界路径 `BUCH_COORD_BOUND=64` 仍约束大 regulator 实二次 h>1 **结构**（`class_number` 仍经解析公式返 h）。
 

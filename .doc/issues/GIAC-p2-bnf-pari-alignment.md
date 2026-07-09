@@ -1235,7 +1235,9 @@ cargo test -p giac-core bnfisprincipal --release -- --ignored  # ℚ(∛11) 锚�
 
 **R27 ✅（2026-07-09）：** `bnfisprincipal` Pari `isprincipalall`（`split_ideal` → `Ur` → `mod cyc`）；ℚ(∛11) `(2)` 非主金值 `[1]`；`unit_ideal` + `split_valuations_above_p`；快测 `pari_ideal_class_log_synthetic_z2_*`；锚域 `x3_11_anchor_cert` OnceLock。
 
-**仍缺（R37+）：** FB 扩展时 `GrhRelCache`/`hnf` 增量延续、FP 热路径剖析；锚域 release ~5.7s vs Pari ~3ms。
+**仍缺（R38+）：** FP 热路径剖析；锚域 release ~5.7s vs Pari ~3ms。
+
+**R37 ✅（2026-07-09）：** LIMC 外环 `grow_cache: Option<GrhRelCache>` 跨 FB 扩展延续 — `adopt_larger_fb` / `refresh_subfb` / `split_for_extend`；`extend_relations_for_larger_fb` 零填充旧指数；同 `k` 的 PRECI 重试保留已搜关系；删除 `grh_rel_cache_write_back`。单测 `extend_relations_for_larger_fb_zero_pads_*` / `grh_rel_cache_adopt_larger_fb_*`。
 
 **R36 ✅（2026-07-09）：** grow 热路径去掉冗余 `embeddings()`（`rnd_rel_*_emb` 仅无 hint 时隔离）；去掉 `grow_emb.clone()`；`hnfspec_from_relations`/`grh_hr_check` 透传 `emb_hint`；`bnfisprincipal` hnfspec 回退复用 session embedding；删除死代码 `try_certify_grh_relations`/`grh_relation_need_full`。
 
