@@ -1235,7 +1235,9 @@ cargo test -p giac-core bnfisprincipal --release -- --ignored  # ℚ(∛11) 锚�
 
 **R27 ✅（2026-07-09）：** `bnfisprincipal` Pari `isprincipalall`（`split_ideal` → `Ur` → `mod cyc`）；ℚ(∛11) `(2)` 非主金值 `[1]`；`unit_ideal` + `split_valuations_above_p`；快测 `pari_ideal_class_log_synthetic_z2_*`；锚域 `x3_11_anchor_cert` OnceLock。
 
-**仍缺（R35+）：** embedding 根隔离 session 缓存、`hnfspec` 增量路径深化；锚域 release ~5.7s vs Pari ~3ms。
+**仍缺（R36+）：** `hnfspec` 增量路径深化、FP/embedding 热路径剖析；锚域 release ~5.7s vs Pari ~3ms。
+
+**R35 ✅（2026-07-09）：** `FieldSession::reliable_embeddings`（minpoly 键 session 缓存，根隔离一次）；`GrhRelCache.grow_emb` / `buchmann_grh_certified_data` 透传 `session`；`hnfspec_from_relations_prec` DEFAULT 精度复用 `emb_hint`。
 
 **R34 ✅（2026-07-09）：** Pari `rnd_rel_par` 对齐 — 并行 FP 搜（`rnd_rel_subfb_ljid_par_search`）+ 主线程串行 `add_relation`；删除 `rnd_rel` Mutex；删除进程级 `cert_class_process_cache`，`class_number`/`class_group` eval 传 `FieldSession`；`certified_class_data_with_gens` 仅 session `RefCell` 缓存。
 
