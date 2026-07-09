@@ -1235,7 +1235,9 @@ cargo test -p giac-core bnfisprincipal --release -- --ignored  # ℚ(∛11) 锚�
 
 **R27 ✅（2026-07-09）：** `bnfisprincipal` Pari `isprincipalall`（`split_ideal` → `Ur` → `mod cyc`）；ℚ(∛11) `(2)` 非主金值 `[1]`；`unit_ideal` + `split_valuations_above_p`；快测 `pari_ideal_class_log_synthetic_z2_*`；锚域 `x3_11_anchor_cert` OnceLock。
 
-**仍缺（R38+）：** FP 热路径剖析；锚域 release ~5.7s vs Pari ~3ms。
+**仍缺（R39+）：** FP 格 LLL 增量、锚域 release ~5.7s vs Pari ~3ms。
+
+**R38 ✅（2026-07-09）：** grow 循环预计算幂基 Minkowski 行（`minkowski_power_rows` / `embed_minkowski_low_fast`），`fincke_pohst` FP 热路径线性组合替代逐行 Horner；单测 `embed_minkowski_low_fast_matches_horner`；C-10 `bnfisprincipal_q_x3_11_ideal_4_principal`（`(4)=(2)²` 主理想）。
 
 **R37 ✅（2026-07-09）：** LIMC 外环 `grow_cache: Option<GrhRelCache>` 跨 FB 扩展延续 — `adopt_larger_fb` / `refresh_subfb` / `split_for_extend`；`extend_relations_for_larger_fb` 零填充旧指数；同 `k` 的 PRECI 重试保留已搜关系；删除 `grh_rel_cache_write_back`。单测 `extend_relations_for_larger_fb_zero_pads_*` / `grh_rel_cache_adopt_larger_fb_*`。
 

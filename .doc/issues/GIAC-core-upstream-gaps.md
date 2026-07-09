@@ -134,7 +134,7 @@
 | **C-12** | `AlgExtC::evalf` | **✅ 已落地**：`archimedean::algext_evalf`/`algextc_evalf` + `eval_evalf` dispatch | `horner_rootof` / `proot` 浮点逼近 |
 | **C-18** | `bnfinit` 用户对象 | 内部 `Bnf` + `CertClassData` + `Context` session 缓存；**无** `FuncKind::Bnfinit` | 对标 Pari `buchall_end` 可查询对象；`bnfisunit`/`bnfregulator` 只读缓存 |
 | **C-19** | `bnr*` 射线类群 + 类域论 | ❌ 完全无 | 新 `ray_class.rs`；依赖 `idealaddtoone`/`idealchinese` |
-| **C-20** | Pari 工程残差 | ◐ R37 FB 扩展 `GrhRelCache` 延续 + session cert 缓存；仍缺 ~5.7s→~3ms | 见 [GIAC-p2-bnf-pari-alignment](GIAC-p2-bnf-pari-alignment.md) R38+ |
+| **C-20** | Pari 工程残差 | ◐ R38 FP Minkowski 行缓存；仍缺 ~5.7s→~3ms | 见 [GIAC-p2-bnf-pari-alignment](GIAC-p2-bnf-pari-alignment.md) R39+ |
 
 **`ponytail:` 现状边界：** R7 已砍掉 deg≥5 / `N(J)>10⁷` 主性 sound-skip（LLL 回退）；现存 sound-skip 主因 = GRH 关系不足、非极大序、`power_order_is_maximal≠true`、无 `PREC` 环。deg-2 有界路径 `BUCH_COORD_BOUND=64` 仍约束大 regulator 实二次 h>1 **结构**（`class_number` 仍经解析公式返 h）。
 
