@@ -1250,16 +1250,32 @@ cargo test -p giac-core bnfisprincipal --release -- --ignored  # ℚ(∛11) 锚�
 | **4** | **R39n** | ✅ | **完整 `idealfactor`** | `idealfactor_integral`（试除 `|N(I)|` + 素理想分解） | `idealfactor` + `idealapprfact_i` | R39h 大素因子 norm | ~1–2d |
 | **5** | **R39o** | ✅ | **`idealred` 两元** | `mat_ideal_two_elt` → `idealhnf` 当 `a < I∩ℤ`；f64 LLL 回退 + `two_gen` | Pari `idealred0` | API 语义 | ~0.5d |
 | **6** | **R39p** | ✅ | **`zm_hnfmodid` 乘法接线** | `ideal_hnf_from_generator_cols` → `zm_hnfmodid`；`optimal_d` 边界 + `co>nli` 列 drain | `ZM_hnfmodid(m, a·x₁₁)` | 完成 R39j 整数 HNF 快路径 | ~0.5d |
-| **7** | **R39q** | 🔲 | **`Fp_invgen` 完整** | `extended_gcd` 简化 | `Z_chinese_coprime` | `zm_hnfmodid` 罕见 `gcd≠1` 枢轴 | ~0.25d |
-| **8** | **R39r** | 🔲 | **Galois `galoisconj` 矩阵** | `n≤6` 根置换；`n>6` 恒等 `idealperm` | `galoisconj` + 嵌入矩阵 | ∛11 非正规域轨道复制不完整 | ~0.5d |
-| **9** | **R39s** | 🔲 | **`FBgen` trim + 大 FB SNF** | `GRH_MAX_FACTOR_BASE=256` 硬顶 | Pari `FBgen` / `KC` trim | 大 `M_K` 关系格完备性 | ~1d |
-| **10** | **R39t** | 🔲 | **Buchmann 扫描预算** | `LLL_SCAN_BUDGET` / `RND_REL_STALL` 等硬顶 | Pari 动态 `fupb_RELAT` | CI 与完备性折中；次优 | ~0.5d |
-| **11** | **R39u** | 🔲 | **非极大序 / `nfbasis`** | `ℤ[α]=𝓞_K` 假定 | Round-2 / 真整基 | 正确性扩展 | 大（P1-1b-followup） |
+| **7** | **R39q** | ✅ | **`Fp_invgen` 完整** | `Z_chinese_coprime` + `z_ppo`/`lcmii`；`fp_invgen_non_coprime` 单测 | `Z_chinese_coprime` | `zm_hnfmodid` 枢轴 `gcd≠1` | ~0.25d |
+| **8** | **R39r** | ◐ | **Galois `galoisconj` 矩阵** | 根置换枚举 `n≤8`；`sigma_alpha` minpoly 验 + `n≤12`；`n>8` 恒等 | `galoisconj` + 嵌入矩阵 | ∛11 非正规域仍 identity | ~0.5d |
+| **9** | **R39s** | ◐ | **`FBgen` trim + 大 FB SNF** | `trim_factor_base_cap`（`KCZ` 优先）替代硬 skip；`GRH_MAX_FACTOR_BASE=256` 仍 cap | Pari `FBgen` / `KC` trim | 大域可跑 trimmed FB | ~1d |
+| **10** | **R39t** | ◐ | **Buchmann 扫描预算** | `grow_scan_budgets(need,k)` 动态 stall/LLI/iter | Pari 动态 `fupb_RELAT` | need 大时多扫 | ~0.5d |
+| **11** | **R39u** | ◐ | **非极大序 / `nfbasis`** | `field_discriminant` + `nfdisc` deg-2 非极大；`nfbasis` deg-2 已有 | Round-2 / 真整基 | ideal/Buchmann 仍 maximal gate | 大（P1-1b） |
 | **12** | **R39v** | 🔲 | **多单位 `r≥2`** | `fundamental_units` → `None` | LLL 对数格 + `bnfisunit` | 全实域单位规范化 | 大（2b-S2） |
 
-**建议迭代：** benchmark ∛11 grow → R39q/r；R39s/t 按需。
+**建议迭代：** benchmark ∛11 grow → R39r 完整 `galoisconj` → R39s KC 精剪；R39u Buchmann 非极大 gate 单独立项。
 
 **基准：** `cargo test -p giac-core class_number_general_cert_grh_x3_11_h2_probe --release -- --ignored`（目标 release ≪ 13.6s）。
+
+---
+
+## R39q–u ◐（2026-07-10）— ponytail P7–P11
+
+**R39q（✅）：** `hnf_spec::fp_invgen` 对标 Pari `Fp_invgen` + `Z_chinese_coprime`；`fp_invgen_non_coprime_matches_bezout_congruence`。
+
+**R39r（◐）：** `GALOIS_ROOT_PERM_ENUM_MAX=8`，`GALOIS_AUT_SIGMA_MAX_N=12`；`sigma_alpha_preserves_minpoly` 验 σ(α)。
+
+**R39s（◐）：** `trim_factor_base_cap` — 超 `GRH_MAX_FACTOR_BASE` 时按范数+`C1` 裁剪，不再 `continue` 跳过整轮 FB。
+
+**R39t（◐）：** `grow_scan_budgets(need,k,wide_fb)` — stall/LLI/grow_iters 随 `fupb_RELAT` need 缩放。
+
+**R39u（◐）：** `number_field_arith::field_discriminant`；`nfdisc` 支持 deg-2 非极大（`ℚ(√5)` → `5`）；ideal/Buchmann 仍 `power_order_is_maximal` gate。
+
+**单测：** **745** lib tests 绿（+4）。
 
 ---
 
