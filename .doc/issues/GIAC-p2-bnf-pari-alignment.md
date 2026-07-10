@@ -1239,6 +1239,16 @@ cargo test -p giac-core bnfisprincipal --release -- --ignored  # ℚ(∛11) 锚�
 
 ---
 
+## R39h ✅（2026-07-10）— `mat_ideal_two_elt`：`Z_lsmoothen` + `idealapprfact`（`N ≥ 6`）
+
+**对标：** Pari `mat_ideal_two_elt` `N ≥ 6` 分支（`base4.c:467–493`）：`Z_lsmoothen`、`idealfactor` + `idealapprfact_i`、Bezout 分裂。
+
+**落地：** `ideal.rs` — `z_lsmoothen`、`idealfactor_smooth`、`ideal_appr_from_factors`、`ideal_hnf_mod_id`、`mat_ideal_two_elt_large`；`N ≥ 6` 在小系数 `get_random_a` 失败后调用。
+
+**单测：** `z_lsmoothen_peels_2_3_5`
+
+---
+
 ## R39g ✅（2026-07-10）— `mat_ideal_two_elt` for `N ≥ 3`
 
 **对标：** Pari `mat_ideal_two_elt` / `get_random_a` (`base4.c:405–437`, `N < 6`).
