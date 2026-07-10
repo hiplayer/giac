@@ -1239,11 +1239,21 @@ cargo test -p giac-core bnfisprincipal --release -- --ignored  # ℚ(∛11) 锚�
 
 ---
 
+## R39i ✅（2026-07-10）— 完整 `ZM_hnfmodid`
+
+**对标：** Pari `ZM_hnfmodid` / `ZM_hnfmodall(..., hnf_MODID)`（`hnf_snf.c:1179–1377`）。
+
+**落地：** `hnf_spec.rs` — `zm_hnfmodid`（`ZC_elem`、`optimal_D`、`FpV_red_part` 等）；`ideal.rs::ideal_hnf_mod_id` 改走列主序 `ZMat` 路径（替代 ponytail 行除 `d` + `row_hnf`）。
+
+**单测：** `zm_hnfmodid_splits_ideal_by_coprime_moduli`；`mat_ideal_two_elt_*` / `z_lsmoothen_*` 回归绿。
+
+---
+
 ## R39h ✅（2026-07-10）— `mat_ideal_two_elt`：`Z_lsmoothen` + `idealapprfact`（`N ≥ 6`）
 
 **对标：** Pari `mat_ideal_two_elt` `N ≥ 6` 分支（`base4.c:467–493`）：`Z_lsmoothen`、`idealfactor` + `idealapprfact_i`、Bezout 分裂。
 
-**落地：** `ideal.rs` — `z_lsmoothen`、`idealfactor_smooth`、`ideal_appr_from_factors`、`ideal_hnf_mod_id`、`mat_ideal_two_elt_large`；`N ≥ 6` 在小系数 `get_random_a` 失败后调用。
+**落地：** `ideal.rs` — `z_lsmoothen`、`idealfactor_smooth`、`ideal_appr_from_factors`、`mat_ideal_two_elt_large`；`ideal_hnf_mod_id` → `zm_hnfmodid`（R39i）；`N ≥ 6` 在小系数 `get_random_a` 失败后调用。
 
 **单测：** `z_lsmoothen_peels_2_3_5`
 
