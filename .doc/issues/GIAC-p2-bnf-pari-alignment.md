@@ -1237,6 +1237,66 @@ cargo test -p giac-core bnfisprincipal --release -- --ignored  # ℚ(∛11) 锚�
 
 **仍缺（R39+）：** 锚域 release ~13.6s vs Pari ~3ms（热路径为 `R·𝔭_j` 新 HNF，单素幂预热收益有限）。
 
+### R39+ ponytail 优先级 backlog（跟踪）
+
+按 **grow 性能 → `idealmul` 正确性/命中率 → Buchmann 工程天花板 → Galois/单位/序** 排序。状态：`🔲` 待做、`◐` 进行中、`✅` 完成。
+
+| P | ID | 状态 | 项 | ponytail 现状 | Pari 对标 | 预期收益 | 估工 |
+|---|-----|------|-----|---------------|-----------|----------|------|
+| **0** | **R39j** | ✅ | **`idealHNF_mul` HNF×HNF** | 双向 `mat_ideal_two_elt` + `ideal_hnf_mul_hnf` 回退；`ideal_hnf_mul_two`/`ideal_hnf_mul_hnf` 经 `zm_hnfmodid` | `idealHNF_mul` / `idealHNF_mul_two` + `ZM_hnfmodid` | grow `R·𝔭_j` 命中率↑ | ~1d |
+| **1** | **R39k** | ✅ | **素理想 `two_gen` 种子** | `ideal_from_generators(⟨p,g⟩)` 已有；`prime_ideal_from_rec` 测试 | `pr_hnf` 两元 | `ideal_hnf_mul_two` 命中 | ~0.25d |
+| **2** | **R39l** | ✅ | **`two_gen` 传播** | `attach_two_gen_if_possible` 在 `idealmul` / `ideal_hnf_mul_two` | 乘法后保留快速表示 | 减少重复 `mat_ideal_two_elt` | ~0.25d |
+| **3** | **R39m** | ✅ | **`row_hnf` → 整数 HNF** | `ideal_hnf_mod_id` + `ideal_hnf_from_generator_cols` 均 `zm_hnfmodid`；零模数 guard | `ZM_hnfmodid` / `ZM_hnflll` | 分裂 + 乘法整数 HNF | ~1d |
+| **4** | **R39n** | ✅ | **完整 `idealfactor`** | `idealfactor_integral`（试除 `|N(I)|` + 素理想分解） | `idealfactor` + `idealapprfact_i` | R39h 大素因子 norm | ~1–2d |
+| **5** | **R39o** | ✅ | **`idealred` 两元** | `mat_ideal_two_elt` → `idealhnf` 当 `a < I∩ℤ`；f64 LLL 回退 + `two_gen` | Pari `idealred0` | API 语义 | ~0.5d |
+| **6** | **R39p** | ✅ | **`zm_hnfmodid` 乘法接线** | `ideal_hnf_from_generator_cols` → `zm_hnfmodid`；`optimal_d` 边界 + `co>nli` 列 drain | `ZM_hnfmodid(m, a·x₁₁)` | 完成 R39j 整数 HNF 快路径 | ~0.5d |
+| **7** | **R39q** | 🔲 | **`Fp_invgen` 完整** | `extended_gcd` 简化 | `Z_chinese_coprime` | `zm_hnfmodid` 罕见 `gcd≠1` 枢轴 | ~0.25d |
+| **8** | **R39r** | 🔲 | **Galois `galoisconj` 矩阵** | `n≤6` 根置换；`n>6` 恒等 `idealperm` | `galoisconj` + 嵌入矩阵 | ∛11 非正规域轨道复制不完整 | ~0.5d |
+| **9** | **R39s** | 🔲 | **`FBgen` trim + 大 FB SNF** | `GRH_MAX_FACTOR_BASE=256` 硬顶 | Pari `FBgen` / `KC` trim | 大 `M_K` 关系格完备性 | ~1d |
+| **10** | **R39t** | 🔲 | **Buchmann 扫描预算** | `LLL_SCAN_BUDGET` / `RND_REL_STALL` 等硬顶 | Pari 动态 `fupb_RELAT` | CI 与完备性折中；次优 | ~0.5d |
+| **11** | **R39u** | 🔲 | **非极大序 / `nfbasis`** | `ℤ[α]=𝓞_K` 假定 | Round-2 / 真整基 | 正确性扩展 | 大（P1-1b-followup） |
+| **12** | **R39v** | 🔲 | **多单位 `r≥2`** | `fundamental_units` → `None` | LLL 对数格 + `bnfisunit` | 全实域单位规范化 | 大（2b-S2） |
+
+**建议迭代：** benchmark ∛11 grow → R39q/r；R39s/t 按需。
+
+**基准：** `cargo test -p giac-core class_number_general_cert_grh_x3_11_h2_probe --release -- --ignored`（目标 release ≪ 13.6s）。
+
+---
+
+## R39j/m/p ✅（2026-07-10）— `idealHNF_mul` 整数 HNF + `zm_hnfmodid` 乘法
+
+**R39p（✅）：** `hnf_spec::zm_hnfmodid` — Pari `optimal_d` 循环 `for (i=2;i<n;i++)` 对齐；`co > nli` 时 `x.cols.drain(0..co-nli)`；`ideal_hnf_from_generator_cols` 走 `zm_hnfmodid` + `zmat_cols_to_ideal_hnf`。
+
+**R39j/m（✅）：** `ideal_hnf_mul_two` / `ideal_hnf_mul_hnf` 经 `ideal_hnf_from_generator_cols`（不再 `row_hnf`）；`ideal_hnf_mod_id` 已 `zm_hnfmodid`。
+
+**交换性修复：** `ideal_hnf_mul_integral` 在 `ℤ∩` 相同时，标量理想 `c·𝓞_K` 作 `two_elt` 侧、`idealHNF_mul_two` 矩阵侧取非标量因子（`P·(2)` vs `(2)·P`）。
+
+**单测：** `zm_hnfmodid_ideal_hnf_mul_two_degree2_matches_row_hnf`；`idealmul_commutes_scalar_times_prime`；`ideal_from_prime_factors_q_cbrt2_p_squared_norm_4`；`idealpow_positive_matches_repeated_mul`；**741** lib tests 绿。
+
+---
+
+## R39n/o ◐（2026-07-10）— `idealfactor` + `idealred` 两元
+
+**R39n（✅）：** `idealfactor_integral` — `|N(I)|` 试除至 `10⁷` + 残余素数/幂；`idealfactor_smooth` 委托之；`split_valuations_above_p_ideal` 复用。
+
+**R39o（✅）：** `idealred` — 若 `mat_ideal_two_elt` 得 `a < hnf[0][0]` 且 `β = b+α`，`idealhnf(a,b)`；否则 f64 LLL + `attach_two_gen_if_possible`。
+
+**R39m（✅）：** 见上节 R39j/m/p。
+
+**单测：** `idealfactor_integral_factors_prime_above_smooth_fb`；`idealmul_*` / `idealred_preserves_norm` 回归绿。
+
+---
+
+## R39j/l/k ✅（2026-07-10）— `idealHNF_mul` 路径 + `two_gen`
+
+**R39j（✅）：** 见上节 R39j/m/p。
+
+**R39k（✅）：** `ideal_from_generators(⟨p,g⟩)` 种子 `two_gen`；单测 `prime_ideal_from_rec_seeds_two_gen`。
+
+**R39l（✅）：** `attach_two_gen_if_possible` 在 `idealmul` / `ideal_hnf_mul_two`。
+
+**单测：** `idealmul_*` 回归；`zm_hnfmodid_ideal_hnf_mul_two_degree2_matches_row_hnf`。
+
 ---
 
 ## R39i ✅（2026-07-10）— 完整 `ZM_hnfmodid`
