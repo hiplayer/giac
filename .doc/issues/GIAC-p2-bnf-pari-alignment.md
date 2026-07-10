@@ -4,7 +4,7 @@
 **类型:** 扩展功能规划（非 upstream giac 对齐）
 **上游基线:** **Pari/GP `bnf*` / `bnr*` / `ideal*` / `nf*` / `galois*` 函数族**（giac-2.0.0 无对标）
 **相关:** [GIAC-core-upstream-gaps](GIAC-core-upstream-gaps.md) §4 Phase E（C-9..C-12）、[GIAC-p2-algebraic-number-theory-api](GIAC-p2-algebraic-number-theory-api.md)（已落地 C-11/C-12）、[GIAC-poly-f5-fglm-hasse-lean4-verification](GIAC-poly-f5-fglm-hasse-lean4-verification.md)（数学正确性线）、[GIAC-p2-bnf-relation-gen-plan](GIAC-p2-bnf-relation-gen-plan.md)（关系生成对齐子计划：7e-i/7e-ii）、**[giac-buchmann-classical-vs-pari](../giac-buchmann-classical-vs-pari.md)**（经典算法 vs Pari 工程优化 + 原始文献）
-**Rust 落点:** `giac-rs/crates/giac-core/src/algebra/{ideal(新),class_group,unit_group,lattice,archimedean,number_field_arith,padic,galois_automorphism}.rs` + `eval.rs`
+**Rust 落点:** `giac-rs/crates/giac-core/src/algebra/{ideal(新),class_group,unit_group,lattice,archimedean,number_field_arith,padic,galois_automorphism,galois_conj,hnf_spec}.rs` + `eval.rs`
 **快照:** 2026-07-08（R26 typed HR cert：`AnalyticInvHr` → `RegulatorMultiple` → `RegulatorRefined` → `HrCertAttempt`；ℚ(∛11) h=2 探针出证）
 
 ---
@@ -324,7 +324,7 @@ EOF
 | `subFBgen` + `get_random_ideal` | ✅ `subfb_gen` + `rnd_rel_subfb_ljid`（R24；`MINSFB=3`，`RANDOM_BITS=4`；`bad_subFB` 简化） |
 | `small_norm` + `Fincke_Pohst_ideal` | ◐ `enumerate_relations_small_norm`（仅 `d_k<4`）；主理想搜索走 `fincke_pohst_principal_generator`（R23） |
 | `while(need)` + `rnd_rel` | ✅ `GrhRelCache::need` 驱动 `rnd_rel_subfb_ljid` → `rnd_rel_one_ljid`（R22–R25）；`each_relation_lli` 预算枚举 |
-| `add_rel` → `hnfspec`/`hnfadd` 增量 HNF | ◐ `GrhRelationHnf` 整数 ℤ 行 echelon（R26）；❌ arch 浮点列 `C` / `hnffinal` / 自同构复制 |
+| `add_rel` → `hnfspec`/`hnfadd` 增量 HNF | ◐ `GrhRelationHnf` 整数 ℤ 行 echelon（R26）；❌ arch 浮点列 `C` / `hnffinal`；✅ 自同构轨道复制（R39a/R39r `GaloisAutPerms`） |
 | `compute_R` → `fupb_RELAT` → `need=1` | ✅ `grh_hr_check` → `HrCertAttempt`（R26；见 [Pari 符号 ↔ Rust 类型](#pari-符号--giac-rs-rust-类型对照表)） |
 | `goto START` + `increase_LIMC` | ◐ 关系缓存 `extend_relations_for_larger_fb`（R22）；界仍多轮，无 `increase_LIMC` |
 | `rnd_rel_par` 并行 FP worker | ❌ 仅串行 `rnd_rel_subfb_ljid` |
@@ -950,7 +950,7 @@ graph TD
 4. `class_number_general_cert` / `certified_class_data_with_gens` deg≥3 走上述循环。
 
 **边界（R25 后仍待 R26）：**
-- mod-p `add_rel_i` ✅；整数 `hnfspec`/`hnfadd`、自同构复制未接。
+- mod-p `add_rel_i` ✅；整数 `hnfspec`/`hnfadd` 未接；自同构复制 ✅（R39a/R39r）。
 - 锚域 ℚ(∛11) h=2 探针仍多 `None`；`x⁴−17`（非极大序）GRH sound-skip。
 - 非极大序（`power_order_is_maximal ≠ true`）→ `None`。
 
@@ -1250,14 +1250,14 @@ cargo test -p giac-core bnfisprincipal --release -- --ignored  # ℚ(∛11) 锚�
 | **4** | **R39n** | ✅ | **完整 `idealfactor`** | `idealfactor_integral`（试除 `|N(I)|` + 素理想分解） | `idealfactor` + `idealapprfact_i` | R39h 大素因子 norm | ~1–2d |
 | **5** | **R39o** | ✅ | **`idealred` 两元** | `mat_ideal_two_elt` → `idealhnf` 当 `a < I∩ℤ`；f64 LLL 回退 + `two_gen` | Pari `idealred0` | API 语义 | ~0.5d |
 | **6** | **R39p** | ✅ | **`zm_hnfmodid` 乘法接线** | `ideal_hnf_from_generator_cols` → `zm_hnfmodid`；`optimal_d` 边界 + `co>nli` 列 drain | `ZM_hnfmodid(m, a·x₁₁)` | 完成 R39j 整数 HNF 快路径 | ~0.5d |
-| **7** | **R39q** | ✅ | **`Fp_invgen` 完整** | `Z_chinese_coprime` + `z_ppo`/`lcmii`；`fp_invgen_non_coprime` 单测 | `Z_chinese_coprime` | `zm_hnfmodid` 枢轴 `gcd≠1` | ~0.25d |
-| **8** | **R39r** | ◐ | **Galois `galoisconj` 矩阵** | 根置换枚举 `n≤8`；`sigma_alpha` minpoly 验 + `n≤12`；`n>8` 恒等 | `galoisconj` + 嵌入矩阵 | ∛11 非正规域仍 identity | ~0.5d |
+| **7** | **R39q** | ✅ | **`Fp_invgen` 完整** | `hnf_spec::fp_invgen` + `Z_chinese_coprime`/`z_ppo`/`lcmii`；`fp_invgen_non_coprime` 单测 | `Z_chinese_coprime` | `zm_hnfmodid` 枢轴 `gcd≠1` | ~0.25d |
+| **8** | **R39r** | ◐ | **Galois `galoisconj` 矩阵** | **`galois_conj.rs`**：`GaloisAutPerms`（`FbAutPerms`+`EmbAutPerms`）；`FB_aut_perm` 经 `nfgaloismatrix`+循环子群；`galoisconj` 仍根置换 **`GALOIS_CONJ_ENUM_MAX_N=8`**；缺 **`galoisconj4`（p-adic Frobenius，非 LLL）**、`pr_orbit`→`be_honest` — 子项见 **[GIAC-galoisconj4-port-plan](GIAC-galoisconj4-port-plan.md)**（P0a–P9） | `galoisconj` + `nfgaloismatrix` + `FB_aut_perm` | grow `add_rel` Galois 轨道（n≤8 域） | ~0.5d（核心 ✅，余量 ◐ + g4 计划 10–14 人周） |
 | **9** | **R39s** | ◐ | **`FBgen` trim + 大 FB SNF** | `trim_factor_base_cap`（`KCZ` 优先）替代硬 skip；`GRH_MAX_FACTOR_BASE=256` 仍 cap | Pari `FBgen` / `KC` trim | 大域可跑 trimmed FB | ~1d |
 | **10** | **R39t** | ◐ | **Buchmann 扫描预算** | `grow_scan_budgets(need,k)` 动态 stall/LLI/iter | Pari 动态 `fupb_RELAT` | need 大时多扫 | ~0.5d |
 | **11** | **R39u** | ◐ | **非极大序 / `nfbasis`** | `field_discriminant` + `nfdisc` deg-2 非极大；`nfbasis` deg-2 已有 | Round-2 / 真整基 | ideal/Buchmann 仍 maximal gate | 大（P1-1b） |
 | **12** | **R39v** | 🔲 | **多单位 `r≥2`** | `fundamental_units` → `None` | LLL 对数格 + `bnfisunit` | 全实域单位规范化 | 大（2b-S2） |
 
-**建议迭代：** benchmark ∛11 grow → R39r 完整 `galoisconj` → R39s KC 精剪；R39u Buchmann 非极大 gate 单独立项。
+**建议迭代：** benchmark ∛11 grow → R39r 余量按 **[GIAC-galoisconj4-port-plan](GIAC-galoisconj4-port-plan.md)** P0a 起逐个关闭 → R39s KC 精剪；R39u Buchmann 非极大 gate 单独立项。
 
 **基准：** `cargo test -p giac-core class_number_general_cert_grh_x3_11_h2_probe --release -- --ignored`（目标 release ≪ 13.6s）。
 
@@ -1267,7 +1267,7 @@ cargo test -p giac-core bnfisprincipal --release -- --ignored  # ℚ(∛11) 锚�
 
 **R39q（✅）：** `hnf_spec::fp_invgen` 对标 Pari `Fp_invgen` + `Z_chinese_coprime`；`fp_invgen_non_coprime_matches_bezout_congruence`。
 
-**R39r（◐）：** `GALOIS_ROOT_PERM_ENUM_MAX=8`，`GALOIS_AUT_SIGMA_MAX_N=12`；`sigma_alpha_preserves_minpoly` 验 σ(α)。
+**R39r（◐，核心路径 ✅）：** 见下节「R39r ◐ Galois 类型栈」——`galois_conj.rs` + `GaloisAutPerms` 已落地；余量：`GALOIS_CONJ_ENUM_MAX_N=8`、**`galoisconj4`（p-adic）**、`pr_orbit`→`be_honest` — **跟踪：[GIAC-galoisconj4-port-plan](GIAC-galoisconj4-port-plan.md)**（P0a–P9）。
 
 **R39s（◐）：** `trim_factor_base_cap` — 超 `GRH_MAX_FACTOR_BASE` 时按范数+`C1` 裁剪，不再 `continue` 跳过整轮 FB。
 
@@ -1275,7 +1275,41 @@ cargo test -p giac-core bnfisprincipal --release -- --ignored  # ℚ(∛11) 锚�
 
 **R39u（◐）：** `number_field_arith::field_discriminant`；`nfdisc` 支持 deg-2 非极大（`ℚ(√5)` → `5`）；ideal/Buchmann 仍 `power_order_is_maximal` gate。
 
-**单测：** **745** lib tests 绿（+4）。
+**单测：** **754** lib tests 绿（含 R39r Galois 13 项）。
+
+---
+
+## R39r ◐（2026-07-10）— Galois `galoisconj` 矩阵 + `GaloisAutPerms`
+
+**对标：** Pari `galconj.c` `galoisconj` / `nfgaloismatrix`；`buch2.c` `automorphism_matrices` / `FB_aut_perm` / `automorphism_perms` / `rel_embed`。
+
+**落地：** 新 `algebra/galois_conj.rs`（~1000 行，类型化中间结构）：
+
+| 类型 | Pari 对标 | 作用 |
+|------|-----------|------|
+| `FieldAutomorphism` | σ(α) | 幂基坐标表示的自同构 |
+| `NfAutMatrix` | `nfgaloismatrix` | `{1,α,…,α^{n-1}}` 上 ℤ-矩阵 |
+| `GaloisConjugates` | `galoisconj` | 非平凡在前、恒等最后 |
+| `AutomorphismMatrices` | `automorphism_matrices` | 矩阵束 + 极大循环子群 |
+| `FbAutPerms` / `IdealIndexPerm` | `FB_aut_perm` / `idealperm` | 因子基在 σ 下的置换（矩阵 `ZM_ZC_mul` + 循环合成） |
+| `EmbAutPerms` / `ArchSlotPerm` | `automorphism_perms` / `embperm` | arch 列 1-based 置换 + `rel_embed` |
+| **`GaloisAutPerms`** | `idealperm`+`embperm` 捆绑 | `{ ideal, arch }`；`GrhRelCache.galois` 一次 `compute` |
+
+**接线：**
+- `bnf.rs`：`ideal_perm_under_galois` / `emb_automorphism_perms` 委托 `galois_conj`（删除旧 `sigma_alpha_from_root_perm` 等重复逻辑）
+- `class_group.rs`：`GrhRelCache.galois: Option<GaloisAutPerms>`；`ensure_galois_perms`；grow `flush_hnf` 复用 `galois.arch`
+- `buchmann_grh_grow_relations` → `add_relation_galois_orbit`（R39a 语义，现走矩阵 `FbAutPerms`）
+
+**`ponytail:` 余量（仍 ◐）：**
+- `GALOIS_CONJ_ENUM_MAX_N = 8`：`galoisconj_in_field` / `galois_root_perms` / `sigma_alpha_from_root_perm` 全排列枚举；`n > 8` → 仅恒等 Gal 元素（`EmbAutPerms` 同步退化）
+- 无 **`galoisconj4`**（p-adic Frobenius + 模 Vandermonde；**非** LLL）— 见 [GIAC-galoisconj4-port-plan](GIAC-galoisconj4-port-plan.md)
+- 无 **`pr_orbit_fill`**（Pari `be_honest` 非正规域素理想轨道跳过）
+- `EmbAutPerms` 仍根置换派生，未与 `FbAutPerms` 矩阵路径统一
+- ℚ(∛11) Gal 在域内平凡 → `add_rel` Galois 副本为空（**与 Pari 一致**，非缺实现）
+
+**单测（13）：** `galois_conj::*`（ℚ(i) 复共轭、`x³−3x+1` 循环三次、`x³−11` 平凡、`nfgaloismatrix` 恒等、`IdealIndexPerm` 合成）+ `class_group`（`ideal_perm_under_galois_q_i_p5_split`、`galois_aut_perms_ideal_and_arch_same_len`、`add_relation_galois_orbit_*`、`flush_hnf_galois_copy_*`）。
+
+**验证：** `cargo test -p giac-core --lib galois` 13 绿；`cargo test -p giac-core --lib` **754** passed。
 
 ---
 
@@ -1388,16 +1422,17 @@ cargo test -p giac-core bnfisprincipal --release -- --ignored  # ℚ(∛11) 锚�
 
 ---
 
-## R39a ✅（2026-07-09）— Galois `add_rel` 自同构轨道复制
+## R39a ✅（2026-07-09，R39r 矩阵路径 2026-07-10）— Galois `add_rel` 自同构轨道复制
 
 **对标：** Pari `buch2.c` `add_rel` / `FB_aut_perm` / `automorphism_perms`。
 
-**落地：**
-- `bnf.rs`：`ideal_perm_under_galois`（`FB_aut_perm`）、`permute_relation_exponents`、`gamma_is_rational_integer`、`sigma_alpha_from_root_perm`（`n≤6` ponytail）、`ideal_lattice_contains_element`
-- `GrhRelCache`：`ideal_perms`/`emb_perms` 懒缓存、`add_relation_galois_orbit`（Pari 1-based `relorig`/`relaut`）、`flush_hnf_if_dirty` 经 `relations_batch_i64_arch_emb_meta` 走 `rel_embed`
+**落地（R39a 初版 → R39r 升级）：**
+- `galois_conj.rs`（R39r）：`GaloisAutPerms` / `FbAutPerms` / `EmbAutPerms`；`nfgaloismatrix` + 循环子群 `FB_aut_perm`
+- `bnf.rs`：`ideal_perm_under_galois` / `emb_automorphism_perms` 委托 `galois_conj`；`permute_relation_exponents`、`gamma_is_rational_integer`、`ideal_lattice_contains_element`
+- `GrhRelCache`：`galois: Option<GaloisAutPerms>`、`add_relation_galois_orbit`（Pari 1-based `relorig`/`relaut`）、`flush_hnf_if_dirty` 经 `relations_batch_i64_arch_emb_meta` 走 `rel_embed`
 - grow：`buchmann_grh_grow_relations` → `ensure_galois_perms`
 
-**单测：** `ideal_perm_under_galois_q_i_p5_split`、`add_relation_galois_orbit_copies_for_algebraic_gamma`、`flush_hnf_galois_copy_uses_rel_embed_arch`、`permute_relation_exponents_identity`、`gamma_is_rational_integer_detects_int_and_algebraic`
+**单测：** `ideal_perm_under_galois_q_i_p5_split`、`add_relation_galois_orbit_copies_for_algebraic_gamma`、`flush_hnf_galois_copy_uses_rel_embed_arch`、`permute_relation_exponents_identity`、`gamma_is_rational_integer_detects_int_and_algebraic`；R39r 增 `galois_conj::*` / `galois_aut_perms_ideal_and_arch_same_len`
 
 ---
 
@@ -1419,7 +1454,7 @@ cargo test -p giac-core bnfisprincipal --release -- --ignored  # ℚ(∛11) 锚�
 | ID | 任务 | 落点 | 估时 |
 |----|------|------|------|
 | **R39a-1** | `ideal_perm_under_galois` — 对标 `FB_aut_perm`：对因子基 `ideals[k]`，用自同构矩阵将 `pr_get_gen` 映到另一 `𝔭_j`，按 `(p,f)` 块匹配 | `class_group.rs` 或 `bnf.rs`；输入 `ideals`, `basis_prime_cache`, `field` | 1–2d |
-| **R39a-2** | `galois_automorphism_mats` ponytail — `n≤6` 用现有 `galois_root_perms`+幂基；升级路径 `galoisconj` 矩阵 | `bnf.rs` 扩 `emb_automorphism_perms` 旁路 | 0.5d |
+| **R39a-2** | ~~`galois_automorphism_mats` ponytail~~ **R39r ✅（n≤8）** | `galois_conj.rs`：`AutomorphismMatrices` + `FbAutPerms`；余量 `galoisconj4`/`n>8` → [GIAC-galoisconj4-port-plan](GIAC-galoisconj4-port-plan.md) P5 | 0.5d |
 | **R39a-3** | `permute_relation_exponents(exp, ideal_perm_l) -> Vec<i64>` + `nz`（首非零下标） | `class_group.rs` | 0.5d |
 | **R39a-4** | `GrhRelCache::add_relation_galois_orbit` — 主关系成功后，对 `l=1..g-1` 调 `add_relation_i(Rl, None, orig, l)`；`rel_meta` 设 `{relorig, relaut}`；`seen` 对 `Rl` 去重 | `GrhRelCache` | 1d |
 | **R39a-5** | grow 循环 `cache.add_relation` → `add_relation_galois_orbit`；`grow_cache` 懒缓存 `ideal_perms` + `emb_perms` | `buchmann_grh_grow_relations` | 0.5d |
