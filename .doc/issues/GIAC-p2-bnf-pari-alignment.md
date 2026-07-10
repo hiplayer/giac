@@ -1235,11 +1235,54 @@ cargo test -p giac-core bnfisprincipal --release -- --ignored  # ℚ(∛11) 锚�
 
 **R27 ✅（2026-07-09）：** `bnfisprincipal` Pari `isprincipalall`（`split_ideal` → `Ur` → `mod cyc`）；ℚ(∛11) `(2)` 非主金值 `[1]`；`unit_ideal` + `split_valuations_above_p`；快测 `pari_ideal_class_log_synthetic_z2_*`；锚域 `x3_11_anchor_cert` OnceLock。
 
-**仍缺（R39+）：** 锚域 release ~5.7s vs Pari ~3ms（FP LLL 缓存已接 R39b，待实测）。
+**仍缺（R39+）：** 锚域 release ~13.6s vs Pari ~3ms（热路径为 `R·𝔭_j` 新 HNF，单素幂预热收益有限）。
 
 ---
 
-## R39b ✅（2026-07-09）— FP 格 LLL/Gram 预计算缓存（perf）
+## R39g ✅（2026-07-10）— `mat_ideal_two_elt` for `N ≥ 3`
+
+**对标：** Pari `mat_ideal_two_elt` / `get_random_a` (`base4.c:405–437`, `N < 6`).
+
+**落地：** `ideal.rs` — HNF 行扫描 + 小系数确定性组合（替代 `randomi`）；`ideal_two_elt_matches` 验 `⟨xZ, α⟩`；`idealmul` 对无 `two_gen` 的 HNF-only 理想可走 `idealHNF_mul_two`。
+
+**单测：** `mat_ideal_two_elt_recovers_degree3_from_hnf_only`
+
+---
+
+## R39f ✅（2026-07-10）— 对齐 Pari：`ZM_lll` + `idealHNF_mul`；移除 R39d/e 缓存
+
+**对标：** Pari `idealpseudored` 整数 `ZM_lll(G0·I, 0.99, LLL_IM)`；`idealHNF_mul` 两元快路径；每理想重算 LLL/Cholesky（无 prep 哈希）。
+
+**落地：**
+- `nf_lattice.rs`：`zm_lll_im`（`Ratio<BigInt>` GSO + Lovász δ=99/100）替换 f64 `lll_with_transform`；删除 `prep_cache` / `fp_ideal_prep_cached`
+- `ideal.rs`：`two_gen`、`ideal_hnf_mul_two` / `ideal_hnf_mul_integral`（单位理想 + 两元 + N=2）；`idealmul` 先走快路径
+- `class_group.rs`：直接 `fp_ideal_prep`；删除 `prewarm_nf_prime_powers`
+
+**单测：** `zm_lll_im_on_integer_gram_lattice`；`ideal_hnf_mul_two_matches_full_mul_for_prime`
+
+---
+
+## R39e ✅（2026-07-10）— subFB 素理想幂 `FpIdealPrep` 预热
+
+**落地：** grow 启动时对 `prime_cache` 中每个 `𝔭` 预热 `𝔭^e`（`e = 1..15`，对齐 `SUBFB_RANDOM_BITS`）的 `fp_ideal_prep_cached`。
+
+---
+
+## R39d ✅（2026-07-10）— `NfLattice` 上 `FpIdealPrep` 会话缓存
+
+**落地：** `NfLattice::prep_cache`（键 `(HNF, den)`，cap 4096）；`fp_ideal_prep_cached`；`idealpseudored_zmat` 避免重复 `ZMat` 转换。
+
+**单测：** `fp_prep_cache_reuses_same_ideal`
+
+---
+
+## R39c ✅（2026-07-10）— NF 层 `G`/`G0` + 类型化 `idealpseudored`
+
+**落地：** `nf_lattice.rs`（`NfEmbedG`/`NfRoundG`/`IdealPseudoRed`/`FpCholesky`）；`FieldSession::nf_lattice`；移除 R39b grow-loop `FpLatticeCache`。
+
+---
+
+## R39b ✅（2026-07-09）— FP 格 LLL/Gram 预计算缓存（perf，已由 R39c/d 取代）
 
 **瓶颈：** 每次 `fincke_pohst_principal_generator_emb_tries` 重复 `lll_with_transform` + `gram_to_cholesky_q`。
 
