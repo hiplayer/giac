@@ -1,6 +1,6 @@
 # GIAC `galoisconj4_main` 完整移植 — issue 跟踪
 
-**状态:** open（P0–P2 ✅；P3a/P4 ◐；**下一步 P3b `galoisgenlift`**）
+**状态:** open（P0–P2 ✅；P3b/P5/P6/P7 ◐；**下一步 P3c / P9 golden**）
 **类型:** AFK（除 P9 golden 脚本可 HITL 审 Pari 基线）  
 **父项:** [GIAC-p2-bnf-pari-alignment](GIAC-p2-bnf-pari-alignment.md) **R39r**（Galois `galoisconj` 矩阵，◐）  
 **上游基线:** Pari `pari/src/basemath/galconj.c`（`galoisconj4_main` L2988）、`Zp.c`、`FpX.c`、`bibli2.c`、`base2.c`、`nffactor.c`  
@@ -38,11 +38,107 @@ P9（golden）依赖 P5；P6/P7 完成后扩金值矩阵
 | **P4** | `permtopol` + `galoisvecpermtopol` | **◐** | P5 | 3d | `galconj.c` `vectopol` 族 |
 | **P5** | `galoisconj4_main` 编排 + `GaloisConjugates` 接线 | open | P3a,P3b,P3c,P4 | 3d | `galconj.c` L2988–3057 |
 | **P6** | `GaloisInit`（flag=1）+ `GaloisAutPerms` 改读 | open | P5 | 2d | `galoisinit` |
-| **P7** | `galoisconj1` / `nfroots` 回退 | open | P0a,P1a | 5–6d | `galconj.c` L37–63; `nffactor.c` |
+| **P7** | `galoisconj1` / `nfroots` 回退 | **◐** | P0a,P1a | 5–6d | `galconj.c` L37–63; `nffactor.c` |
 | **P8** | `pr_orbit_fill` → `be_honest` | open | P5 | 1d | `buch2.c` `be_honest` |
 | **P9** | Pari golden harness + 文档 | open | P5 | 2d | conformance |
 
 **合计（串行上界）：** ~10–14 人周；P0/P7 可并行减日历时间。
+
+---
+
+## galoisconj 测试验收规格（P4–P9 共用）
+
+**目的：** 避免把「管线阶段单测绿」或「MonicZx 中间层计数」误当成 `galoisconj` 已验收。本文与 [test-writing-spec.md](../test-writing-spec.md) §1（A/B/C）、[rust-migration-plan.md](../rust-migration-plan.md) §6.4（算法偏离）互补；**giac 53 golden 不覆盖** `giac-core` 内 `galoisconj`（见 P9）。
+
+### 权威层级
+
+```text
+数学真值（ℚ-自同构、共轭为根、群复合）
+        │
+Pari 登记基线（R39r：nfgaloisconj / galoisinit / numberofconjugates）
+        │
+giac-core field 层谓词（try_insert_conjugate 等，见下）
+        │
+管线阶段 B 测（perm_to_pol、Frobenius 阶、borne 数量级…）
+        │
+✗ 不可作唯一依据：PowerBasisElement 个数、perm 候选数、emb 启发式命中
+```
+
+**绑定：** 数学语义 + 本表谓词 + Pari 金值（P9）；**不绑定** giac C++ 行级实现，也不绑定 `galconj.c` 内部临时结构。
+
+### 返回值语义（写测试前必读）
+
+| 概念 | 规格 |
+|------|------|
+| `galoisconj(nf)` / `GaloisConjugates` | `K=ℚ(α)` 中 **σ(α)** 的列表（`HighFirstQ`，幂基 high-first） |
+| 列表长度 | `numberofconjugates(T)`（**非**一般等于 `deg T`；非 Galois 时 `< deg`） |
+| 恒等自同构 | `σ(α)=α` → `field.generator_coords()`，**排在最后** |
+| **不是** 平凡 Galois | 域元素整数 `1`（`PowerBasisElement` low-first `[1,0,…]` ≠ σ(α)） |
+| MonicZx 层 `galoisconj1` / `perm_to_pol` | **中间表示**；验收必须在 field 层经 `power_basis_to_high_first` + `try_insert_conjugate` |
+
+坐标：`PowerBasisElement` = Pari low-first `{1,α,…}`；`ExtensionField::generator_coords()` = high-first，α 在 `v[n-2]`。见 `field_arith::generator_coords` 与 `ExtensionField::generator_coords` 注释，**勿混用**。
+
+### Field 层验收谓词（A′ 集成 — 唯一关单依据）
+
+**入口：** `galoisconj_in_field` / `GaloisConjugates::compute`（不是裸 `galoisconj1(t)`）。
+
+对每个域 `K=ℚ(α)`、首一不可约 `T`、嵌入 `emb`（`n≤8` easy 路径需 `emb.reliable`；`n>8` 回退路径不强制）：
+
+| ID | 谓词 | 实现锚点 |
+|----|------|----------|
+| **G1** | `len(conjs) == expected_conjugate_count(T)` | `number_of_conjugates` |
+| **G2** | 每个 `σ`：`m(σ(α))=0`（在 `K` 内） | `sigma_preserves_minpoly` / `try_insert_conjugate` |
+| **G3** | 每个 `σ`：`σ` 为 `K/ℚ` 自同构（在生成元上） | `is_field_automorphism_on_generator` |
+| **G4** | `conjs.identity() == field.generator_coords()` | `reorder_conjugates_identity_last` |
+| **G5** | （Galois 且 `len>1`）`σ ∘ τ` 与列表中某元素一致 | `galoisapply` / 矩阵复合（P6+ 推荐补测） |
+| **G6** | （P9）与 Pari `nfgaloisconj(nf)` **逐项**幂基坐标相等 | golden harness |
+
+**关单最低集：** G1–G4 全过；G5 对 cyclic / WSS 表内域；G6 由 P9 覆盖。
+
+### 分层单测：什么能证什么
+
+| 层级 | 测谁 | 可断言 | 不能替代 |
+|------|------|--------|----------|
+| **A′** | `galoisconj_in_field` | G1–G5 | — |
+| **B** | `number_of_conjugates`、`perm_to_pol`、`galois_analysis` | 与 Pari debug 一致的数量级/阶/素数 | G1–G4 |
+| **B** | `galoisconj1(t)` 仅 MonicZx | `nf_roots` 分裂、Frobenius 置换阶 | **禁止** 只断言 `galoisconj1.len() >= c` |
+| **C** | trace / 快照 | 诊断 | 语义 |
+
+### 探针域矩阵（crate 内单测最低）
+
+| 域 | deg | `numberofconjugates` | 主路径 | 必验 |
+|----|-----|----------------------|--------|------|
+| ℚ(i) | 2 | 2 | easy / g4 | G1–G4 |
+| x³−3x+1 | 3 | 3 | g4 | G1–G4，G5 阶 3 |
+| ℚ(∛11) | 3 | **1** | `expected==1` 快路径 | G1,G4（仅 α） |
+| Φ₁₁ | 10 | 10 | g4 | G1–G4 |
+| x¹⁰−10x+1 | 10 | **1** | `expected==1`（n>8） | G1,G4；证明 P7 不挡路 |
+| x⁴+1 等 WSS | 4 | 4 | g4 / nilp | G1–G5 |
+
+`c>1` 且 `n>8` 的非 Galois 域（`1 < numberofconjugates < deg`）在 P9 金值表登记前：**`#[ignore]` 语义测 + issue**，禁止用弱计数让 CI 绿（[test-writing-spec.md](../test-writing-spec.md) §6 双轨）。
+
+### 写测试前检查单（AFK / PR）
+
+```text
+□ 返回值是 σ(α) 还是别的？恒等在 field 层长什么样？
+□ 个数用 numberofconjugates 还是 Gal 阶？
+□ 断言在 galoisconj_in_field 还是 MonicZx 中间层？
+□ Pari 对照多项式是否已登记？无则 ignore + 本 issue 或 P9 表
+□ 是否覆盖 G2–G3（不只 G1 个数）？
+□ 性能：split-prime / Frobenius 扫描是否有预算上界？
+```
+
+### 反模式（P7 教训登记）
+
+| ❌ | ✅ |
+|----|-----|
+| `PowerBasisElement [1,0,…]` 表示平凡 Gal | `expected==1` → `generator_coords()` |
+| `galoisconj1` 候选个数 ≥ c 即过关 | `galoisconj1_to_field_conjugates` 后 G1–G3 |
+| 入口强制 `emb.reliable` 挡掉 n>8 回退 | easy 需 emb；g4/g1 不依赖 |
+| 扫 5000 素数无早停当实现细节 | `find_totally_split_prime` 预算 + 失败 `None` 可登记 |
+| 管线全绿 = galoisconj 验收 | P9 / G6 或探针域 G1–G4 |
+
+**偏离：** 与 Pari 行为不同但数学正确 → [known-divergences.md](../known-divergences.md)；暂不可证 → sound-skip + `#[ignore]`。
 
 ---
 
@@ -253,17 +349,26 @@ P9（golden）依赖 P5；P6/P7 完成后扩金值矩阵
 
 ---
 
-## P3b — `galoisgenlift_nilp` / 中心扩张 ◐
+## P3b — `galoisgenlift_nilp` / 中心扩张 ◐（2026-07-13）
 
-**模块：** `galoisconj4/lift_gen.rs`、`gen.rs`
+**模块：** `galoisconj4/nilp.rs`、`lift_gen.rs`、`gen.rs`、`fixed_field.rs`
 
-**做什么：** Pari `galoisgenlift_nilp`（`is_central` 分支）、`fixedfieldinclusion`；大域组合搜索。
+**落地：**
+- `PcPresentation` / `pcgrp_lift` / `pcgrp_insert` / `pc_to_perm` / `genorbit` / `nilp_froblift`
+- `PariVec1`（1-based `t_VECSMALL`）/ `PcWord` 固定 Pari 索引语义
+- `galois_gen_lift_nilp_full` 主循环；`GaloisPermCache`（`permtoaut` + `pc_evalcache`）
+- `FixedFieldGaloisStep` 扩展 PG2–PG5；度 2 固定域快捷路径始终带完整 nilp 元数据
+- `is_central` 时 `bad ∨ dis` 传播；轨道搜索预算 `NILP_ORBIT_MAX`；失败回退 `galoisgenliftauto`
+- Frobenius easy 分支去重（避免 `perm_inv(frob)==frob` 误命中）
 
 **验收：**
 
 - [x] 度 4 非循环 WSS（`x⁴+1`）群阶 4（P3a：`testpermutation` 对齐 Pari）
-- [ ] 幂零/中心扩张多项式
-- [ ] 失败路径返回 `None` 不 panic（大 n 组合爆炸）
+- [x] `galois_gen_lift_nilp_x4_plus_1_order_4` — 强制 nilp 路径 + `galoisgenliftauto` 回退
+- [x] `is_central_extension` 谓词单测；`cargo test -p giac-core --release --lib galoisconj4` **55/55**
+- [x] Pari 语义对齐：`PariVec1`/`PcWord`、`pcgrp_insert`、`brl_add`、`pc_exp`、`id_factor`、`search_pc.br` 临时更新
+- [ ] 度 >104 真实中心扩张多项式端到端（`ga_easy` 关闭）
+- [x] `genorbit`：`k=1`+H 分裂 → `None`（Pari 同条件）；`k≥2` 单测；见 `known-divergences.md` DIV-103
 
 **Blocked by:** —
 
@@ -313,8 +418,7 @@ P9（golden）依赖 P5；P6/P7 完成后扩金值矩阵
 **验收：**
 
 - [ ] `cargo test -p giac-core --lib galois` 全绿且 case 数增加
-- [ ] `Φ₁₁`：10 共轭经 **galoisconj4** 路径（非仅 arch 启发式）
-- [ ] `x³-11` 平凡 Gal 仍 1 非平凡共轭
+- [ ] 探针域满足 [G1–G4](#field-层验收谓词a-集成--唯一关单依据)（Φ₁₁、∛11、ℚ(i)）
 - [ ] R39a grow 回归：`add_relation_galois_orbit` ℚ(i) / ∛11 仍绿
 
 **Blocked by:** P3a, P3b, P3c, P4
@@ -337,18 +441,29 @@ P9（golden）依赖 P5；P6/P7 完成后扩金值矩阵
 
 ---
 
-## P7 — `galoisconj1` / `nfroots` 回退
+## P7 — `galoisconj1` / `nfroots` 回退 ◐（2026-07-13）
 
-**模块：** `nf_roots.rs` 或扩 `number_field_arith.rs`
+**模块：** `galoisconj4/galoisconj1.rs`；`analysis::find_totally_split_prime`；`galois_conj.rs` 路由
 
 **做什么：** `galoisconj4_main` 失败 → `galoisconj1`（`numberofconjugates` + `nfroots`）；`nfsqff` ROOTS 模式。
 
-**验收：**
+**落地（◐）：**
 
-- [ ] 非 WSS 域：`galoisanalysis` 失败后走 `nfroots`，个数 = `numberofconjugates`
-- [ ] 与 Pari `nfgaloisconj` 失败回退行为一致（sound-skip 登记见 `known-divergences.md`）
+- `nf_roots` / `galoisconj1`；Frobenius 置换 + `perm_to_pol`；`galoisconj1_to_field_conjugates`
+- 路由：`easy → g4 → g1`；`expected==1` → `[α]` 快路径（不调用 `nfroots`）
+- `n>8` 不强制 `emb.reliable`
 
-**Blocked by:** P0a, P1a（可与 P3 并行）
+**验收（见上文 [galoisconj 测试验收规格](#galoisconj-测试验收规格p4p9-共用)）：**
+
+- [x] ℚ(∛11)：`len=1`，G4（`galoisconj_q_cbrt11`）
+- [x] x¹⁰−10x+1：`n>8`，`len=1`（`galoisconj_degree10_non_galois_single_conjugate`）
+- [x] x³−3x+1：`galoisconj1` 三次 Galois `len=3`（MonicZx B 测）
+- [ ] 非 WSS、`1 < c < n`：探针域 G1–G4（待 P9 多项式）
+- [ ] 与 Pari `nfgaloisconj` 失败回退一致（sound-skip → `known-divergences.md`）
+
+**余量：** `find_totally_split_prime` 扫 `GA_PRIME_SCAN_CAP` 无早停；`galoisconj1` 按候选 pbe 计数非 field 验证后计数；`c>1,n>8` 非 Galois 未端到端证明。
+
+**Blocked by:** P0a, P1a（可与 P3 并行）· **P9 扩金值后标 ✅**
 
 ---
 
@@ -386,7 +501,8 @@ P9（golden）依赖 P5；P6/P7 完成后扩金值矩阵
 
 **验收：**
 
-- [ ] 上表全部 golden 绿（或 sound-skip 登记）
+- [ ] 上表全部 golden 绿（或 sound-skip 登记）；逐项对照 **G6**
+- [ ] 与 [galoisconj 测试验收规格](#galoisconj-测试验收规格p4p9-共用) G1–G4 在探针域上一致
 - [ ] `cargo test -p giac-core --lib` 全绿
 - [ ] R39r 父文档状态更新
 
@@ -413,7 +529,8 @@ r39r-g4-p9-golden
 
 ```bash
 cd giac-rs
-cargo test -p giac-core --release --lib galoisconj4   # 27 绿（P2–P3a）
+cargo test -p giac-core --release --lib galoisconj4   # 62+ 绿（P2–P7 ◐）
+cargo test -p giac-core --release --lib galois_conj # 12 绿（G1–G4 探针）
 cargo test -p giac-core --release --lib archimedean::tests  # 15 绿（P0d 复根）
 cargo test -p giac-core --lib zpx      # P0a 起
 cargo test -p giac-core --lib galois   # P5 起全量

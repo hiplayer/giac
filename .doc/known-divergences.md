@@ -308,6 +308,28 @@ Rust 实现与 giac C++ golden **字面不一致**但可能数学等价，或 **
 - **验证:** `hnfadd_zero_exp_arch_fills_unit_slot`、`x3_11_unit_arch_relation_fills_hnf_unit_slot`、`class_number_general_cert_grh_x3_11_h2_probe`
 - **文档:** [giac-hnf-unit-arch-columns.md](giac-hnf-unit-arch-columns.md)
 
+### DIV-103: `galoisgenlift_nilp` 内层 `galoisgenliftauto` 回退
+
+- **状态:** accepted
+- **输入:** `nilp_froblift` 硬路径失败（含 `genorbit` 不完整、`get_pow` 失败、Frobenius 测试不通过）
+- **Pari 行为:** `galoisgenlift_nilp` 返回 `NULL`；`galoisgen` 在 `po>1` 时回溯 Frobenius 幂并改走 `galoisgenlift`（`galconj.c` L2863–2871）
+- **Rust 行为:** `galois_gen_lift_nilp_full` 在 `nilp_froblift` 失败后依次尝试 `galoisgenliftauto`、easy Frobenius、`galois_do_lift`；`galois_gen` 层另有 Pari 式 Frobenius 回溯（`gen.rs` L253–288）
+- **归类:** 等价不同形（额外 sound 退路）
+- **理由:** `x⁴+1` 等例在 H mod p 分裂且 `k=1` 时 `genorbit` 与 Pari 同样无法填满轨道；内层 auto 回退避免无谓整体失败，外层回溯仍保留
+- **验证:** `galois_gen_lift_nilp_x4_plus_1_order_4` 生成元闭包阶 4
+- **测试处理:** 登记；不删回退
+
+### DIV-104: 度 2 固定域在 `bad≠null` 时仍走快捷路径
+
+- **状态:** accepted
+- **输入:** 中心扩张 `galoisgenfixedfield`，`deg(P)=2`，`bad=dis`（或非空判别式因子）
+- **Pari 行为:** 仅 `deg==2 && !bad` 时用 `mkvecsmall2(2,1)` 快捷数据（L2146–2154）；`bad` 非空时递归内层 `galoisgen`
+- **Rust 行为:** `fixed_field.rs` 恒走度 2 快捷路径并填充完整 nilp PG 元数据（`inner_automorphisms` / `inner_id_factors` / `inner_pcgrp`）
+- **归类:** 等价不同形（性能 / 稳定性）
+- **理由:** 内层 `galoisgen` 在 `ga_easy` 剥离后会触发 `galois_find_frobenius` 大素数扫描并挂起；度 2 固定域数据与 Pari 快捷分支数学一致
+- **验证:** `galois_gen_lift_nilp_x4_plus_1_order_4`；`get_image_x4_plus_1_fixed_field`
+- **测试处理:** 登记
+
 ---
 
 ## 维护规则
