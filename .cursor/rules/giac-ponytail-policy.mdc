@@ -1,0 +1,26 @@
+---
+description: ponytail 捷径使用政策 — 尽量避免，使用须登记 issue
+globs: giac-rs/**
+alwaysApply: true
+---
+
+# ponytail 政策
+
+**尽量不要用 ponytail**（临时捷径、有已知天花板的实现）。优先对齐 Pari/GIAC 主路径或标准库。
+
+## 若必须使用
+
+1. 代码里用 `ponytail:` 注释标明天花板与升级路径（见用户全局 `ponytail.mdc`）。
+2. **在 `.doc/issues/` 登记**（新建条目或追加到相关 port-plan / gaps 文档）：简述捷径、为何暂时需要、对标 Pari/规格、移除条件。
+3. **在回复中告知用户**：说明用了哪条捷径、登记在哪个 issue 文件。
+
+## 禁止
+
+- 为通过测试而静默加回退（brute-force、多索引重试、`unwrap_or` 兜底语义）却不登记。
+- 用 ponytail 替代尚未移植的 Pari 算法而不在 issue 中列为 open gap。
+
+## 参考
+
+- 全局懒开发原则：用户 `ponytail.mdc`
+- 算法缺口索引：`.doc/issues/GIAC-algorithm-gaps-open.md`
+- 已知偏离：`.doc/known-divergences.md`

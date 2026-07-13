@@ -1,11 +1,11 @@
 # GIAC `galoisconj4_main` 完整移植 — issue 跟踪
 
-**状态:** open（方案 / 跟踪）  
+**状态:** open（P0–P2 ✅；P3a/P4 ◐；**下一步 P3b `galoisgenlift`**）
 **类型:** AFK（除 P9 golden 脚本可 HITL 审 Pari 基线）  
 **父项:** [GIAC-p2-bnf-pari-alignment](GIAC-p2-bnf-pari-alignment.md) **R39r**（Galois `galoisconj` 矩阵，◐）  
 **上游基线:** Pari `pari/src/basemath/galconj.c`（`galoisconj4_main` L2988）、`Zp.c`、`FpX.c`、`bibli2.c`、`base2.c`、`nffactor.c`  
-**Rust 落点:** `giac-rs/crates/giac-core/src/algebra/galois_conj.rs` + 新子模块 `galoisconj4/`、`padic/zpx.rs`  
-**快照:** 2026-07-10  
+**Rust 落点:** `giac-rs/crates/giac-core/src/algebra/galois_conj.rs` + 子模块 `galoisconj4/`（`analysis` `borne` `lift` `frobenius` `testlift` `fixed_field` `gen` `perm` `trace` `types`）、`padic/`（`zpx` `fpx_factor` `fpx_vandermonde` `types`）、`archimedean.rs`（`ArchBudget` / 复根单路径）  
+**快照:** 2026-07-10 · giac-rs **`b4c6c42`**
 
 **说明：** `galoisconj4` 是 **p-adic Frobenius 提升 + 模 Vandermonde**，**不是** `buch2.c` 的 LLL。现有 `galois_conj.rs` arch 槽 / 根置换枚举保留为 `galoisconj_easy`（deg≤8 快路），完整移植后由本计划逐项替换余量。
 
@@ -29,13 +29,13 @@ P9（golden）依赖 P5；P6/P7 完成后扩金值矩阵
 | **P0b** | `FpX_roots` + 按度因子计数 | **✅** | — | 2d | `FpX_factor.c` |
 | **P0c** | `FpV_invVandermonde` | **✅** | P0b | 2d | `FpX.c` L1865 |
 | **P0d** | `ZX_disc_all` + `indexpartial` + 复根精度 | ✅ | — | 2–3d | `polarit3.c` / `base2.c` / `bibli2.c` |
-| **P1a** | `galoisanalysis` + `numberofconjugates` | ✅ | P0b | 3d | `galconj.c` L1084–1235, L3061 |
-| **P1b** | `galoisborne` + `initgaloisborne` | ✅ | P0d | 2d | `galconj.c` L245–281 |
-| **P2** | Frobenius 提升链 | **◐** | P0a,P0c,P1a,P1b | 8–10d | `galconj.c` L290–612, L1967–2110 |
-| **P3a** | `galoisgen` 循环 + 固定域 | open | P2 | 5d | `galconj.c` L2196–2222, L2781+ |
+| **P1a** | `galoisanalysis` + `numberofconjugates` | ✅ | — | 3d | `galconj.c` L1084–1235, L3061 |
+| **P1b** | `galoisborne` + `initgaloisborne` | ✅ | — | 2d | `galconj.c` L245–281 |
+| **P2** | Frobenius 提升链 | **✅** | — | 8–10d | `galconj.c` L290–612, L1967–2110 |
+| **P3a** | `galoisgen` 循环 + 固定域 | **◐** | — | 5d | `galconj.c` L2196–2222, L2781+ |
 | **P3b** | `galoisgenlift` / 幂零扩张 | open | P3a | 4d | `galconj.c` L2252+, L2703+ |
 | **P3c** | A₄ / S₄ / F₃₆ 快路 | open | P2 | 2d | `galconj.c` L2794–2822 |
-| **P4** | `permtopol` + `galoisvecpermtopol` | open | P0c,P2 | 3d | `galconj.c` `vectopol` 族 |
+| **P4** | `permtopol` + `galoisvecpermtopol` | **◐** | P5 | 3d | `galconj.c` `vectopol` 族 |
 | **P5** | `galoisconj4_main` 编排 + `GaloisConjugates` 接线 | open | P3a,P3b,P3c,P4 | 3d | `galconj.c` L2988–3057 |
 | **P6** | `GaloisInit`（flag=1）+ `GaloisAutPerms` 改读 | open | P5 | 2d | `galoisinit` |
 | **P7** | `galoisconj1` / `nfroots` 回退 | open | P0a,P1a | 5–6d | `galconj.c` L37–63; `nffactor.c` |
@@ -98,22 +98,23 @@ P9（golden）依赖 P5；P6/P7 完成后扩金值矩阵
 
 ---
 
-## P0d — `ZX_disc_all` + `indexpartial` + 复根精度
+## P0d — `ZX_disc_all` + `indexpartial` + 复根精度 ✅（2026-07-10）
 
-**模块：** `number_field_arith.rs`；`galoisconj4/borne.rs` 用 `archimedean` 或新 `complex_roots`
+**模块：** `padic/zx.rs`；`galoisconj4/borne.rs`；`archimedean.rs`（`ArchBudget` / `arch_budget`）
 
-**做什么：** 非 monogenic 域的 `den`（`indexpartial`）；`galoisborne` 所需 `embed_roots` / `vandermondeinverse` 精度界。
+**做什么：** 非 monogenic 域的 `den`（`indexpartial`）；`galoisborne` 所需 `embed_roots` / `vandermondeinverse` 精度界。复根嵌入走 **单一路径**：Sturm 实根 → `polish_root_rat_until` → Laguerre+deflation（Pari `roots_aux` / `clean_roots` 对齐的 `ArchBudget`）；已移除 companion 特征值 / 线程超时双路径。
 
 **验收：**
 
 - [x] `ℚ(√5)` 非极大：`indexpartial` → `den=2`（与 Pari `nfdisc` 一致）
 - [x] `galoisborne` 对 `x³-3x+1` 输出 `valabs`/`ladicabs` 与 Pari debug 同级数量级（f64 ±1）
+- [x] `archimedean` embeddings 单测 15 绿（含 `ℚ(√2)`、三次一实二复）
 
 **Blocked by:** 无
 
 ---
 
-## P1a — `galoisanalysis` + `numberofconjugates`
+## P1a — `galoisanalysis` + `numberofconjugates` ✅（2026-07-10）
 
 **模块：** `galoisconj4/analysis.rs`
 
@@ -131,7 +132,7 @@ P9（golden）依赖 P5；P6/P7 完成后扩金值矩阵
 
 ---
 
-## P1b — `galoisborne` + `initgaloisborne`
+## P1b — `galoisborne` + `initgaloisborne` ✅（2026-07-10）
 
 **模块：** `galoisconj4/borne.rs` + `types.rs`（`GaloisBorne`）
 
@@ -146,7 +147,7 @@ P9（golden）依赖 P5；P6/P7 完成后扩金值矩阵
 
 ---
 
-## 类型栈（2026-07-10 复审）
+## 类型栈（2026-07-10 复审 · `b4c6c42`）
 
 `padic/types.rs` + `galoisconj4/types.rs` — 算法中间结果均有命名类型，非裸 `Vec<BigInt>`：
 
@@ -161,16 +162,33 @@ P9（golden）依赖 P5；P6/P7 完成后扩金值矩阵
 | `PadicPrecision` / `ZpRootLift` | 根 mod p^e | `zpx_liftroot_typed` |
 | `FpProductTree` | 乘积树 | Vandermonde 内部 |
 | `InvVandermonde` | V⁻¹ 的 Lagrange 列 | `galoisconj4` permtopol |
+| `ZqPolynomial` | f ∈ (ℤ/Qℤ)[x] | `GaloisLift.t_mod_q`、Bezout |
+| `ZqQuotientElement` | (ℤ/Qℤ)[x]/(T) 元素 | `pauto` 幂、`frobeniusliftall` |
+| `BezoutLiftFactors` | Bezout 提升 cofactor | `init_test_lift` |
+| `AutomorphismPowers` | 1, aut, aut², … | `fpxq_autpowers` |
+| `ComboProductCache` | `C` / `Cd` 组合积缓存 | `frobeniusliftall` |
+| `PermTestMatrix` | Vandermonde 测试行 | `galois_test_perm` |
 | `GaloisAnalysis` | Frobenius 扫描 / WSS 判定 | `galois_analysis` |
 | `GaloisBorne` | p-adic + archimedean 系数界 | `galois_borne` |
+| `GaloisLift` / `GaloisTestLift` / `GaloisPermTest` | Pari lift 状态机 | P2 全链 |
+| `NewtonSumMatrix` / `SymmetricPolynomial` / `SympolOrbitValues` | 固定域 sympol | `fixed_field_sympol` |
+| `OrbitImageValues` | sympol 轨道像 `PL`（**非**共轭根） | `galois_gen_fixed_field0` |
+| `FactorImageIndex` | `get_image` → `gf->psi[g]`（**1-based**） | `galois_gen_lift` |
+| `PsiCofactorDegrees` | Pari `gf->psi`（slot `0` 空） | `galois_frobenius_lift` |
+| `PermTestPvOrderTable` | `td->order[n]` → `Vmatrix` 行 | `testpermutation` |
+| `FixedFieldOrbits` / `FixedFieldPrep` | 轨道 + 固定多项式 prep | `galois_gen_fixed_field0` |
 | `ComplexEmbeddings` / `VandermondePrep` | 复根 + T′(α_i) 积 | `init_galois_borne` |
+| `ArchBudget` | Sturm 深度 / 残差 / Laguerre 容差 | `archimedean` 复根 |
 
-**已消除的 ponytail：**
+**已消除的 ponytail（galoisconj4 / padic / archimedean）：**
 
 - ~~`fp_x_roots_brute`（p < 10⁵ 穷举）~~ → `FpX_quad_root`（Legendre + Tonelli–Shanks `fp_sqrt`）
 - ~~`p.to_u64()` Frobenius~~ → `poly_x_pow_mod_f(&BigInt)` 全精度
 - ~~`fp_x_normalize` 静默 `lc_inv=1`~~ → `FpPolynomial::from_zx_monic` 仅在可逆时缩放
 - ~~`poly_divmod_p` 首项为 0 时死循环~~ → 每步 `trim` + 零首项退出（`p=11` ramified 触发）
+- ~~`GaloisTestLift` 裸 `Vec<Vec<BigInt>>`~~ → `BezoutLiftFactors` / `AutomorphismPowers` / `ComboProductCache` / `PermTestMatrix`
+- ~~`fixed_field_sympol` 简化单射判定~~ → Pari `sympol_is1to1` + `vecsmall_is1to1`（`perm.c`）
+- ~~`archimedean` companion 特征值 + 250ms 线程超时双路径~~ → Sturm→Laguerre+deflation 单路径 + `ArchBudget`
 
 **登记余量（非 ponytail，为 Pari 管线分阶段）：**
 
@@ -182,55 +200,72 @@ P9（golden）依赖 P5；P6/P7 完成后扩金值矩阵
 
 ---
 
-## P2 — Frobenius 提升链
+## P2 — Frobenius 提升链 ✅（2026-07-10 · `b4c6c42`）
 
 **模块：** `galoisconj4/lift.rs`、`frobenius.rs`、`testlift.rs`；`padic/zpx.rs` 增 `zpxq_lift_monomorphism`
 
-**落地（2026-07-10）：**
-- `GaloisLift` / `PadicRootEmbedding` / `RootPermutation` / `FrobeniusLift`
+**落地：**
+- `GaloisLift` / `PadicRootEmbedding` / `RootPermutation` / `FrobeniusLift` / `FrobeniusFind`
 - `init_lift`, `galois_do_lift`, `galois_do_lift_n`, `zpxq_lift_monomorphism`（线性 Hensel）
-- `pol_to_perm_test`, `galois_frobenius_test`
-- `galois_frobenius_lift_nilp`, `galois_find_frobenius`
+- `init_test_lift`（`BezoutLiftFactors` + `AutomorphismPowers` + `ComboProductCache`）
+- `frobenius_lift_all`, `pol_to_perm_test`, `galois_frobenius_test`, `galois_test_perm`
+- `galois_frobenius_lift_nilp`, `galois_find_frobenius` / `galois_find_frobenius_full`
+- `GIAC_G4_TRACE=1` / `GIAC_GA_TRACE=1` 阶段计时（`trace.rs`）
 
-**余量：** 完整 `galoisfrobeniuslift` + `frobeniusliftall` 组合搜索（WSS 非循环）；`monoratlift` 早停
+**余量：** `monoratlift` 早停；WSS 非循环大域端到端仍依赖 P3b
 
 **验收：**
 
 - [x] `x³-3x+1`：Frobenius 置换阶 3
 - [x] `Φ₁₁`：非平凡 Frobenius 提升，置换长度 10
-- [ ] `galois_test_perm` 对已知 S₃ 子群 membership 正确
+- [x] `galois_test_perm` 对已知 S₃ 子群 membership 正确（`x³−3x+1`：A₃ 通过、对换拒绝；Frobenius 置换通过）
+- [x] `cargo test -p giac-core --release --lib galoisconj4` **27/27**
 
-**Blocked by:** P0a, P0c, P1a, P1b — **可启动 P3**
-
----
-
-## P3a — `galoisgen` 循环 + 固定域
-
-**模块：** `galoisconj4/gen.rs`、`fixed_field.rs`
-
-**做什么：** `galoisgen` 主循环之循环分支 + `galoisgenfixedfield0` / `fixedfieldorbits` / `sympol` 链。
-
-**验收：**
-
-- [ ] 循环三次域：群阶 = 3，生成元置换正确
-- [ ] `Φ₁₁`：ℤ/10 循环群生成
-
-**Blocked by:** P2
+**Blocked by:** — · **可启动 P3b / P5**
 
 ---
 
-## P3b — `galoisgenlift` / 幂零扩张
+## P3a — `galoisgen` 循环 + 固定域 ✅（2026-07-10）
 
-**模块：** `galoisconj4/gen.rs`
+**模块：** `galoisconj4/gen.rs`、`fixed_field.rs`、`lift_gen.rs`
 
-**做什么：** `galoisgenlift` / `_nilp`、`galoisgenliftauto`、`stpow` / `wpow` 等 WSS 非循环分支。
+**落地：**
+- `galois_gen` 主入口：Frobenius 阶 = n → `galois_gen_cyclic`；否则 → `galois_gen_fixed_field`
+- `fixed_field_orbits` / `fixed_field_sympol`（Pari `sympol_is1to1` + `vecsmall_is1to1` + `fixedfieldsurmer`）
+- `NewtonSumMatrix` / `SympolOrbitValues` / `sympol_eval` / `galois_gen_fixed_field0`（sympol + `sigma` + `t_mod_factors`）
+- `get_image` / `galois_gen_fixed_field_rec` / `galois_gen_lift` + `galois_gen_lift_auto`（`testpermutation` intheadlong 主路径，对齐 Pari `galconj.c`）
+- `flxq_minpoly`（`fixed_field_fact_mod`）；`fixed_poly_mod_p`（`get_image` 的 `P mod p`）
+- 循环群：`cyclic_group_elts` + `perm_to_pol` 生成共轭列
+
+**余量：** `galoisgenlift_nilp` / `is_central`；`galoisconj4_main` 接线；golden harness
+
+**已移除 ponytail（2026-07-13）：** deg-2 `get_image` 兜底、`brute_orbit_perm_lift`、psi 多索引重试
 
 **验收：**
 
-- [ ] 度 4 非循环 WSS 多项式（文档登记金值）群阶与 Pari `polgalois` 一致
-- [ ] 失败路径返回 `None` 不 panic
+- [x] 循环三次域：群阶 = 3，生成元置换正确（`galois_gen_cubic_cyclic_order_3`）
+- [x] `Φ₁₁`：ℤ/10 循环群生成（`galois_gen_phi11_cyclic_order_10`）
+- [x] `x⁴+1`：`galois_gen_fixed_field0` sympol + 固定多项式 prep ~2s（`galois_gen_fixed_field0_x4_plus_1_prep`）
+- [x] 非循环 WSS 域 `x⁴+1` 完整 `galois_gen` 群阶 4（`galois_gen_x4_plus_1_order_4`）
+- [x] `cargo test -p giac-core --release --lib galoisconj4` **33/33**
 
-**Blocked by:** P3a
+**Blocked by:** — · **可启动 P3c / P5**
+
+---
+
+## P3b — `galoisgenlift_nilp` / 中心扩张 ◐
+
+**模块：** `galoisconj4/lift_gen.rs`、`gen.rs`
+
+**做什么：** Pari `galoisgenlift_nilp`（`is_central` 分支）、`fixedfieldinclusion`；大域组合搜索。
+
+**验收：**
+
+- [x] 度 4 非循环 WSS（`x⁴+1`）群阶 4（P3a：`testpermutation` 对齐 Pari）
+- [ ] 幂零/中心扩张多项式
+- [ ] 失败路径返回 `None` 不 panic（大 n 组合爆炸）
+
+**Blocked by:** —
 
 ---
 
@@ -249,19 +284,23 @@ P9（golden）依赖 P5；P6/P7 完成后扩金值矩阵
 
 ---
 
-## P4 — `permtopol` + `galoisvecpermtopol`
+## P4 — `permtopol` + `galoisvecpermtopol` ◐（2026-07-10 · `b4c6c42`）
 
 **模块：** `galoisconj4/perm.rs`
 
-**做什么：** 根置换 → σ(α) 多项式（模 `ladicabs` 整数化）；替换 `sigma_alpha_from_arch_slot_perm` 主路径。
+**落地：** `vec_permute` / `vec_to_pol` / `perm_to_pol` / `perm_cycles` / `cyclic_group_elts` / `root_perms`；`galois_gen_cyclic` 已用 `perm_to_pol` 生成共轭。
+
+**余量：** 未替换 `galois_conj.rs` 中 `sigma_alpha_from_arch_slot_perm` 主路径；无 `galoisvecpermtopol` 批量 API
 
 **验收：**
 
-- [ ] `ℚ(i)`：共轭 `α ↦ -α`
+- [x] `perm_to_pol` 三次非平凡 Frobenius 单测（mod 17 Vandermonde）
+- [x] `perm_cycles` / `cyclic_group_elts` 阶 3 单测
+- [ ] `ℚ(i)`：共轭 `α ↦ -α`（经 `galoisconj4_main` 端到端）
 - [ ] `Φ₁₁`：10 个共轭，`m(σ(α))=0` 全过
 - [ ] 与 Pari `galoisconj(nf)` 逐项 `nfelt` 等价
 
-**Blocked by:** P0c, P2
+**Blocked by:** P5（模块内 API 已就绪）
 
 ---
 
@@ -374,8 +413,12 @@ r39r-g4-p9-golden
 
 ```bash
 cd giac-rs
-cargo test -p giac-core --lib galois
+cargo test -p giac-core --release --lib galoisconj4   # 27 绿（P2–P3a）
+cargo test -p giac-core --release --lib archimedean::tests  # 15 绿（P0d 复根）
 cargo test -p giac-core --lib zpx      # P0a 起
-cargo test -p giac-core --lib galoisconj4  # P5 起
+cargo test -p giac-core --lib galois   # P5 起全量
 cargo test -p giac-core --lib
+
+# 诊断 trace（固定域 prep / Frobenius / analysis）
+GIAC_G4_TRACE=1 GIAC_GA_TRACE=1 cargo test -p giac-core --release --lib galois_gen_fixed_field0_x4_plus_1_prep -- --nocapture
 ```

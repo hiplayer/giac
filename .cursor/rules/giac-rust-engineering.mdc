@@ -6,6 +6,10 @@ alwaysApply: false
 
 # giac-rs 工程规范
 
+## ponytail 政策
+
+见 `.cursor/rules/giac-ponytail-policy.mdc`：尽量避免 ponytail；若使用须在 `.doc/issues/` 登记并在 PR/回复中告知用户。
+
 ## 错误处理（`.doc/rust-migration-supplement.md` §6）
 
 | 层级 | 策略 |
