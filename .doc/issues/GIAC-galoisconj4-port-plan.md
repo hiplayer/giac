@@ -374,20 +374,62 @@ giac-core field 层谓词（try_insert_conjugate 等，见下）
 
 ---
 
-## P3c — A₄ / S₄ / F₃₆ 快路
+## P3c — A₄ / S₄ / F₃₆ 快路 ◐（2026-07-14）
 
-**模块：** `galoisconj4/specials.rs`
+**模块：** `galoisconj4/specials.rs`；`perm.rs` 增 `vec_perm_orbits`；`padic/zx.rs` `indexpartial`
 
-**做什么：** `a4galoisgen`、`s4galoisgen`、`f36galoisgen`（deg 12 / 24 / 36）。
+**落地：**
+- `a4_galois_gen` + `try_special_galois_gen` — Pari `a4galoisgen`（deg 12, `ga.ord==3`, `!p4`）
+- Phase1/2 因子枚举退出条件对齐 Pari（`a≠0` 时停）
+- `indexpartial` / `ZpX_reduced_resultant_fast` 对齐 → A₄ den 与 Pari 一致
+- `galois_borne`：f64 Vandermonde 范数比 Pari REAL 略紧时 `valsol+=1`（见下表余量）
+- **`galoisanalysis` `norm_o`**：按 Pari `Fpe=p^e` 累乘（勿从 `o` 起乘裸素数）→ deg-24 与 Pari `p=73,ord=6,deg=3`
+- **`padic_root_embedding`**：`L` 用 `valabs`，`Lden` 仍 mod `ladicsol`（对齐 Pari `makeLden`）
+- **`roots_to_monic_poly`**：`(x−r)·f`（曾误用 `(1−rx)` 导致系数反转）
+- **`sympol_aut_evalmod`**：改为 `f∘σ`（Pari `FpX_FpXQ_eval`）；`x⁴+1` / deg-24 仍因 `Pmod⊈factors(P)` 卡 `get_image`（需继续对 Sp/`fixedfieldfactmod`）
+- S₄ / F₃₆ 快路本体仍待 `FpXV_ffisom`；deg-24 golden 实际是 **WSS** 非 `s4galoisgen` 门控
 
 **验收：**
+- [x] `vec_perm_orbits` 单测
+- [x] A₄ 快路代码 + 接线（`try_special_galois_gen`）
+- [x] `a4_galois_gen_order_12` 端到端
+- [x] `galoisconj_golden_a4_degree_12`（`galoisconj4_main`）
+- [ ] S₄ / F₃₆ 快路 + 端到端
 
-- [ ] 各度至少 1 个 Pari 登记多项式：`nfgaloisconj` 个数 = 群阶
-- [ ] 与通用 `galoisgen` 结果一致（交叉验）
+**登记余量：**
 
-**Blocked by:** P2（可与 P3a 并行，P5 前需齐）
+| 余量 | 说明 | 关闭于 |
+|------|------|--------|
+| `valsol += 1`（f64） | Pari 用 REAL/`ceil_safe`；`x⁴+1` 在精确 den=4 时 f64 少 1 个 `l`-digit | 多精度 arch 范数 |
+| `zpx_roots` 排序 | ≠ Pari `galoisinit` 根序 → Pari sigma 单测 ignore | 可选根序对齐 |
+| S₄ / F₃₆ 快路 | 缺 `FpXV_ffisom` + `s4galoisgen` / `f36galoisgen`；**arch deg-24 已绿** | 快路移植 |
+| deg-24 golden（WSS） | Pari `ord=6,deg=3`，**不走** `s4galoisgen`；已修 `norm_o`/`L=valabs`/`roots_to_monic`/`sympol∘σ`；嵌套 `get_image`：`Pmod` 仍非 `P` 的因子 | 对照 Pari 打印 `Sp`/`Pmod` |
+| `x⁴+1` get_image 回归 | 与上同源：`L`/`monic` 对齐后暴露 `Sp` 路径错误（先前反转 monic + 错误 `f·σ` 误绿） | 同上 |
+
+**Arch（2026-07-14，对标 Pari `QX_complex_roots` / `fujiwara_bound`）：**
+- Sturm 隔离界：`min(Cauchy, 2·Fujiwara)`（宽 Cauchy 会丢大根）
+- verify：相对残差 `|P|/Σ|a||x|ⁱ`；`|x|>1` 在倒数多项式上算
+- 偶多项式：`y=x²` 代换；负实 `y` 走复平方根（勿 clamp 到 0）
+
+**Blocked by:** S₄/F₃₆ 另需 `FpXV_ffisom`
 
 ---
+
+## P9 — Pari golden harness + 文档 ◐（2026-07-14）
+
+**落地：**
+- `scripts/galoisconj_golden.sh` — Rust `galoisconj_golden_counts` + 可选 `PARI_GOLDEN=1` gp 对照
+- `main.rs` `golden`：ℚ(i)、x³−3x+1、Φ₁₁、x⁴+1、∛11、**A₄ deg-12**
+- `#[ignore]`：deg 24/36（快路；arch deg-24 单测已绿）
+
+**验收：**
+- [x] `./scripts/galoisconj_golden.sh` 绿（探针域）
+- [x] deg 12 golden 绿
+- [x] `embeddings_s4_degree_24_all_real`（arch）
+- [ ] deg 24/36 golden 绿（去 ignore → 需 `s4galoisgen`）
+- [ ] G6 逐项坐标 = Pari `nfgaloisconj`
+
+**Blocked by:** P3c S₄/F₃₆
 
 ## P4 — `permtopol` + `galoisvecpermtopol` ◐（2026-07-10 · `b4c6c42`）
 
@@ -485,6 +527,8 @@ giac-core field 层谓词（try_insert_conjugate 等，见下）
 ## P9 — Pari golden harness + 文档
 
 **做什么：** `scripts/galoisconj_golden.sh`（或 Rust integration）批跑 Pari vs giac；更新 [GIAC-p2-bnf-pari-alignment](GIAC-p2-bnf-pari-alignment.md) R39r → ✅；新增 `.doc/giac-galoisconj4-pari-port.md` 函数对照表；修正全文「galoisconj4=LLL」表述。
+
+**状态（2026-07-13）：** 见上文 **P9 ◐** 节（脚本 + 探针域 G1/G4 已绿；deg 12/24/36 `#[ignore]`）。
 
 **金值矩阵（最低）：**
 
