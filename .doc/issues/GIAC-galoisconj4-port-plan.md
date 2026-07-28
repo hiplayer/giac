@@ -389,8 +389,25 @@ giac-core field 层谓词（try_insert_conjugate 等，见下）
 - **`sympol_aut_evalmod`**：`f∘σ`（Pari `FpX_FpXQ_eval`）；`Sp` 禁止 `from_zx_monic`（会破坏域元素）→ `FpPolynomial::from_zx`
 - **`vectopol` / `PowerBasisElement`**：Pari `gdiv(·,den)` → `Ratio` 系数；`get_image` / Fp 路径用 `to_fp`（`RgX_to_FpX`）
 - **嵌套 fixed-field：** `Pgb.l = gb->l`；PL 升/降精度；autos 回映到 PL 序（`gens_on_pl_roots`）→ `x⁴+1` get_image / nilp 已绿
-- deg-24 WSS：穿到 `galois_gen_lift`（`get_image` 已过；`testpermutation` 仍失败）
-- S₄ / F₃₆ 快路本体仍待 `FpXV_ffisom`；deg-24 golden 是 **WSS** 非 `s4galoisgen` 门控
+- **`testpermutation` 不变量**（见下节 + `lift_gen.rs` / `testlift.rs` 注释）→ deg-24 WSS golden 绿
+- **`FpX_ffisom` / `FpXQ_ffisom_inv` / `FpXV_ffisom`**（`padic/fpx_ffisom.rs`）：`deg(P)|deg(Q)` 嵌入/同构
+- **`FpX_ffintersect`**（`padic/fpx_ffintersect.rs`）：Allombert 全路径 — special / cyclo / Hilbert-90
+- **`FpXQ_sqrtn`**（`padic/fpxq_sqrtn.rs`）：`gen_Shanks_sqrtn` on `𝔽_q^*` — cyclo 分支无 root fallback
+- **`S4GaloisCandidate` / `F36GaloisCandidate` + `try_s4`/`try_f36` 门控**（与 Pari 一致；本体仍 stub → 回落 WSS）
+- S₄ / F₃₆ 快路本体：`s4test` / `s4releveauto` / `initlift` 等仍待
+
+### `testpermutation` / `galoisgenliftauto` 移植不变量（2026-07-24）
+
+对标 Pari `galconj.c` `testpermutation` / `Vmatrix`。破坏后典型症状：`nn` 穷尽、`headlong_ok≈1`、`galois_gen_lift` 失败（V₄/`x⁴+1` 可能仍绿）。
+
+| # | 不变量 | 说明 |
+|---|--------|------|
+| 1 | **`ar` 全量重算** | 每轮 `ar[a+1]=0` 后重算 `ar[a]…ar[1]`。**有意不跟** Pari 增量后缀（`ar_from`）；数学等价，去掉循环携带状态。勿再引入半截增量除非对照 Pari 中间量回归 |
+| 2 | **`G[cx]=F[orbit_id]`** | `gel(G,cx)=gel(F,coeff(B,i,j))`；`B` 是 Frobenius **轨道编号**。禁止 `find(cycle.contains(root))` |
+| 3 | **`umael(W,a,b)=L[b]·y[a]`** | Pari 列主序；禁止转置。对合可能掩盖错误 |
+| 4 | **验收不要只靠对合** | 必须有 deg-24 WSS（`galoisconj_golden_s4_degree_24`） |
+
+**代码锚点：** `lift_gen.rs`（`test_permutation`、`f_cycle_for_coeff`）；`testlift.rs`（`vmatrix_headlong`）；`types.rs`（`HeadlongPvMatrix`）。
 
 **验收：**
 - [x] `vec_perm_orbits` 单测
@@ -398,8 +415,10 @@ giac-core field 层谓词（try_insert_conjugate 等，见下）
 - [x] `a4_galois_gen_order_12` 端到端
 - [x] `galoisconj_golden_a4_degree_12`（`galoisconj4_main`）
 - [x] `x⁴+1` get_image / `galois_gen` / nilp
-- [ ] deg-24 WSS e2e（卡 `galois_gen_lift`）
-- [ ] S₄ / F₃₆ 快路 + 端到端
+- [x] deg-24 WSS e2e（`galoisconj_golden_s4_degree_24`）
+- [x] `FpXV_ffisom` + S₄/F₃₆ 门控接线（快路本体仍 stub）
+- [x] `FpX_ffintersect` 真嵌入（`deg(P)|deg(Q)`；special + cyclo + Hilbert-90）
+- [ ] S₄ / F₃₆ 快路端到端（`s4test` / `s4releveauto` / `f36*`）
 
 **登记余量：**
 
@@ -407,8 +426,7 @@ giac-core field 层谓词（try_insert_conjugate 等，见下）
 |------|------|--------|
 | `valsol += 1`（f64） | Pari 用 REAL/`ceil_safe`；`x⁴+1` 在精确 den=4 时 f64 少 1 个 `l`-digit | 多精度 arch 范数 |
 | `zpx_roots` 排序 | ≠ Pari `galoisinit` 根序 → Pari sigma 单测 ignore | 可选根序对齐 |
-| S₄ / F₃₆ 快路 | 缺 `FpXV_ffisom` + `s4galoisgen` / `f36galoisgen`；**arch deg-24 已绿** | 快路移植 |
-| deg-24 golden（WSS） | `get_image`/`vectopol`/PL 对齐已过；`galois_gen_lift` / `testpermutation` 失败 | 对照 Pari `galoisgenlift` |
+| S₄ / F₃₆ 快路 | `FpXV_ffisom` ✅；缺 `s4galoisgen`/`f36galoisgen` 主体（`s4test`/lift） | 快路移植 |
 
 **Arch（2026-07-14，对标 Pari `QX_complex_roots` / `fujiwara_bound`）：**
 - Sturm 隔离界：`min(Cauchy, 2·Fujiwara)`（宽 Cauchy 会丢大根）
@@ -423,14 +441,15 @@ giac-core field 层谓词（try_insert_conjugate 等，见下）
 
 **落地：**
 - `scripts/galoisconj_golden.sh` — Rust `galoisconj_golden_counts` + 可选 `PARI_GOLDEN=1` gp 对照
-- `main.rs` `golden`：ℚ(i)、x³−3x+1、Φ₁₁、x⁴+1、∛11、**A₄ deg-12**
-- `#[ignore]`：deg 24/36（快路；arch deg-24 单测已绿）
+- `main.rs` `golden`：ℚ(i)、x³−3x+1、Φ₁₁、x⁴+1、∛11、**A₄ deg-12**、**WSS deg-24**
+- `#[ignore]`：deg 36（`f36galoisgen`）；S₄ 快路仍缺 `FpXV_ffisom`
 
 **验收：**
 - [x] `./scripts/galoisconj_golden.sh` 绿（探针域）
 - [x] deg 12 golden 绿
 - [x] `embeddings_s4_degree_24_all_real`（arch）
-- [ ] deg 24/36 golden 绿（去 ignore → 需 `s4galoisgen`）
+- [x] deg 24 WSS golden 绿（`galois_gen_lift` / `testpermutation` 对齐 Pari）
+- [ ] deg 36 golden 绿（去 ignore → 需 `f36galoisgen`）
 - [ ] G6 逐项坐标 = Pari `nfgaloisconj`
 
 **Blocked by:** P3c S₄/F₃₆
