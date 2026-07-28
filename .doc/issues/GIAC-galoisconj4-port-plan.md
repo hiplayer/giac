@@ -393,8 +393,10 @@ giac-core field 层谓词（try_insert_conjugate 等，见下）
 - **`FpX_ffisom` / `FpXQ_ffisom_inv` / `FpXV_ffisom`**（`padic/fpx_ffisom.rs`）：`deg(P)|deg(Q)` 嵌入/同构
 - **`FpX_ffintersect`**（`padic/fpx_ffintersect.rs`）：Allombert 全路径 — special / cyclo / Hilbert-90
 - **`FpXQ_sqrtn`**（`padic/fpxq_sqrtn.rs`）：`gen_Shanks_sqrtn` on `𝔽_q^*` — cyclo 分支无 root fallback
+- **`FpXV_chinese`**（`padic/fpx_chinese.rs`）+ **`mkliftpow`**（`lift.rs`）：S₄ `liftp` 列 = CRT(`trans(misom)`) → `automorphismlift`
+- **`s4releveauto` / `lincomb` / `s4makelift` / `s4test`** + **`FqC_FqV_mul`**（`specials.rs`）
 - **`S4GaloisCandidate` / `F36GaloisCandidate` + `try_s4`/`try_f36` 门控**（与 Pari 一致；本体仍 stub → 回落 WSS）
-- S₄ / F₃₆ 快路本体：`s4test` / `s4releveauto` / `initlift` 等仍待
+- S₄ / F₃₆ 快路本体：σ→τ→φ search 接线仍待
 
 ### `testpermutation` / `galoisgenliftauto` 移植不变量（2026-07-24）
 
@@ -418,7 +420,9 @@ giac-core field 层谓词（try_insert_conjugate 等，见下）
 - [x] deg-24 WSS e2e（`galoisconj_golden_s4_degree_24`）
 - [x] `FpXV_ffisom` + S₄/F₃₆ 门控接线（快路本体仍 stub）
 - [x] `FpX_ffintersect` 真嵌入（`deg(P)|deg(Q)`；special + cyclo + Hilbert-90）
-- [ ] S₄ / F₃₆ 快路端到端（`s4test` / `s4releveauto` / `f36*`）
+- [x] `FpXV_chinese` + `mkliftpow`（`mkliftpow_x4_plus_1_mod_5`）
+- [x] `s4releveauto` / `lincomb` / `s4makelift` / `s4test`（`s4_make_lift_and_test_frobenius_cubic`）
+- [ ] S₄ / F₃₆ 快路端到端（σ→τ→φ search / `f36*`）
 
 **登记余量：**
 
@@ -426,7 +430,7 @@ giac-core field 层谓词（try_insert_conjugate 等，见下）
 |------|------|--------|
 | `valsol += 1`（f64） | Pari 用 REAL/`ceil_safe`；`x⁴+1` 在精确 den=4 时 f64 少 1 个 `l`-digit | 多精度 arch 范数 |
 | `zpx_roots` 排序 | ≠ Pari `galoisinit` 根序 → Pari sigma 单测 ignore | 可选根序对齐 |
-| S₄ / F₃₆ 快路 | `FpXV_ffisom` ✅；缺 `s4galoisgen`/`f36galoisgen` 主体（`s4test`/lift） | 快路移植 |
+| S₄ / F₃₆ 快路 | helpers ✅（ffisom/chinese/mkliftpow/s4test…）；缺 σ→τ→φ search | 快路移植 |
 
 **Arch（2026-07-14，对标 Pari `QX_complex_roots` / `fujiwara_bound`）：**
 - Sturm 隔离界：`min(Cauchy, 2·Fujiwara)`（宽 Cauchy 会丢大根）
