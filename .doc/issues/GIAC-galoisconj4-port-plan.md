@@ -35,8 +35,8 @@ P9（golden）依赖 P5；P6/P7 完成后扩金值矩阵
 | **P3a** | `galoisgen` 循环 + 固定域 | **◐** | — | 5d | `galconj.c` L2196–2222, L2781+ |
 | **P3b** | `galoisgenlift` / 幂零扩张 | open | P3a | 4d | `galconj.c` L2252+, L2703+ |
 | **P3c** | A₄ / S₄ / F₃₆ 快路 | **✅** | P2 | 2d | `galconj.c` L2794–2822 |
-| **P4** | `permtopol` + `galoisvecpermtopol` | **◐** | P5 | 3d | `galconj.c` `vectopol` 族 |
-| **P5** | `galoisconj4_main` 编排 + `GaloisConjugates` 接线 | open | P3a,P3b,P3c,P4 | 3d | `galconj.c` L2988–3057 |
+| **P4** | `permtopol` + `galoisvecpermtopol` | **✅** | P5 | 3d | `galconj.c` `vectopol` 族 |
+| **P5** | `galoisconj4_main` 编排 + `GaloisConjugates` 接线 | **◐** | P3a,P3b,P3c,P4 | 3d | `galconj.c` L2988–3057 |
 | **P6** | `GaloisInit`（flag=1）+ `GaloisAutPerms` 改读 | open | P5 | 2d | `galoisinit` |
 | **P7** | `galoisconj1` / `nfroots` 回退 | **◐** | P0a,P1a | 5–6d | `galconj.c` L37–63; `nffactor.c` |
 | **P8** | `pr_orbit_fill` → `be_honest` | open | P5 | 1d | `buch2.c` `be_honest` |
@@ -491,41 +491,48 @@ giac-core field 层谓词（try_insert_conjugate 等，见下）
 - [x] deg 36 golden 绿（`galoisconj_golden_f36_degree_36`，orders `[3,3,4]`）
 - [ ] G6 逐项坐标 = Pari `nfgaloisconj`
 
-**Blocked by:** P5（G6 坐标 golden）
+**Blocked by:** P5（field 层 G1–G4 已绿；G6 坐标 golden 待 P9）
 
-## P4 — `permtopol` + `galoisvecpermtopol` ◐（2026-07-10 · `b4c6c42`）
+## P4 — `permtopol` + `galoisvecpermtopol` ✅（2026-07-10 · Pari nfelt 2026-08-03）
 
 **模块：** `galoisconj4/perm.rs`
 
-**落地：** `vec_permute` / `vec_to_pol` / `perm_to_pol` / `perm_cycles` / `cyclic_group_elts` / `root_perms`；`galois_gen_cyclic` 已用 `perm_to_pol` 生成共轭。
+**落地：** `vec_permute` / `vec_to_pol` / `perm_to_pol` / `perm_cycles` / `cyclic_group_elts` / `root_perms`；`galois_gen_cyclic` 已用 `perm_to_pol` 生成共轭；**`galois_vec_perm_to_pol`** + `PermToPolPrep::galois_vec_perm_to_pol` 批量 API。
 
-**余量：** 未替换 `galois_conj.rs` 中 `sigma_alpha_from_arch_slot_perm` 主路径；无 `galoisvecpermtopol` 批量 API
+**余量：** `galois_conj.rs` easy 路径仍用 `sigma_alpha_from_arch_slot_perm`（n≤8 arch 启发式）；n>8 / g4 主路径已走 `galoisvecpermtopol`
 
 **验收：**
 
 - [x] `perm_to_pol` 三次非平凡 Frobenius 单测（mod 17 Vandermonde）
 - [x] `perm_cycles` / `cyclic_group_elts` 阶 3 单测
-- [ ] `ℚ(i)`：共轭 `α ↦ -α`（经 `galoisconj4_main` 端到端）
-- [ ] `Φ₁₁`：10 个共轭，`m(σ(α))=0` 全过
-- [ ] 与 Pari `galoisconj(nf)` 逐项 `nfelt` 等价
+- [x] `galois_vec_perm_to_pol` 批量 = 逐 `perm_to_pol`；= `galois_init.conjugates`（Q(i)/Φ₁₁/三次）
+- [x] `ℚ(i)`：共轭 `α ↦ −α`（`galoisconj4_main` + Pari nfelt multiset）
+- [x] `Φ₁₁`：10 个共轭 `m(σ(α))=0` 全过 + Pari nfelt multiset
+- [x] 与 Pari `galoisconj(nf)` 逐项 nfelt 等价（Q(i)、Φ₁₁ 登记基线；G6 扩金值见 P9）
 
-**Blocked by:** P5（模块内 API 已就绪）
+**Blocked by:** —
 
 ---
 
-## P5 — `galoisconj4_main` 编排 + `GaloisConjugates` 接线
+## P5 — `galoisconj4_main` 编排 + `GaloisConjugates` 接线 ◐（2026-08-03）
 
 **模块：** `galoisconj4/mod.rs`；改 `galois_conj.rs`
 
 **做什么：** 完整 `galoisconj4_main` 流水线；`GaloisConjugates::compute`：先 `galoisconj_easy`（n≤8），不足则 `galoisconj4_main`；删除 `GALOIS_CONJ_ENUM_MAX_N` 硬顶对大 n 的退化。
 
+**落地（2026-08-03）：**
+- `galoisconj_in_field_inner` 对齐 Pari `galoisconj_monic`：deg-1/2 快捷 → easy（n≤8）→ `galois_init`/`galoisconj4_main` → `galoisconj1`；**G1 严格 `len == numberofconjugates`**（去掉 weak `>=` / 非空 easy 回退）
+- `galoisconj4_to_field_conjugates` 经 `galois_init` 取 `conjugates`（完整 analysis→borne→galoisgen→galoisvecpermtopol）
+- field 层探针矩阵单测 `galoisconj_probe_*_g1_g4`：ℚ(i)、x³−3x+1、ℚ(∛11)、Φ₁₁、x⁴+1
+
 **验收：**
 
-- [ ] `cargo test -p giac-core --lib galois` 全绿且 case 数增加
-- [ ] 探针域满足 [G1–G4](#field-层验收谓词a-集成--唯一关单依据)（Φ₁₁、∛11、ℚ(i)）
-- [ ] R39a grow 回归：`add_relation_galois_orbit` ℚ(i) / ∛11 仍绿
+- [x] `cargo test -p giac-core --lib galois` 全绿且 case 数增加（114 绿，含 5 探针 G1–G4 + 6 P4 permtopol）
+- [x] 探针域满足 [G1–G4](#field-层验收谓词a-集成--唯一关单依据)（Φ₁₁、∛11、ℚ(i)、x⁴+1、三次 Galois）
+- [x] R39a grow 回归：`add_relation_galois_orbit` ℚ(i) / ∛11 仍绿
+- [x] P4 端到端：`ℚ(i)` / `Φ₁₁` nfelt = Pari（G6 扩金值见 P9）
 
-**Blocked by:** P3a, P3b, P3c, P4
+**Blocked by:** —（field 层已接线；P6 `galoisinit` 缓存共享待做）
 
 ---
 
