@@ -1251,7 +1251,7 @@ cargo test -p giac-core bnfisprincipal --release -- --ignored  # ℚ(∛11) 锚�
 | **5** | **R39o** | ✅ | **`idealred` 两元** | `mat_ideal_two_elt` → `idealhnf` 当 `a < I∩ℤ`；f64 LLL 回退 + `two_gen` | Pari `idealred0` | API 语义 | ~0.5d |
 | **6** | **R39p** | ✅ | **`zm_hnfmodid` 乘法接线** | `ideal_hnf_from_generator_cols` → `zm_hnfmodid`；`optimal_d` 边界 + `co>nli` 列 drain | `ZM_hnfmodid(m, a·x₁₁)` | 完成 R39j 整数 HNF 快路径 | ~0.5d |
 | **7** | **R39q** | ✅ | **`Fp_invgen` 完整** | `hnf_spec::fp_invgen` + `Z_chinese_coprime`/`z_ppo`/`lcmii`；`fp_invgen_non_coprime` 单测 | `Z_chinese_coprime` | `zm_hnfmodid` 枢轴 `gcd≠1` | ~0.25d |
-| **8** | **R39r** | ◐ | **Galois `galoisconj` 矩阵** | **`galois_conj.rs`**：`GaloisAutPerms`（`FbAutPerms`+`EmbAutPerms`）；`FB_aut_perm` 经 `nfgaloismatrix`+循环子群；`galoisconj` 仍根置换 **`GALOIS_CONJ_ENUM_MAX_N=8`**；缺 **`galoisconj4`（p-adic Frobenius，非 LLL）**、`pr_orbit`→`be_honest` — 子项见 **[GIAC-galoisconj4-port-plan](GIAC-galoisconj4-port-plan.md)**（P0a–P9） | `galoisconj` + `nfgaloismatrix` + `FB_aut_perm` | grow `add_rel` Galois 轨道（n≤8 域） | ~0.5d（核心 ✅，余量 ◐ + g4 计划 10–14 人周） |
+| **8** | **R39r** | **◐→✅ 核心** | **Galois `galoisconj` 矩阵** | **`galois_conj.rs`**：`FieldGaloisSnapshot` + `GaloisAutPerms`；`galoisconj_in_field` ≡ Pari `galoisconj_monic`（P5-upstream）；g4 主线 P0–P6 ✅；shadow CI（P9-upstream-shadow）；余量：**P8** `pr_orbit`→`be_honest` — [GIAC-galoisconj4-port-plan](GIAC-galoisconj4-port-plan.md) | `galoisconj` + `nfgaloismatrix` + `FB_aut_perm` | grow `add_rel` Galois 轨道 | ~0.5d（P8 余量） |
 | **9** | **R39s** | ◐ | **`FBgen` trim + 大 FB SNF** | `trim_factor_base_cap`（`KCZ` 优先）替代硬 skip；`GRH_MAX_FACTOR_BASE=256` 仍 cap | Pari `FBgen` / `KC` trim | 大域可跑 trimmed FB | ~1d |
 | **10** | **R39t** | ◐ | **Buchmann 扫描预算** | `grow_scan_budgets(need,k)` 动态 stall/LLI/iter | Pari 动态 `fupb_RELAT` | need 大时多扫 | ~0.5d |
 | **11** | **R39u** | ◐ | **非极大序 / `nfbasis`** | `field_discriminant` + `nfdisc` deg-2 非极大；`nfbasis` deg-2 已有 | Round-2 / 真整基 | ideal/Buchmann 仍 maximal gate | 大（P1-1b） |
@@ -1267,7 +1267,7 @@ cargo test -p giac-core bnfisprincipal --release -- --ignored  # ℚ(∛11) 锚�
 
 **R39q（✅）：** `hnf_spec::fp_invgen` 对标 Pari `Fp_invgen` + `Z_chinese_coprime`；`fp_invgen_non_coprime_matches_bezout_congruence`。
 
-**R39r（◐，核心路径 ✅）：** 见下节「R39r ◐ Galois 类型栈」——`galois_conj.rs` + `GaloisAutPerms` 已落地；余量：`GALOIS_CONJ_ENUM_MAX_N=8`、**`galoisconj4`（p-adic）**、`pr_orbit`→`be_honest` — **跟踪：[GIAC-galoisconj4-port-plan](GIAC-galoisconj4-port-plan.md)**（P0a–P9）。
+**R39r（◐→✅ 核心，2026-08-03）：** 见下节「R39r Galois 类型栈」——`galoisconj4` 主线 + `FieldGaloisSnapshot` 已落地；**conjugates** ≡ Pari `galoisconj_monic`；余量：**P8** `pr_orbit`→`be_honest`、g1-only `EmbAutPerms` arch 回退 — **[GIAC-galoisconj4-port-plan](GIAC-galoisconj4-port-plan.md)** / **[giac-galoisconj4-pari-port.md](../giac-galoisconj4-pari-port.md)**。
 
 **R39s（◐）：** `trim_factor_base_cap` — 超 `GRH_MAX_FACTOR_BASE` 时按范数+`C1` 裁剪，不再 `continue` 跳过整轮 FB。
 
@@ -1279,9 +1279,9 @@ cargo test -p giac-core bnfisprincipal --release -- --ignored  # ℚ(∛11) 锚�
 
 ---
 
-## R39r ◐（2026-07-10）— Galois `galoisconj` 矩阵 + `GaloisAutPerms`
+## R39r ✅ 核心 / ◐ 余量（2026-08-03）— Galois `galoisconj` 矩阵 + `GaloisAutPerms`
 
-**对标：** Pari `galconj.c` `galoisconj` / `nfgaloismatrix`；`buch2.c` `automorphism_matrices` / `FB_aut_perm` / `automorphism_perms` / `rel_embed`。
+**对标：** Pari `galconj.c` `galoisconj_monic` / `galoisinit` / `nfgaloismatrix`；`buch2.c` `automorphism_matrices` / `FB_aut_perm` / `automorphism_perms` / `rel_embed`。
 
 **落地：** 新 `algebra/galois_conj.rs`（~1000 行，类型化中间结构）：
 
@@ -1289,27 +1289,26 @@ cargo test -p giac-core bnfisprincipal --release -- --ignored  # ℚ(∛11) 锚�
 |------|-----------|------|
 | `FieldAutomorphism` | σ(α) | 幂基坐标表示的自同构 |
 | `NfAutMatrix` | `nfgaloismatrix` | `{1,α,…,α^{n-1}}` 上 ℤ-矩阵 |
-| `GaloisConjugates` | `galoisconj` | 非平凡在前、恒等最后 |
+| `GaloisConjugates` | `galoisconj` | g4→g1；非平凡在前、恒等最后 |
+| `FieldGaloisSnapshot` | `galoisinit` + `galoisconj` 同源 | P6 缓存；grow 复用 |
 | `AutomorphismMatrices` | `automorphism_matrices` | 矩阵束 + 极大循环子群 |
 | `FbAutPerms` / `IdealIndexPerm` | `FB_aut_perm` / `idealperm` | 因子基在 σ 下的置换（矩阵 `ZM_ZC_mul` + 循环合成） |
 | `EmbAutPerms` / `ArchSlotPerm` | `automorphism_perms` / `embperm` | arch 列 1-based 置换 + `rel_embed` |
 | **`GaloisAutPerms`** | `idealperm`+`embperm` 捆绑 | `{ ideal, arch }`；`GrhRelCache.galois` 一次 `compute` |
 
 **接线：**
-- `bnf.rs`：`ideal_perm_under_galois` / `emb_automorphism_perms` 委托 `galois_conj`（删除旧 `sigma_alpha_from_root_perm` 等重复逻辑）
-- `class_group.rs`：`GrhRelCache.galois: Option<GaloisAutPerms>`；`ensure_galois_perms`；grow `flush_hnf` 复用 `galois.arch`
-- `buchmann_grh_grow_relations` → `add_relation_galois_orbit`（R39a 语义，现走矩阵 `FbAutPerms`）
+- `bnf.rs`：`ideal_perm_under_galois` / `emb_automorphism_perms` 委托 `galois_conj`
+- `class_group.rs`：`GrhRelCache.galois_snapshot` + `GaloisAutPerms::from_snapshot`；grow `flush_hnf` 复用 `galois.arch`
+- `buchmann_grh_grow_relations` → `add_relation_galois_orbit`（R39a 语义，矩阵 `FbAutPerms`）
 
-**`ponytail:` 余量（仍 ◐）：**
-- `GALOIS_CONJ_ENUM_MAX_N = 8`：`galoisconj_in_field` / `galois_root_perms` / `sigma_alpha_from_root_perm` 全排列枚举；`n > 8` → 仅恒等 Gal 元素（`EmbAutPerms` 同步退化）
-- 无 **`galoisconj4`**（p-adic Frobenius + 模 Vandermonde；**非** LLL）— 见 [GIAC-galoisconj4-port-plan](GIAC-galoisconj4-port-plan.md)
-- 无 **`pr_orbit_fill`**（Pari `be_honest` 非正规域素理想轨道跳过）
-- `EmbAutPerms` 仍根置换派生，未与 `FbAutPerms` 矩阵路径统一
-- ℚ(∛11) Gal 在域内平凡 → `add_rel` Galois 副本为空（**与 Pari 一致**，非缺实现）
+**余量（仍 ◐）：**
+- **`pr_orbit_fill`**（P8）— Pari `be_honest` 非正规素理想轨道
+- **`EmbAutPerms` arch 启发式** — 仅 `galoisinit` 失败 / deg-2 短路时 BNF 回退（非 conjugates 路径；见 DIV-105）
+- ℚ(∛11) Gal 在域内平凡 → `add_rel` Galois 副本为空（**与 Pari 一致**）
 
-**单测（13）：** `galois_conj::*`（ℚ(i) 复共轭、`x³−3x+1` 循环三次、`x³−11` 平凡、`nfgaloismatrix` 恒等、`IdealIndexPerm` 合成）+ `class_group`（`ideal_perm_under_galois_q_i_p5_split`、`galois_aut_perms_ideal_and_arch_same_len`、`add_relation_galois_orbit_*`、`flush_hnf_galois_copy_*`）。
+**单测：** `cargo test -p giac-core --lib galois` **126+** 绿（含 `upstream_shadow`、`g6_pari_nfelt`、grow R39a/R39r）。
 
-**验证：** `cargo test -p giac-core --lib galois` 13 绿；`cargo test -p giac-core --lib` **754** passed。
+**验证：** `./scripts/galoisconj_golden.sh`（探针 + G6 + upstream-shadow）。
 
 ---
 

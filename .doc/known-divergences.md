@@ -330,6 +330,15 @@ Rust 实现与 giac C++ golden **字面不一致**但可能数学等价，或 **
 - **验证:** `galois_gen_lift_nilp_x4_plus_1_order_4`；`get_image_x4_plus_1_fixed_field`
 - **测试处理:** 登记
 
+### DIV-105: Rust `galoisconj_easy` arch 主路径已删除（2026-08-03）
+
+- **状态:** **closed**（P5-upstream 路由对齐）
+- **历史行为:** `n ≤ 8` 且 `emb.reliable` 时，`galoisconj_in_field` 走 f64 arch 根置换 + `sigma_alpha_from_arch_slot_perm`，再 `galoisconj4_main`
+- **Pari / 现 Rust:** `galoisconj_monic` — deg 快捷 → `galoisconj4_main` → `galoisconj1`；无 arch easy
+- **保留:** `EmbAutPerms::compute_from_arch_heuristic` + `galois_root_perms`（`galoisinit` 失败时 BNF grow 回退，非 conjugates 规格）
+- **验证:** `upstream_shadow::*`；`g6_pari_nfelt` 探针域 G6
+- **文档:** [giac-galoisconj4-pari-port.md](giac-galoisconj4-pari-port.md)；[GIAC-galoisconj4-port-plan](issues/GIAC-galoisconj4-port-plan.md) P5-upstream / P9-upstream-shadow
+
 ---
 
 ## 维护规则

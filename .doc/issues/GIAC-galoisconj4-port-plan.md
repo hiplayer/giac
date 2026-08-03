@@ -1,13 +1,13 @@
 # GIAC `galoisconj4_main` 完整移植 — issue 跟踪
 
-**状态:** open（P0–P2 ✅；P3c S₄/F₃₆ ✅；P3b/P5/P6/P7 ◐；**下一步 P3b / P5 / P9 G6**）
+**状态:** open（P0–P2 ✅；P3c S₄/F₃₆ ✅；P3b/P5/P6/P9-upstream-shadow ✅/P7 ◐；**P9 G6 探针域 ✅**）
 **类型:** AFK（除 P9 golden 脚本可 HITL 审 Pari 基线）  
 **父项:** [GIAC-p2-bnf-pari-alignment](GIAC-p2-bnf-pari-alignment.md) **R39r**（Galois `galoisconj` 矩阵，◐）  
 **上游基线:** Pari `pari/src/basemath/galconj.c`（`galoisconj4_main` L2988）、`Zp.c`、`FpX.c`、`bibli2.c`、`base2.c`、`nffactor.c`  
 **Rust 落点:** `giac-rs/crates/giac-core/src/algebra/galois_conj.rs` + 子模块 `galoisconj4/`（`analysis` `borne` `lift` `frobenius` `testlift` `fixed_field` `gen` `perm` `trace` `types`）、`padic/`（`zpx` `fpx_factor` `fpx_vandermonde` `types`）、`archimedean.rs`（`ArchBudget` / 复根单路径）  
 **快照:** 2026-07-10 · giac-rs **`b4c6c42`**
 
-**说明：** `galoisconj4` 是 **p-adic Frobenius 提升 + 模 Vandermonde**，**不是** `buch2.c` 的 LLL。现有 `galois_conj.rs` arch 槽 / 根置换枚举保留为 `galoisconj_easy`（deg≤8 快路），完整移植后由本计划逐项替换余量。
+**说明：** `galoisconj4` 是 **p-adic Frobenius 提升 + 模 Vandermonde**，**不是** `buch2.c` 的 LLL。`galoisconj_in_field` 已对齐 Pari `galoisconj_monic`（g4→g1）；`EmbAutPerms` 在 `galoisinit` 失败时仍保留 n≤8 arch 启发式（BNF 专用，非 conjugates 主路径）。
 
 ---
 
@@ -36,11 +36,11 @@ P9（golden）依赖 P5；P6/P7 完成后扩金值矩阵
 | **P3b** | `galoisgenlift` / 幂零扩张 | open | P3a | 4d | `galconj.c` L2252+, L2703+ |
 | **P3c** | A₄ / S₄ / F₃₆ 快路 | **✅** | P2 | 2d | `galconj.c` L2794–2822 |
 | **P4** | `permtopol` + `galoisvecpermtopol` | **✅** | P5 | 3d | `galconj.c` `vectopol` 族 |
-| **P5** | `galoisconj4_main` 编排 + `GaloisConjugates` 接线 | **◐** | P3a,P3b,P3c,P4 | 3d | `galconj.c` L2988–3057 |
-| **P6** | `GaloisInit`（flag=1）+ `GaloisAutPerms` 改读 | open | P5 | 2d | `galoisinit` |
+| **P5** | `galoisconj4_main` 编排 + `GaloisConjugates` 接线 | **✅** | P3a,P3b,P3c,P4 | 3d | `galconj.c` L2988–3057 |
+| **P6** | `GaloisInit` 缓存 + `GaloisAutPerms` 同源 | **✅** | P5 | 2d | `galoisinit` |
 | **P7** | `galoisconj1` / `nfroots` 回退 | **◐** | P0a,P1a | 5–6d | `galconj.c` L37–63; `nffactor.c` |
 | **P8** | `pr_orbit_fill` → `be_honest` | open | P5 | 1d | `buch2.c` `be_honest` |
-| **P9** | Pari golden harness + 文档 | open | P5 | 2d | conformance |
+| **P9** | Pari golden harness + 文档 | **◐** | P5 | 2d | conformance · **upstream-shadow ✅** |
 
 **合计（串行上界）：** ~10–14 人周；P0/P7 可并行减日历时间。
 
@@ -489,9 +489,15 @@ giac-core field 层谓词（try_insert_conjugate 等，见下）
 - [x] `embeddings_s4_degree_24_all_real`（arch）
 - [x] deg 24 WSS golden 绿（`galois_gen_lift` / `testpermutation` 对齐 Pari）
 - [x] deg 36 golden 绿（`galoisconj_golden_f36_degree_36`，orders `[3,3,4]`）
-- [ ] G6 逐项坐标 = Pari `nfgaloisconj`
+- [x] G6 逐项坐标 = Pari `nfgaloisconj`（探针域：ℚ(i)、x³−3x+1、∛11、x⁴+1、Φ₁₁；`g6_pari_nfelt` + `permtopol_e2e`）
 
-**Blocked by:** P5（field 层 G1–G4 已绿；G6 坐标 golden 待 P9）
+**落地（2026-08-03）：**
+- `galoisconj4/pari_golden.rs` — `assert_g6_nfelt_multiset`（low-first 整数 nfelt，multiset）
+- `galois_conj.rs` `g6_pari_nfelt` — field 层 G6；**x³−3x+1 high-first = `[1,0,-3,1]`**（勿与 MonicZx low-first `[1,-3,0,1]` 混用）
+- `main.rs` `permtopol_e2e` — MonicZx 层 Q(i)/三次/Φ₁₁ nfelt multiset（尾部零归一化）
+- `scripts/galoisconj_golden.sh` — 追加 `g6_pari_nfelt`
+
+**Blocked by:** P5（field 层 G1–G4 已绿；G6 探针域已绿；非 WSS / deg>8 扩金值待 P6/P7）
 
 ## P4 — `permtopol` + `galoisvecpermtopol` ✅（2026-07-10 · Pari nfelt 2026-08-03）
 
@@ -499,7 +505,7 @@ giac-core field 层谓词（try_insert_conjugate 等，见下）
 
 **落地：** `vec_permute` / `vec_to_pol` / `perm_to_pol` / `perm_cycles` / `cyclic_group_elts` / `root_perms`；`galois_gen_cyclic` 已用 `perm_to_pol` 生成共轭；**`galois_vec_perm_to_pol`** + `PermToPolPrep::galois_vec_perm_to_pol` 批量 API。
 
-**余量：** `galois_conj.rs` easy 路径仍用 `sigma_alpha_from_arch_slot_perm`（n≤8 arch 启发式）；n>8 / g4 主路径已走 `galoisvecpermtopol`
+**余量：** ~~arch easy 主路径~~ 已移除（P5-upstream）；conjugates 仅 g4/g1
 
 **验收：**
 
@@ -514,41 +520,78 @@ giac-core field 层谓词（try_insert_conjugate 等，见下）
 
 ---
 
-## P5 — `galoisconj4_main` 编排 + `GaloisConjugates` 接线 ◐（2026-08-03）
+## P5-upstream — `galoisconj_monic` 路由对齐 ✅（2026-08-03）
+
+**做什么：** 删除 n≤8 arch easy 主路径；`galoisconj_in_field` ≡ Pari `galoisconj_monic`（deg 快捷 → g4 → g1）。
+
+**落地：**
+- `galoisconj_monic_g4_g1` — 显式 g4→g1 核心
+- 删除 `galoisconj_easy` / `sigma_alpha_from_arch_slot_perm` 等 conjugates 用 arch 启发式
+- `galoisconj_upstream_routing_shadow` — 探针域 shadow 测试
+- `EmbAutPerms::compute_from_arch_heuristic` 保留（BNF 专用）
+
+**验收：**
+- [x] 探针域 G1–G4 + G6 仍绿
+- [x] shadow 测试
+
+**Blocked by:** — · Phase B = P6 GaloisInit 缓存 ✅
+
+---
+
+## P9-upstream-shadow — CI 回归门禁 + 文档 ✅（2026-08-03）
+
+**做什么：** Phase C — 防 arch easy 回退；entry / snapshot / public API 同源 shadow；文档与 R39r 状态更新。
+
+**落地：**
+- `galoisconj_upstream_only` — Pari `galoisconj_monic` 参考路径（deg 快捷 → g4 → g1）
+- `upstream_shadow` 模块（4 测）：routing / snapshot / public API / g4_g1 核心
+- `arch_emb_heuristic` — `galois_root_perms_large_n_*` 迁出并标注 BNF 专用
+- `scripts/galoisconj_golden.sh` — 追加 `upstream_shadow` 必跑
+- `.doc/giac-galoisconj4-pari-port.md` — Pari↔Rust 函数对照
+- `known-divergences.md` DIV-105 — arch easy 删除登记
+
+**验收：**
+- [x] `./scripts/galoisconj_golden.sh` 含 shadow 绿
+- [x] 5 探针域 entry ≡ upstream-only ≡ snapshot ≡ `GaloisConjugates`
+- [ ] 非 WSS G6 扩表（P7 后）
+- [ ] R39r 父文档矩阵全 ✅（g4 主线已绿，P8 余量仍 open）
+
+**Blocked by:** —
+
+---
+
+## P5 — `galoisconj4_main` 编排 + `GaloisConjugates` 接线 ✅（2026-08-03）
 
 **模块：** `galoisconj4/mod.rs`；改 `galois_conj.rs`
 
-**做什么：** 完整 `galoisconj4_main` 流水线；`GaloisConjugates::compute`：先 `galoisconj_easy`（n≤8），不足则 `galoisconj4_main`；删除 `GALOIS_CONJ_ENUM_MAX_N` 硬顶对大 n 的退化。
+**做什么：** 完整 `galoisconj4_main` 流水线；`GaloisConjugates::compute` 对齐 Pari `galoisconj_monic`（g4→g1，无 arch easy）。
 
 **落地（2026-08-03）：**
-- `galoisconj_in_field_inner` 对齐 Pari `galoisconj_monic`：deg-1/2 快捷 → easy（n≤8）→ `galois_init`/`galoisconj4_main` → `galoisconj1`；**G1 严格 `len == numberofconjugates`**（去掉 weak `>=` / 非空 easy 回退）
-- `galoisconj4_to_field_conjugates` 经 `galois_init` 取 `conjugates`（完整 analysis→borne→galoisgen→galoisvecpermtopol）
+- `galoisconj_in_field_inner` 对齐 Pari `galoisconj_monic`：deg-1/2 快捷 → `galois_init`/`galoisconj4_main` → `galoisconj1`；**G1 严格 `len == numberofconjugates`**
+- **P5-upstream：** 删除 n≤8 arch easy；`galoisconj_monic_g4_g1` + shadow 测试
 - field 层探针矩阵单测 `galoisconj_probe_*_g1_g4`：ℚ(i)、x³−3x+1、ℚ(∛11)、Φ₁₁、x⁴+1
 
 **验收：**
 
-- [x] `cargo test -p giac-core --lib galois` 全绿且 case 数增加（114 绿，含 5 探针 G1–G4 + 6 P4 permtopol）
-- [x] 探针域满足 [G1–G4](#field-层验收谓词a-集成--唯一关单依据)（Φ₁₁、∛11、ℚ(i)、x⁴+1、三次 Galois）
-- [x] R39a grow 回归：`add_relation_galois_orbit` ℚ(i) / ∛11 仍绿
-- [x] P4 端到端：`ℚ(i)` / `Φ₁₁` nfelt = Pari（G6 扩金值见 P9）
+- [x] 探针域 G1–G4 + G6
+- [x] R39a grow 回归
 
-**Blocked by:** —（field 层已接线；P6 `galoisinit` 缓存共享待做）
+**Blocked by:** —
 
 ---
 
-## P6 — `GaloisInit`（flag=1）+ `GaloisAutPerms` 改读
+## P6 — `GaloisInit` 缓存 + `GaloisAutPerms` 同源 ✅（2026-08-03）
 
-**模块：** `galoisconj4/types.rs`；`galois_conj.rs`；`class_group.rs`
+**模块：** `galois_conj.rs` `FieldGaloisSnapshot`；`class_group.rs` `GrhRelCache`
 
-**做什么：** 组装 Pari `galoisinit` 对象（`pol/T/L/M/den/group/cyc`）；`GrhRelCache.galois` 一次 `galoisconj4_main(flag=1)`；`FbAutPerms`/`EmbAutPerms` 从 `L/M/ladic` 派生，去掉重复矩阵重建。
+**落地：**
+- `FieldGaloisSnapshot::compute` — 至多一次 `galois_init`；`init()` + `conjugates()` 同源
+- `GaloisConjugates` / `AutomorphismMatrices` / `GaloisAutPerms::compute` 改读 snapshot
+- `GrhRelCache.galois_snapshot` + `GaloisAutPerms::from_snapshot`
 
-**验收：**
+**验收：** [x] `field_galois_snapshot_shared_init_and_conjugates`（cubic，`init` Some）；[x] `field_galois_snapshot_deg2_has_no_init`（Q(i) 短路无 `galoisinit`）；[x] grow/R39r 回归绿
 
-- [ ] `GaloisAutPerms::compute` 与 P5 共轭列一致
-- [ ] `ideal_perm_under_galois_q_i` 等 R39r 单测无回归
-- [ ] `EmbAutPerms` 与 `FbAutPerms` 同源（文档登记若仍双路径）
-
-**Blocked by:** P5
+**余量：** g1-only 域（无 `galoisinit`）`EmbAutPerms` 仍走 arch 启发式
 
 ---
 
@@ -561,7 +604,7 @@ giac-core field 层谓词（try_insert_conjugate 等，见下）
 **落地（◐）：**
 
 - `nf_roots` / `galoisconj1`；Frobenius 置换 + `perm_to_pol`；`galoisconj1_to_field_conjugates`
-- 路由：`easy → g4 → g1`；`expected==1` → `[α]` 快路径（不调用 `nfroots`）
+- 路由：`g4 → g1`（P5-upstream ✅）；`expected==1` → `[α]` 快路径（不调用 `nfroots`）
 - `n>8` 不强制 `emb.reliable`
 
 **验收（见上文 [galoisconj 测试验收规格](#galoisconj-测试验收规格p4p9-共用)）：**
@@ -589,13 +632,13 @@ giac-core field 层谓词（try_insert_conjugate 等，见下）
 - [ ] 单测已有 `pr_orbit_fill_q_i_split_p5_marks_both_ideals` 仍绿
 - [ ] grow 路径在 ℚ(i) 分裂素上不误拒关系（集成测或登记探针域）
 
-**Blocked by:** P5（Galois 缓存稳定后接线）
+**Blocked by:** P6 ✅（Galois 缓存已落地）
 
 ---
 
 ## P9 — Pari golden harness + 文档
 
-**做什么：** `scripts/galoisconj_golden.sh`（或 Rust integration）批跑 Pari vs giac；更新 [GIAC-p2-bnf-pari-alignment](GIAC-p2-bnf-pari-alignment.md) R39r → ✅；新增 `.doc/giac-galoisconj4-pari-port.md` 函数对照表；修正全文「galoisconj4=LLL」表述。
+**做什么：** `scripts/galoisconj_golden.sh`（或 Rust integration）批跑 Pari vs giac；更新 [GIAC-p2-bnf-pari-alignment](GIAC-p2-bnf-pari-alignment.md) R39r → ✅；**[giac-galoisconj4-pari-port.md](../giac-galoisconj4-pari-port.md)** 函数对照表；修正全文「galoisconj4=LLL」表述。
 
 **状态（2026-07-13）：** 见上文 **P9 ◐** 节（脚本 + 探针域 G1/G4 已绿；deg 12/24/36 `#[ignore]`）。
 
@@ -614,12 +657,14 @@ giac-core field 层谓词（try_insert_conjugate 等，见下）
 
 **验收：**
 
-- [ ] 上表全部 golden 绿（或 sound-skip 登记）；逐项对照 **G6**
-- [ ] 与 [galoisconj 测试验收规格](#galoisconj-测试验收规格p4p9-共用) G1–G4 在探针域上一致
-- [ ] `cargo test -p giac-core --lib` 全绿
-- [ ] R39r 父文档状态更新
+- [x] 上表探针域 golden 绿 + **G6**（ℚ(i)、x³−3x+1、∛11、x⁴+1、Φ₁₁）；deg 12/24/36 计数已绿
+- [x] **upstream-shadow** CI 门禁（`upstream_shadow::*`）
+- [x] [giac-galoisconj4-pari-port.md](../giac-galoisconj4-pari-port.md) 函数对照
+- [x] 与 [galoisconj 测试验收规格](#galoisconj-测试验收规格p4p9-共用) G1–G4 在探针域上一致
+- [ ] 非 WSS / `1<c<n` 扩 G6 金值（P7 后）
+- [ ] R39r 父文档状态更新（P8 `pr_orbit` 仍 ◐）
 
-**Blocked by:** P5（P6/P7 完成后扩表）
+**Blocked by:** P6/P7（扩金值矩阵）
 
 ---
 
@@ -632,6 +677,8 @@ r39r-g4-p1-analysis
 r39r-g4-p2-frobenius
 r39r-g4-p3-galoisgen
 r39r-g4-p5-main-wire
+r39r-g4-p6-galois-init-cache
+r39r-g4-p9-upstream-shadow
 r39r-g4-p7-nfroots
 r39r-g4-p9-golden
 ```

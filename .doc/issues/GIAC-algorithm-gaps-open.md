@@ -185,6 +185,12 @@ preprocess → MRV → remove_lnexp → SparseSeries lead → limit
 | **MISC-G1** | `gbasis`（Groebner 基） | 仅 `greduce` | phase5 |
 | **MISC-G2** | WASM / 插件全覆盖 | 冒烟级 | **GIAC-222** |
 
+### 6.1 代数数论 / Galois（Pari 对标，非 giac C++）
+
+| ID | 能力 | 现状 | 跟踪 |
+|----|------|------|------|
+| **GAL-G1** | `EmbAutPerms` 全走 `galoisinit` | ◐ deg-2 / g1-only 仍 `compute_from_arch_heuristic`（O(n!) f64，`n≤8`）；**conjugates 已 g4/g1** | [GIAC-galoisconj4-port-plan](GIAC-galoisconj4-port-plan.md) P6 余量；DIV-105；`galois_conj.rs` |
+
 ---
 
 ## 7. 非算法类 ignore（23 中的 ~19 个）
