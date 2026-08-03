@@ -488,7 +488,7 @@ giac-core field 层谓词（try_insert_conjugate 等，见下）
 - [x] deg 12 golden 绿
 - [x] `embeddings_s4_degree_24_all_real`（arch）
 - [x] deg 24 WSS golden 绿（`galois_gen_lift` / `testpermutation` 对齐 Pari）
-- [x] deg 36 golden 绿（`galoisconj_golden_f36_degree_36`，orders `[3,3,4]`）
+- [x] deg 36 golden 绿（`galoisconj_golden_f36_degree_36`，orders `[3,3,4]`；**default nextest `#[ignore]` ~80s**）
 - [x] G6 逐项坐标 = Pari `nfgaloisconj`（探针域：ℚ(i)、x³−3x+1、∛11、x⁴+1、Φ₁₁；`g6_pari_nfelt` + `permtopol_e2e`）
 
 **落地（2026-08-03）：**
