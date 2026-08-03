@@ -395,12 +395,26 @@ giac-core field 层谓词（try_insert_conjugate 等，见下）
 - **`FpXQ_sqrtn`**（`padic/fpxq_sqrtn.rs`）：`gen_Shanks_sqrtn` on `𝔽_q^*` — cyclo 分支无 root fallback
 - **`FpXV_chinese`**（`padic/fpx_chinese.rs`）+ **`mkliftpow`**（`lift.rs`）：S₄ `liftp` 列 = CRT(`trans(misom)`) → `automorphismlift`
 - **`s4releveauto` / `lincomb` / `s4makelift` / `s4test`** + **`FqC_FqV_mul`**（`specials.rs`）
-- **`s4_galois_gen` / `try_s4`** — prep + σ→τ→φ 搜索接线（`galconj.c` L1542–1665）；验收 `s4_galois_gen_orders_24_p4`
+- **`s4_galois_gen` / `try_s4`** — prep + σ→τ→φ 搜索接线（`galconj.c` L1542–1665）；验收 `s4_galois_gen_orders_24_p4` + **`galoisconj_golden_s4_degree_24`**（Pari `s4galoisgen` 探针，orders `[2,2,3,2]`，~15s release）
 - **`bezout_lift_fact`**：按因子 `hensel_lift_factor` + CRT 幂等元（非裸 cofactor）；**`FpXQ_autpowers`**：合成幂 `[x,σ,σ∘σ,…]`（曾误为乘法幂 `[1,σ,σ·σ,…]`）
 - **`S4GaloisCandidate` / `F36GaloisCandidate` + 门控**；`try_f36` 仍 stub → 回落 WSS
 - F₃₆：`f36releveauto*` + search 仍待
-- 余量：该 S₄ 探针上全量 `galois_analysis` 过慢（Pari 20ms；Rust 分钟级）— 单测用已知 `p4=31,l=83`；分析性能另开
+- 余量：`FpX_nbroots` 已对齐 Pari `Flx_nbroots`（Frobenius gcd，非全因子分解）；`calcul_l` 与 upstream 同语义
 - 余量：`bezout_lift_fact` 无 Pari `MultiLift` 产品树（逐因子 Hensel；S₄ n=6 可接受，大 g 可换树）
+
+### S₄ `s4galoisgen` 数学结构（2026-08-03）
+
+探针 `s4_galois_probe_poly()`：`Gal= S₄`，`identify=[24,12]`，PC orders `[2,2,3,2]`。
+
+| 阶段 | 数学对象 | 代码 |
+|------|----------|------|
+| 门控 | `ord=3`（8 个三次 Frobenius）且 `p4≠0`（6 个四次因子 mod p4）⇒ S₄ 非 A₄ | `S4GaloisCandidate` |
+| Prep | `T mod p4` → 6 个四次不可约 ⇒ `FpXV_ffisom` → `mkliftpow` + bezout 幂等元 | `s4_galois_gen` 前半 |
+| σ | 三对因子 `(a,b)` 的 `s4releveauto` + `(ℤ/4ℤ)³` 上 `lincomb` → 3-阶置换 | σ 搜索 |
+| τ, φ | `rot3` 因子标号 + 类似搜索 | τ、φ |
+| 输出 | `r1=στ`, `r2=φστφ`, `r3=φσ`, `r4=σ` | `special_galois_gen_result(...,[2,2,3,2])` |
+
+**Rust 探针见证（`galois_analysis_s4_probe_matches_pari`）：** `plift=97`, `p4=109`（扫素数 `p0=53`，首个 ord-4），Frobenius 首次 split `l=83`，`calcul_l` 后 `l=643`。Pari 文献常写 `@29/@31` 为更小素数上的同型分解，非 `galoisanalysis` 扫序首个见证。
 
 ### `testpermutation` / `galoisgenliftauto` 移植不变量（2026-07-24）
 
@@ -411,7 +425,7 @@ giac-core field 层谓词（try_insert_conjugate 等，见下）
 | 1 | **`ar` 全量重算** | 每轮 `ar[a+1]=0` 后重算 `ar[a]…ar[1]`。**有意不跟** Pari 增量后缀（`ar_from`）；数学等价，去掉循环携带状态。勿再引入半截增量除非对照 Pari 中间量回归 |
 | 2 | **`G[cx]=F[orbit_id]`** | `gel(G,cx)=gel(F,coeff(B,i,j))`；`B` 是 Frobenius **轨道编号**。禁止 `find(cycle.contains(root))` |
 | 3 | **`umael(W,a,b)=L[b]·y[a]`** | Pari 列主序；禁止转置。对合可能掩盖错误 |
-| 4 | **验收不要只靠对合** | 必须有 deg-24 WSS（`galoisconj_golden_s4_degree_24`） |
+| 4 | **验收** | deg-24 **S₄ `s4galoisgen`**（`galoisconj_golden_s4_degree_24`，orders `[2,2,3,2]`）+ WSS（`galoisconj_golden_s4_wss_degree_24`） |
 
 **代码锚点：** `lift_gen.rs`（`test_permutation`、`f_cycle_for_coeff`）；`testlift.rs`（`vmatrix_headlong`）；`types.rs`（`HeadlongPvMatrix`）。
 
@@ -421,7 +435,8 @@ giac-core field 层谓词（try_insert_conjugate 等，见下）
 - [x] `a4_galois_gen_order_12` 端到端
 - [x] `galoisconj_golden_a4_degree_12`（`galoisconj4_main`）
 - [x] `x⁴+1` get_image / `galois_gen` / nilp
-- [x] deg-24 WSS e2e（`galoisconj_golden_s4_degree_24`）
+- [x] deg-24 WSS e2e（`galoisconj_golden_s4_wss_degree_24`）
+- [x] deg-24 S₄ `s4galoisgen` e2e（`galoisconj_golden_s4_degree_24`，PC orders `[2,2,3,2]`）
 - [x] `FpXV_ffisom` + S₄/F₃₆ 门控接线（快路本体仍 stub）
 - [x] `FpX_ffintersect` 真嵌入（`deg(P)|deg(Q)`；special + cyclo + Hilbert-90）
 - [x] `FpXV_chinese` + `mkliftpow`（`mkliftpow_x4_plus_1_mod_5`）
@@ -437,7 +452,7 @@ giac-core field 层谓词（try_insert_conjugate 等，见下）
 | `zpx_roots` 排序 | ≠ Pari `galoisinit` 根序 → Pari sigma 单测 ignore | 可选根序对齐 |
 | S₄ 快路 | `try_s4` ✅；F₃₆ 仍缺 | `f36galoisgen` |
 | `bezout_lift_fact` | 逐因子 Hensel，无 `MultiLift` 树 | 大 `g` 时换产品树 |
-| `galois_analysis` 慢 | deg-24 S₄ 探针分钟级（Pari ~ms） | 分析性能 |
+| `galois_analysis` `plift`/`p4` | 见证素数依赖扫序起点（`p0≈2n`）；与 Pari 同循环但首个 `@p4` 可差（如 109 vs 31） | 可选：对齐 `improves()` 序 |
 
 **Arch（2026-07-14，对标 Pari `QX_complex_roots` / `fujiwara_bound`）：**
 - Sturm 隔离界：`min(Cauchy, 2·Fujiwara)`（宽 Cauchy 会丢大根）
@@ -452,8 +467,8 @@ giac-core field 层谓词（try_insert_conjugate 等，见下）
 
 **落地：**
 - `scripts/galoisconj_golden.sh` — Rust `galoisconj_golden_counts` + 可选 `PARI_GOLDEN=1` gp 对照
-- `main.rs` `golden`：ℚ(i)、x³−3x+1、Φ₁₁、x⁴+1、∛11、**A₄ deg-12**、**WSS deg-24**
-- `#[ignore]`：deg 36（`f36galoisgen`）；S₄ 快路仍缺 `FpXV_ffisom`
+- `main.rs` `golden`：ℚ(i)、x³−3x+1、Φ₁₁、x⁴+1、∛11、**A₄ deg-12**、**S₄ `s4galoisgen` deg-24**、**WSS deg-24**
+- `#[ignore]`：deg 36（`f36galoisgen`）
 
 **验收：**
 - [x] `./scripts/galoisconj_golden.sh` 绿（探针域）
