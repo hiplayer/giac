@@ -261,7 +261,7 @@ giac-core field 层谓词（try_insert_conjugate 等，见下）
 | `ZqPolynomial` | f ∈ (ℤ/Qℤ)[x] | `GaloisLift.t_mod_q`、Bezout |
 | `ZqQuotientElement` | (ℤ/Qℤ)[x]/(T) 元素 | `pauto` 幂、`frobeniusliftall` |
 | `BezoutLiftFactors` | Bezout 提升 cofactor | `init_test_lift` |
-| `AutomorphismPowers` | 1, aut, aut², … | `fpxq_autpowers` |
+| `AutomorphismPowers` | x, aut, aut∘aut, … (`FpXQ_autpowers`) | `fpxq_autpowers` |
 | `ComboProductCache` | `C` / `Cd` 组合积缓存 | `frobeniusliftall` |
 | `PermTestMatrix` | Vandermonde 测试行 | `galois_test_perm` |
 | `GaloisAnalysis` | Frobenius 扫描 / WSS 判定 | `galois_analysis` |
@@ -395,8 +395,12 @@ giac-core field 层谓词（try_insert_conjugate 等，见下）
 - **`FpXQ_sqrtn`**（`padic/fpxq_sqrtn.rs`）：`gen_Shanks_sqrtn` on `𝔽_q^*` — cyclo 分支无 root fallback
 - **`FpXV_chinese`**（`padic/fpx_chinese.rs`）+ **`mkliftpow`**（`lift.rs`）：S₄ `liftp` 列 = CRT(`trans(misom)`) → `automorphismlift`
 - **`s4releveauto` / `lincomb` / `s4makelift` / `s4test`** + **`FqC_FqV_mul`**（`specials.rs`）
-- **`S4GaloisCandidate` / `F36GaloisCandidate` + `try_s4`/`try_f36` 门控**（与 Pari 一致；本体仍 stub → 回落 WSS）
-- S₄ / F₃₆ 快路本体：σ→τ→φ search 接线仍待
+- **`s4_galois_gen` / `try_s4`** — prep + σ→τ→φ 搜索接线（`galconj.c` L1542–1665）；验收 `s4_galois_gen_orders_24_p4`
+- **`bezout_lift_fact`**：按因子 `hensel_lift_factor` + CRT 幂等元（非裸 cofactor）；**`FpXQ_autpowers`**：合成幂 `[x,σ,σ∘σ,…]`（曾误为乘法幂 `[1,σ,σ·σ,…]`）
+- **`S4GaloisCandidate` / `F36GaloisCandidate` + 门控**；`try_f36` 仍 stub → 回落 WSS
+- F₃₆：`f36releveauto*` + search 仍待
+- 余量：该 S₄ 探针上全量 `galois_analysis` 过慢（Pari 20ms；Rust 分钟级）— 单测用已知 `p4=31,l=83`；分析性能另开
+- 余量：`bezout_lift_fact` 无 Pari `MultiLift` 产品树（逐因子 Hensel；S₄ n=6 可接受，大 g 可换树）
 
 ### `testpermutation` / `galoisgenliftauto` 移植不变量（2026-07-24）
 
@@ -422,7 +426,8 @@ giac-core field 层谓词（try_insert_conjugate 等，见下）
 - [x] `FpX_ffintersect` 真嵌入（`deg(P)|deg(Q)`；special + cyclo + Hilbert-90）
 - [x] `FpXV_chinese` + `mkliftpow`（`mkliftpow_x4_plus_1_mod_5`）
 - [x] `s4releveauto` / `lincomb` / `s4makelift` / `s4test`（`s4_make_lift_and_test_frobenius_cubic`）
-- [ ] S₄ / F₃₆ 快路端到端（σ→τ→φ search / `f36*`）
+- [x] `try_s4` σ→τ→φ（`s4_galois_gen_orders_24_p4`，Pari [24,12] 探针）
+- [ ] F₃₆ 快路端到端（`f36*`）
 
 **登记余量：**
 
@@ -430,7 +435,9 @@ giac-core field 层谓词（try_insert_conjugate 等，见下）
 |------|------|--------|
 | `valsol += 1`（f64） | Pari 用 REAL/`ceil_safe`；`x⁴+1` 在精确 den=4 时 f64 少 1 个 `l`-digit | 多精度 arch 范数 |
 | `zpx_roots` 排序 | ≠ Pari `galoisinit` 根序 → Pari sigma 单测 ignore | 可选根序对齐 |
-| S₄ / F₃₆ 快路 | helpers ✅（ffisom/chinese/mkliftpow/s4test…）；缺 σ→τ→φ search | 快路移植 |
+| S₄ 快路 | `try_s4` ✅；F₃₆ 仍缺 | `f36galoisgen` |
+| `bezout_lift_fact` | 逐因子 Hensel，无 `MultiLift` 树 | 大 `g` 时换产品树 |
+| `galois_analysis` 慢 | deg-24 S₄ 探针分钟级（Pari ~ms） | 分析性能 |
 
 **Arch（2026-07-14，对标 Pari `QX_complex_roots` / `fujiwara_bound`）：**
 - Sturm 隔离界：`min(Cauchy, 2·Fujiwara)`（宽 Cauchy 会丢大根）
