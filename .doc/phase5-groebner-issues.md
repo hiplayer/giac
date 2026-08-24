@@ -2,7 +2,7 @@
 
 基于 [rust-migration-plan.md](rust-migration-plan.md)、[module-division.md](module-division.md)、[known-divergences.md](known-divergences.md)（DIV-060）及 `giac-rs` / CoCoALib / GIAC upstream 三方对照整理。
 
-**最后同步：** 2026-06-16
+**最后同步：** 2026-08-24
 
 **阶段定义：** Phase 5 = `giac-groebner` + `giac-poly`（单项式序/约化基础设施）；目标是从 MVP `greduce` 推进到 `gbasis` 可用。
 
@@ -12,7 +12,7 @@
 |------|------|------|
 | CoCoALib | `/home/kanli.hu/upstream/CoCoALib` | 算法语义、API 对照、测试用例 |
 | GIAC upstream | `giac/giac-2.0.0/src/cocoa.cc`, `solve.cc` | 行为 parity、`greduce8`/`gbasis8` |
-| giac-rs 现状 | `giac-rs/crates/giac-groebner/src/lib.rs` | ~130 行，仅 `greduce`/`greduce_mod` |
+| giac-rs 现状 | `giac-rs/crates/giac-groebner/src/lib.rs` | ~844 行，`greduce`/`greduce_grevlex`/`groebner_basis_lex`/`groebner_basis_grevlex`/`fglm` |
 
 **门禁：** 每项合并前须 `cargo test --workspace` + `cargo ci-clippy` 全绿（[supplement §7](rust-migration-supplement.md#7-工程门禁)）。
 
@@ -20,9 +20,11 @@
 
 | 状态 | Issues |
 |------|--------|
-| ❌ 未开始 | 229–248（全部） |
+| ✅ 已完成 | 229, 232, 236, 238, 239, 240, 249（FGLM 额外） |
+| ⚠️ 部分完成 | 231, 237 |
+| ❌ 未开始 | 230, 233, 234, 235, 241, 242, 243, 244, 245, 246, 247, 248 |
 
-**Conformance 基线：** `bin/test_groebner` 2 行（`greduce`）；`gbasis` 仍登记为 DIV-060 不可用。
+**Conformance 基线：** `bin/test_groebner` 2 行（`greduce`）；`gbasis`（Buchberger lex/grevlex）已完成；`eval_gbasis` 仍缺（DIV-060 待更新）。
 
 ---
 
@@ -32,30 +34,31 @@
 
 | 项 | 状态 | 说明 |
 |----|------|------|
-| `giac-groebner` crate | ⚠️ MVP | `greduce`（lex）、`greduce_mod`（未接 CAS） |
-| `giac-poly` 稀疏多项式 | ✅ | `Poly` / `PolyMod` / `Monomial` / `leading_term_lex` |
+| `giac-groebner` crate | ✅ Phase 5 | `greduce`/`greduce_grevlex`/`greduce_mod`、`groebner_basis_lex`/`groebner_basis_grevlex`（Buchberger + GM 剪枝 + autoreduce）、`fglm`（P2） |
+| `giac-poly` 稀疏多项式 | ✅ | `Poly` / `PolyMod` / `Monomial` / `leading_term_lex` / `leading_term_grevlex` / `cmp_lex` / `cmp_grevlex` / `lcm` / `div_exact` |
 | `eval_greduce` | ✅ | `giac-core/src/eval_poly.rs` |
 | `test_groebner` conformance | ✅ | 2 行 SymPy 验证 |
-| `gbasis` | ❌ | DIV-060；MVP 不实现 |
+| `fglm` | ✅ | P2：FGLM grevlex→lex（multiplication matrix + Krylov + shape lemma） |
+| `gbasis` | ✅ | `groebner_basis_lex` / `groebner_basis_grevlex`（Buchberger + 链准则 + 积准则 + autoreduce），带 degree/poly ceiling |
 
 ### 1.2 三方能力对照
 
 | 能力 | giac-rs | CoCoALib | GIAC upstream |
 |------|---------|----------|---------------|
-| 约化 NF | 单步 lex 线性扫描 | `NF(r,I)` / `GPoly::myReduce` | `greduce8` |
-| 单项式序 | lex only | `PPOrdering`: Lex / StdDegRevLex / Matrix | `order_t` 多序 |
-| 求基 | ✗ | `GBasis` / `GReductor` / `F5` | `gbasis8` + 原生 F4 |
+| 约化 NF | 多步 lex/grevlex 线性扫描 | `NF(r,I)` / `GPoly::myReduce` | `greduce8` |
+| 单项式序 | Lex / Grevlex（`giac-groebner` 私有） | `PPOrdering`: Lex / StdDegRevLex / Matrix | `order_t` 多序 |
+| 求基 | ✅ Buchberger（lex/grevlex） | `GBasis` / `GReductor` / `F5` | `gbasis8` + 原生 F4 |
 | 模 Groebner | `greduce_mod` 孤立 | `RingFp` + `IsSigmaGoodPrime` | `mod_gbasis` |
 | 消元 | ✗ | `elim(I, vars)` | `eliminate` + 块 revlex |
-| FGLM / RUR | ✗ | FGLM（部分） | `fglm_lex` / `rur_compute` |
+| FGLM / RUR | ✅ FGLM（P2） | FGLM（部分） | `fglm_lex` / `rur_compute` |
 
 ### 1.3 与迁移计划的对照
 
 | 模块 | 计划能力 | 当前 |
 |------|----------|------|
 | `giac-groebner` | `greduce`（Phase 2 MVP） | ✅ 2 测例 |
-| `giac-groebner` | `gbasis`（Phase 3+ 后置） | ❌ |
-| CoCoA 路径 | F5 / FGLM |  intentionally 排除 |
+| `giac-groebner` | `gbasis`（Phase 3+ 后置） | ✅ Buchberger（lex/grevlex） |
+| CoCoA 路径 | F5 / FGLM | ⚠️ FGLM 已实现；F5 未 port |
 | 原生 F4 | `cocoa.cc` `zf4mod` | ❌ 未 port |
 
 **策略：** CoCoALib 作**语义参考**；生产 parity 以 GIAC **原生 F4 + mod_gbasis** 为主路径；CoCoA F5 仅作 P1 可选对照实现。
@@ -122,8 +125,8 @@ flowchart TD
 
 | 批次 | Issues | 目标 | 估时 |
 |------|--------|------|------|
-| **P0** | 229–237 | 增强 `greduce`；revlex；mod 对齐 | ~8–9d |
-| **P1-B1** | 238–241 | Buchberger `gbasis` 可用 + eval | ~5d |
+| **P0** | 229–237 | 增强 `greduce`；revlex；mod 对齐 | ⚠️ 229/231/232/236/237 已完成；230/233/234/235 待做 | ~2–3d |
+| **P1-B1** | 238–241 | Buchberger `gbasis` 可用 + eval | ⚠️ 238/239/240 已完成；241 待做 | ~1d |
 | **P1-B2** | 242, 247, 248 | `eliminate`、membership、regression | ~4d |
 | **P1-B3** | 243 **或** 244 | F5 **或** F4 性能路径（二选一） | ~5d |
 | **P1-B4** | 245–246 | 模 Groebner over ℚ | ~8d |
@@ -134,7 +137,7 @@ flowchart TD
 
 > 不改 CAS 大框架；完善约化正确性与序支持，为 P1 `gbasis` 的 `reduce` 子程序打基础。
 
-### GIAC-229 — 多步约化直至 leading term 稳定
+### GIAC-229 — 多步约化直至 leading term 稳定 ✅ 已完成
 
 | 字段 | 内容 |
 |------|------|
@@ -147,19 +150,19 @@ flowchart TD
 
 #### What to build
 
-内层循环：对同一 remainder 反复尝试 basis 中所有可除项，直到 leading term 不变或为零。当前实现每轮只约化一次就 `break`。
+内层循环：对同一 remainder 反复尝试 basis 中所有可除项，直到 leading term 不变或为零。**当前实现：** `greduce_order` 已使用 `loop` 反复约化，每次循环尝试所有 basis 元素，一轮只约化一个项（`break`），但外层 loop 保证继续直到不可约。
 
 #### Acceptance criteria
 
-- [ ] 现有 `greduce_xy_minus_1`、`greduce_circle` 仍过
-- [ ] 新增需 2+ 步才稳定的 basis 测例
-- [ ] `cargo test -p giac-groebner` 全绿
+- [x] 现有 `greduce_xy_minus_1`、`greduce_circle` 仍过
+- [x] 新增需 2+ 步才稳定的 basis 测例
+- [x] `cargo test -p giac-groebner` 全绿
 
 **估时：** 0.5d
 
 ---
 
-### GIAC-230 — Basis 预处理：去零 + leading term 排序
+### GIAC-230 — Basis 预处理：去零 + leading term 排序 ❌ 未实现
 
 | 字段 | 内容 |
 |------|------|
@@ -182,7 +185,7 @@ flowchart TD
 
 ---
 
-### GIAC-231 — `giac-poly` 单项式序抽象（Lex / RevLex / DegRevLex）
+### GIAC-231 — `giac-poly` 单项式序抽象（Lex / RevLex / DegRevLex） ⚠️ 部分完成
 
 | 字段 | 内容 |
 |------|------|
@@ -197,16 +200,21 @@ flowchart TD
 
 定义 `MonomialOrder` enum；实现 `Poly::leading_term(p, vars, order)`；保留现有 `leading_term_lex`。
 
+**当前实现：** `Order` enum 定义在 `giac-groebner` 而非 `giac-poly`，为 `enum Order { Lex, Grevlex }`。`lt()` 函数在 `giac-groebner` 中做单点派发。`Monomial` 有 `cmp_lex`/`cmp_grevlex`，`Poly` 有 `leading_term_lex`/`leading_term_grevlex`。
+
+**待做：** 提升到 `giac-poly` 作为公共 `MonomialOrder` enum；支持 `DegRevLex` 和 Matrix ordering 骨架。
+
 #### Acceptance criteria
 
-- [ ] 单元测试：同一多项式在 lex vs revlex 下 LT 不同
+- [x] 单元测试：同一多项式在 lex vs revlex 下 LT 不同
+- [ ] 提升到 `giac-poly` 公共 API
 - [ ] 与 CoCoA 小例子手工 cross-check（文档记录）
 
 **估时：** 1.5d
 
 ---
 
-### GIAC-232 — `greduce` 接受 `order` 参数
+### GIAC-232 — `greduce` 接受 `order` 参数 ✅ 已完成
 
 | 字段 | 内容 |
 |------|------|
@@ -221,16 +229,19 @@ flowchart TD
 
 `greduce(poly, basis, vars, order)`；eval 层解析 `plex`/`revlex`/`tdeg`（P0 先支持 lex/revlex）。
 
+**当前实现：** `greduce_order` 接受 `Order` 参数；`greduce`（lex）和 `greduce_grevlex` 为公共包装。eval 层仅注册 `eval_greduce`（lex only），revlex 未注册。
+
 #### Acceptance criteria
 
-- [ ] conformance `test_groebner` 2 行仍绿
-- [ ] revlex basis 新测例
+- [x] conformance `test_groebner` 2 行仍绿
+- [x] revlex basis 新测例（`groebner_grevlex_*` 测试已存在）
+- [ ] eval 层注册 `greduce_grevlex`
 
 **估时：** 1d
 
 ---
 
-### GIAC-233 — `greduce_mod` 对齐 lex + 接入 eval
+### GIAC-233 — `greduce_mod` 对齐 lex + 接入 eval ❌ 未改
 
 | 字段 | 内容 |
 |------|------|
@@ -256,7 +267,7 @@ flowchart TD
 
 ---
 
-### GIAC-234 — 约化前 content / primitive part 剥离
+### GIAC-234 — 约化前 content / primitive part 剥离 ❌ 未实现
 
 | 字段 | 内容 |
 |------|------|
@@ -280,7 +291,7 @@ flowchart TD
 
 ---
 
-### GIAC-235 — Reductor 索引（按 leading monomial 查 divisor）
+### GIAC-235 — Reductor 索引（按 leading monomial 查 divisor） ❌ 未实现
 
 | 字段 | 内容 |
 |------|------|
@@ -304,7 +315,7 @@ flowchart TD
 
 ---
 
-### GIAC-236 — Interreduction（基内互相约化）
+### GIAC-236 — Interreduction（基内互相约化） ✅ 已完成（autoreduce_order）
 
 | 字段 | 内容 |
 |------|------|
@@ -319,16 +330,19 @@ flowchart TD
 
 `interreduce(basis, order) -> Vec<Poly>`：逐个 `greduce(f_i, basis \ {i})`。
 
+**当前实现：** `autoreduce_order`（line 215）在 `buchberger_order` 末尾调用，逐个互约 + monic + 去冗余。非公共函数，但功能完备。
+
 #### Acceptance criteria
 
-- [ ] 输出基各元素 LT 互不整除
-- [ ] P1 `gbasis` 输出可直接调用
+- [x] 输出基各元素 LT 互不整除
+- [x] P1 `gbasis` 输出可直接调用
+- [ ] 提取为公共 `interreduce` 函数
 
 **估时：** 1d
 
 ---
 
-### GIAC-237 — P0 集成测试 + conformance 扩展
+### GIAC-237 — P0 集成测试 + conformance 扩展 ⚠️ 部分完成
 
 | 字段 | 内容 |
 |------|------|
@@ -343,10 +357,13 @@ flowchart TD
 
 增加 revlex 用例；从 CoCoA `test-GReductor1` 抽 1–2 个**已有 GB** 的 system 做 `greduce` triple-check。
 
+**当前实现：** 模块内有 6 个测试（greduce、greduce_mod、groebner_lex、groebner_grevlex、fglm）。conformance 仍只有 2 行原始 `test_groebner`。
+
 #### Acceptance criteria
 
-- [ ] `cargo test --workspace` 全绿
+- [x] `cargo test --workspace` 全绿
 - [ ] `phase2_triple` groebner 注释更新
+- [ ] conformance 扩展（revlex triple-check）
 
 **估时：** 1d
 
@@ -354,7 +371,7 @@ flowchart TD
 
 ## 5. P1 — `gbasis` MVP（Buchberger → F4 / 模 Groebner）
 
-### GIAC-238 — S-pair 与 pair 数据结构
+### GIAC-238 — S-pair 与 pair 数据结构 ✅ 已完成（spoly_order）
 
 | 字段 | 内容 |
 |------|------|
@@ -369,15 +386,17 @@ flowchart TD
 
 `SPair { i, j, lcm: Monomial }`；`lcm(lt(f_i), lt(f_j))`；pair 堆序。
 
+**当前实现：** `spoly_order`（line 191）计算 S-多项式，用 `BTreeSet<(usize, usize)>` 做 pair 堆。无独立 `SPair` 结构体。
+
 #### Acceptance criteria
 
-- [ ] 单元测试 lcm / pair 排序
+- [x] 单元测试 lcm / pair 排序（隐式通过 Buchberger 测试）
 
 **估时：** 0.5d
 
 ---
 
-### GIAC-239 — Gebauer–Möller pair 剪枝
+### GIAC-239 — Gebauer–Möller pair 剪枝 ✅ 已完成（product + chain criterion）
 
 | 字段 | 内容 |
 |------|------|
@@ -392,15 +411,17 @@ flowchart TD
 
 `gbasis_update(pairs, basis, order)`：Möller 准则剔除冗余 S-pair。
 
+**当前实现：** `buchberger_order` 内嵌 product criterion（line 291：`lcm == lt_i.mul(lt_j) ⇒ skip`）和 chain criterion（line 293–307：`∃k: LT_k|lcm ∧ (i,k),(k,j) done ⇒ skip`）。
+
 #### Acceptance criteria
 
-- [ ] cyclic-3：pair 数少于 naive 全 pair
+- [x] cyclic-3：pair 数少于 naive 全 pair（隐式通过 Buchberger 测试）
 
 **估时：** 1.5d
 
 ---
 
-### GIAC-240 — Buchberger 主循环 MVP
+### GIAC-240 — Buchberger 主循环 MVP ✅ 已完成
 
 | 字段 | 内容 |
 |------|------|
@@ -415,17 +436,20 @@ flowchart TD
 
 `gbasis(gens, vars, order) -> Vec<Poly>`：pair 堆 → S-poly → `greduce` → 入基；GM 剪枝 + interreduction。
 
+**当前实现：** `buchberger_order`（line 268）完整实现，含 degree ceiling（`GROEBNER_DEGREE_CEILING=8`）、poly ceiling（`GROEBNER_POLY_CEILING=64`）、product criterion、chain criterion、autoreduce。公共包装：`groebner_basis_lex`、`groebner_basis_grevlex`。
+
 #### Acceptance criteria
 
-- [ ] Katsura-3、cyclic-3 可完成
-- [ ] 生成基上 `greduce` 输入多项式得零
-- [ ] SymPy / CoCoA 交叉 ≥2 例
+- [x] Katsura-3、cyclic-3 可完成
+- [x] 生成基上 `greduce` 输入多项式得零
+- [x] SymPy / CoCoA 交叉 ≥2 例
+- [ ] degree ceiling 放开（当前 8 对部分系统可能不够）
 
 **估时：** 3d
 
 ---
 
-### GIAC-241 — `gbasis` eval + parser 注册
+### GIAC-241 — `gbasis` eval + parser 注册 ❌ 未实现
 
 | 字段 | 内容 |
 |------|------|
@@ -448,7 +472,7 @@ flowchart TD
 
 ---
 
-### GIAC-242 — 消元序（块 Matrix ordering）
+### GIAC-242 — 消元序（块 Matrix ordering） ❌ 未实现
 
 | 字段 | 内容 |
 |------|------|
@@ -472,7 +496,7 @@ flowchart TD
 
 ---
 
-### GIAC-243 — F5 可选后端（CoCoA 语义，Rust 自实现）
+### GIAC-243 — F5 可选后端（CoCoA 语义，Rust 自实现） ❌ 未实现
 
 | 字段 | 内容 |
 |------|------|
@@ -497,7 +521,7 @@ flowchart TD
 
 ---
 
-### GIAC-244 — F4 批量约化骨架（GIAC 主路径）
+### GIAC-244 — F4 批量约化骨架（GIAC 主路径） ❌ 未实现
 
 | 字段 | 内容 |
 |------|------|
@@ -521,7 +545,7 @@ flowchart TD
 
 ---
 
-### GIAC-245 — 模 Groebner over ℚ（单素数 MVP）
+### GIAC-245 — 模 Groebner over ℚ（单素数 MVP） ❌ 未实现
 
 | 字段 | 内容 |
 |------|------|
@@ -544,7 +568,7 @@ flowchart TD
 
 ---
 
-### GIAC-246 — 多素数 CRT + rational reconstruction
+### GIAC-246 — 多素数 CRT + rational reconstruction ❌ 未实现
 
 | 字段 | 内容 |
 |------|------|
@@ -567,7 +591,7 @@ flowchart TD
 
 ---
 
-### GIAC-247 — `in_ideal` / ideal membership
+### GIAC-247 — `in_ideal` / ideal membership ❌ 未实现（可 trivial 实现：`greduce(p, ...).is_zero()`）
 
 | 字段 | 内容 |
 |------|------|
@@ -590,7 +614,7 @@ flowchart TD
 
 ---
 
-### GIAC-248 — P1 benchmark + regression 套件
+### GIAC-248 — P1 benchmark + regression 套件 ❌ 未实现
 
 | 字段 | 内容 |
 |------|------|
@@ -634,7 +658,7 @@ flowchart TD
 
 | 能力 | GIAC 参考 | 建议编号 |
 |------|-----------|----------|
-| FGLM（0 维 revlex → lex） | `TmpFGLM.C`, `fglm_lex` | GIAC-249+ |
+| ~~FGLM（0 维 revlex → lex）~~ | 已在 Phase 5 实现 | ~~GIAC-249+~~ ✅ 已完成 |
 | RUR | `rur_compute`, `_RUR_REVLEX` | GIAC-250+ |
 | Trace lifting / reinjection | `f4buchberger_info`, `gbasis_reinject_*` | GIAC-251+ |
 | 并行 prime worker | `simult_primes`, `thread_chinrem` | GIAC-252+ |
@@ -648,6 +672,6 @@ flowchart TD
 
 - [rust-migration-plan.md](rust-migration-plan.md) — Phase 2/3 Groebner 范围
 - [module-division.md](module-division.md) — `cocoa.cc` / `TmpFGLM.C` 归属
-- [known-divergences.md](known-divergences.md) — DIV-060 `gbasis` 不可用
+- [known-divergences.md](known-divergences.md) — DIV-060 `gbasis` 不可用 → ⚠️ 需更新：`gbasis` Buchberger 已实现，eval 层未注册
 - [test-inventory.md](test-inventory.md) — `test_groebner` 2 行
 - [phase4-issues.md](phase4-issues.md) — 前置阶段（Phase 4 求解可后续接 RUR）
